@@ -1,0 +1,155 @@
+\section{Средства отладки --- модуль {\tt debug.hpp}}
+\subsection{Общие замечания}
+Модуль \verb'debug.hpp' предоставляет ряд макросов для вывода отладочной информации в процессе исполнения
+(фактически удобную альтернативу традиционным отладочным \verb'printf') и генерации исключений:
+\begin{itemize}
+  \item\verb'WOUT(expressions...)' --- вывод информации в \verb'std::cout';
+  \item\verb'WERR(expressions...)' --- вывод информации в \verb'std::cerr';
+  \item\verb'WSTR(S, expressions...)' --- вывод информации в поток \verb'S', являющийся наследником \verb'std::ostream';
+  \item\verb'WEXC(expressions...)' --- вывод информации со стека в \verb'std::cerr' при обработке исключения; 
+  \item\verb'WASSERT(condition, message, expressions...)' --- вывод инфомации в \verb'std::cerr'
+    при нарушении условия \verb'condition';
+  \item\verb'AIW_WARNING(message, expressions...)' --- вывод информации в \verb'std::cerr';
+  \item\verb'AIW_RAISE(message, expressions...)' --- вывод информации в \verb'std::cerr'
+    и генерация исключения типа \verb'const char *' содержащего выведенную информацию.
+\end{itemize}
+Например
+\begin{verbatim}
+  int a; double b[3];
+  ...
+  WOUT(a, a*b[1], b[0]+b[2]);
+\end{verbatim}
+
+Все макросы выводят информацию в виде
+\begin{verbatim}
+    #filename function() LLL: expr1=value1, expr2=value2 ...
+\end{verbatim}
+или
+\begin{verbatim}
+    #filename function() LLL: message expr1=value1, expr2=value2 ...
+\end{verbatim}
+где \verb'LLL' --- номер строки в файле \verb'filename' в которой был сгенерирован вывод сообщения,
+\verb'function()' --- имя функции в которой был сгенерирован вывод сообщения, \verb'expr'~--- выражение,
+\verb'value'~--- значение выражения.
+
+\subsection{Синтаксические ограничения}
+В качестве выражений (аргументов макросов) могут использоваться любые \verb'rvalue' выражения,
+для значений которых реализованы операторы
+вывода в поток
+\begin{verbatim}
+    std::ostream& operator << (std::ostream&, expr_type)
+\end{verbatim}
+
+В выражениях могут присутствовать скобки \verb'()[]{}', операции \verb'<>' скобками {\bf не} считаются.
+%если в выражении присутствует
+%явное задание параметров шаблона, его необходимо брать в скобки, например
+%\begin{verbatim}
+%     std::complex<double>(a+b)   // неправильно
+%     (std::complex<double>(a+b)) // правильно
+%\end{verbatim}
+Если в выражении есть запятые, части содержащие запятые так же должны быть в скобках, например
+\begin{verbatim}
+     pow(a, b)   
+\end{verbatim}
+В противном случае макросы сохраняют работоспособность, но вывод может иметь странный вид, например
+\begin{verbatim}
+template <int D, typename T> struct V{
+	T p[D];
+	V(T x){ for(int i=0; i<D; ++i) p[i] = x; }
+};
+
+template <int D, typename T> 
+std::ostream& operator << (std::ostream& out, const V<D,T> &v){
+	out<<"{"<<v.p[0];
+	for(int i=1; i<D; ++i) out<<" "<<v.p[i];
+	return out<<"}";
+}
+...
+	int a=2;
+	WOUT(V<3,int>(a), a*2);
+\end{verbatim}
+даст вывод
+\begin{verbatim}
+# ... : V<3={2 2 2}, int>(a), a*2=4
+\end{verbatim}
+вместо ожидаемого
+\begin{verbatim}
+# ... : V<3, int>(a)={2 2 2}, a*2=4
+\end{verbatim}
+Для корректного вывода необходимо использовать дополнительные скобки
+\begin{verbatim}
+	WOUT((V<3,int>(a)), a*2);
+\end{verbatim}
+
+В одной строке может использоваться только один макрос \verb'WEXC'.
+
+\subsection{Режимы работы}
+Макросы \verb'WOUT', \verb'WERR', \verb'WSTR', \verb'WEXC' и \verb'WASSERT' работают только если определен макрос \verb'EBUG'
+(например при помощи опции компилятора \verb'-DEBUG'). При сборке на основе шаблонного \verb'aiwlib/Makefile'
+макрос \verb'EBUG' по умолчанию отключен, для его подключения необходимо использовать команду
+\begin{verbatim}
+    make -DEBUG ...
+\end{verbatim}
+
+Отличие между вызовом 
+\begin{verbatim}
+    WASSERT(condition, ...)
+\end{verbatim}
+и
+\begin{verbatim}
+    if(!(condition)) AIW_RAISE(...)
+\end{verbatim}
+заключается в том, что при отключенном режиме отладке макрос \verb'WASSERT' игнорируется полностью (включая проверку условия).
+
+Макросы \verb'AIW_WARNIG' и \verb'AIW_ASSERT' работают всегда, вне зависимости от макроса \verb'EBUG'.
+
+\subsection{Вывод информации со стека при обработке исключения}
+Макрос \verb'WEXC' выводит свои аргументы на стандартный поток ошибок \verb'std::cerr' при обработке исключения.
+Типовой ситуацией является возбуждение исключения в \veb'C++' функции, вызываемой из \verb'Python', если
+модуль был собран при помощи шаблонного \verb'aiwlib/Makefile' --- в этом случае в \verb'Python' происходит
+вызов стандартного обработчика исключений.
+
+Выводятся только аргументы макросов \verb'WEXC', размещенных на стеке {\bf до} возбуждения исключения.
+Для каждого аргумента выводится значение, которое принимал аргумент в момент вызова макроса \verb'WEXC'.
+
+В одной строке может использоваться только один макрос \verb'WEXC'~--- это связано с размещением в строке
+экземпляра класса \verb'aiw::DebugStackFrame', с именем формируемым на основе номера строки.
+При этом выводимое сообщение формируется при вызове макроса \verb'WEXC', хранится внутри экземпляра класса в виде
+буфера \verb'std::stringstream', и выводится дестуктором экземпляра класса если возникла исключительная ситуация.
+Наличие исключительной ситуации проверяется при помомщи фунцкии \verb'std::uncaught_exception()'.
+
+Если включен режим отладки (определен макрос \verb'EBUG'), сообщения {\bf всех} макросов \verb'WEXC' формируются в виде строк,
+но не выводятся пока не возникнет исключительная ситуация.
+Это может отрицательно сказываться на производительности, поскольку создание каждого сообщения
+требует форматированного вывода, выделения памяти в куче и т.д.
+
+Если режим отладки выключен (макрос \verb'EBUG' не определен), макросы \verb'WEXC' игнорируются.
+
+
+\subsection{Детали реализации}
+Модуль \verb'debug.hpp' это легкий (около 50-ти строк), независимый от остальных частей библиотеки \verb'aiwlib' модуль.
+
+Вывод выражений построен на рекурсивной функции
+\begin{verbatim}
+    template <typename ... Args> 
+    void aiw::debug_out(std::ostream& out, const char* str, Args ... args);
+\end{verbatim}
+вызываемой из макросов, в качестве \verb'str' подставляются аргументы макроса в виде строки и затем еще раз
+в виде аргументов (уже значений соответствующих выражений). 
+
+Функция \verb'aiw::debug_out' разбирает \verb'str' по запятым, учитывая при этом скобки \verb'()[]{}'.
+
+Про детали работы макроса \verb'WEXC' было сказано выше.
+
+При выводе сообщений от всех макросов метод потока вывода \verb'flush' {\bf не} вызывается. 
+
+Модуль \verb'debug.hpp' подключает и использует следующие стандартные библиотеки:
+\begin{itemize}
+  \item \verb'<iostream>' --- работа со стандартными потоками вывода;
+  \item \verb'<sstream>' --- работа с потоком \verb'std::stringstream' в макросах \verb'WEXC';
+  \item \verb'<exception>' --- определение наличия исключительной ситуации в деструкторе объекта \verb'aiw::DebugStackFrame'
+    при помощи фунцкии \verb'std::uncaught_exception()'.
+\end{itemize}
+
+
+ 
