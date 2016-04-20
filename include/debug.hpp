@@ -23,6 +23,7 @@ namespace aiw{
 //------------------------------------------------------------------------------
 	struct DebugStackFrame{
 		std::stringstream buf;
+		DebugStackFrame(){ buf.copyfmt(std::cerr); }
 		~DebugStackFrame(){ if(std::uncaught_exception()) std::cerr<<buf.str(); }
 	};
 //------------------------------------------------------------------------------
