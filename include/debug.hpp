@@ -5,6 +5,8 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#include <cstring>
+#include <cerrno>
 #include <iostream>
 #include <sstream>
 #include <exception>
@@ -44,9 +46,11 @@ namespace aiw{
 
 #define WOUT(args...) WSTR(std::cout, args)
 #define WERR(args...) WSTR(std::cerr, args)
-#define AIW_WARNING(msg, args...){ std::cerr<<"#"<<__FILE__<<" "<<__LINE__<<": "<<msg; \
+#define AIW_WARNING(msg, args...){ std::cerr<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "<<msg; \
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
-#define AIW_RAISE(msg, args...){ stringstream buf; buf<<"#"<<__FILE__<<" "<<__LINE__<<": "<<msg; \
-		aiw::debug_out(buf, #args, args); buf<<"\n"; throw buf.str().c_str(); }	
+#define AIW_RAISE(msg, args...){ std::stringstream buf;					\
+		buf<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "<<msg; \
+		if(errno) buf<<" ["<<strerror(errno)<<"] "; aiw::debug_out(buf, #args, args); buf<<"\n"; \
+		std::cerr<<buf.str(); throw buf.str().c_str(); }	
 //------------------------------------------------------------------------------
 #endif //AIW_DEBUG_HPP
