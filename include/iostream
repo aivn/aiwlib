@@ -1,17 +1,17 @@
+// -*- C++ -*-
 #ifndef AIW_IOSTREAM_HPP
 #define AIW_IOSTREAM_HPP
 
 #include <cstdio>
 #include <string>
-#include "debug.hpp"
-#include "mem.hpp"
+#include "alloc"
 
 namespace aiw{
 //------------------------------------------------------------------------------
 	template <typename S> void format2stream(S &&str, const char *format){
 		for(int i=0; format[i]; ++i)
 			if(format[i]=='%' && format[i+1]){
-				if(format[i+1]!='%') AIW_RAISE("illegal '%' count ", format, i);
+				if(format[i+1]!='%') WRAISE("illegal '%' count ", format, i);
 				else{ str.write(format, i); format += i+1; i = 0; }
 			}
 		str<<format;
@@ -19,7 +19,7 @@ namespace aiw{
 	template <typename S, typename T, typename ... Args>
 	void format2stream(S &&str, const char *format, T x, Args ... args){
 		for(int i=0; true; ++i){
-			if(format[i]==0) AIW_RAISE("illegal '%' count ", format, i);
+			if(format[i]==0) WRAISE("illegal '%' count ", format, i);
 			if(format[i]=='%' && format[i+1]){
 				if(format[i+1]!='%'){
 					if(i) str.write(format, i);
@@ -42,7 +42,11 @@ namespace aiw{
 		virtual void flush() = 0;
 		
 #ifndef SWIG
-		virtual std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false) = 0;
+		virtual std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false){
+			if(write_mode) WRAISE("can't mmapped IOstream to write mode", name); 
+			MemAlloc<char>* ptr = new MemAlloc<char>(size); gzread(pf.get(), ptr, size);
+			return ptr;
+		}
 		virtual int printf(const char * format, ...) = 0;
 		template <typename ... Args> IOstream &operator ()(const char *format, Args ... args){
 			format2stream(*this, format, args...); return *this;
@@ -56,7 +60,10 @@ namespace aiw{
 		aiw::IOstream& operator << (long   v){ printf("%i", v); return *this; }
 		aiw::IOstream& operator << (float  v){ printf("%f", v); return *this; }
 		aiw::IOstream& operator << (double v){ printf("%lf", v); return *this; }
+		aiw::IOstream& operator << (const std::string &S){ printf("%s", S.c_str()); return *this; }
 		// aiw::IOstream& operator << (IOstream& (*func)(IOstream&)){ return func(*this); }
+
+		// operators < > for binary IO
 	};
 //------------------------------------------------------------------------------
 	class File: public IOstream{
@@ -66,7 +73,7 @@ namespace aiw{
 #ifndef SWIG
 		template <typename ... Args> open(const char *format, const char *mode, Args ... args){
 			stringstream path; format2stream(buf, args...); FILE *f = fopen(path.str().c_str(), mode);
-			if(!f) AIW_RAISE("cannot open file", path.str(), mode);
+			if(!f) WRAISE("cannot open file", path.str(), mode);
 			name = path.str(); pf.reset(f, fclose);
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
@@ -79,9 +86,11 @@ namespace aiw{
 		size_t fread(void* buf, size_t size){ ::fread(buf, size, 1, pf.get()); }
 		size_t write(const void* buf, size_t size){ ::fwrite(buf, size, 1, pf.get()); }
 		void flush(){ fflush(pf.get()); }
+#ifndef MINGW
 		std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false){
 			return new MMapAlloc(pf, size, write_mode?O_RDONLY|O_WRONLY:O_RDONLY);
 		}
+#endif //MINGW
 		int printf(const char * format, ...){
 			va_list args; va_start(args,format);   
 			int r = vfprintf(pf.get(), format, args);

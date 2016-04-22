@@ -1,8 +1,9 @@
+// -*- C++ -*-
 #ifndef AIW_GZSTREAM_HPP
 #define AIW_GZSTREAM_HPP
 
 #include <zlib.h>
-#include "iostream.hpp"
+#include "iostream"
 
 namespace aiw{
 //------------------------------------------------------------------------------
@@ -13,7 +14,7 @@ namespace aiw{
 #ifndef SWIG
 		template <typename ... Args> open(const char *format, const char *mode, Args ... args){
 			stringstream path; format2stream(buf, args...); gzFile f = gzopen(path.str().c_str(), mode);
-			if(!f) AIW_RAISE("cannot open file", path.str(), mode);
+			if(!f) WRAISE("can't open file", path.str(), mode);
 			name = path.str(); pf.reset(f, gzclose);
 		}
 		template <typename ... Args> GzFile(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
@@ -26,11 +27,6 @@ namespace aiw{
 		size_t fread(void* buf, size_t size){ gzread(pf.get(), buf, size); }
 		size_t write(const void* buf, size_t size){ gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???
-		std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false){
-			if(write_mode) AIW_RAISE("cann't mmapped gzfile to write mode", name); // ???
-			MemAlloc<char>* ptr = new MemAlloc<char>(size); gzread(pf.get(), ptr, size);
-			return ptr;
-		}
 		int printf(const char * format, ...){
 			va_list args; va_start(args, format);   
 			int r = gzprintf(pf.get(), format, args);

@@ -1,0 +1,206 @@
+// -*- C++ -*-
+#ifndef AIW_MESH_HPP
+#define AIW_MESH_HPP
+
+#include "iostream"
+#include "binaryio"
+#include "vec"
+
+namespace aiw{
+//------------------------------------------------------------------------------
+	template <typename T, int D> class Mesh {
+		std::shared_ptr<BaseAlloc> mem;
+		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
+		size_t sz;           // общее число элементов
+		Ind<D> box;          // размеры сетки в ячейках
+		Ind<D> axes;         // порядок следования осей
+		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
+		template <typename T2, int D2> friend Mesh<T2, D2>;
+	public:
+		std::string head;
+		T out_value;
+		Vec<D> bmin, bmax, step, rstep;
+		Ind<D> logscale; // логарифмический масштаб по осям (0 --- нет, 1 --- да).
+
+		inline      size_t size() const { return sz; }
+		inline aiw::Ind<D> bbox() const { return box; }
+		size_t mem_size() const { return mem->get_size(); }
+		size_t mem_sizeof() const { return mem->get_sizeof(); }
+
+		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, aiw::Ind<D> logscale_=ind(0)){
+			size_t sz_ = box_.prod(); mem.reset(new MemAlloc<T>(sz_)); ptr = mem->get_addr();
+			box = box_; sz = sz_; mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
+			for(int i=0; i<D; i++){
+				step[i] = logscale[i]? exp(log(bmax[0]/bmin[0])/box[i]) :(bmax[i]-bmin[i])/box[i];
+				axes[i] = i; rstep[i] = logscale[i]? 1./log(step[i]) : 1/step[i];
+			}
+		}
+		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
+
+		//???оптимизировать для простых случаев???		
+		void dump(aiw::IOstream &&S) const {
+			S<header<D<int(sizeof(T))<box;
+			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
+		}
+		// дублирование кода инициализации ;-(
+		void load(aiw::IOstream &&S, int use_mmap=0){ // 0 - not use, 1 - readonly, 2 - rw
+			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
+			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh load ", D, sizeof(T), S.name, rD, szT, b, s); }
+			if(use_mmap){
+				mem = S.mmap(b*ind(1)*sizeof(T), use_mmap-1); ptr = mem->get_addr(); box = b; sz = box.prod();
+				mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+				bmin = vec(0.); bmax = box;	logscale = ind(0);
+				for(int i=0; i<D; i++){	step[i] = rstep[i] = 1.; axes[i] = i; }
+			} else { init(b); S.fread(ptr, sz*sizeof(T)); }
+		}
+
+		inline Ind<D> coord2pos(const aiw::Vec<D> &r) const {
+			Ind<D> p;
+			for(int i=0; i<D; i++) p[i] = logscale[i] ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
+			return p;
+		}
+		inline Vec<D> pos2coord(const aiw::Ind<D> &p) const {
+			Ind<D> r;
+			for(int i=0; i<D; i++) r[i] = logscale[i] ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
+			return r;
+		}
+		
+		inline const T& get(const aiw::Ind<D> &pos) const {
+			WASSERT(Ind<D>()<=pos && pos<box, "position out of box", pos, box);
+			return *((const T*)((const char*)ptr+mul*pos));
+		}
+		inline const T& operator [] (const aiw::Ind<D> &pos) const { return (T&)get(pos); }
+		inline       T& operator [] (const aiw::Ind<D> &pos)       { return     get(pos); }
+		
+		inline const T& get(const aiw::Vec<D> &r) const {
+			Ind<D> pos = coord2pos(r);
+			return Ind<D>()<=pos && pos<box ? *((const T*)((const char*)ptr+mul*pos)) : out_value;
+		}
+		inline const T& operator () (const aiw::Vec<D> &r) const { return (T&)get(r); }
+		inline       T& operator () (const aiw::Vec<D> &r)       { return     get(r); }
+		// (int i, int j, ...) ???
+		
+		inline Ind<D> inbox(size_t offset) const {
+			Ind<D> pos;
+			for(int i=0; i<D; i++){
+				int a = axes[i]; pos[a] = offset%box[a];
+				if(mul[a]<0) pos[a] = box[a]-pos[a]-1;
+				offset /= box[a];
+			}
+			return pos;
+		}
+		inline Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
+		inline bool next(aiw::Ind<D> &pos) const {
+			for(int i=0; i<D; i++){
+				int a = axes[i]; 
+				if(mul[a]>0){
+					if(++(pos[a])<box[a]) return true;
+					pos[a] = 0;
+				} else {
+					if(--(pos[a])>=0) return true;
+					pos[a] = box[a]-1; 
+				}
+			}				
+			return false;
+		}
+
+		Mesh copy(){ Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
+		Mesh flip(int a, bool axe=true){
+			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = &((*this)[I]); A.mul[a] = -mul[a];
+			if(axe){
+				A.bmin[a] = bmax[a]; A.bmax[a] = bmin[a]; 
+				if(logscale[a]){ A.step[a] = 1./step[a]; A.rstep[a] = exp(log(bmin[0]/bmax[0])/box[i]); }
+				else { A.step[a] = -step[a]; A.rstep[a] = -rstep[a]; }
+			}
+			return A;
+		}
+	private:
+		template <typename T2, int D2> void set_axe(int a, const Mesh<T2, D2> &M, int m){
+			mul[a] = M.mul[m]; box[a] = M.box[m]; axes[a] = M.axes[m]; mul[a] = M.mul[m];
+			bmin[a] = M.bmin[m]; bmax[a] = M.bmax[m]; step[a] = M.step[m]; rstep[a] = M.rstep[m];
+			logscale[a] = M.logscale[m];
+		}
+	public:
+		Mesh swap(int a, int b){ Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
+		
+		Mesh crop(const aiw::Ind<D>& a, const aiw::Ind<D>& b, aiv::Ind<D> d=Ind<D>(1)){
+			Mesh A(*this); 
+			for(int i=0; i<D; i++){
+				if(a[i]<0) a[i] += box[i]; if(b[i]<=0) b[i] += box[i];
+				A.box[i] = (b[i]-a[i]-1)/d[i]+1;
+				if(logscale[i]){ 
+					A.bmin[i] = bmin[i]*pow(step[i], a[i]); A.step[i] = pow(step[i], d[i]); 
+					A.bmax[i] = A.bmin[i]*pow(A.step[i], A.box[i]);
+					A.rstep[i] = exp(log(A.bmax[0]/A.bmin[0])/A.box[i]);
+				} else {
+					A.bmin[i] = bmin[i]+step[i]*a[i]; A.step[i] *= d[i]; 
+					A.bmax[i] = A.bmin[i]+A.step[i]*A.b[i]; A.rstep[i] /= d[i];
+				}
+			}
+			A.mul = mul&d; A.ptr = (char*)ptr + mul*a;
+			return A;
+		}
+
+		template <class T2, int D2> Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
+			if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+			int n = 0; Mesh<T2, D2> A;
+			for(int i=0; i<D; i++)
+				if(pos[i]==-1){  
+					if(n>=D2) WRAISE("too many -1 values in pos", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+					A.set_axe(n, *this, i); n++;
+				} else if(pos[i]<0 || box[i]<=pos[i])
+					WRAISE("pos out of range", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
+			if(n<D2) WRAISE("too small -1 values in pos", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.sz = A.box.prod();
+			return A;
+		}
+
+		template<int P> inline const T& periodic_bc(indx<D> pos) const {
+			for(int i=0; i<D; i++) if(P&(1<<i)){
+					while(pos[i]<0) pos[i] += box[i];
+					if(pos[i]>=box[i]) pos[i] %= box[i];
+				}
+			return get(pos);
+		}
+		template<int P> inline T& periodic_bc(indx<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
+
+		template <typename S> void out2dat(S &&str, bool coords=true){
+			for(Ind<D> pos; pos^=box; ++pos){
+				if(coord) str<<pos2coord(pos); else str<<pos;
+				str<<" "<<(*this)[pos]<<"\n";
+				if(pos[0]==box[0]-1) str<<"\n";
+			}
+		}
+		
+		void operator = (const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
+		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
+			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
+			do {
+				const T& x = (*this)[pos];
+				if(a>x){ a = x; pos_a = pos; }
+				if(b<x){ b = x; pos_b = pos; }
+			} while(next(pos));
+		}
+		template <typename T2> void operator <<= (const Mesh<T2, D> &M){
+			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
+		}
+		void operator <<= (aiw::IOstream &&S){
+			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
+			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh update ", D, sizeof(T), S.name, rD, szT, b, s); }
+			Ind<D> up = b<<M.box, m; s = S.tell();
+			m[0] = sizeof(T); for(int i=1; i<D; ++i) m[i] = m[i-1]*b[i-1]; 
+			for(Ind<D> pos; pos^=up; ++pos){
+				if(pos[0]==0) S.seek(s+m*pos);
+				S.fread(&(*this)[pos], sizeof(T));
+			}
+		}
+
+		// operators +, -, *, /, % etc?
+	};
+//------------------------------------------------------------------------------
+	template <typename T, int D> IOstream& operator < (IOstream &S, const Mesh<T, D> &M){ M.dump(S); return S; }
+	template <typename T, int D> IOstream& operator > (IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
+//------------------------------------------------------------------------------
+};
+#endif //AIW_MESH_HPP
