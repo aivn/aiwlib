@@ -15,7 +15,7 @@ namespace aiw{
 		Ind<D> box;          // размеры сетки в ячейках
 		Ind<D> axes;         // порядок следования осей
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
-		template <typename T2, int D2> friend Mesh<T2, D2>;
+		template <typename T2, int D2> friend class Mesh;
 	public:
 		std::string head;
 		T out_value;
@@ -28,7 +28,7 @@ namespace aiw{
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
 
 		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
-			size_t sz_ = box_.prod<uint64_t>(); mem.reset(new MemAlloc<T>(sz_)); ptr = mem->get_addr();
+			size_t sz_; box_.prod(sz_); mem.reset(new MemAlloc<T>(sz_)); ptr = mem->get_addr();
 			box = box_; sz = sz_; mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
 			for(int i=0; i<D; i++){
@@ -40,7 +40,7 @@ namespace aiw{
 
 		//???оптимизировать для простых случаев???		
 		void dump(aiw::IOstream &&S) const {
-			S<header<D<int(sizeof(T))<box;
+			S<head<D<int(sizeof(T))<box;
 			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
 		}
 		// дублирование кода инициализации ;-(
@@ -48,11 +48,11 @@ namespace aiw{
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh load ", D, sizeof(T), S.name, rD, szT, b, s); }
 			if(use_mmap){
-				mem = S.mmap(b*ind(1)*sizeof(T), use_mmap-1); ptr = mem->get_addr(); box = b; sz = box.prod<uint64_t>();
+				mem = S.mmap(b*ind(1)*sizeof(T), use_mmap-1); ptr = mem->get_addr(); box = b; box.prod(sz);
 				mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
 				bmin = vec(0.); bmax = box;	logscale = 0;
 				for(int i=0; i<D; i++){	step[i] = rstep[i] = 1.; axes[i] = i; }
-			} else { init(b); S.fread(ptr, sz*sizeof(T)); }
+			} else { init(b); S.read(ptr, sz*sizeof(T)); }
 		}
 
 		inline Ind<D> coord2pos(const aiw::Vec<D> &r) const {
@@ -110,7 +110,7 @@ namespace aiw{
 			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = &((*this)[I]); A.mul[a] = -mul[a];
 			if(axe){
 				A.bmin[a] = bmax[a]; A.bmax[a] = bmin[a]; 
-				if(logscale&1<<a){ A.step[a] = 1./step[a]; A.rstep[a] = exp(log(bmin[0]/bmax[0])/box[i]); }
+				if(logscale&1<<a){ A.step[a] = 1./step[a]; A.rstep[a] = exp(log(bmin[a]/bmax[a])/box[a]); }
 				else { A.step[a] = -step[a]; A.rstep[a] = -rstep[a]; }
 			}
 			return A;
@@ -124,7 +124,7 @@ namespace aiw{
 	public:
 		Mesh swap(int a, int b){ Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
 		
-		Mesh crop(const aiw::Ind<D>& a, const aiw::Ind<D>& b, aiv::Ind<D> d=Ind<D>(1)){
+		Mesh crop(const aiw::Ind<D>& a, const aiw::Ind<D>& b, aiw::Ind<D> d=Ind<D>(1)){
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
 				if(a[i]<0) a[i] += box[i]; if(b[i]<=0) b[i] += box[i];
@@ -152,22 +152,22 @@ namespace aiw{
 				} else if(pos[i]<0 || box[i]<=pos[i])
 					WRAISE("pos out of range", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
 			if(n<D2) WRAISE("too small -1 values in pos", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
-			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.sz = A.box.prod<uint64_t>();
+			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
 			return A;
 		}
 
-		template<int P> inline const T& periodic_bc(indx<D> pos) const {
+		template<int P> inline const T& periodic_bc(Ind<D> pos) const {
 			for(int i=0; i<D; i++) if(P&(1<<i)){
 					while(pos[i]<0) pos[i] += box[i];
 					if(pos[i]>=box[i]) pos[i] %= box[i];
 				}
 			return get(pos);
 		}
-		template<int P> inline T& periodic_bc(indx<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
+		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
 
 		template <typename S> void out2dat(S &&str, bool coords=true){
 			for(Ind<D> pos; pos^=box; ++pos){
-				if(coord) str<<pos2coord(pos); else str<<pos;
+				if(coords) str<<pos2coord(pos); else str<<pos;
 				str<<" "<<(*this)[pos]<<"\n";
 				if(pos[0]==box[0]-1) str<<"\n";
 			}
@@ -188,11 +188,11 @@ namespace aiw{
 		void operator <<= (aiw::IOstream &&S){
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh update ", D, sizeof(T), S.name, rD, szT, b, s); }
-			Ind<D> up = b<<M.box, m; s = S.tell();
+			Ind<D> up = b<<box, m; s = S.tell();
 			m[0] = sizeof(T); for(int i=1; i<D; ++i) m[i] = m[i-1]*b[i-1]; 
 			for(Ind<D> pos; pos^=up; ++pos){
 				if(pos[0]==0) S.seek(s+m*pos);
-				S.fread(&(*this)[pos], sizeof(T));
+				S.read(&(*this)[pos], sizeof(T));
 			}
 		}
 

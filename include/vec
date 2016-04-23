@@ -140,7 +140,8 @@ namespace aiw{
 		inline T min() const { T res = p[0]; for(int i=1; i<D; i++) res = res<p[i]?res:p[i]; return res; }
 		inline T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }
 		inline T sum() const { T res = p[0]; for(int i=1; i<D; i++) res += p[i]; return res; }
-		template <typename T2=T> inline T2 prod() const { T2 res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
+		inline T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
+		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
 		/*
 		inline bool is_nan() const { 
 			for(int i=0; i<D; i++) if( isnan(p[i]) ) return true;
