@@ -1,0 +1,133 @@
+\section{Потоки ввода/вывода --- модули {\tt iosream}, {\tt gzstream} и {\tt binaryio}}
+\subsection{Общие замечания}
+При создании приложений численного моделирования потоки ввода/вывода \verb'std::iostream'
+из стандартной библиотеки оказываются не всегда удобны. В частности желательно:
+\begin{enumerate}
+\item обеспечить максимально возможную производительность, особенно при бинарном вводе/выводе~---
+  в этом смысле потоки \verb'std::iostream' сделаны не вполне оптимально;
+\item иметь абстрактный базовый класс потока и его наследников для работы с обычными файлами и с файлами сжатыми
+  библиотекой \verb'zlib.h'~--- такую возможность предоставляет например библиотека
+  \verb'boost', но использование \verb'boost' только ради потоков предcтавляется черезмерным;
+\item иметь возможность мапировать файл (стандартная функция \verb'mmap') при помощи метода потока,
+  с текущей позиции, указав лишь размер области и режим, и обеспечивать при этом автоматическую сборку мусора;
+\item иметь возможность применять для форматированного вывода типобезопасный аналог функций \verb'fprintf';
+\item иметь возможность формировать имя файла в аргументах конструктора при помощи типобезопасного аналога функций \verb'fprintf';
+\item использовать операторы для бинарного ввода/вывода --- впрочем эта возможность может быть реализована и для
+  \verb'std::iostream'.
+\end{enumerate}
+Библиотека \verb'aiwlib' предоставляет свои потоки ввода/вывода~--- абстрактный класс \verb'aiw::IOstream'
+и его наследников \verb'aiw::File' (модуль \verb'iostream') и \verb'aiw::GzFile' (модуль \verb'gsztream'). В модуле \verb'binaryio'
+перегружены операции \verb'<' и \verb'>' для бинарного ввода/вывода для большинства актуальных типов.
+
+\subsection{Типобезопесный форматированный вывод}
+Модуль \verb'iostream' предоставляет функцию
+\begin{verbatim}
+    template <typename S, typename ... Args>
+    void aiw::format2stream(S &&str, const char *format, Args ... args);
+\end{verbatim}
+обеспечивающую типобезопасный форматированный вывод в поток \verb'str' согласно строке \verb'format'.
+Аргументы \verb'args' подставляются вместо символов \verb'%'.
+Для вывода символа \verb'%' необходимо использовать строку \verb'%%'.
+Может выводится любой аргумент \verb'x' для которого определен оператор
+форматированного вывода \verb'str<<x'.
+
+\subsection{Абстрактный класс {\tt aiw::IOstream}}
+Абстрактный класс \verb'aiw::IOstream' определен в заголовочном файле \verb'iostream'.
+
+Класс \verb'aiw::IOstream' имеет поле \verb'name', содержащее имя открытого файла.
+
+Класс предоставляет следующие методы:
+\begin{itemize}
+\item \verb'virtual ~IOstream(){}' --- виртуальный деструктор;
+\item \verb'virtual void close() = 0' --- закрывает поток;
+\item \verb'virtual size_t tell() const = 0' --- возвращает текущую позицию в потоке;
+\item \verb'virtual void seek(size_t offset, int whence=0) = 0' --- устанавливает позицию в потоке относительно
+  точки укзаываемой параметром \verb'whence', допустимые значения: 0 (\verb'SEEK_SET')~--- начало файла,
+  1 (\verb'SEEK_CUR')~--- текущая позиция, 2 (\verb'SEEK_END')~--- конец файла;
+\item \verb'virtual size_t read(void* buf, size_t size) = 0' --- читает \verb'size' байт в буфер \verb'buf' из файла,
+  возвращает число прочитанных байт;
+\item \verb'virtual size_t write(const void* buf, size_t size) = 0' --- записывает в файл \verb'size' байт из буфера \verb'buf',
+  возвращает число записанных байт;
+\item \verb'virtual void flush() = 0' --- принудительно сбрасывает содержимое буфера на диск;
+\item \verb'virtual std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false)' --- мапирует из файла область
+  размерами \verb'size' (начиная с текущей позиции), возвращает \verb'proxy'--объект (см. описание модуля \verb'alloc'),
+  если мапирование невозможно (например при работе со сжатым файлом) происходит копирование
+  соответствующей области в память, при этом мапирование с доступом на запись невозможно;
+\item \verb'virtual int printf(const char * format, ...) = 0' --- обеспечивает
+  {\bf не}типобезобасный форматированный вывод при помощи фунцкии \verb'::fprintf()';
+\item \verb'template <typename ... Args> IOstream& operator ()(const char *format, Args ... args)' --- обеспечивает
+  типобезопасный форматированный вывод на основе функции  \verb'aiw::format2stream()';
+\item операторы форматированного вывода \verb'<' для встроенных типов.
+\end{itemize}
+
+
+\subsection{Класс {\tt aiw::File}}
+Абстрактный класс \verb'aiw::File' определен в заголовочном файле \verb'iostream'.
+
+Класс \verb'aiw::File' является наследником класса \verb'aiw::IOstream'. Кроме перегрузки необходимых
+виртуальных методов класса \verb'aiw::IOstream', класс \verb'aiw::File' предоставляет следующие методы:
+\begin{itemize}
+\item \verb'File(){}' --- конструктор по умолчанию, создает неактивный поток;
+\item \verb'template <typename ... Args> open(const char *format, const char *mode, Args ... args)'~---
+  открывает файлу в режиме \verb'mode' с именем, формируемым на основе строки \verb'format' и аргументов \verb'args'
+  при помощи функции  \verb'aiw::format2stream()';
+\item \verb'template <typename ... Args> File(const char *format, const char *mode, Args ... args)'~---
+  конструктор, открывает файл при помощи описанного выше метода \verb'open'.
+\end{itemize}
+
+\subsection{Класс {\tt aiw::GzFile}}
+Класс \verb'aiw::GzFile' определен в заголовочном файле \verb'gzstream'.
+
+Класс \verb'aiw::GzFile' является наследником класса \verb'aiw::IOstream'. Кроме перегрузки необходимых
+виртуальных методов класса \verb'aiw::IOstream', класс \verb'aiw::GzFile' предоставляет следующие методы:
+\begin{itemize}
+\item \verb'GzFile(){}' --- конструктор по умолчанию, создает неактивный поток;
+\item \verb'template <typename ... Args> open(const char *format, const char *mode, Args ... args)'~---
+  открывает файлу в режиме \verb'mode' с именем, формируемым на основе строки \verb'format' и аргументов \verb'args'
+  при помощи функции  \verb'aiw::format2stream()';
+\item \verb'template <typename ... Args> GzFile(const char *format, const char *mode, Args ... args)'~---
+  конструктор, открывает файл при помощи описанного выше метода \verb'open'.
+\end{itemize}
+
+\subsection{Операторы бинарного ввода/вывода~--- модуль {\tt binaryio}}
+Модуль \verb'binaryio' предоставляет перегруженные операции \verb'<' (для бинарного вывода) и \verb'>' (для бинарного ввода)
+в потоки \verb'aiw::IOstream'.
+
+Встроенные типы, \verb'std::complex<T>' и вектора \verb'aiw::Vec' обрабатываются обычным копированием.
+
+Для типов \verb'std::vector', \verb'std::string', \verb'std::list', \verb'std::map' сначала записывается размер контейнера
+(тип \verb'uint32_t' для строк и \verb'uint64_t' для остальных), затем содержимое контейнера.
+
+Во избежании подключения лишних модулей, операции \verb'<' и \verb'>' в модуле \verb'binaryio'
+для {\bf не}встроенных типов перегружаются только если в единице трансляции был подключен
+заголовочный файл с определением соотвествующего типа {\bf до} заголовочного файла \verb'binaryio'.
+
+Например, для перегрузки операций \verb'<' и \verb'>' для комплексных чисел \verb'std::complex<T>',
+заголовочный файл \verb'binaryio' должен быть включен {\bf после} заголовочного файла \verb'complex'.
+
+Допускается многократное включение заголовочного файла \verb'binaryio', при этом можно считать что с точки
+зрения перегрузки операций \verb'<' и \verb'>' актуальным является
+последнее включение.
+
+\subsection{Детали реализации}
+Модули \verb'iostream' (порядка 100 строк), \verb'gzstream' (40 строк) и \verb'binaryio' (порядка 100 строк)
+являются довольно легкими модулями, зависящими только от модулей \verb'debug' и \verb'alloc'.
+
+Модуль \verb'iostream' подключает и использует следующие библиотеки:
+\begin{itemize}
+\item \verb'aiwlib/debug' --- генерация исключений;
+\item \verb'aiwlib/alloc' --- доcтуп к объекту \verb'MMapAlloc' при мапировании файлов;
+\item стандартная библиотека \verb'<cstdio>' --- работа с файлами \verb'FILE*';
+\item стандартная библиотека \verb'<string>' --- доступ к классу \verb'std::string'.
+\end{itemize}
+
+Модуль \verb'gzstream' подключает и использует следующие библиотеки:
+\begin{itemize}
+\item \verb'aiwlib/iostream' --- доступ к абстрактному классу \verb'aiw::IOstream';
+\item стандартная библиотека \verb'<zlib.h>' --- работа со сжатыми файлами \verb'gzFile'.
+\end{itemize}
+
+Модуль \verb'binaryio' подключает и использует следующие библиотеки:
+\begin{itemize}
+\item \verb'aiwlib/iostream' --- доступ к абстрактному классу \verb'aiw::IOstream'.
+\end{itemize}

@@ -2,18 +2,13 @@
 #ifndef AIW_BINARY_IO_HPP
 #define AIW_BINARY_IO_HPP
 
-#include <complex>
-#include <vector>
-#include <list>
-#include <map>
 #include "iostream"
-#include "vec"
 
 namespace aiw{
 //------------------------------------------------------------------------------
 #define BIOP(T)															\
-	IOstream& operator < (IOstream& S, T x){ S.write(&x, sizeof(T)); return S; } \
-	IOstream& operator > (IOstream& S, T x){ S.fread(&x, sizeof(T)); return S; }
+	IOstream& operator < (IOstream& S, T  x){ S.write(&x, sizeof(T)); return S; } \
+	IOstream& operator > (IOstream& S, T& x){ S.fread(&x, sizeof(T)); return S; }
 #define BIOP_I(T) BIOP(T) BIOP(u##T)
 	BIOP(int8_t)
 	BIOP(int16_t)
@@ -22,40 +17,62 @@ namespace aiw{
 #undef BIOP_I
 	BIOP(float)
 	BIOP(double)
-	BIOP(std::complex<float>)
-	BIOP(std::complex<double>)
 #undef BIOP
 //------------------------------------------------------------------------------
-	IOstream& operator < (IOstream& S, const std::string &x){ S<int(x.size()); S.write(&x[0], x.size()); return S;	}		
-	IOstream& operator > (IOstream& S, std::string &x){ int sz; S>sz; x.resize(sz); S.fread(&x[0], sz); return S;	}		
+	IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}		
+	IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.fread(&x[0], sz); return S;	}		
 //------------------------------------------------------------------------------
+};
+#endif //AIW_BINARY_IO_HPP
+
+//------------------------------------------------------------------------------
+#if defined(_GLIBCXX_COMPLEX) && !defined(AIW_BINARY_IO_STD_COMPLEX)
+#define AIW_BINARY_IO_STD_COMPLEX
+	template<typename T> IOstream& operator < (IOstream& S, const std::complex<T> &x){
+		S.write(&x, sizeof(std::complex<T>)); return S;
+	}				
+	template<typename T> IOstream& operator > (IOstream& S, std::complex<T> &x){
+		S.fread(&x, sizeof(std::complex<T>)); return S;
+	}
+#endif //_GLIBCXX_COMPLEX
+//------------------------------------------------------------------------------
+#if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
+#define AIW_BINARY_IO_STD_VECTOR
 	template<typename T> IOstream& operator < (IOstream& S, const std::vector<T>& x){
-		S<x.size(); S.write(&x[0], x.size()*sizeof(T)); return S;
+		S<uint64_t(x.size()); S.write(&x[0], x.size()*sizeof(T)); return S;
 	}		
 	template<typename T> IOstream& operator > (IOstream& S, std::vector<T>& x){
-		size_t sz; S>sz; x.resize(sz); S.fread(&x[0], sz*sizeof(T)); return S;
-	}		
+		uint64_t sz; S>sz; x.resize(sz); S.fread(&x[0], sz*sizeof(T)); return S;
+	}
+#endif //_GLIBCXX_VECTOR
 //------------------------------------------------------------------------------
+#if defined(_GLIBCXX_LIST) && !defined(AIW_BINARY_IO_STD_LIST)
+#define AIW_BINARY_IO_STD_LIST
 	template<typename T> IOstream& operator < (IOstream& S, const std::list<T>& x){
-		S<x.size(); for(auto I=x.begin(); x!=x.end(); ++x) S.write(&*x, sizeof(T)); return S;
+		S<uint64_t(x.size()); for(auto I=x.begin(); x!=x.end(); ++x) S.write(&*x, sizeof(T)); return S;
 	}		
 	template<typename T> IOstream& operator > (IOstream& S, std::list<T>& x){
-		size_t sz; S>sz; T v; for(size_t i=0; i<sz; i++){ S.read(&v, sizeof(T)); x.push_back(v); } return S;
-	}		
+		uint64_t sz; S>sz; T v; for(size_t i=0; i<sz; i++){ S.read(&v, sizeof(T)); x.push_back(v); } return S;
+	}
+#endif //_GLIBCXX_LIST
 //------------------------------------------------------------------------------
+#if defined(_GLIBCXX_MAP) && !defined(AIW_BINARY_IO_STD_MAP)
+#define AIW_BINARY_IO_STD_MAP
 	template<typename K, typename V> IOstream& operator < (IOstream& S, const std::map<K, V>& x){
-		S<x.size();
+		S<uint64_t(x.size());
 		for(auto I=x.begin(); x!=x.end(); ++x){ S.write(&(x->first), sizeof(K)); S.write(&(x->second), sizeof(V)); }
 		return S;
 	}		
 	template<typename K, typename V> IOstream& operator > (IOstream& S, std::map<K, V>& x){
-		size_t sz; S>sz; K k; V v;
+		uint64_t sz; S>sz; K k; V v;
 		for(size_t i=0; i<sz; i++){ S.read(&k, sizeof(K)); S.read(&v, sizeof(V)); x[k] = v; }
 		return S;
 	}		
+#endif //_GLIBCXX_MAP
 //------------------------------------------------------------------------------
+#if defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
+#define AIW_BINARY_IO_VEC
 	template<int D, typename T> IOstream& operator < (IOstream& S, const Vec<D, T>& x){ S.write(&x, sizeof(x)); return S; }
 	template<int D, typename T> IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.fread(&x, sizeof(x)); return S; }
+#endi //AIW_VEC_HPP
 //------------------------------------------------------------------------------
-};
-#ifndef AIW_BINARY_IO_HPP

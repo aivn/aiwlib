@@ -6,8 +6,8 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
-#include <cstring>
 #include <cerrno>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <exception>

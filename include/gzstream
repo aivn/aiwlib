@@ -24,7 +24,7 @@ namespace aiw{
 		void close(){ pf.reset(); } 
 		size_t tell() const { retrurn gztell(pf.get()); }
 		void seek(size_t offset, int whence=0){ gzseek(pf.get(), offset, whence); }
-		size_t fread(void* buf, size_t size){ gzread(pf.get(), buf, size); }
+		size_t read(void* buf, size_t size){ gzread(pf.get(), buf, size); }
 		size_t write(const void* buf, size_t size){ gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???
 		int printf(const char * format, ...){

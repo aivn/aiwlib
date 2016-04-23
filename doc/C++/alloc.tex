@@ -1,0 +1,40 @@
+\section{Выделение и освобождение ресурсов  в контейнерах и потоках ввода/вывода --- модуль {\tt alloc}}
+Для безопасного копирования экземпляров потоков ввода/вывода \verb'aiw::IOstream', контейнеров библиотеки
+\verb'aiwlib' и освобождения ресурсов используются <<умные>> указатели \verb'std::shared_ptr'.
+
+В заголовчном файле \verb'alloc' объявлен абстрактный класс \verb'aiw::BaseAlloc',
+предоставляющий интерфейс для работы с выделенными ресурсом (областью памяти или мапированным файлом).
+Класс имеет следующие методы
+\begin{itemize}
+\item \verb'void* get_addr()' --- возвращает адрес контролируемой области памяти;
+\item \verb'size_t get_size() const'  --- возвращает размер контролируемой области памяти в байтах;
+\item \verb'virtual ~BaseAlloc() = 0' --- полностью виртуальный деструктор;
+\item \verb'virtual size_t get_sizeof() const = 0' --- возвращает размер элемента (ячейки массива) в байтах.
+\end{itemize}
+
+Класс \verb'template<T> aiw::MemAlloc' является наследником класса \verb'aiw::BaseAlloc',
+и кроме перегрузки соответвующих методов предоставляет конструктор
+\begin{verbatim}
+    template<typename ... Args> MemAlloc(size_t sz, Args ... args)
+\end{verbatim}
+создающий в памяти массив размера \verb'sz' из элементов типа \verb'T' с аргументами конструктора \verb'args'.
+
+Класс \verb'aiw::MMapAlloc' является наследником класса \verb'aiw::BaseAlloc',
+и кроме перегрузки соответвующих методов предоставляет конструктор
+\begin{verbatim}
+    MMapAlloc(const std::shared_ptr<FILE> &pf, size_t size, int flags)
+\end{verbatim}
+мапирующий в память (с флагами \verb'flags') область размера \verb'size' байт из файла \verb'pf' от текущей позиции в файле.
+
+Модуль \verb'alloc' является легким (около 60-ти строк) файлом, зависящими только от модуля \verb'debug'.
+Модуль \verb'alloc' подключает и использует следующие библиотеки:
+\begin{itemize}
+\item \verb'aiwlib/debug' --- генерация исключений;
+\item \verb'<memory>' --- доступ к классу \verb'std::shared_ptr';
+\item \verb'<sys/mman.h>', \verb'<cunistd>' --- мапирование файлов.  
+\end{itemize}
+
+При кросс--компиляции под ОС \verb'Windows' компилятором \verb'minGW' необходимо указывать опцию \verb'-DMINGW',
+при этом библиотеки \verb'<sys/mman.h>', \verb'<cunistd>' не подключаются и
+класс \verb'MMapAlloc' является недоступным.
+

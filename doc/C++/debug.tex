@@ -1,6 +1,6 @@
-\section{Средства отладки --- модуль {\tt debug.hpp}}
+\section{Средства отладки --- модуль {\tt debug}}
 \subsection{Общие замечания}
-Модуль \verb'debug.hpp' предоставляет ряд макросов для вывода отладочной информации в процессе исполнения
+Модуль \verb'debug' предоставляет ряд макросов для вывода отладочной информации в процессе исполнения
 (фактически удобную альтернативу традиционным отладочным \verb'printf') и генерации исключений:
 \begin{itemize}
   \item\verb'WOUT(expressions...)' --- вывод информации в \verb'std::cout';
@@ -9,8 +9,8 @@
   \item\verb'WEXC(expressions...)' --- вывод информации со стека в \verb'std::cerr' при обработке исключения; 
   \item\verb'WASSERT(condition, message, expressions...)' --- вывод инфомации в \verb'std::cerr'
     при нарушении условия \verb'condition';
-  \item\verb'AIW_WARNING(message, expressions...)' --- вывод информации в \verb'std::cerr';
-  \item\verb'AIW_RAISE(message, expressions...)' --- вывод информации в \verb'std::cerr'
+  \item\verb'WARNING(message, expressions...)' --- вывод информации в \verb'std::cerr';
+  \item\verb'WRAISE(message, expressions...)' --- вывод информации в \verb'std::cerr'
     и генерация исключения типа \verb'const char *' содержащего выведенную информацию.
 \end{itemize}
 Например
@@ -26,11 +26,16 @@
 \end{verbatim}
 или
 \begin{verbatim}
-    #filename function() LLL: message expr1=value1, expr2=value2 ...
+    #filename function() LLL: message [SYSERR] expr1=value1, expr2=value2 ...
 \end{verbatim}
 где \verb'LLL' --- номер строки в файле \verb'filename' в которой был сгенерирован вывод сообщения,
 \verb'function()' --- имя функции в которой был сгенерирован вывод сообщения, \verb'expr'~--- выражение,
 \verb'value'~--- значение выражения.
+
+Макрос \verb'WRAISE' допонительно включает в сообщение информацию о системной ошибке \verb'[SYSERR]' (результат работы
+фунцкии \verb'strerror(errno)'), если состояние ошибки установлено.
+
+
 
 \subsection{Синтаксические ограничения}
 В качестве выражений (аргументов макросов) могут использоваться любые \verb'rvalue' выражения,
@@ -97,11 +102,11 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 \end{verbatim}
 и
 \begin{verbatim}
-    if(!(condition)) AIW_RAISE(...)
+    if(!(condition)) WRAISE(...)
 \end{verbatim}
 заключается в том, что при отключенном режиме отладке макрос \verb'WASSERT' игнорируется полностью (включая проверку условия).
 
-Макросы \verb'AIW_WARNIG' и \verb'AIW_ASSERT' работают всегда, вне зависимости от макроса \verb'EBUG'.
+Макросы \verb'WARNIG' и \verb'WRAISE' работают всегда, вне зависимости от макроса \verb'EBUG'.
 
 \subsection{Вывод информации со стека при обработке исключения}
 Макрос \verb'WEXC' выводит свои аргументы на стандартный поток ошибок \verb'std::cerr' при обработке исключения.
@@ -128,7 +133,7 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 
 
 \subsection{Детали реализации}
-Модуль \verb'debug.hpp' это легкий (около 50-ти строк), независимый от остальных частей библиотеки \verb'aiwlib' модуль.
+Модуль \verb'debug' это легкий (около 50-ти строк), независимый от остальных частей библиотеки \verb'aiwlib' модуль.
 
 Вывод выражений построен на рекурсивной функции
 \begin{verbatim}
@@ -144,12 +149,13 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 
 При выводе сообщений от всех макросов метод потока вывода \verb'flush' {\bf не} вызывается. 
 
-Модуль \verb'debug.hpp' подключает и использует следующие стандартные библиотеки:
+Модуль \verb'debug' подключает и использует следующие стандартные библиотеки:
 \begin{itemize}
-  \item \verb'<iostream>' --- работа со стандартными потоками вывода;
-  \item \verb'<sstream>' --- работа с потоком \verb'std::stringstream' в макросах \verb'WEXC';
-  \item \verb'<exception>' --- определение наличия исключительной ситуации в деструкторе объекта \verb'aiw::DebugStackFrame'
-    при помощи фунцкии \verb'std::uncaught_exception()'.
+\item \verb'<cerrno>', \verb'<cstring>' --- доступ к глобальной переменной \verb'errno' и функциии \verb'strerror(errno)';  
+\item \verb'<iostream>' --- работа со стандартными потоками вывода;
+\item \verb'<sstream>' --- работа с потоком \verb'std::stringstream' в макросах \verb'WEXC';
+\item \verb'<exception>' --- определение наличия исключительной ситуации в деструкторе объекта \verb'aiw::DebugStackFrame'
+  при помощи фунцкии \verb'std::uncaught_exception()'.
 \end{itemize}
 
 

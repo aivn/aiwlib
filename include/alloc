@@ -9,9 +9,9 @@
 
 #ifndef MINGW
 #    include <sys/mman.h>
+//   #include <cfcntl> ???
+#    include <cunistd>
 #endif //MINGW
-// #include <cfcntl> ???
-#include <cunistd>
 #include <memory>
 #include "debug"
 
