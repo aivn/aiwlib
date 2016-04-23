@@ -12,20 +12,20 @@ namespace aiw{
 	public:
 		GzFile(){}
 #ifndef SWIG
-		template <typename ... Args> open(const char *format, const char *mode, Args ... args){
-			stringstream path; format2stream(buf, args...); gzFile f = gzopen(path.str().c_str(), mode);
+		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
+			std::stringstream path; format2stream(path, format, args...); gzFile f = ::gzopen(path.str().c_str(), mode);
 			if(!f) WRAISE("can't open file", path.str(), mode);
-			name = path.str(); pf.reset(f, gzclose);
+			name = path.str(); pf.reset(f, ::gzclose);
 		}
 		template <typename ... Args> GzFile(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
 #endif //SWIG
 		GzFile(const char *path, const char *mode){ open(path, mode); }
 		
 		void close(){ pf.reset(); } 
-		size_t tell() const { retrurn gztell(pf.get()); }
-		void seek(size_t offset, int whence=0){ gzseek(pf.get(), offset, whence); }
-		size_t read(void* buf, size_t size){ gzread(pf.get(), buf, size); }
-		size_t write(const void* buf, size_t size){ gzwrite(pf.get(), buf, size); }
+		size_t tell() const { return ::gztell(pf.get()); }
+		void seek(size_t offset, int whence=0){ ::gzseek(pf.get(), offset, whence); }
+		size_t read(void* buf, size_t size){ return ::gzread(pf.get(), buf, size); }
+		size_t write(const void* buf, size_t size){ return ::gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???
 		int printf(const char * format, ...){
 			va_list args; va_start(args, format);   

@@ -68,7 +68,7 @@
 виртуальных методов класса \verb'aiw::IOstream', класс \verb'aiw::File' предоставляет следующие методы:
 \begin{itemize}
 \item \verb'File(){}' --- конструктор по умолчанию, создает неактивный поток;
-\item \verb'template <typename ... Args> open(const char *format, const char *mode, Args ... args)'~---
+\item \verb'template <typename ... Args> void open(const char *format, const char *mode, Args ... args)'~---
   открывает файлу в режиме \verb'mode' с именем, формируемым на основе строки \verb'format' и аргументов \verb'args'
   при помощи функции  \verb'aiw::format2stream()';
 \item \verb'template <typename ... Args> File(const char *format, const char *mode, Args ... args)'~---
@@ -82,7 +82,7 @@
 виртуальных методов класса \verb'aiw::IOstream', класс \verb'aiw::GzFile' предоставляет следующие методы:
 \begin{itemize}
 \item \verb'GzFile(){}' --- конструктор по умолчанию, создает неактивный поток;
-\item \verb'template <typename ... Args> open(const char *format, const char *mode, Args ... args)'~---
+\item \verb'template <typename ... Args> void open(const char *format, const char *mode, Args ... args)'~---
   открывает файлу в режиме \verb'mode' с именем, формируемым на основе строки \verb'format' и аргументов \verb'args'
   при помощи функции  \verb'aiw::format2stream()';
 \item \verb'template <typename ... Args> GzFile(const char *format, const char *mode, Args ... args)'~---

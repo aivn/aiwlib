@@ -9,8 +9,8 @@
 
 #ifndef MINGW
 #    include <sys/mman.h>
-//   #include <cfcntl> ???
-#    include <cunistd>
+#    include <fcntl.h> 
+#    include <unistd.h>
 #endif //MINGW
 #include <memory>
 #include "debug"
@@ -25,13 +25,13 @@ namespace aiw{
 		void* get_addr(){ return ptr; }
 		size_t get_size() const { return size; }
 
-		virtual ~BaseAlloc() = 0;
+		virtual ~BaseAlloc(){}
 		virtual size_t get_sizeof() const = 0;
 	};
 //---------------------------------------------------------------------------------------------	
 	template<typename T> struct MemAlloc: public BaseAlloc{
-		template<typename ... Args> MemAlloc(size_t sz, Args ... args): size(sz) {
-			ptr = new T[sz](args...);
+		template<typename ... Args> MemAlloc(size_t sz, Args ... args){
+			size = sz; ptr = new T[sz](args...);
 			if(!ptr) WRAISE("can't allocate memory ", size, sizeof(T));
 		}
 		~MemAlloc(){ delete [] (T*)ptr; }
@@ -44,8 +44,8 @@ namespace aiw{
 		void *mmap_ptr;
 		size_t mmap_sz; 
 	public:
-		MMapAlloc(const std::shared_ptr<FILE> &pf_, size_t size_, int flags): pf(pf_), size(size_){
-			int fd = fileno(pf.get()); size_t pg_sz = sysconf(_SC_PAGE_SIZE), offset = ftell(pf.get());
+		MMapAlloc(const std::shared_ptr<FILE> &pf_, size_t sz, int flags): pf(pf_){
+			size = sz; int fd = fileno(pf.get()); size_t pg_sz = sysconf(_SC_PAGE_SIZE), offset = ftell(pf.get());
 			mmap_sz = size+offset%pg_sz;
 			mmap_ptr = mmap(NULL, mmap_sz, flags, MAP_PRIVATE, fd, offset/pg_sz*pg_sz);
 			if(mmap_ptr==MAP_FAILED) WRAISE("can't mmapped file ", fd, offset, size, flags, mmap_sz, pg_sz);
