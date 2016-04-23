@@ -38,7 +38,7 @@ namespace aiw{
 #   define NAME_OF_STFR1(num) tmp_wrap_stack_frame##num
 #   define NAME_OF_STFR2(num) NAME_OF_STFR1(num)
 #   define WEXC(args...) aiw::DebugStackFrame NAME_OF_STFR2(__LINE__); WSTR(NAME_OF_STFR2(__LINE__).buf, args)
-#   define WASSERT(cond, msg, args...) if(!(cond)) ARAISE(msg, args)
+#   define WASSERT(cond, msg, args...) if(!(cond)) WRAISE(msg, args)
 #else //EBUG
 #   define WSTR(S, args...)
 #   define WEXC(args...)
