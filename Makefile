@@ -13,4 +13,4 @@ python/_swig.so: include/swig swig/swig_wrap.cxx
 	g++-4.8 -Wall -fPIC -shared -O3 -g -std=c++11 -I/usr/include/python2.7 -o python/_swig.so swig/swig_wrap.cxx
 
 
-clean:; rm -rf swig/*.o swig/*.py swig/*_wrap.cxx python/iostream.py python/_iostream.so
+clean:; rm -rf swig/*.o swig/*.py swig/*_wrap.cxx python/_*.so python/{swig,iostream}.py
