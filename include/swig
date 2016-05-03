@@ -1,0 +1,33 @@
+// -*- C++ -*-
+#ifndef AIW_SWIG_HPP
+#define AIW_SWIG_HPP
+/**
+ * Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#ifdef SWIGPYTHON
+namespace aiw{
+//------------------------------------------------------------------------------
+	class SwigTypesTable{
+		swig_module_info *module;
+	public:
+		inline SwigTypesTable(){ module = &swig_module; }
+		inline int size(){ return module->size; }
+		inline const char* get_item(int i){ return module->types[i]->str; }
+		inline void patch(int src, int dst){ module->types[src]->clientdata = module->types[dst]->clientdata; }
+		inline void set_type(PyObject* obj, int T){ ((SwigPyObject*)obj)->ty = module->types[T]; }
+	};
+//------------------------------------------------------------------------------
+	inline const char* get_swig_type(PyObject* obj){ return ((SwigPyObject*)obj)->ty->str; }
+	inline void push_vec_data(void *obj, int offset, const char* data, int size){
+		for(int i=0; i<size; i++) ((char*)obj)[offset+i] = data[i];
+	}
+	inline PyObject* pull_vec_data(void *obj, int offset, int size){
+		return PyString_FromStringAndSize( ((const char*)obj)+offset, size);
+	}
+	class PVec{ char p[1024]; };
+//------------------------------------------------------------------------------
+};
+#endif //SWIGPYTHON
+#endif //AIW_SWIG_HPP

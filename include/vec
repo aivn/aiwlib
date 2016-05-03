@@ -6,22 +6,6 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
-#ifdef SWIGPYTHON
-inline void push_vec_data(void *obj, int offset, const char* data, int size){
-	for(int i=0; i<size; i++) ((char*)obj)[offset+i] = data[i];
-}
-inline PyObject* pull_vec_data(void *obj, int offset, int size){
-	return PyString_FromStringAndSize( ((const char*)obj)+offset, size);
-}
-inline int swig_types_table_size(){ return swig_module.size; }
-inline const char* swig_types_table_get_item(int i){ return swig_types[i]->str; }
-inline void swig_types_table_patch(int src, int dst){ swig_types[src]->clientdata = swig_types[dst]->clientdata; }
-inline const char* get_swig_type(PyObject* obj){ return ((SwigPyObject*)obj)->ty->str; }
-inline void set_swig_type(PyObject* obj, int T){ ((SwigPyObject*)obj)->ty = swig_types[T]; }
-
-class PVec{ char p[1024]; };
-#endif //SWIGPYTHON
-
 #include <math.h>
 #include "debug"
 
@@ -59,10 +43,10 @@ namespace aiw{
 
 #define VEC_BIN_OP(ROP, OP, RES)										\
 		template <typename T2>											\
-		inline void operator OP##= (const Vec<D,T2> &v){					\
+		inline void operator OP##= (const Vec<D,T2> &v){				\
 			for(int i=0; i<D; i++) p[i] = RES;							\
 		}																\
-		template <typename T2>											\
+		template <typename T2>  										\
 		inline Vec<D, decltype(T() ROP T2())>							\
 		operator OP (const Vec<D,T2> &v) const {						\
 			decltype(*this ROP v) r;									\
@@ -130,7 +114,7 @@ namespace aiw{
      		return res;		
 		}
 		inline Vec pow(double n) const { Vec v; for(int i=0; i<D; i++) v[i] = ::pow(p[i], n); return v; }
-		inline Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
+		// inline Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
 
 		inline Vec fabs() const { Vec v; for(int i=0; i<D; i++) v[i] = ::fabs(p[i]); return v; }
 		inline Vec ceil() const { Vec v; for(int i=0; i<D; i++) v[i] = ::ceil(p[i]); return v; }
@@ -142,22 +126,14 @@ namespace aiw{
 		inline T sum() const { T res = p[0]; for(int i=1; i<D; i++) res += p[i]; return res; }
 		inline T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
 		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
-		/*
-		inline bool is_nan() const { 
-			for(int i=0; i<D; i++) if( isnan(p[i]) ) return true;
-			return false;
-		}
-		inline bool is_bad() const { 
-			for(int i=0; i<D; i++) if( ! isnormal(p[i]) ) return true;
-			return false;
-		}
 
-		inline const char* c_str(const char* separator=" ", const char* format="%g") const { //return c_strV( D, p, format, separator ); } //???
-			buf_open(); buf_print(format, (double)p[0]);  
-			for(int i=1; i<D; i++){ buf_print("%s", separator); buf_print(format, (double)p[i]); } //???
-			return buf_close();  
-		}
-		*/
+		inline Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = ::isnan(p[i]); return res; }
+		inline Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = ::isinf(p[i]); return res; }
+		inline bool cknan() const { for(int i=0; i<D; i++) if(::isnan(p[i])) return true; return false; }
+		inline bool ckinf() const { for(int i=0; i<D; i++) if(::isinf(p[i])) return true; return false; }
+
+		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
+		inline operator bool() const { for(int i=0; i<D; i++) if(!p[i]) return false; return true; }
 		
 	}; // end of class Vec
 	template <typename T, typename ... Args>

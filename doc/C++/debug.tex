@@ -54,24 +54,24 @@
 %\end{verbatim}
 Если в выражении есть запятые, части содержащие запятые так же должны быть в скобках, например
 \begin{verbatim}
-     pow(a, b)   
+    pow(a, b)   
 \end{verbatim}
 В противном случае макросы сохраняют работоспособность, но вывод может иметь странный вид, например
 \begin{verbatim}
 template <int D, typename T> struct V{
-	T p[D];
-	V(T x){ for(int i=0; i<D; ++i) p[i] = x; }
+    T p[D];
+    V(T x){ for(int i=0; i<D; ++i) p[i] = x; }
 };
 
 template <int D, typename T> 
 std::ostream& operator << (std::ostream& out, const V<D,T> &v){
-	out<<"{"<<v.p[0];
-	for(int i=1; i<D; ++i) out<<" "<<v.p[i];
-	return out<<"}";
+    out<<"{"<<v.p[0];
+    for(int i=1; i<D; ++i) out<<" "<<v.p[i];
+    return out<<"}";
 }
 ...
-	int a=2;
-	WOUT(V<3,int>(a), a*2);
+    int a=2;
+    WOUT(V<3,int>(a), a*2);
 \end{verbatim}
 даст вывод
 \begin{verbatim}
@@ -83,7 +83,7 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 \end{verbatim}
 Для корректного вывода необходимо использовать дополнительные скобки
 \begin{verbatim}
-	WOUT((V<3,int>(a)), a*2);
+    WOUT((V<3,int>(a)), a*2);
 \end{verbatim}
 
 В одной строке может использоваться только один макрос \verb'WEXC'.
@@ -110,7 +110,7 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 
 \subsection{Вывод информации со стека при обработке исключения}
 Макрос \verb'WEXC' выводит свои аргументы на стандартный поток ошибок \verb'std::cerr' при обработке исключения.
-Типовой ситуацией является возбуждение исключения в \veb'C++' функции, вызываемой из \verb'Python', если
+Типовой ситуацией является возбуждение исключения в \verb'C++' функции, вызываемой из \verb'Python', если
 модуль был собран при помощи шаблонного \verb'aiwlib/Makefile' --- в этом случае в \verb'Python' происходит
 вызов стандартного обработчика исключений.
 

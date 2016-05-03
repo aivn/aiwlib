@@ -1,0 +1,176 @@
+% -*- mode: LaTeX; coding: utf-8 -*-
+\documentclass[12pt]{book}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{eufrak}
+\usepackage{epsfig}
+\usepackage{psfrag}
+\usepackage{tabularx}
+\usepackage{wrapfig}
+\usepackage{subfig}
+\setlength{\topmargin}{-0.5in}
+\setlength{\oddsidemargin}{-5.mm}
+\setlength{\evensidemargin}{-5.mm}
+\setlength{\textwidth}{7.in}
+\setlength{\textheight}{9.in}
+
+%\usepackage{listings}
+%\usepackage{graphicx}
+%\lstloadlanguages{ [ LaTeX ] TeX, bash, C++, make, python}
+%\lstset{language=python, escapechar=|, extendedchars=true} 
+
+\usepackage[unicode,colorlinks]{hyperref}
+%\hypersetup{colorlinks=true, linkcolor=blue, filecolor=blue, pagecolor=blue, urlcolor=blue}
+\hypersetup{colorlinks=true, linkcolor=blue, filecolor=blue, urlcolor=blue,
+pdftitle={Библиотека aiwlib}, pdfauthor={Иванов А.В, Хилков С.А и Жданов С.А}}
+
+\def\nil{}
+\begin{document}
+\title{Библиотека {\tt aiwlib}}
+\author{
+Иванов А.В., Хилков С.А. и Жданов С.А
+}
+
+%\institution{Институт прикладной математики им.~М.В.~Келдыша РАН}
+%\libcatnum{519.63}
+%\city{\rule{0pt}{1.5cm}Москва}
+%\date{\number\year\month\day}
+\maketitle
+
+%\def\baselinestretch{1.5}
+%\setcounter{page}{1}
+\tableofcontents
+
+
+\chapter{Начало работы} % вводное руководство
+%\input{introduction} % разжигая ваш аппетит
+% быстрый старт (примеры использования)
+% установка
+% \input{structure}
+
+% изменения по сравнению с aivlib ?
+
+\chapter{Ядро библиотеки}
+\input{C++/debug}
+\input{C++/alloc}
+\input{C++/iostream}
+% вектора
+% сетки
+% сфера
+% инстацирование в питон - размазать по предыдыщуим модулям?
+
+\chapter{Средства визуализации}
+%3.1 gplt
+%3.2 arr2D
+%3.3 arr3D
+%3.4 сфера
+%3.5 вьювер для поверхностей
+%3.6 вьювер для магнетиков
+
+\chapter{RACS}
+
+\chapter{Система кодогенерации SYMBALG}
+
+\chapter{Дополнительные модули для питона}
+
+\chapter{Алгоритмы}
+\subsection{Построение изолиний}
+\subsection{Интерполяция}
+
+\end{document}
+%\input{aivlib/installation}
+
+\chapter{Ядро библиотеки}
+\section{Введение}
+\input{aivlib/introduction}
+\section{Общие модули}
+Для всех классов и функций библиотеки {\tt aivlib} необходимы потоки ввода/вывода, индексы и вектора~--- это
+то <<основание>>, на котором строятся все остальные библиотечные классы и функции.
+\input{aivlib/mystream}
+\input{../tests/mystream}
+
+\input{aivlib/IndxVctr}
+\input{../tests/IndxVctr}
+
+\input{aivlib/dekart}
+
+\section{Контейнеры}
+\input{aivlib/array}
+\small
+\input{../tests/Arr2D}
+\input{../tests/Arr3D}
+\normalsize
+\input{aivlib/sphere}
+\input{../tests/sphereT}
+
+
+\section{Классы и функции для построения изображений}
+%\input{aivlib/images}
+%\input{tests/images}
+\begin{center}
+\framebox{************* раздел находится в разработке ****************}
+\end{center}
+
+\section{Утилиты командной строки}
+\input{aivlib/shellutils}
+\input{aivlib/viewers}
+
+
+\chapter{Система контроля результатов и алгоритмов RACS}
+\input{racs/introduction}
+\input{racs/formalism}
+\input{racs/general}
+\input{racs/pickle_db}
+\input{racs/select}
+\input{racs/sh_utils}
+\input{racs/grid}
+
+\input{racs/mixt}
+\input{racs/mytime}
+\input{racs/examples}
+
+
+\chapter{Различные пакеты и утилиты}
+\section{Модуль {\tt bindopt}~--- разбор аргументов командной строки в приложениях
+{\tt Python}}\label{igl:sec}
+\input{other/bindopt}
+
+\section{Модуль {\tt myTkinter} --- упрощенное создание оконных интерфейсов}
+\input{other/myTkinter}
+
+\section{Утилита {\tt convolve}}\label{convolve:sec}
+\input{other/convolve}
+\clearpage
+
+\section{Утилита {\tt gplt} --- упрощенное создание графиков типографского качества}\label{gplt:sec}
+\input{other/gplt}
+
+\chapter{Система кодогенерации SYMBALG}
+%\input{symbalg/symbalg}
+\begin{center}
+\framebox{************* раздел находится в разработке ****************}
+\end{center}
+
+\begin{thebibliography}{99}
+\bibitem{GVR}  Г. Россум, Ф.Л.Дж. Дрейк, Д.С. Откидач. <<Язык программирования
+  {\tt Python}>>. 2001~--- 454C.
+\bibitem{ML} Марк Лутц. Программирование на {\tt Python}. С-Пб.:
+  <<Символ>>. 2002~--- 1135C. 
+\bibitem{MAKE} Ричард Столлман, Роланд МакГрат. <<{\tt GNU Make}. Программа
+  управления компиляцией>> 1995.
+\bibitem{aiv:cpp2py} \href{http://a-iv.ry/pyart/cpp2py.pdf}
+{А.В. Иванов <<Импорт {\tt С++} кода  в {\tt Python} при помощи пакета {\bfseries\tt SWIG}>>}
+\bibitem{bash:conspect} 
+\href{http://www.linux.org.ru/books/bash-conspect.html}{Григорий Строкин <<BASH конспект>> 1997.}
+\bibitem{bash:scripting} Mendel Cooper <<Advanced Bash-Scripting Guide>>, перевод: Андрей
+  Киселев
+  \href{http://www.opennet.ru/docs/RUS/bash\_scripting\_guide/}{<<Искусство программирования на языке сценариев командной оболочки>>}
+\end{thebibliography}
+
+%\input{../tests/indexD}
+
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
