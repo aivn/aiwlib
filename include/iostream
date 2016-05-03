@@ -9,6 +9,7 @@
 
 namespace aiw{
 //------------------------------------------------------------------------------
+#ifndef SWIG
 	template <typename S> void format2stream(S &&str, const char *format){
 		for(int i=0; format[i]; ++i)
 			if(format[i]=='%' && format[i+1]){
@@ -30,6 +31,7 @@ namespace aiw{
 			}
 		}
 	}
+#endif //SWIG
 //------------------------------------------------------------------------------
 	struct IOstream{
 		std::string name;
@@ -43,7 +45,7 @@ namespace aiw{
 		virtual void flush() = 0;
 		
 #ifndef SWIG
-		virtual std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false){
+		virtual std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
 			if(write_mode) WRAISE("can't mmapped IOstream to write mode", name); 
 			std::shared_ptr<BaseAlloc> ptr(new MemAlloc<char>(size));
 			size_t read_size = read(ptr->get_addr(), size);
@@ -90,7 +92,7 @@ namespace aiw{
 		size_t write(const void* buf, size_t size){ return ::fwrite(buf, size, 1, pf.get()); }
 		void flush(){ fflush(pf.get()); }
 #ifndef MINGW
-		std::shared_ptr<BaseAlloc> mmap(size_t size, bool write_mode=false){
+		std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
 			return std::shared_ptr<BaseAlloc>(new MMapAlloc(pf, size, write_mode?O_RDONLY|O_WRONLY:O_RDONLY));
 		}
 #endif //MINGW

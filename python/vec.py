@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
 # This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
 
@@ -67,7 +68,7 @@ def _decltype(a, b):
 _is_vec = lambda X: type(X) in (list, tuple) or hasattr(X,'T')
 def __2sz(X, sz):
     if len(X)==sz: return X._getall() if hasattr(X, '_getall') else X
-    or len(X)==1: return (X[0],)*sz
+    if len(X)==1: return (X[0],)*sz
     raise Exception('incorrect %r size, size=%i expected'%(X, sz))
 def _conv(self, other): sz = max(len(self), len(other)); return zip(_2sz(self, sz), _2sz(other, sz))
 _2tuple = lambda X: X._getall() if hasattr(X, '_getall') else tuple(X) if type(X) in (tuple, list) else (X,) #???
@@ -223,7 +224,7 @@ vec = lambda *args, **kw_args: Vec(*args, **kw_args)
 class Ind(Vec):
     def __init__(self, *args, **kw_args): Vec.__init__(self, *args, T='int', **kwe_args)
     def __rmod__(self, x):
-        Ind r(D=self.D)
+        r = Ind(D=self.D)
         for i in range(self.D): r[i] = x%self[i]; x /= self[i]
         return r
     def __ixor__(self, Up):
