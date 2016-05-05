@@ -7,7 +7,7 @@ from swig import *
 #-------------------------------------------------------------------------------
 #   C++ TYPES TABLE
 #-------------------------------------------------------------------------------
-#                    C++ type                 T  D py-type  S     sz  unpack struct tuple    pack to strucr tuple
+#                    C++-type                 T   D  py-type  S     sz  unpack struct tuple    pack to strucr tuple
 _cxx_types_table = { 'char':                 (10, 1, int,     'c',  1,  lambda t:t[0],         lambda x:(x,)            ),
                      'unsigned char':        (20, 1, int,     'B',  1,  lambda t:t[0],         lambda x:(x,)            ),
                      'int8_t':               (10, 1, int,     'b',  1,  lambda t:t[0],         lambda x:(x,)            ),
@@ -28,8 +28,8 @@ _cxx_types_table = { 'char':                 (10, 1, int,     'c',  1,  lambda t
                      'double':               (95, 1, float,   'd',  8,  lambda t:t[0],         lambda x:(x,)            ),
                      'std::complex<float>':  (90, 2, complex, 'ff', 8,  lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
                      'std::complex<double>': (95, 2, complex, 'dd', 16, lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
-                     int: 'int8_t', long: 'int64_t', float: 'float', complex:'std::complex<float>'
-                 }
+                     int: 'int32_t', long: 'int64_t', float: 'double', complex:'std::complex<double>'
+}
 for k, v in _cxx_types_table.items():
     if type(k) is str: _cxx_types_table[v[:2]] = k
     #if k in 'int32_t int64_t double std::complex<double>'.split(): _cxx_types_table[v[2]] = k
@@ -38,20 +38,19 @@ del k, v
 #   patch swig table
 #-------------------------------------------------------------------------------
 _vec_types_table = {}
+_get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
+_get_T = lambda V: V.split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V else 'double' if 'Vec' in V else 'int'
 def add_swig_types_table(cxx_m):
     patchL = []
     for i in range(cxx_m.size()):
         V = cxx_m.get_item(i)
-        if V.split()[0]=='PVec': _PVec._swig_type = i # find self
+        if V.split()[0] in ('PVec', 'aiw::PVec'): Vec._swig_type = i  # find self
         elif V.split()[0] in ('Vec<', 'Ind<', 'aiw::Vec<', 'aiw::Ind<'):
-            D = int(V.split('<')[0].split('>')[0].split(',')[0])
-            T = V.split(',',1)[1].rsplit('>',1)[0].strip()
-            if not T: T = 'double' if 'Vec' in V else 'int'        
-            # _vec_types_table[T,D] = (cxx_m, i) # overload types?
-            _vec_types_table[T,D] = lambda self, cxx_m=cxx_m, i=i: cxx_m.set_type(cxx_m, i) # overload types?
+            D, T = _get_D(V), _get_T(V)
+            _vec_types_table[T,D] = (cxx_m, i) # overload types?
+            #_vec_types_table[T,D] = lambda self, cxx_m=cxx_m, i=i: cxx_m.set_type(cxx_m, i) # overload types?
             patchL.append(i)
-    for i in patchL: cxx_m.patch(i, _PVec._swig_type)
-add_swig_types_table(SwigTypesTable())
+    for i in patchL: cxx_m.patch(i, Vec._swig_type)
 #-------------------------------------------------------------------------------
 #   SOME FUNCTIONS
 #-------------------------------------------------------------------------------
@@ -75,56 +74,61 @@ _2tuple = lambda X: X._getdata() if hasattr(X, '_getall') else tuple(X) if type(
 #-------------------------------------------------------------------------------
 #   class Vec (python implementation)
 #-------------------------------------------------------------------------------
-_PVec = PVec; del PVec
-class Vec(_PVec):
-    def __init__(self,*args, **kw_args):
-        _PVec.__init__(self)
+class Vec:
+    def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
+    def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
+    def __init__(self, *args, **kw_args):
+        self._swig_init()
         self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
         if len(args)==1: args = args*self.D
         elif len(args)==0: args = (0.,)*self.D
         if len(args)!=self.D: raise Exception('Vec<%i,%s>%r --- incorrect args length %i'%(self.D, self.T, args, len(args)))
-        _vec_types_table.get((self.T, self.D), lambda x:None)(self.this)
+        #_vec_types_table.get((self.T, self.D), lambda x:None)(self.this)
+        if (self.T, self.D) in _vec_types_table: cxx_m, i = _vec_types_table[self.T,self.D]; cxx_m.set_type(self.this, i)
+        # print _vec_types_table, self.T, self.D
         # как то контролировать/узнавать тип вектора на основе get_swig_type(self.this)? Когда может вызываться конструктор?
         self._setdata(args)
     #---------------------------------------------------------------------------
-    __len__  = lambda self: self.D
-    __str__  = lambda self: ' '.join(map(str, self._getdata()))
-    __repr__ = lambda self: ('Ind(%s)' if self.T=='int' else 'Vec(%s)' if self.T=='double'
-                              else 'Vec(%%s,T=\'%s\')'%self.T)%','.join(map(repr, self._getdata()))
+    def __len__(self): return self._D()
+    def __str__(self): return ' '.join(map(str, self._getdata()))
+    def __repr__(self): return ('Ind(%s)' if self._T() in ('int', 'int32_t') else 'Vec(%s)' if self._T()=='double'
+                                else 'Vec(%%s,T=\'%s\')'%self._T())%','.join(map(repr, self._getdata()))
     #---------------------------------------------------------------------------
     def _getdata(self):
         'return Vec data as list'
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
-        data = struct.unpack(let*self.D, pull_vec_data(self, 0, szT*self.D))
-        return [unpack(data[i:i+C]) for i in range(0, self.D*C, C)]
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
+        data = struct.unpack(let*D, pull_vec_data(self, 0, szT*D))
+        return [unpack(data[i:i+C]) for i in range(0, D*C, C)]
     def _setdata(self, data):
         'set Vec data'
-        if len(data)!=self.D: raise Exception("incorrect length %r, %i expected"%(data, self.D))
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
-        push_vec_data(self, 0, struct.pack(let*self.D, *sum(map(pack, map(pyT, data)), ())), szT*self.D)    
+        if len(data)!=self._D(): raise Exception("incorrect length %r, %i expected"%(data, self._D()))
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
+        push_vec_data(self, 0, struct.pack(let*D, *sum(map(pack, map(pyT, data)), ())), szT*D)    
     #---------------------------------------------------------------------------
     def __getitem__(self, i):
-        if type(i) is slice: return map(self._getdata().__getitem__, range(*i.indices(self.D)))
-        if i<0: i+= self.D
-        if i<0 or self.D<=i: raise IndexError(i)
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
+        D = self._D()
+        if type(i) is slice: return map(self._getdata().__getitem__, range(*i.indices(D)))
+        if i<0: i+= D
+        if i<0 or D<=i: raise IndexError(i)
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
         return unpack(struct.unpack(let, pull_vec_data(self, szT*i, szT)))
     def __setitem__(self, i, val):
+        D = self._D()
         if type(i) is slice:
             data = self._getdata()
-            for j in range(*i.indices(self.D)): data[j] = val[j]
+            for j in range(*i.indices(D)): data[j] = val[j]
             self._setdata(data)
             return
-        if i<0: i+= self.D
-        if i<0 or self.D<=i: raise IndexError(i)
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
+        if i<0: i+= D
+        if i<0 or D<=i: raise IndexError(i)
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
         push_vec_data(self, i*szT, struct.pack(let, pack(pyT(val))), szT)    
     #---------------------------------------------------------------------------
     def __getstate__(self):
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
-        return struct.pack('BBh', T, C, self.D)+pull_vec_data(self, 0, szT*self.D)
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
+        return struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D)
     def __setstate__(self, state):
-        _PVec.__init__(self) #???
+        self._swig_init() #???
         sT, sC, self.D = struct.unpack('BBh', state[:4])    
         self.T = _cxx_types_table[sT, sC]
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
@@ -132,12 +136,12 @@ class Vec(_PVec):
         push_vec_data(self, 0, state[4:], szT*self.D)
         _vec_types_table.get((self.T, self.D), lambda x:None)(self.this)  #???
     #---------------------------------------------------------------------------
-    __lt__ = lambda self, other: all(a< b for a, b in _conv(self, other)) 
-    __le__ = lambda self, other: all(a<=b for a, b in _conv(self, other)) 
-    __gt__ = lambda self, other: all(a> b for a, b in _conv(self, other)) 
-    __ge__ = lambda self, other: all(a>=b for a, b in _conv(self, other)) 
-    __eq__ = lambda self, other: all(a==b for a, b in _conv(self, other)) 
-    __ne__ = lambda self, other: any(a!=b for a, b in _conv(self, other)) 
+    def __lt__(self, other): return all(a< b for a, b in _conv(self, other)) 
+    def __le__(self, other): return all(a<=b for a, b in _conv(self, other)) 
+    def __gt__(self, other): return all(a> b for a, b in _conv(self, other)) 
+    def __ge__(self, other): return all(a>=b for a, b in _conv(self, other)) 
+    def __eq__(self, other): return all(a==b for a, b in _conv(self, other)) 
+    def __ne__(self, other): return any(a!=b for a, b in _conv(self, other)) 
     #---------------------------------------------------------------------------
     # operator *
     def __mul__(a, b):
@@ -151,44 +155,46 @@ class Vec(_PVec):
         for i in range(len(a)): a[i] = a[i]*b
     #---------------------------------------------------------------------------
     # operator /
-    __div__  = lambda a, b: Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else [x/b for x in a._getdata()]), T=_decltype(a, b)) 
-    __rdiv__ = lambda a, b: Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else [b/x for x in a._getdata()]), T=_decltype(a, b)) 
+    def __div__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
+                                     [x/b for x in a._getdata()]), T=_decltype(a, b)) 
+    def __rdiv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
+                                     [b/x for x in a._getdata()]), T=_decltype(a, b)) 
     def __imul__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r /= %r'%(a, b))
         for i in range(len(a)): a[i] = a[i]/b
     #---------------------------------------------------------------------------
     # operator &
-    __and__  =  lambda a, b: Vec(*([x*y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __rand__ =  lambda a, b: Vec(*([y*x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __and__(a, b):  return Vec(*([x*y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __rand__(a, b): return Vec(*([y*x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __iand__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = a[i]*b[i]
     #---------------------------------------------------------------------------
     # operator +
-    __add__  = lambda a, b: Vec(*([x+y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __radd__ = lambda a, b: Vec(*([y+x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __add__(a, b):  return Vec(*([x+y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __radd__(a, b): return Vec(*([y+x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __iadd__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = a[i]+b[i]
     #---------------------------------------------------------------------------
     # operator -
-    __neg__  = lambda self: Vec(*([-x for x in self._getdata()]), T=self.T) 
-    __sub__  = lambda a, b: Vec(*([x-y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __rsub__ = lambda a, b: Vec(*([y-x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __neg__(self): return Vec(*([-x for x in self._getdata()]), T=self._T()) 
+    def __sub__(a, b): return  Vec(*([x-y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __rsub__(a, b): return Vec(*([y-x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __isub__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = a[i]-b[i]
     #---------------------------------------------------------------------------
     # operators | and ()
-    __or__   = lambda a, b: Vec(*(a._getdata()+_2tuple(b)), T=_decltype(a, b)) 
-    __ror__  = lambda a, b: Vec(*(_2tuple(b)+a._getdata()), T=_decltype(a, b))
-    __call__ = lambda self, *args: PVec(*[self[i] for i in agrs], T=self.T)
+    def __or__  (a, b): return Vec(*(a._getdata()+_2tuple(b)), T=_decltype(a, b)) 
+    def __ror__ (a, b): return Vec(*(_2tuple(b)+a._getdata()), T=_decltype(a, b))
+    def __call__(self, *args): Vec(*[self[i] for i in agrs], T=self._T())
     #---------------------------------------------------------------------------
     # operators <<, <<=, >>, >>=
-    __lshift__  = lambda a, b: Vec(*([min(x,y) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __rlshift__ = lambda a, b: Vec(*([min(y,x) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __rshift__  = lambda a, b: Vec(*([max(x,y) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
-    __rrshift__ = lambda a, b: Vec(*([max(y,x) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __lshift__ (a, b): return Vec(*([min(x,y) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __rlshift__(a, b): return Vec(*([min(y,x) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __rshift__ (a, b): return Vec(*([max(x,y) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
+    def __rrshift__(a, b): return Vec(*([max(y,x) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __ilshift__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = min(a[i], b[i])
@@ -197,23 +203,35 @@ class Vec(_PVec):
         for i in range(len(a)): a[i] = max(a[i], b[i])
     #---------------------------------------------------------------------------
     # periodic ???
-    circ = lambda self, l: Vec(*(self._getdata()[l%self.D:]+self._getdata()[:l%self.D]), T=self.T) #???
-    len = lambda self: sum([x*x for x in self._getdata()])**.5
-    pow = lambda self, x: PVec(*[x**p for x in self._getdata()])
-    #mod = lambda self, x: PVec(*[x**p for x in self._getdata()])
-    fabs = lambda self: PVec(*[abs(x) for x in self._getdata()])
-    ceil = lambda self: PVec(*[math.ceil(x) for x in self._getdata()], T=self.T)
-    floor = lambda self: PVec(*[math.floor(x) for x in self._getdata()], T=self.T)
-    round = lambda self: PVec(*[math.round(x) for x in self._getdata()], T=self.T)
-    min = lambda self: min(self._getdata())
-    max = lambda self: max(self._getdata())
-    sum = lambda self: sum(self._getdata())
-    nan = lambda self: Ind(*[ math.isnan(x) for x in self._getdata()])
-    inf = lambda self: Ind(*[ math.isinf(x) for x in self._getdata()])
-    cnan = lambda self: any([ math.isnan(x) for x in self._getdata()])
-    cinf = lambda self: any([ math.isinf(x) for x in self._getdata()])
-    prod = lambda self: reduce(lambda a, b:a*b, self.__getdata())
-    __nonzero__ = lambda self: all(self._getdata())
+    def circ(self): return Vec(*(self._getdata()[l%self._D():]+self._getdata()[:l%self._D()]), T=self._T()) #???
+    def len(self): return sum([x*x for x in self._getdata()])**.5
+    def pow(self, x): Vec(*[x**p for x in self._getdata()])
+    #mod(self, x: Vec(*[x**p for x in self._getdata()])
+    def fabs(self): return Vec(*[abs(x) for x in self._getdata()])
+    def ceil(self): return Vec(*[math.ceil(x) for x in self._getdata()], T=self._T())
+    def floor(self): return Vec(*[math.floor(x) for x in self._getdata()], T=self._T())
+    def round(self): return Vec(*[math.round(x) for x in self._getdata()], T=self._T())
+    def min(self): return min(self._getdata())
+    def max(self): return max(self._getdata())
+    def sum(self): return sum(self._getdata())
+    def nan(self): return Ind(*[ math.isnan(x) for x in self._getdata()])
+    def inf(self): return Ind(*[ math.isinf(x) for x in self._getdata()])
+    def cnan(self): return any([ math.isnan(x) for x in self._getdata()])
+    def cinf(self): return any([ math.isinf(x) for x in self._getdata()])
+    def prod(self): return reduce(lambda a, b:a*b, self.__getdata())
+    def __nonzero__(self): return all(self._getdata())    
+    #---------------------------------------------------------------------------
+    def __rmod__(self, x):
+        if self._T() not in ('int', 'int32_t'): raise Exception('incorrect rvalue type in %r%%%r'%(x, self))
+        r = Ind(D=self._D())
+        for i in range(self._D()): r[i] = x%self[i]; x /= self[i]
+        return r
+    def __ixor__(self, Up):
+        if self._T() not in ('int', 'int32_t'): raise Exception('incorrect lvalue type in %r^=%r'%(self, Up))
+        for i in range(self._D()-1):
+            if self[i]<Up[i]: return True 
+            else: self[i] = 0; self[i+1] += 1 
+        return self[self._D()-1]<Up[D-1]
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    
     ab, bc = b-a, c-b; ab /= ab.abs(); bc /= bc.abs()
@@ -221,17 +239,13 @@ def angle(a, b, c):
 #-------------------------------------------------------------------------------
 #   FINAL ACTIONS
 #-------------------------------------------------------------------------------
+PVec._swig_init = PVec.__init__
+for k, v in Vec.__dict__.items():
+    if k not in ('__doc__',): setattr(PVec, k, v)
+PVec.__name__, Vec = 'Vec', PVec; del PVec
+
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
-class Ind(Vec):
-    def __init__(self, *args, **kw_args): Vec.__init__(self, *args, T='int', **kw_args)
-    def __rmod__(self, x):
-        r = Ind(D=self.D)
-        for i in range(self.D): r[i] = x%self[i]; x /= self[i]
-        return r
-    def __ixor__(self, Up):
-        for i in range(self.D-1):
-            if self[i]<Up[i]: return True 
-            else: self[i] = 0; self[i+1] += 1 
-        return self[self.D-1]<Up[D-1]
-ind = lambda *args, **kw_args: Ind(*args, **kw_args)
+Ind = ind = lambda *args, **kw_args: Vec(*args, T='int', **kw_args)
 #-------------------------------------------------------------------------------
+add_swig_types_table(SwigTypesTable())
+#print '======================================================'

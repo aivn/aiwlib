@@ -10,7 +10,7 @@ swig: python/swig.py python/_swig.so;
 python/swig.py: swig/swig.py; @cp swig/swig.py python/swig.py
 swig/swig.py swig/swig_wrap.cxx: swig/swig.i include/swig; swig -Wall -python -c++ swig/swig.i
 python/_swig.so: include/swig swig/swig_wrap.cxx
-	g++-4.8 -Wall -fPIC -shared -O3 -g -std=c++11 -I/usr/include/python2.7 -o python/_swig.so swig/swig_wrap.cxx
+	g++-4.8 -DEBUG -Wall -fPIC -shared -O3 -g -std=c++11 -I/usr/include/python2.7 -o python/_swig.so swig/swig_wrap.cxx
 
 
 clean:; rm -rf swig/*.o swig/*.py swig/*_wrap.cxx python/_*.so python/{swig,iostream}.py

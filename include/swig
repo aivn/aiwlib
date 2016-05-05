@@ -7,16 +7,27 @@
  **/
 
 #ifdef SWIGPYTHON
+
+// #include "vec"
+// aiw::Vec<3> f(){ return aiw::vec(1.,2.,3.); }
+// void g(aiw::Ind<2> x){ std::cout<<"x="<<x<<std::endl; }
+
 namespace aiw{
 //------------------------------------------------------------------------------
 	class SwigTypesTable{
 		swig_module_info *module;
 	public:
+		void out(){ printf("module=%p\n", module); }
 		inline SwigTypesTable(){ module = &swig_module; }
 		inline int size(){ return module->size; }
 		inline const char* get_item(int i){ return module->types[i]->str; }
 		inline void patch(int src, int dst){ module->types[src]->clientdata = module->types[dst]->clientdata; }
-		inline void set_type(PyObject* obj, int T){ ((SwigPyObject*)obj)->ty = module->types[T]; }
+		inline void set_type(PyObject* obj, int T){
+			// SwigPyObject *s = (SwigPyObject*)obj;
+			// WOUT(obj, s->ptr, s->next, s->ty, T, module->types[T]->str, s->ob_type->tp_name, this, module);
+			((SwigPyObject*)obj)->ty = module->types[T];
+			// WOUT(((SwigPyObject*)obj)->ty->str);
+		}
 	};
 //------------------------------------------------------------------------------
 	inline const char* get_swig_type(PyObject* obj){ return ((SwigPyObject*)obj)->ty->str; }

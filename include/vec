@@ -127,10 +127,10 @@ namespace aiw{
 		inline T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
 		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
 
-		inline Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = ::isnan(p[i]); return res; }
-		inline Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = ::isinf(p[i]); return res; }
-		inline bool cknan() const { for(int i=0; i<D; i++) if(::isnan(p[i])) return true; return false; }
-		inline bool ckinf() const { for(int i=0; i<D; i++) if(::isinf(p[i])) return true; return false; }
+		inline Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = isnan(p[i]); return res; }
+		inline Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = isinf(p[i]); return res; }
+		inline bool cknan() const { for(int i=0; i<D; i++) if(isnan(p[i])) return true; return false; }
+		inline bool ckinf() const { for(int i=0; i<D; i++) if(isinf(p[i])) return true; return false; }
 
 		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
 		inline operator bool() const { for(int i=0; i<D; i++) if(!p[i]) return false; return true; }
