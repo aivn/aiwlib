@@ -1,62 +1,71 @@
 # -*- coding: utf-8 -*-
 #---------------------------------------------------------------------------------------------------------
 import time as _time
+import sys; sys.modules['racslib.mytime'] = sys.modules[__name__]
+
+#def _import_hook(*args, **kw_args):
+#    'patch for change racslib.mytime module to unpickling old data'
+#    if args[0]=='racslib.mytime': import sys; return sys.modules[__name__]
+#    return _builtins_import(*args, **kw_args)    
+#_builtins_import, __builtins__['__import__'] = __import__, _import_hook
 #---------------------------------------------------------------------------------------------------------
-class BaseTimeException(Exception) : pass
-class IllegalInitTimeValue(BaseTimeException) : pass
-class IllegalInitDateValue(BaseTimeException) : pass
-class IllegaMuleTimeValue(BaseTimeException) : pass
+class BaseTimeException(Exception): pass
+class IllegalInitTimeValue(BaseTimeException): pass
+class IllegalInitDateValue(BaseTimeException): pass
+class IllegaMuleTimeValue(BaseTimeException): pass
 #---------------------------------------------------------------------------------------------------------
-class Time : 
+class Time: 
 #    format = ...
     precision = 3
     def __init__( self, val=0, **d ) : 
-        if d and val : raise IllegalInitTimeValue('what use, "val=%r" or "%s"?'%( val, ', '.join([ '%s=%r'%(k,v) for k,v in d.items() ])))
-        if d : self.h, self.m, self.s = int(d.get('h',0)), int(d.get('m',0)), float(d.get('s',0)); self.setval()
-        elif type(val) in ( int, float, long ) : self.val = float(val)
-        elif isinstance( val, Time ) : self.val = val.val
-        elif type(val) == str :
-            pm, val = ( -1, val[1:] ) if val.startswith('-') else ( 1, val )
+        if d and val: raise IllegalInitTimeValue('what use, "val=%r" or "%s"?'%(
+                val, ', '.join(['%s=%r'%(k,v) for k, v in d.items()])))
+        if d: self.h, self.m, self.s = int(d.get('h',0)), int(d.get('m',0)), float(d.get('s',0)); self.setval()
+        elif type(val) in (int, float, long): self.val = float(val)
+        elif isinstance(val, Time): self.val = val.val
+        elif type(val)==str:
+            pm, val = (-1, val[1:]) if val.startswith('-') else (1, val)
             if not ':' in val : self.val = pm*float(val) #secs
-            elif val.count(':')==1 : h, m = map(float,val.split(':')); self.val = pm*( 3600*h+60*m )
-            elif val.count(':')==2 : h, m, s = map(float,val.split(':')); self.val = pm*( 3600*h+60*m+s )
-            else : raise IllegalInitTimeValue(val)
-        else : raise IllegalInitTimeValue(val)
+            elif val.count(':')==1: h, m = map(float,val.split(':')); self.val = pm*(3600*h+60*m)
+            elif val.count(':')==2: h, m, s = map(float,val.split(':')); self.val = pm*(3600*h+60*m+s)
+            else: raise IllegalInitTimeValue(val)
+        else: raise IllegalInitTimeValue(val)
         self.h, self.m, self.s = int(abs(self.val)/3600), int(abs(self.val)/60)%60, self.val%60
-    def setval( self ) : self.val = self.h*3600+self.m*60+self.s
-    def __call__( self, **d ) : dd=dict(self.__dict__); del dd['val']; dd.update(d); return Time(**dd)
-    def __float__( self ) : return self.val
-    def __int__( self ) :   return int(self.val)
-    def __getstate__( self ) : return self.val
-    def __setstate__( self, val ) : self.__init__(val)
-    def __str__(self) :
-        if not self.s  : return '-'*(self.val<0)+'%i:%02i'%( self.h, self.m )
-        if ( '%0*.*f'%( 2+bool(self.precision)+self.precision, self.precision, self.s ) ).startswith('60') : return '-'*(self.val<0)+'%i:%02i'%( self.h, self.m+1 )
-        return '-'*(self.val<0) + "%i:%02i:%0*.*f"%( self.h, self.m, 2+bool(self.precision)+self.precision, self.precision, self.s )
-    def __repr__(self) : return "Time('%s')"%self
-    def __neg__(self) : return Time(-self.val)
-    def __pos__(self) : return Time(self.val)
-    def __abs__(self) : return Time(abs(self.val))
-    def __add__( self, other ) :
-        if isinstance( other, Time ) : return Time( self.val+other.val )
-        elif isinstance( other, Date ) : return Date( self.val+other.val )
+    def setval(self): self.val = self.h*3600+self.m*60+self.s
+    def __call__(self, **d): dd = dict(self.__dict__); del dd['val']; dd.update(d); return Time(**dd)
+    def __float__(self): return self.val
+    def __int__(self):   return int(self.val)
+    def __getstate__(self): return self.val
+    def __setstate__(self, val): self.__init__(val)
+    def __str__(self):
+        if not self.s: return '-'*(self.val<0)+'%i:%02i'%(self.h, self.m)
+        if ('%0*.*f'%(2+bool(self.precision)+self.precision, self.precision, self.s)).startswith('60'):
+            return '-'*(self.val<0)+'%i:%02i'%(self.h, self.m+1)
+        return '-'*(self.val<0) + "%i:%02i:%0*.*f"%(self.h, self.m, 2+bool(self.precision)+self.precision, self.precision, self.s)
+    def __repr__(self): return "Time('%s')"%self
+    def __neg__(self): return Time(-self.val)
+    def __pos__(self): return Time(self.val)
+    def __abs__(self): return Time(abs(self.val))
+    def __add__(self, other):
+        if isinstance( other, Time ): return Time(self.val+other.val)
+        elif isinstance(other, Date): return Date(self.val+other.val)
         try: return self+Time(other)
         except IllegalInitTimeValue, e : return self+Date(other)
-    def __sub__( self, other ) : return self+(-other)
-    def __radd__( self, other ) : return self+other
-    def __rsub__( self, other ) : return -self+other
-    def __mul__( self, other ) : 
-        if type(other) in (int,float,long,str) : return Time(self.val*float(other))
+    def __sub__(self, other): return self+(-other)
+    def __radd__(self, other): return self+other
+    def __rsub__(self, other): return -self+other
+    def __mul__(self, other): 
+        if type(other) in (int, float, long, str): return Time(self.val*float(other))
         raise IllegaMuleTimeValue(other)
-    def __div__( self, other ) : 
-        if type(other) == str and ':' in other : return self.val/Time(other).val
-        elif type(other) in (int,float,long,str) : return Time(self.val/float(other))
-        elif isinstance( other, Time ) : return self.val/other.val
+    def __div__(self, other): 
+        if type(other) is str and ':' in other: return self.val/Time(other).val
+        elif type(other) in (int, float, long, str): return Time(self.val/float(other))
+        elif isinstance(other, Time): return self.val/other.val
         raise IllegaMuleTimeValue(other)
-    def __mod__( self, other ) : return int(self.val)%other
-    def __rmul__( self, other ) : return self*other
-    def __cmp__( self, other ) : return cmp( self.val, Time(other).val ) #precision???
-    def __rcmp__( self, other ) : return cmp( Time(other).val, self.val ) #precision???
+    def __mod__(self, other): return int(self.val)%other #???
+    def __rmul__(self, other): return self*other
+    def __cmp__(self, other): return cmp(self.val, Time(other).val) #precision???
+    def __rcmp__(self, other): return cmp(Time(other).val, self.val2) #precision???
     def __nonzero__(self): return bool(self.val)
 #---------------------------------------------------------------------------------------------------------
 class Date :

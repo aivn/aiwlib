@@ -1,0 +1,113 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+#-----------------------------------------------------------------------------
+'''racs список-репозиториев/ список-выражений действие
+
+Репозитории должны заканчиваться на символ '/'.
+
+Выражения expr могут задаваться как expr[!|!!] либо как 
+[~|^][title=][$]expr[?|%|#][+|-] где title --- имя столбца    
+      ! --- выполнять выражение функцией exec для расчета, скрывать результат 
+            (колонку выборки)
+     !! --- выполнять выражение функцией exec в глобальном пространстве имен, 
+            скрывать результат (колонку выборки)
+    ~|^ --- сортировать результаты по убыванию или возрастанию
+      $ --- форматировать выражение по словарю расчета и запустить его в sh,
+            результатом является строка прочитанная со стандартного вывода sh
+      ? --- фильтровать по результату, по умолчанию скрывать результат 
+            (колонку выборки)
+      % --- добавлять пустую строку (горизонтальную линию в таблицу) 
+            при изменении значения выражения
+      # --- убирать строки с одинаковыми значениями выражения кроме первого 
+            вхождения (аналог функции DISTINCT в SQL)
+    -|+ --- скрывать/показывать результат (колонку выборки), кроме опций ! и !!
+
+Должно быть задано одно (и только одно) действие. Доступные действия
+    --help --- показать эту справку и выйти
+    --ast[able] [[head=Yes] termwidth=default] --- вывести результаты в виде 
+                таблицы на стандартный вывод 
+                head      --- выводить заголовок (имена столбоцов)
+                termwidth --- ширина терминала
+    --asd[ata] [[[head=Yes] pattern=''] filename=''] --- вывести
+               результаты в формате dat--файла на стандартный вывод или
+               в файл filename
+               head    --- выводить заголовок (имена столбцов)
+               pattern --- шаблон имен для совпадающих по выбрке параметров
+                           расчетов, выводимых в заголовок dat--файла 
+    --co[mmit] --- сохранить изменения расчетов (сделанные при помощи опций ! 
+                   или !!) на диск
+    --rm|--remove --- удалить выбранные расчеты с диска
+    --keys [mode=or] --- вывести ключи (имена параметров) расчетов по всей 
+           выборке, в режиме
+           or  --- каждый ключ есть хотя бы в одном расчете
+           and --- каждый ключ есть во всех расчетах
+           xor --- каждый ключ есть только в одном расчете
+    --ps|--paths [fname=''] --- вывести на стандартный вывод пути к файлу
+                 fname указанном от директории расчета для всех расчетов 
+                 (если он существует), по умолчанию выводятся пути к расчетам
+
+Кроме того, доступны следующие опции (по умолчанию отключены):
+    --pb[ar]|--progressbar --- отображать процесс построения выборки
+    --csz|--calc-size --- определять размер расчетов (требует доп. времени)
+    --ctr|--check-tree --- двигаться вглубь репозиториев, по дереву каталогов
+    --force --- не запрашивать подтверждения на удаление расчетов и сохранение
+                изменений
+'''
+#-----------------------------------------------------------------------------
+#   parse arguments
+#-----------------------------------------------------------------------------
+import os, sys
+from aiwlib.mixt import *
+
+fromL, ev_list, action, a_sz, pbar, csz, ctr, force = [], [], None, len(sys.argv), False, False, False, False
+for i in range(1, a_sz):
+    arg = sys.argv[i]
+    if arg=='--help': print __doc__; sys.exit()
+    elif arg in ('--ast', '--astable'):
+        action = ['astable']
+        if i+1<a_sz: action.append(string2bool(sys.argv[i+1])) # head on/off
+        if i+2<a_sz: action.append(int(sys.argv[i+2]))         # termwidth
+        break
+    elif arg in ('--asd', '--asdata'):
+        action = ['asdata']
+        if i+1<a_sz: action.append(string2bool(sys.argv[i+1])) # head on/off
+        if i+2<a_sz: action.append(sys.argv[i+2])              # pattern
+        if i+3<a_sz: action.append(sys.argv[i+3])              # filename
+        break
+    elif arg in '--co --commit'.split(): action = ['Xcommit']; break
+    elif arg in '--rm --remove'.split(): action = ['Xremove']; break
+    elif arg=='--keys':
+        action = ['get_keys']
+        if i+1<a_sz: action.append(sys.argv[i+1]) # mode
+        break
+    elif arg in '--ps --paths'.split():
+        action = ['paths']
+        if i+1<a_sz: action.append(sys.argv[i+1]) # fname
+        break        
+    elif arg in '--pb --pbar --progressbar'.split(): pbar = True
+    elif arg in '--csz --calc-size'.split(): csz = True
+    elif arg in '--ctr --check-tree'.split(): ctr = True
+    elif arg=='--force': force = True
+    elif arg.endswith('/'): fromL.append(arg)
+    else: ev_list.append(arg)
+else: print>>sys.stderr, __doc__, 'Action not setting!'; sys.exit()
+#-----------------------------------------------------------------------------
+#   make select and call action
+#-----------------------------------------------------------------------------
+from aiwlib.select import Select
+
+S = Select(fromL, ev_list, pbar, csz, ctr)
+print>>sys.stderr, 'selected %i/%s (%s, %s)'%(len(S), time2string(S.runtime), 
+                                              size2string(S.c_size) if csz else '???', 
+                                              time2string(S.c_runtime))
+startime = time.time()
+if action==['Xremove']:
+    if force or raw_input(' '.join([r.path for r in S.nodes()])+
+                          ' (%i items total to remove, y/[any input])?'%len(S))=='y': S.Xremove()
+    else: print>>sys.stderr, 'aborted'; sys.exit()
+elif action==['Xcommit']:
+    if force or raw_input('commit changes (%i items, y/[any input])?'%len(S))=='y': S.Xcommit()
+    else: print>>sys.stderr, 'aborted'; sys.exit()
+else: print ' '.join(getattr(S, action[0])(*action[1:]))
+print>>sys.stderr, 'completed', time2string(time.time()-starttime)
+#-----------------------------------------------------------------------------
