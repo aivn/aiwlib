@@ -21,7 +21,7 @@ def _iattr(self, D, **kw_args):
     'пытается установить аттрибуты на основе D, иначе на основе Calc.__dict__, иначе из kw_args'
     for k, v in kw_args.items(): setattr(self, k, D.pop(k, Calc.__dict__.pop(k, v)))
 _is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
-_rtable, _G = [], {}
+_rtable, _G, ghelp = [], {}, []
 #-------------------------------------------------------------------------------
 #_ignore_list = 'path repo statelist runtime progress args _progressbar'.split()
 class Calc:
@@ -29,16 +29,21 @@ class Calc:
     _ignore_list = tuple('path repo _progressbar _ignore_list'.split())
     #---------------------------------------------------------------------------
     def __init__(self, **D):
+        # значения по умолчанию при построении выборки или создании расчета руками
         if not hasattr(Calc, '_starttime'): Calc._starttime = chrono.Date()
-        _iattr(self, D, runtime=chrono.Date()-Calc._startime) #???
-        _iattr(self, D, statelist=[], progress=0., args=sys.argv) #???
-        _iattr(Calc, D, repo='repo', _symlink=False, _statechecker=False, _on_exit=False, _calc_num=3, _auto_pull=False)
+        _iattr(self, D, runtime=chrono.Date()-Calc._startime, statelist=[], progress=0., args=sys.argv) #???
+        _iattr(Calc, D, repo='repo', _symlink=False, _statechecker=False, _on_exit=False, _calc_num=3,
+               _auto_pull=False, _clean_path=False)
         self.__dict__.update(D)
-        if 'path' in D: self.__dict__.update(cPickle.load(open(mixt.normpath(D['path'], '.RACS'))))
-        for k, v in Calc._qargs:
+        for k, v in getattrCalc, '_qargs', []):
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
             self.__dict__[k] = v
+        if 'path' in self.__dict__:
+            self.path = mixt.normpath(self.path)
+            if self.path[-1]!='/': self.path += '/'
         if hasattr(Calc, '_init_hook'): Calc._init_hook(self)
+        if 'path' in self.__dict__ and os.path.exists(self.path+'.RACS'):
+            self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
     #---------------------------------------------------------------------------
@@ -156,8 +161,8 @@ class Calc:
             finally: _rtable.pop()
         if key=='runtime': return Time(0.) #???
 	if key=='statelist': return
-        for r, a in _getitem_rules: 
-            if r(key, self): return a(key, self)
+        #for r, a in _getitem_rules: 
+        #    if r(key, self): return a(key, self)
         raise KeyError(key)        
     def __setitem__(self, key, val): self.__dict__[key] = val # блокировать доступ к statelist и пр???
     def __delitem__(self, key): del self.__dict__[key]

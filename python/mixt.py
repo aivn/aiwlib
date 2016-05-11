@@ -41,7 +41,7 @@ def except_report(stderr=sys.stderr, short=False):
     if hasattr(stderr, 'writelines') and _last_except_report!=descript: stderr.writelines(descript)
     _last_except_report = descript; return descript
 #-----------------------------------------------------------------------------
-normpath = lambda path: os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
+normpath = lambda path, *apps: os.path.abspath(os.path.expanduser(os.path.expandvars(os.path.join(path, *apps))))
 get_md5sums = lambda Lf: [ (i.split()[0], i.split(' ',1)[1].strip()) for i in 
                            os.popen('md5sum -b '+' %s'*len(Lf)%tuple(Lf)).readlines() ]
 #-----------------------------------------------------------------------------

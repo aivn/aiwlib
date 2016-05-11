@@ -1,0 +1,212 @@
+\begin{verbatim}
+os : module os
+timemodule : module time
+Date : объект даты
+Time : объект времени
+inf : float("inf")
+nan : float("nan")
+reg : класс region
+K : 2**10
+M : 2**20
+G : 2**30
+T : 2**40
+@size : int, размер расчета в байтах
+@hsize : размер расчета в "человеческом" представлении
+@lendir : число файлов и папок в директории расчета
+time2string : time as float --> time as string "hh:mm:ss.sss"
+string2time : time as string "hh:mm:ss.sss" --> time as float
+date2string : date as float --> date as string "YYYY.MM.DD-hh:mm:ss.sss"
+string2date : date as string "YYYY.MM.DD-hh:mm:ss.sss" --> date as float
+size2string : size as string for human
+@calc : уникальное имя расчета в репозитории
+@user : последний пользователь изменивший состояние 
+расчета
+@host : последний хост изменивший состояние расчета
+@mdate : последняя дата изменения состояние расчета
+@cdate : дата создания расчета
+@sdate : дата запуска расчета
+@adate : дата активации расчета
+@weekday : номер дня недели
+@today : сегодняшний день (интервал времени )
+@yesterday : вчерашний день (интервал времени)
+@week : текущая неделя (интервал времени)
+@lastweek : прошлая неделя (интервал времени)
+@logsize : размер логфайла в байтах
+sources : sources(path,pattern="*") --- создает список исходных файлов
+			отвечаюших шаблону pattern для расчета c 
+путем path
+@status : текущий статус расчета 
+"waited"|"activated"|"started"|"stopped"|"finished"
+@PID : PID расчета (int если запущен, иначе None)
+@waited : True для расчета ожидающего запуска
+@activated : True для расчета активированного планировщиком
+@started : True для запущенного расчета
+@stopped : True для остановленного расчета (обычно 
+вследствии ошибки)
+@finished : True для успешно завершенного расчета
+@suspended : True для приостановленного (пользователем) 
+расчета
+@mutates : строка с последовательностью изменений 
+статуса расчета
+@rewaite : число сбросов из состояния активации в 
+состояние ожидания
+@state : состояние расчета --- время счета, прогресс, 
+предполагаемое общее время счета
+@lefttime : предполагаемое время до завершения расчета
+@finishdate : предполагаемая дата завершения расчета
+fnmatch : fnmatch( string, pattern ) --- функция проверки соответствия 
+шаблону
+@logfile : выдает содержимое logfile
+priority : приоритет запуска
+pow : pow(x, y)  Return x**y (x to the power of y).
+fsum : fsum(iterable)  Return an accurate floating point sum of values in the iterable. Assumes 
+IEEE-754 floating point arithmetic.
+cosh : cosh(x)  Return the hyperbolic cosine of x.
+ldexp : ldexp(x, i)  Return x * (2**i).
+hypot : hypot(x, y)  Return the Euclidean distance, sqrt(x*x + y*y).
+acosh : acosh(x)  Return the hyperbolic arc cosine (measured in radians) of x.
+tan : tan(x)  Return the tangent of x (measured in radians).
+asin : asin(x)  Return the arc sine (measured in radians) of x.
+isnan : isnan(x) -> bool  Check if float x is not a number (NaN).
+log : log(x[, base])  Return the logarithm of x to the given base. If the base not specified, 
+returns the natural logarithm (base e) of x.
+fabs : fabs(x)  Return the absolute value of the float x.
+floor : floor(x)  Return the floor of x as a float. This is the largest integral value <= x.
+atanh : atanh(x)  Return the hyperbolic arc tangent (measured in radians) of x.
+modf : modf(x)  Return the fractional and integer parts of x.  Both results carry the sign of x 
+and are floats.
+sqrt : sqrt(x)  Return the square root of x.
+frexp : frexp(x)  Return the mantissa and exponent of x, as pair (m, e). m is a float and e is an 
+int, such that x = m * 2.**e. If x is 0, m and e are both 0.  Else 0.5 <= abs(m) < 1.0.
+degrees : degrees(x)  Convert angle x from radians to degrees.
+pi : число pi
+log10 : log10(x)  Return the base 10 logarithm of x.
+asinh : asinh(x)  Return the hyperbolic arc sine (measured in radians) of x.
+exp : exp(x)  Return e raised to the power of x.
+atan : atan(x)  Return the arc tangent (measured in radians) of x.
+factorial : factorial(x) -> Integral  Find x!. Raise a ValueError if x is negative or 
+non-integral.
+copysign : copysign(x, y)  Return x with the sign of y.
+ceil : ceil(x)  Return the ceiling of x as a float. This is the smallest integral value >= x.
+isinf : isinf(x) -> bool  Check if float x is infinite (positive or negative).
+sinh : sinh(x)  Return the hyperbolic sine of x.
+trunc : trunc(x:Real) -> Integral  Truncates x to the nearest Integral toward 0. Uses the 
+__trunc__ magic method.
+cos : cos(x)  Return the cosine of x (measured in radians).
+e : float(x) -> floating point number  Convert a string or number to a floating point number, if 
+possible.
+tanh : tanh(x)  Return the hyperbolic tangent of x.
+radians : radians(x)  Convert angle x from degrees to radians.
+sin : sin(x)  Return the sine of x (measured in radians).
+atan2 : atan2(y, x)  Return the arc tangent (measured in radians) of y/x. Unlike atan(y/x), the 
+signs of both x and y are considered.
+fmod : fmod(x, y)  Return fmod(x, y), according to platform C.  x % y may differ.
+acos : acos(x)  Return the arc cosine (measured in radians) of x.
+log1p : log1p(x)  Return the natural logarithm of 1+x (base e). The result is computed in a way 
+which is accurate for x near zero.
+os : module os
+timemodule : module time
+Date : объект даты
+Time : объект времени
+inf : float("inf")
+nan : float("nan")
+reg : класс region
+K : 2**10
+M : 2**20
+G : 2**30
+T : 2**40
+@size : int, размер расчета в байтах
+@hsize : размер расчета в "человеческом" представлении
+@lendir : число файлов и папок в директории расчета
+time2string : time as float --> time as string "hh:mm:ss.sss"
+string2time : time as string "hh:mm:ss.sss" --> time as float
+date2string : date as float --> date as string "YYYY.MM.DD-hh:mm:ss.sss"
+string2date : date as string "YYYY.MM.DD-hh:mm:ss.sss" --> date as float
+size2string : size as string for human
+@calc : уникальное имя расчета в репозитории
+@user : последний пользователь изменивший состояние 
+расчета
+@host : последний хост изменивший состояние расчета
+@mdate : последняя дата изменения состояние расчета
+@cdate : дата создания расчета
+@sdate : дата запуска расчета
+@adate : дата активации расчета
+@weekday : номер дня недели
+@today : сегодняшний день (интервал времени )
+@yesterday : вчерашний день (интервал времени)
+@week : текущая неделя (интервал времени)
+@lastweek : прошлая неделя (интервал времени)
+@logsize : размер логфайла в байтах
+sources : sources(path,pattern="*") --- создает список исходных файлов
+			отвечаюших шаблону pattern для расчета c 
+путем path
+@status : текущий статус расчета 
+"waited"|"activated"|"started"|"stopped"|"finished"
+@PID : PID расчета (int если запущен, иначе None)
+@waited : True для расчета ожидающего запуска
+@activated : True для расчета активированного планировщиком
+@started : True для запущенного расчета
+@stopped : True для остановленного расчета (обычно 
+вследствии ошибки)
+@finished : True для успешно завершенного расчета
+@suspended : True для приостановленного (пользователем) 
+расчета
+@mutates : строка с последовательностью изменений 
+статуса расчета
+@rewaite : число сбросов из состояния активации в 
+состояние ожидания
+@state : состояние расчета --- время счета, прогресс, 
+предполагаемое общее время счета
+@lefttime : предполагаемое время до завершения расчета
+@finishdate : предполагаемая дата завершения расчета
+fnmatch : fnmatch( string, pattern ) --- функция проверки соответствия 
+шаблону
+@logfile : выдает содержимое logfile
+priority : приоритет запуска
+pow : pow(x, y)  Return x**y (x to the power of y).
+fsum : fsum(iterable)  Return an accurate floating point sum of values in the iterable. Assumes 
+IEEE-754 floating point arithmetic.
+cosh : cosh(x)  Return the hyperbolic cosine of x.
+ldexp : ldexp(x, i)  Return x * (2**i).
+hypot : hypot(x, y)  Return the Euclidean distance, sqrt(x*x + y*y).
+acosh : acosh(x)  Return the hyperbolic arc cosine (measured in radians) of x.
+tan : tan(x)  Return the tangent of x (measured in radians).
+asin : asin(x)  Return the arc sine (measured in radians) of x.
+isnan : isnan(x) -> bool  Check if float x is not a number (NaN).
+log : log(x[, base])  Return the logarithm of x to the given base. If the base not specified, 
+returns the natural logarithm (base e) of x.
+fabs : fabs(x)  Return the absolute value of the float x.
+floor : floor(x)  Return the floor of x as a float. This is the largest integral value <= x.
+atanh : atanh(x)  Return the hyperbolic arc tangent (measured in radians) of x.
+modf : modf(x)  Return the fractional and integer parts of x.  Both results carry the sign of x 
+and are floats.
+sqrt : sqrt(x)  Return the square root of x.
+frexp : frexp(x)  Return the mantissa and exponent of x, as pair (m, e). m is a float and e is an 
+int, such that x = m * 2.**e. If x is 0, m and e are both 0.  Else 0.5 <= abs(m) < 1.0.
+degrees : degrees(x)  Convert angle x from radians to degrees.
+pi : число pi
+log10 : log10(x)  Return the base 10 logarithm of x.
+asinh : asinh(x)  Return the hyperbolic arc sine (measured in radians) of x.
+exp : exp(x)  Return e raised to the power of x.
+atan : atan(x)  Return the arc tangent (measured in radians) of x.
+factorial : factorial(x) -> Integral  Find x!. Raise a ValueError if x is negative or 
+non-integral.
+copysign : copysign(x, y)  Return x with the sign of y.
+ceil : ceil(x)  Return the ceiling of x as a float. This is the smallest integral value >= x.
+isinf : isinf(x) -> bool  Check if float x is infinite (positive or negative).
+sinh : sinh(x)  Return the hyperbolic sine of x.
+trunc : trunc(x:Real) -> Integral  Truncates x to the nearest Integral toward 0. Uses the 
+__trunc__ magic method.
+cos : cos(x)  Return the cosine of x (measured in radians).
+e : float(x) -> floating point number  Convert a string or number to a floating point number, if 
+possible.
+tanh : tanh(x)  Return the hyperbolic tangent of x.
+radians : radians(x)  Convert angle x from degrees to radians.
+sin : sin(x)  Return the sine of x (measured in radians).
+atan2 : atan2(y, x)  Return the arc tangent (measured in radians) of y/x. Unlike atan(y/x), the 
+signs of both x and y are considered.
+fmod : fmod(x, y)  Return fmod(x, y), according to platform C.  x % y may differ.
+acos : acos(x)  Return the arc cosine (measured in radians) of x.
+log1p : log1p(x)  Return the natural logarithm of 1+x (base e). The result is computed in a way 
+which is accurate for x near zero.
+\end{verbatim}

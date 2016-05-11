@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import calc, mixt, gzip
+import gzip, mixt, gtable, calc
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][+|-]') возвращает кортеж csfh из 4-х значений
