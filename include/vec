@@ -214,12 +214,6 @@ namespace aiw{
 		return v; 
     }
 //---------------------------------------------------------------------------
-    template <int D, typename T1, typename T2, typename T3>
-	inline double angle(const Vec<D, T1> &a, const Vec<D, T2> &b, const Vec<D,T3> &c){
-		auto ab = b-a; auto bc = c-b; ab /= ab.abs(); bc /= bc.abs();
-		return acos(ab*bc);
-    }
-//---------------------------------------------------------------------------
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
 

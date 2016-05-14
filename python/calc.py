@@ -27,15 +27,15 @@ _rtable, _G, ghelp = [], {}, []
 class Calc:
     'Работа с расчетом (записью в базе) - уникальной директорией расчета и сохранение/восстановление параметров в файле .RACS'
     _ignore_list = tuple('path repo _progressbar _ignore_list'.split())
+    _starttime = time.time()
     #---------------------------------------------------------------------------
     def __init__(self, **D):
         # значения по умолчанию при построении выборки или создании расчета руками
-        if not hasattr(Calc, '_starttime'): Calc._starttime = chrono.Date()
-        _iattr(self, D, runtime=chrono.Date()-Calc._startime, statelist=[], progress=0., args=sys.argv) #???
+        _iattr(self, D, runtime=chrono.Time(time.time()-Calc._starttime), statelist=[], progress=0., args=sys.argv) #???
         _iattr(Calc, D, repo='repo', _symlink=False, _statechecker=False, _on_exit=False, _calc_num=3,
                _auto_pull=False, _clean_path=False)
         self.__dict__.update(D)
-        for k, v in getattrCalc, '_qargs', []):
+        for k, v in getattr(Calc, '_qargs', []):
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
             self.__dict__[k] = v
         if 'path' in self.__dict__:

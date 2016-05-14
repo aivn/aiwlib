@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 'Конфигурация таблицы calc._G'
-import mixt, chrono
+import os, time, fnmatch, math, mixt, chrono
 from calc import _G, ghelp
 def use(key, expr, doc): 'добавляет значение в глобальную таблицу'; _G[key] = expr; ghelp.append('%s : %s'%(key, doc))
 #-------------------------------------------------------------------------------
@@ -8,8 +8,8 @@ use('os', os, 'module os')
 use('timemodule', time, 'module time') 
 use('Date', chrono.Date, 'объект даты') 
 use('Time', chrono.Time, 'объект интервала времени')
-use('inf', inf, 'float("inf")') 
-use('nan', nan, 'float("nan")') 
+use('inf', float('inf'), 'float("inf")') 
+use('nan', float('nan'), 'float("nan")') 
 #use( 'reg', reg, 'класс region')
 #use('K', 2**10, '2**10') #??? 
 #use('M', 2**20, '2**20') #???
@@ -18,11 +18,11 @@ use('nan', nan, 'float("nan")')
 use('@size', 'int(os.popen("du -bs "+path).readline().split()[0])', 'int, размер расчета в байтах')
 use('@hsize', 'os.popen("du -hs "+path).readline().split()[0]', 'размер расчета в "человеческом" представлении')
 use('@lendir', 'len(os.listdir(path))', 'число файлов и папок в директории расчета')
-use('time2string', chrono.time2string, 'time as float --> time as string "hh:mm:ss.sss"')
-use( 'string2time', chrono.string2time, 'time as string "hh:mm:ss.sss" --> time as float')
-use( 'date2string', chrono.date2string, 'date as float --> date as string "YYYY.MM.DD-hh:mm:ss.sss"')
-use( 'string2date', chrono.string2date, 'date as string "YYYY.MM.DD-hh:mm:ss.sss" --> date as float')
-use( 'size2string', chrono.size2string, 'size as string for human')
+use('time2string', mixt.time2string, 'time as float --> time as string "hh:mm:ss.sss"')
+use('string2time', mixt.string2time, 'time as string "hh:mm:ss.sss" --> time as float')
+use('date2string', mixt.date2string, 'date as float --> date as string "YYYY.MM.DD-hh:mm:ss.sss"')
+use('string2date', mixt.string2date, 'date as string "YYYY.MM.DD-hh:mm:ss.sss" --> date as float')
+use('size2string', mixt.size2string, 'size as string for human')
 #                   '@catalog': 'os.path.dirname(path)', 
 #                   '@name_ext':'os.path.basename(path)',
 #                   '@name':'min(name_ext.rsplit(".",1)[0],name_ext.split(".dat")[0],name_ext.split(".tar")[0])',

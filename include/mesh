@@ -2,6 +2,7 @@
 #ifndef AIW_MESH_HPP
 #define AIW_MESH_HPP
 
+#include <utility>
 #include "iostream"
 #include "binaryio"
 #include "vec"
@@ -42,6 +43,7 @@ namespace aiw{
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
 
 		//???оптимизировать для простых случаев???		
+#ifndef SWIG
 		void dump(aiw::IOstream &&S) const {
 			S<head<D<int(sizeof(T))<box;
 			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
@@ -57,7 +59,10 @@ namespace aiw{
 				for(int i=0; i<D; i++){	step[i] = rstep[i] = 1.; axes[i] = i; }
 			} else { init(b); S.read(ptr, sz*sizeof(T)); }
 		}
-
+#endif //SWIG
+		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
+		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
+		
 		inline Ind<D> coord2pos(const aiw::Vec<D> &r) const {
 			Ind<D> p;
 			for(int i=0; i<D; i++) p[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
@@ -68,20 +73,26 @@ namespace aiw{
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
 			return r;
 		}
-		
+
+#ifndef SWIG		
 		inline const T& get(const aiw::Ind<D> &pos) const {
 			WASSERT(Ind<D>()<=pos && pos<box, "position out of box", pos, box);
 			return *((const T*)((const char*)ptr+mul*pos));
 		}
-		inline const T& operator [] (const aiw::Ind<D> &pos) const { return (T&)get(pos); }
-		inline       T& operator [] (const aiw::Ind<D> &pos)       { return     get(pos); }
-		
 		inline const T& get(const aiw::Vec<D> &r) const {
 			Ind<D> pos = coord2pos(r);
 			return Ind<D>()<=pos && pos<box ? *((const T*)((const char*)ptr+mul*pos)) : out_value;
 		}
-		inline const T& operator () (const aiw::Vec<D> &r) const { return (T&)get(r); }
-		inline       T& operator () (const aiw::Vec<D> &r)       { return     get(r); }
+		inline const T& operator [] (const aiw::Ind<D> &p) const { return (T&)get(p); }
+		inline       T& operator [] (const aiw::Ind<D> &p)       { return     get(p); }
+		inline const T& operator [] (const aiw::Vec<D> &r) const { return (T&)get(r); }
+		inline       T& operator [] (const aiw::Vec<D> &r)       { return     get(r); }
+#endif // SWIG
+		inline const T& __getitem__(const aiw::Ind<D> &p) const { return get(p); }
+		inline const T& __getitem__(const aiw::Vec<D> &r) const { return get(r); }
+		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ get(p) = v; }
+		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ get(r) = v; }
+		
 		// (int i, int j, ...) ???
 		
 		inline Ind<D> inbox(size_t offset) const {

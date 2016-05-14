@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import gzip, mixt, gtable, calc
+import os, time, gzip, mixt, gtable, calc
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][+|-]') возвращает кортеж csfh из 4-х значений
@@ -10,17 +10,17 @@ def parse(ev):
 
     Параметры кортежа задаются следующим образом:
     ~ev ==> sort=1 (по возрастанию), ^ev ==> sort=-1 (по убыванию), else sort=0
-    ?   ==> fltr=1, фильтровать по результату, по умолчанию скрывать результат
-    %   ==> fltr=-1, добавлять пустую строку (горизонтальную линию в таблицу) при изменении значения выражения
-    #   ==> fltr=-2, убирать строки с одинаковыми значениями выражения кроме первого вхождения (аналог функции DISTINCT в SQL)
-    !   ==> выполнять выражение функцией exec для расчета, скрывать результат (колонку выборки)
-    !!  ==> выполнять выражение функцией exec в глобальном пространстве имен, скрывать результат (колонку выборки)
+      ? ==> fltr=1, фильтровать по результату, по умолчанию скрывать результат
+      % ==> fltr=-1, добавлять пустую строку (горизонтальную линию в таблицу) при изменении значения выражения
+      # ==> fltr=-2, убирать строки с одинаковыми значениями выражения кроме первого вхождения (аналог функции DISTINCT в SQL)
+      ! ==> выполнять выражение функцией exec для расчета, скрывать результат (колонку выборки)
+     !! ==> выполнять выражение функцией exec в глобальном пространстве имен, скрывать результат (колонку выборки)
     -|+ ==> hide=1|0 --- скрывать/показывать результат (колонку выборки) 
     '''
     if not type(ev) is str: raise Exception('type of parse argument=%r must be str, not %r'%(ev, type(ev)))
     sort, fltr, hide, evex = 0, 0, None, 0
     while ev.endswith('!'): ev, hide, evex = ev[:-1], 1, evex+1
-    else:
+    if not evex:
         if ev[0] in '~^': sort, ev =  1-'~^'.index(ev[0])*2, ev[1:]
         if ev[-1] in '+-': ev, hide = ev[:-1], ev[-1]=='-'
         if ev[-1] in '?%#': ev, hide, fltr = ev[:-1], (hide, ev[-1]=='?')[hide==None], 1-'? %#'.index(ev[-1])
@@ -36,20 +36,20 @@ class Select:
                   progressbar=None,   # экземляр класса ProgressBar
                   c_size=False,       # автоматически определять суммарный размер выборки
                   check_tree=True ):  # опускаться вниз по дереву каталогов
-        self._L, self._ev_list, self.c_size, self.c_runtime, self.progressbar = [], [], c_size, 0, progressbar
+        self._L, self.c_size, self.c_runtime, self.progressbar = [], c_size, 0, progressbar
         if not fromL: self._L, self.head, self._ev_list = [], [], []; return
-        self.fromL, starttime, cshfL = [fromL] if type(fromL)==str else list(fromL), time.time(), map(parse, ev_list)
-        self.head, self._ev_list = [c[0].co_filename for c in csfhL if not c[3]], [c for c in csfhL if not c[3]]        
+        self.fromL, starttime, csfhL = ([fromL] if type(fromL)==str else list(fromL)), time.time(), map(parse, ev_list)
+        self.head, self._ev_list = [c[0].co_filename for c in csfhL if not c[3]], [c for c in csfhL if not c[3]]
         if self.progressbar: self.progressbar.clean()
-        old_ = calc._G.get('_'); cal._G['_'] = self
+        old_ = calc._G.get('_'); calc._G['_'] = self
 	#-----------------------------------------------------------------------
         def vizit(dirname, start, part):
             # if read_cache : READ_CACHE( dirname ) #???
             LL = filter(os.path.isdir, [os.path.join(dirname, p) for p in os.listdir(dirname)])
             if LL: part /= len(LL)
             for p in sorted(LL):
-                if os.path.exists(os.path.join(dirname, p, '.RACS')):
-                    R = calc.Calc(path=os.path.join(dirname, p)) # try?
+                if os.path.exists(os.path.join(p, '.RACS')):
+                    R = calc.Calc(path=p) # try?
                     l = [R]; self._L.append(l); Select._i += 1
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
@@ -63,7 +63,7 @@ class Select:
         start, self.fromL = 0., filter(os.path.isdir, self.fromL) 
         for repository in fromL: start = vizit(repository, start, 1./len(self.fromL)) 
         #repository = os.path.abspath( os.path.expanduser( os.path.expandvars(chain2afuse(repository)) ) )+'/'
-        _after_calc(self._L, csfhL); SELECT._i = 0; self._recalc_ts()
+        _after_calc(self._L, csfhL); Select._i = 0; self._recalc_ts()
         if old_: calc._G['_'] = old_
         else: del calc._G['_']
         if self.progressbar: self.progressbar.close('select ')
@@ -186,7 +186,7 @@ def _after_calc( L,         # выборка (список строк)
             i += 1
 
     # HIDE COLUMNS        
-    hideL = filter(lambda e: csfhL[e][3], range(len(csfhL), 0, -1))
+    hideL = filter(lambda e: csfhL[e][3], range(len(csfhL)-1, -1, -1))
     if hideL:
         for l in L:
             if not l: continue

@@ -99,17 +99,18 @@ else: print>>sys.stderr, __doc__, 'Action not setting!'; sys.exit()
 from aiwlib.select import Select
 
 S = Select(fromL, ev_list, pbar, csz, ctr)
-print>>sys.stderr, 'selected %i/%s (%s, %s)'%(len(S), time2string(S.runtime), 
-                                              size2string(S.c_size) if csz else '???', 
-                                              time2string(S.c_runtime))
-startime = time.time()
+report = 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
+                                             (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
+starttime = time.time()
 if action==['Xremove']:
+    print report
     if force or raw_input(' '.join([r.path for r in S.nodes()])+
                           ' (%i items total to remove, y/[any input])?'%len(S))=='y': S.Xremove()
     else: print>>sys.stderr, 'aborted'; sys.exit()
 elif action==['Xcommit']:
+    print report
     if force or raw_input('commit changes (%i items, y/[any input])?'%len(S))=='y': S.Xcommit()
     else: print>>sys.stderr, 'aborted'; sys.exit()
-else: print ' '.join(getattr(S, action[0])(*action[1:]))
-print>>sys.stderr, 'completed', time2string(time.time()-starttime)
+else: sys.stdout.write(''.join(getattr(S, action[0])(*action[1:])))
+print>>sys.stderr, report, '... completed [%s]'%time2string(time.time()-starttime)
 #-----------------------------------------------------------------------------
