@@ -22,7 +22,6 @@ namespace aiw{
 	IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}		
 	IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}		
 //------------------------------------------------------------------------------
-};
 #endif //AIW_BINARY_IO_HPP
 
 //------------------------------------------------------------------------------
@@ -76,3 +75,4 @@ namespace aiw{
 	template<int D, typename T> IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
 #endif //AIW_VEC_HPP
 //------------------------------------------------------------------------------
+};

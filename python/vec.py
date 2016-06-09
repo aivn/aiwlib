@@ -220,7 +220,7 @@ class Vec:
     #---------------------------------------------------------------------------
     # periodic ???
     def circ(self): return Vec(*(self._getdata()[l%self._D():]+self._getdata()[:l%self._D()]), T=self._T()) #???
-    def len(self): return sum([x*x for x in self._getdata()])**.5
+    def abs(self): return sum([x*x for x in self._getdata()])**.5
     def pow(self, x): Vec(*[x**p for x in self._getdata()])
     #mod(self, x: Vec(*[x**p for x in self._getdata()])
     def fabs(self): return Vec(*[abs(x) for x in self._getdata()])

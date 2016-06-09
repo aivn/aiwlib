@@ -4,8 +4,8 @@
 
 #include <utility>
 #include "iostream"
-#include "binaryio"
 #include "vec"
+#include "binaryio"
 
 namespace aiw{
 //------------------------------------------------------------------------------
@@ -20,7 +20,7 @@ namespace aiw{
 	public:
 		std::string head;
 		T out_value;
-		Vec<D> bmin, bmax, step, rstep;
+		aiw::Vec<D> bmin, bmax, step, rstep;
 		int logscale; // логарифмический масштаб по осям в виде битовой маски (0 --- нет, 1 --- да).
 
 		inline      size_t size() const { return sz; }
@@ -53,7 +53,7 @@ namespace aiw{
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh load ", D, sizeof(T), S.name, rD, szT, b, s); }
 			if(use_mmap){
-				mem = S.mmap(b*ind(1)*sizeof(T), use_mmap-1); ptr = mem->get_addr(); box = b; box.prod(sz);
+				box = b; box.prod(sz); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr();
 				mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
 				bmin = vec(0.); bmax = box;	logscale = 0;
 				for(int i=0; i<D; i++){	step[i] = rstep[i] = 1.; axes[i] = i; }
@@ -63,12 +63,12 @@ namespace aiw{
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
 		
-		inline Ind<D> coord2pos(const aiw::Vec<D> &r) const {
+		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const {
 			Ind<D> p;
 			for(int i=0; i<D; i++) p[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
 			return p;
 		}
-		inline Vec<D> pos2coord(const aiw::Ind<D> &p) const {
+		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const {
 			Ind<D> r;
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
 			return r;
@@ -83,19 +83,19 @@ namespace aiw{
 			Ind<D> pos = coord2pos(r);
 			return Ind<D>()<=pos && pos<box ? *((const T*)((const char*)ptr+mul*pos)) : out_value;
 		}
-		inline const T& operator [] (const aiw::Ind<D> &p) const { return (T&)get(p); }
-		inline       T& operator [] (const aiw::Ind<D> &p)       { return     get(p); }
-		inline const T& operator [] (const aiw::Vec<D> &r) const { return (T&)get(r); }
-		inline       T& operator [] (const aiw::Vec<D> &r)       { return     get(r); }
+		inline const T& operator [] (const aiw::Ind<D> &p) const { return     get(p); }
+		inline       T& operator [] (const aiw::Ind<D> &p)       { return (T&)get(p); }
+		inline const T& operator [] (const aiw::Vec<D> &r) const { return     get(r); }
+		inline       T& operator [] (const aiw::Vec<D> &r)       { return (T&)get(r); }
 #endif // SWIG
 		inline const T& __getitem__(const aiw::Ind<D> &p) const { return get(p); }
 		inline const T& __getitem__(const aiw::Vec<D> &r) const { return get(r); }
-		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ get(p) = v; }
-		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ get(r) = v; }
+		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
+		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
 		
 		// (int i, int j, ...) ???
 		
-		inline Ind<D> inbox(size_t offset) const {
+		inline aiw::Ind<D> inbox(size_t offset) const {
 			Ind<D> pos;
 			for(int i=0; i<D; i++){
 				int a = axes[i]; pos[a] = offset%box[a];
@@ -104,7 +104,7 @@ namespace aiw{
 			}
 			return pos;
 		}
-		inline Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
+		inline aiw::Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
 		inline bool next(aiw::Ind<D> &pos) const {
 			for(int i=0; i<D; i++){
 				int a = axes[i]; 
@@ -138,7 +138,7 @@ namespace aiw{
 	public:
 		Mesh transpose(int a, int b){ Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
 		
-		Mesh crop(const aiw::Ind<D>& a, const aiw::Ind<D>& b, aiw::Ind<D> d=Ind<D>(1)){
+		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)){
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
 				if(a[i]<0) a[i] += box[i]; if(b[i]<=0) b[i] += box[i];
@@ -149,7 +149,7 @@ namespace aiw{
 					A.rstep[i] = exp(log(A.bmax[0]/A.bmin[0])/A.box[i]);
 				} else {
 					A.bmin[i] = bmin[i]+step[i]*a[i]; A.step[i] *= d[i]; 
-					A.bmax[i] = A.bmin[i]+A.step[i]*A.b[i]; A.rstep[i] /= d[i];
+					A.bmax[i] = A.bmin[i]+A.step[i]*b[i]; A.rstep[i] /= d[i];
 				}
 			}
 			A.mul = mul&d; A.ptr = (char*)ptr + mul*a;
@@ -179,6 +179,7 @@ namespace aiw{
 		}
 		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
 
+#ifndef SWIG		
 		template <typename S> void out2dat(S &&str, bool coords=true){
 			for(Ind<D> pos; pos^=box; ++pos){
 				if(coords) str<<pos2coord(pos); else str<<pos;
@@ -186,8 +187,10 @@ namespace aiw{
 				if(pos[0]==box[0]-1) str<<"\n";
 			}
 		}
+#endif //SWIG
+		template <typename S> void out2dat(S &str, bool coords=true){ out2dat(std::move(str)); }
 		
-		void operator = (const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
+		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
 			do {
@@ -196,10 +199,12 @@ namespace aiw{
 				if(b<x){ b = x; pos_b = pos; }
 			} while(next(pos));
 		}
-		template <typename T2> void operator <<= (const Mesh<T2, D> &M){
+		template <typename T2> void fill(const Mesh<T2, D> &M){
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}
-		void operator <<= (aiw::IOstream &&S){
+
+#ifndef SWIG		
+		void fill(aiw::IOstream &&S){
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh update ", D, sizeof(T), S.name, rD, szT, b, s); }
 			Ind<D> up = b<<box, m; s = S.tell();
@@ -209,8 +214,11 @@ namespace aiw{
 				S.read(&(*this)[pos], sizeof(T));
 			}
 		}
+#endif //SWIG
+		void fill(aiw::IOstream &S){ fill(std::move(S)); }
 
 		// operators +, -, *, /, % etc?
+		static const bool _racs_pull_lock = true;
 	};
 //------------------------------------------------------------------------------
 	template <typename T, int D> IOstream& operator < (IOstream &S, const Mesh<T, D> &M){ M.dump(S); return S; }

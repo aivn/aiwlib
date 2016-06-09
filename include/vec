@@ -13,22 +13,22 @@ namespace aiw{
 //---------------------------------------------------------------------------
 #ifndef SWIG
 	template <int D, typename T=double> class Vec{
+	public:
 		T p[D];
-
+	private:
 		inline void set_x(){}
 		template <typename T2, typename ... Args>
 		inline void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
         explicit Vec(T val=0) { for(int i=0; i<D; i++) p[i] = val; }    
-		// ??? explicit Vec(const T* Ap)      { for(int i=0; i<D; i++) p[i] = Ap[i]; }    
-		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v[0]; }
-		template <class T2> /* explicit ??? */ Vec(const Vec<D, T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; }
+		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v.p[0]; }
+		template <class T2> Vec(const Vec<D, T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; }
 
 		template <typename ... Args> explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
 			set_x(xxx...); 
 		}
-		template <class T2> inline Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; return *this; }
+		template <class T2> inline Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; return *this; }
 
 		inline T  operator [] (int i) const { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range", D, sizeof(T), i); 
@@ -39,56 +39,14 @@ namespace aiw{
 			return p[i]; 
 		} 
 		
-		inline Vec operator -() const { Vec res; for(int i=0; i<D; i++) res[i] = -p[i]; return res; }
+		inline Vec operator -() const { Vec res; for(int i=0; i<D; i++) res.p[i] = -p[i]; return res; }
+		inline Vec operator +() const { Vec res; for(int i=0; i<D; i++) res.p[i] = +p[i]; return res; }
 
-#define VEC_BIN_OP(ROP, OP, RES)										\
-		template <typename T2>											\
-		inline void operator OP##= (const Vec<D,T2> &v){				\
-			for(int i=0; i<D; i++) p[i] = RES;							\
-		}																\
-		template <typename T2>  										\
-		inline Vec<D, decltype(T() ROP T2())>							\
-		operator OP (const Vec<D,T2> &v) const {						\
-			decltype(*this ROP v) r;									\
-			for(int i=0; i<D; i++) r[i] = RES;							\
-			return r;													\
-		}
-		VEC_BIN_OP(+, +, p[i]+v[i]);
-		VEC_BIN_OP(-, -, p[i]-v[i]);
-		VEC_BIN_OP(/, /, p[i]/v[i]);
-		VEC_BIN_OP(*, &, p[i]*v[i]);
-		// VEC_BIN_OP(+, ^, p[i]&&v[i]?0:(p[i]?p[i]:v[i]))
-#undef  VEC_BIN_OP
-
-		template <typename T2> inline bool operator < (const Vec<D,T2> &v) const {
-			for(int i=0; i<D; i++) if(p[i]>=v[i]) return false; return true;
-		}																
-		template <typename T2> inline bool operator <= (const Vec<D,T2> &v) const {
-			for(int i=0; i<D; i++) if(p[i]>v[i]) return false; return true;
-		}																
-		template <typename T2> inline bool operator > (const Vec<D,T2> &v) const {
-			for(int i=0; i<D; i++) if(p[i]<=v[i]) return false; return true;
-		}																
-		template <typename T2> inline bool operator >= (const Vec<D,T2> &v) const {
-			for(int i=0; i<D; i++) if(p[i]<v[i]) return false; return true;
-		}																
-		template <typename T2> inline bool operator == (const Vec<D,T2> &v) const { // округление ???
-			for(int i=0; i<D; i++) if(p[i]!=v[i]) return false; return true;
-		}																
-		template <typename T2> inline bool operator != (const Vec<D,T2> &v) const { // округление ???
-			for(int i=0; i<D; i++) if(p[i]!=v[i]) return true; return false;
-		}																
-
-		template <typename T2> inline void operator *= (const T2 &x){ for(int i=0; i<D; i++) p[i] *= x;	}
-		template <typename T2> inline void operator /= (const T2 &x){ *this *= 1./x; }
-
-		inline Vec  operator <<  (const Vec &v) const { Vec r; for(int i=0; i<D; i++) r[i] = p[i]<v[i]?p[i]:v[i]; return r; } 
-		inline void operator <<= (const Vec &v)       {        for(int i=0; i<D; i++) p[i] = p[i]<v[i]?p[i]:v[i]; } 
-		inline Vec  operator >>  (const Vec &v) const { Vec r; for(int i=0; i<D; i++) r[i] = p[i]>v[i]?p[i]:v[i]; return r; } 
-		inline void operator >>= (const Vec &v)       {        for(int i=0; i<D; i++) p[i] = p[i]>v[i]?p[i]:v[i]; } 
+		template <typename T2> inline Vec& operator *= (T2 x){ for(int i=0; i<D; i++) p[i] *= x; return *this; }
+		template <typename T2> inline Vec& operator /= (T2 x){ for(int i=0; i<D; i++) p[i] /= x; return *this; }
 		
-		inline T  periodic(int i) const { i %= D; if(i<0) i+= D; return p[i]; } 
-		inline T& periodic(int i)       { i %= D; if(i<0) i+= D; return p[i]; } 
+		inline T  periodic(int i) const { i %= D; if(i<0) i += D; return p[i]; } 
+		inline T& periodic(int i)       { i %= D; if(i<0) i += D; return p[i]; } 
 		inline Vec circ(int l) const { // cyclic shift
 			Vec res; l %= D;
 			for(int i=0; i<l; i++) res.p[i] = p[D-l+i]; 
@@ -98,11 +56,12 @@ namespace aiw{
 
 		template <typename ... Args> 
 		inline Vec<sizeof ...(Args), T> operator ()(Args ... xxx) const { 
-			return Vec<sizeof ...(Args), T>((*this)[xxx]...);
+			return Vec<sizeof ...(Args), T>((*this)[xxx]...); // periodic ???
 		}
 
 		// *** OTHER FUNCTIONS ***
-		inline T len() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return sqrt(x); } // abs ???
+		inline T abs() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return sqrt(x); }
+
 		inline Vec pow(const int n) const { // ????
 			if(n==0) return Vec((T)1.);		
 			if(n==1) return *this;
@@ -125,7 +84,7 @@ namespace aiw{
 		inline T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }
 		inline T sum() const { T res = p[0]; for(int i=1; i<D; i++) res += p[i]; return res; }
 		inline T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
-		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
+		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; }
 
 		inline Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = isnan(p[i]); return res; }
 		inline Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = isinf(p[i]); return res; }
@@ -140,33 +99,83 @@ namespace aiw{
 	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
 		return Vec<1+sizeof...(Args), T>(x, args...);
 	}
-//---------------------------------------------------------------------------
-//   EXTEND OPERATIONS
-//---------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	//  compare 
+	//--------------------------------------------------------------------------
+#define VEC_BIN_OP_DELETE(OP)											\
+	template <int D1, int D2, typename T1, typename T2>					\
+	typename std::enable_if<D1!=D2 && D1!=1 && D2!=1, bool>::type		\
+	operator OP (const Vec<D1, T1> &a, const Vec<D2, T2> &b) = delete;	
+
+#define VEC_CMP_VEC(OP, CMP, RET)										\
+	template <int D, typename T1, typename T2>							\
+	inline bool operator OP (const Vec<D, T1> &a, const Vec<D, T2> &b){	\
+		for(int i=0; i<D; i++) if(a.p[i] CMP b.p[i]) return RET;		\
+		return !RET;													\
+	}																	\
+	template <int D, typename T1, typename T2>							\
+	inline typename std::enable_if<(D>1), bool>::type					\
+		operator OP (const Vec<1, T1> &a, const Vec<D, T2> &b){			\
+		for(int i=0; i<D; i++) if(a.p[0] CMP b.p[i]) return RET;		\
+		return !RET;													\
+	}																	\
+	template <int D, typename T1, typename T2>							\
+	inline typename std::enable_if<(D>1), bool>::type					\
+		operator OP (const Vec<D, T1> &a, const Vec<1, T2> &b){			\
+		for(int i=0; i<D; i++) if(a.p[i] CMP b.p[0]) return RET;		\
+		return !RET;													\
+	}																	\
+	VEC_BIN_OP_DELETE(OP)
+		
+	VEC_CMP_VEC(<, >=, false);
+	VEC_CMP_VEC(<=, >, false);
+	VEC_CMP_VEC(>, <=, false);
+	VEC_CMP_VEC(>=, <, false);
+	VEC_CMP_VEC(==, !=, false); // округление ???
+	VEC_CMP_VEC(!=, !=, true);  // округление ???
+	
+#undef VEC_CMP_VEC
+	//--------------------------------------------------------------------------
+	//  multiplication / division of a vector by a scalar
+	//--------------------------------------------------------------------------
+#define VEC(DD, OP) Vec<DD, decltype(T1() OP T2())>
 	template <int D, typename T1, typename T2>
-	inline Vec<D, decltype(T1()*T2())> operator * (const Vec<D, T1> v, const T2 &x){
-		decltype(v*x) r;								
-		for(int i=0; i<D; i++) r[i] = v[i]*x;
+	inline VEC(D, *) operator * (T1 x, const Vec<D, T2> &v){
+		VEC(D, *) r;								
+		for(int i=0; i<D; i++) r.p[i] = x*v.p[i];
 		return r;												   
 	}
 	template <int D, typename T1, typename T2>
-	inline Vec<D, decltype(T1()*T2())> operator / (const Vec<D, T1> v, const T2 &x){ return v*(1./x); }
-	template <int D, typename T1, typename T2>
-	inline Vec<D, decltype(T1()*T2())> operator * (const T2 &x, const Vec<D, T1> &v){
-		decltype(x*v) r;								
-		for(int i=0; i<D; i++) r[i] = x*v[i];
+	inline VEC(D, *) operator * (const Vec<D, T1> &v, T2 x){
+		VEC(D, *) r;								
+		for(int i=0; i<D; i++) r.p[i] = v.p[i]*x;
 		return r;												   
 	}
 	template <int D, typename T1, typename T2>
-	inline Vec<D, decltype(T1()*T2())> operator / (const T2 &x, const Vec<D, T1> &v){
-		decltype(x/v) r;								
-		for(int i=0; i<D; i++) r[i] = x/v[i];
+	inline VEC(D, /) operator / (T1 x, const Vec<D, T2> &v){
+		VEC(D, /) r;								
+		for(int i=0; i<D; i++) r.p[i] = x/v.p[i];
 		return r;												   
-	}	
+	}
+	//--------------------------------------------------------------------------
+	//  scalar product of vectors
+	//--------------------------------------------------------------------------
 	template <int D, typename T1, typename T2> 
 	inline decltype(T1()*T2()) operator * (const Vec<D, T1> &a, const Vec<D, T2> &b){
-		decltype(T1()*T2()) res = 0.; // ???
-		for(int i=0; i<D; i++) res += a[i]*b[i];
+		decltype(T1()*T2()) res; if(D) res = a.p[0]*b.p[0];
+		for(int i=1; i<D; i++) res += a.p[i]*b.p[i];
+		return res;
+	}
+	template <int D, typename T1, typename T2> 
+	inline typename std::enable_if<(D>1), decltype(T1()*T2())>::type operator * (const Vec<D, T1> &a, const Vec<1, T2> &b){
+		decltype(T1()*T2()) res = a.p[0]*b.p[0];
+		for(int i=1; i<D; i++) res += a.p[i]*b.p[0];
+		return res;
+	}
+	template <int D, typename T1, typename T2> 
+	inline typename std::enable_if<(D>1), decltype(T1()*T2())>::type operator * (const Vec<1, T1> &a, const Vec<D, T2> &b){
+		decltype(T1()*T2()) res = a.p[0]*b.p[0];
+		for(int i=1; i<D; i++) res += a.p[0]*b.p[i];
 		return res;
 	}
 	template <int D> inline int64_t operator * (const Vec<D, int> &a, const Vec<D, int> &b){
@@ -174,17 +183,71 @@ namespace aiw{
 		for(int i=0; i<D; i++) res += (int64_t)(a[i])*b[i];
 		return res;
 	}
-//---------------------------------------------------------------------------
+	VEC_BIN_OP_DELETE(*)												
+	//--------------------------------------------------------------------------
+	//  binary vectors operations
+	//--------------------------------------------------------------------------
+#define VEC_BIN_OP(OP, ROP, EXC, ED1, E1D, IEXC, IED1)					\
+	template <int D, typename T1, typename T2>							\
+	inline VEC(D, ROP) operator OP (const Vec<D, T1> &a,				\
+									const Vec<D, T2> &b){				\
+		VEC(D, ROP) r;													\
+		for(int i=0; i<D; i++) r.p[i] = EXC;							\
+		return r;														\
+	}																	\
+	template <int D, typename T1, typename T2>							\
+	inline typename std::enable_if<(D>1), VEC(D, ROP)>::type			\
+	operator OP (const Vec<D, T1> &a, const Vec<1, T2> &b){				\
+		VEC(D, ROP) r;													\
+		for(int i=0; i<D; i++) r.p[i] = ED1;							\
+		return r;														\
+	}																	\
+	template <int D, typename T1, typename T2>							\
+	inline typename std::enable_if<(D>1), VEC(D, ROP)>::type			\
+	operator OP (const Vec<1, T1> &a, const Vec<D, T2> &b){				\
+		VEC(D, ROP) r;													\
+		for(int i=0; i<D; i++) r.p[i] = E1D;							\
+		return r;														\
+	}																	\
+	VEC_BIN_OP_DELETE(OP)												\
+	template <int D, typename T1, typename T2>							\
+	inline Vec<D, T1>& operator OP##= (Vec<D, T1> &a,					\
+									   const Vec<D, T2> &b){			\
+		for(int i=0; i<D; i++) a.p[i] IEXC;								\
+		return a;														\
+	}																	\
+	template <int D, typename T1, typename T2>							\
+	inline typename std::enable_if<(D>1), Vec<D, T1>&>::type			\
+	operator OP##= (Vec<D, T1> &a, const Vec<1, T2> &b){				\
+		for(int i=0; i<D; i++) a.p[i] IED1;								\
+		return a;														\
+	}																	\
+	VEC_BIN_OP_DELETE(OP##=)												
+
+	VEC_BIN_OP(+, +, a.p[i]+b.p[i], a.p[i]+b.p[0], a.p[0]+b.p[i], +=b.p[i], +=b.p[0]);					
+	VEC_BIN_OP(-, -, a.p[i]-b.p[i], a.p[i]-b.p[0], a.p[0]-b.p[i], -=b.p[i], -=b.p[0]);					
+	VEC_BIN_OP(/, /, a.p[i]/b.p[i], a.p[i]/b.p[0], a.p[0]/b.p[i], /=b.p[i], /=b.p[0]);					
+	VEC_BIN_OP(&, *, a.p[i]*b.p[i], a.p[i]*b.p[0], a.p[0]*b.p[i], *=b.p[i], *=b.p[0]);					
+#define SS(OP, A, B) (a.p[A] OP b.p[B]?a.p[A]:b.p[B])
+	VEC_BIN_OP(>>, +, SS(>,i,i), SS(>,i,0), SS(>,0,i), =SS(>,i,i), =SS(>,i,0)) 
+	VEC_BIN_OP(<<, +, SS(<,i,i), SS(<,i,0), SS(<,0,i), =SS(<,i,i), =SS(<,i,0)) 
+#undef SS
+#undef VEC
+#undef VEC_BIN_OP_DELETE
+#undef VEC_BIN_OP
+	//--------------------------------------------------------------------------
+	//  vectors product
+	//--------------------------------------------------------------------------
     template <typename T1, typename T2>
-	inline decltype(T1()*T2()) operator % (const Vec<2, T1> &a, const Vec<2, T2> &b){ return a[0]*b[1]-a[1]*b[0]; }
+	inline decltype(T1()*T2()) operator % (const Vec<2, T1> &a, const Vec<2, T2> &b){ return a.p[0]*b.p[1]-a.p[1]*b.p[0]; }
     template <typename T1, typename T2>
     inline Vec<3, decltype(T1()*T2())> operator % (const Vec<3, T1> &a, const Vec<3, T2> &b){
 		Vec<3, decltype(T1()*T2())> c;
-		c[0] = a[1]*b[2]-a[2]*b[1];
-		c[1] = a[2]*b[0]-a[0]*b[2];
-		c[2] = a[0]*b[1]-a[1]*b[0];
+		c.p[0] = a.p[1]*b.p[2]-a.p[2]*b.p[1];
+		c.p[1] = a.p[2]*b.p[0]-a.p[0]*b.p[2];
+		c.p[2] = a.p[0]*b.p[1]-a.p[1]*b.p[0];
 		return c;
-    }
+	} 
 	/*
     template <typename T1, typename T2>
     inline void operator %= (Vec<3, T1> &a, const Vec<3, T2> &b){
@@ -194,26 +257,30 @@ namespace aiw{
 		a[2] = a0*b[1]   - a1*b[0];
 		return a;
     }
-	*/
-//---------------------------------------------------------------------------
+	*/ 
+	//--------------------------------------------------------------------------
+	//  join vectors
+	//--------------------------------------------------------------------------
     template <int D, class T1, class T2> inline Vec<D+1, decltype(T1()+T2())> operator | (const T1 &x, const Vec<D, T2> &v){ 
-		Vec<D+1, decltype(T1()+T2())> r; r[0] = x; 
-		for(int i=0; i<D; i++) r[i+1] = v[i]; 
+		Vec<D+1, decltype(T1()+T2())> r; r.p[0] = x; 
+		for(int i=0; i<D; i++) r.p[i+1] = v.p[i]; 
 		return r; 
 	}
-    template <int D, class T1, class T2> inline Vec<D+1, decltype(T1()+T2())> operator | (const Vec<D, T1> &r, const T2 &x){ 
-		Vec<D+1, decltype(T1()+T2())> v; 
-		for(int i=0; i<D; i++) v[i] = r[i]; 
-		v[D] = x; return v; 
+    template <int D, class T1, class T2> inline Vec<D+1, decltype(T1()+T2())> operator | (const Vec<D, T1> &v, const T2 &x){ 
+		Vec<D+1, decltype(T1()+T2())> r; 
+		for(int i=0; i<D; i++) r.p[i] = v.p[i]; 
+		r.p[D] = x; return r; 
 	}
     template <int D1, int D2, class T1, class T2> 
-	inline Vec<D1+D2,  decltype(T1()+T2())> operator | (const Vec<D1,T1> &r1, const Vec<D2, T2> &r2){ 
-		Vec<D1+D2,  decltype(T1()+T2())> v; 
-		for(int i=0; i<D1; i++) v[i] = r1[i]; 
-		for(int i=0; i<D2; i++) v[D1+i] = r2[i]; 
-		return v; 
+	inline Vec<D1+D2,  decltype(T1()+T2())> operator | (const Vec<D1,T1> &a, const Vec<D2, T2> &b){ 
+		Vec<D1+D2,  decltype(T1()+T2())> r; 
+		for(int i=0; i<D1; i++) r.p[i] = a.p[i]; 
+		for(int i=0; i<D2; i++) r.p[D1+i] = b.p[i]; 
+		return r; 
     }
-//---------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	//  index work
+	//--------------------------------------------------------------------------
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
 
@@ -229,10 +296,16 @@ namespace aiw{
 		for(int i=0; i<D; i++){ r[i] = x%p[i]; x /= p[i]; }
 		return r;
 	}   	
-//---------------------------------------------------------------------------
-	template <typename S, int D, typename T> S& operator << (S &s, const Vec<D, T> &v){
+	//--------------------------------------------------------------------------
+	//  ostream operation
+	//--------------------------------------------------------------------------
+	//template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
+	//	if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
+	//}
+	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
+		s<<"Vec<"<<D<<"szT="<<sizeof(T)<<">:";
 		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
-	}
+	} 
 //---------------------------------------------------------------------------
 }; // end of namespace aiw
 

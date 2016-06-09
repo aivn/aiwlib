@@ -20,7 +20,7 @@ namespace aiw{
 		for(i=0; str[i] && (brc[0] || brc[1] || brc[2] || str[i]!=','); ++i)
 			for(int k=0; k<6; ++k) if(str[i]==br[k]){ brc[k/2] += 1-k%2*2; break; }
 		out.write(str, i); out<<"="<<x<<", ";
-		int p= str[i]?i+1:i; while(str[p] && (str[p]==' ' || str[p]=='\t')) p++;
+		int p = str[i]?i+1:i; while(str[p] && (str[p]==' ' || str[p]=='\t')) p++;
 		debug_out(out, str+p, args...);
 	}
 //------------------------------------------------------------------------------
