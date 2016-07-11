@@ -3,7 +3,7 @@
 %feature("autodoc", "1");
 %include "std_string.i"
 %{
-#include "../include/iostream"
+#include "../include/aiwlib/iostream"
 %}
-%include "../include/iostream"
+%include "../include/aiwlib/iostream"
 

@@ -17,9 +17,9 @@
 %%{
 	namespace aiw{}
 	using namespace aiw;
-#include "../include/mesh"
+#include "../include/aiwlib/mesh"
 %%}
-%%include "../include/mesh"
+%%include "../include/aiwlib/mesh"
 
 # serialization ???
 

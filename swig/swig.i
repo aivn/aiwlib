@@ -6,7 +6,7 @@
  }
 %feature("autodoc", "1");
 %{
-#include "../include/swig"
+#include "../include/aiwlib/swig"
 %}
-%include "../include/swig"
+%include "../include/aiwlib/swig"
 
