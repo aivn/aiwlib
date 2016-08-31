@@ -1,10 +1,28 @@
+ifndef PYTHONDIR
+PYTHONDIR=/usr/lib/python2.7
+endif
+
+#LIBDIR=/usr/lib
+ifndef INCLUDEDIR
+INCLUDEDIR=/usr/include
+endif
+
+ifndef BINDIR
+BINDIR=/usr/bin
+endif
+BIN_LIST=racs
+
+include include/aiwlib/config.mk
+
 all: iostream swig;
 #-------------------------------------------------------------------------------
 python/aiwlib/%.py: swig/%.py; @cp $< $@
-swig/%.py swig/%_wrap.cxx: swig/%.i; swig -Wall -python -c++ $<
+swig/%.py swig/%_wrap.cxx: swig/%.i 
+	$(show_target)
+	$(SWIG) $(SWIGOPT) $<
 python/aiwlib/_%.so:  swig/%_wrap.cxx
-	g++-4.8 -Wall -fPIC -shared -O3 -g -std=c++11 -I/usr/include/python2.7 -o $@ $<
-
+	$(show_target)
+	$(GCC) -shared -I$(PYTHON_H_PATH) -o $@ $<
 #-------------------------------------------------------------------------------
 iostream: python/aiwlib/iostream.py python/aiwlib/_iostream.so;
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
@@ -36,3 +54,16 @@ swig/$(MESH_NAME).i: swig/mesh.i
 endif
 #-------------------------------------------------------------------------------
 clean:; rm -rf swig/*.o swig/*.py swig/*_wrap.cxx python/aiwlib/_*.so python/aiwlib/{swig,iostream}.py
+#clean-%: ; rm -f $(foreach n, $(filter-out $(word 1,$(subst -, ,$@)),$(subst -, ,$@)), \
+#				src/$(n)_wrap.cxx src/$(n)_wrap.o src/_$(n).so src/$(n).py src/$(n).i python/aivlib/$(n).py* python/aivlib/_$(n).so #lib/$(n).o )
+#-------------------------------------------------------------------------------
+uninstall:; rm -rf `cat install-links`; rm -f install-links
+install: all uninstall
+	-cp -r include/aiwlib $(INCLUDEDIR)
+	-cp -r python/aiwlib  $(PYTHONDIR)
+	-for i in $(BIN_LIST); do cp -f bin/$i $(BINDIR); done
+install-links: all uninstall
+	-ln -s include/aiwlib $(INCLUDEDIR)
+	-ln -s python/aiwlib  $(PYTHONDIR)
+	-for i in $(BIN_LIST); do ln -s bin/$i $(BINDIR); done
+#-------------------------------------------------------------------------------
