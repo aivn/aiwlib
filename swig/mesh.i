@@ -14,6 +14,7 @@
 %%typemap(out) double& %%{ $result = PyFloat_FromDouble ( *$1 ); %%}
 
 %%feature("autodoc", "1");
+%%include "std_string.i"
 %%{
 	namespace aiw{}
 	using namespace aiw;
@@ -21,7 +22,6 @@
 %%}
 %%include "../include/aiwlib/mesh"
 
-# serialization ???
-
 %%template(%(name)s) aiw::Mesh<%(type)s, %(dim)s>;
+%%pythoncode %%{%(name)s.__setstate__ = _setstate %%}
 %%pythoncode %%{from vec import *%%}

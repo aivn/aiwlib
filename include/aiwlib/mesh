@@ -218,6 +218,31 @@ namespace aiw{
 		void fill(aiw::IOstream &S){ fill(std::move(S)); }
 
 		// operators +, -, *, /, % etc?
+
+		std::string __getstate__() const { 
+			std::stringstream buf;
+			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
+			buf.write((const char*)&box, sizeof(box));          
+			buf.write((const char*)&out_value, sizeof(out_value));
+			buf.write((const char*)&bmin, sizeof(bmin));
+			buf.write((const char*)&bmax, sizeof(bmax));
+			buf.write((const char*)&logscale, sizeof(logscale));
+			for(Ind<D> pos; pos^=box; ++pos) buf.write((const char*)&get(pos), sizeof(T));
+			return buf.str();
+		}
+		void __C_setstate__(const std::string &state){
+			std::stringstream buf(state);
+			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
+			head.resize(h_sz); buf.read(head.first(), h_sz);
+			Ind<D> box_; Vec<D> bmin_, bmax_; int logscale_; 
+			buf.read((char*)&box_, sizeof(box));          
+			buf.read((char*)&out_value, sizeof(out_value));
+			buf.read((char*)&bmin_, sizeof(bmin));
+			buf.read((char*)&bmax_, sizeof(bmax));
+			buf.read((char*)&logscale_, sizeof(logscale));
+			init(box_, bmin_, bmax_, logscale_);
+			for(Ind<D> pos; pos^=box; ++pos) buf.read((char*)&get(pos), sizeof(T));
+		}
 		static const bool _racs_pull_lock = true;
 	};
 //------------------------------------------------------------------------------
