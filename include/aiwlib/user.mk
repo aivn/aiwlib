@@ -16,7 +16,12 @@ SWIGOPT= # SWIG options
 debug=   # yes or any
 endef
 #-------------------------------------------------------------------------------
-include $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))config.mk
+aiwlib_include:=$(shell dirname $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))))
+aiwlib:=$(dir $(aiwlib_include))
+include $(aiwlib_include)/aiwlib/config.mk
+all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(basename $m).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
+sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
+#-------------------------------------------------------------------------------
 .PRECIOUS : %.py _%.so %.o %_wrap.cxx %.i
 #-------------------------------------------------------------------------------
 $(name) : _$(name).so $(name).py; 
@@ -46,7 +51,7 @@ $(name)-sets :
 #$(name).py $(name)_wrap.cxx : $(name).i $(headers) $($(name)_headers)
 $(name).py $(name)_wrap.cxx : $(name).i $(headers)
 	$(show_target)
-	swig $(SWIGOPT) -I$(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))../ $(name).i
+	swig $(SWIGOPT) -I$(aiwlib_include) $(name).i
 	@mv $(name).py /tmp/$$$$.py; echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $(name).py; \
 	cat /tmp/$$$$.py >> $(name).py; rm /tmp/$$$$.py
 	@echo ==== $(name).py patched for load shared library with RTLD_GLOBAL=0x00100 flag ====
@@ -68,7 +73,7 @@ else
 #ifeq ($(MODULE),)
 #endif
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
-	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)
+	$(CXX) -I$(aiwlib_include) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 #-------------------------------------------------------------------------------
 #   .i file
@@ -86,29 +91,41 @@ $(name).i: $(MAKEFILE_LIST)
 	@for i in $(headers); do echo "%include \"$$i\"" >> $@; done
 	@echo $(ifinish) >> $@
 #-------------------------------------------------------------------------------
-clean:; rm -f $(name)_wrap.cxx $(name)_wrap.o $(addsuffix .o, $(basename $(modules))) _$(name).so $(name).py
-cleani: clean; rm -f $(name).i 
+clean:; rm -f $(name)_wrap.o $(addsuffix .o, $(basename $(modules))) _$(name).so 
+cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py
 #-------------------------------------------------------------------------------
-sources:=$(sources) $(word 1,$(MAKEFILE_LIST)) $(sort $(foreach m,$(headers) $(modules),$(filter-out $(basename $m).o: /usr/%,$(subst \,,$(shell $(GCC) $(CXXOPT) -M $m)))))			
-tar:; tar -zcf $(name).tgz $(sources)
+ifeq ($(strip $(findstring swig,$(with))),swig)
+all_sources:=$(all_sources) $(name).i $(name).py $(name)_wrap.cxx
+endif
+
+ifeq ($(strip $(findstring aiwlib,$(with))),aiwlib)
+all_sources:=$(all_sources) $(aiwlib)Makefile $(wildcard $(aiwlib)python/aiwlib/*.py) 
+all_sources:=$(all_sources) $(shell echo $(aiwlib)swig/{iostream,swig,mesh,swig}.i)
+ifeq ($(strip $(findstring swig,$(with))),swig)
+all_sources:=$(sort $(all_sources) $(wildcard $(aiwlib)swig/*.i $(aiwlib)swig/*_wrap.cxx))
+endif
+endif
+
+sources:; @echo $(sources)
+all_sources:; @echo $(all_sources)
+
 $(name).tgz $(name).md5: $(sources) 
 	tar -cf $(name).tar $(sources)
 	md5sum $(name).tar > $(name).md5
 	gzip -c $(name).tar > $(name).tgz
 	rm $(name).tar
-#distswig: $(name).i $(name).py $(name)_wrap.cxx 
-#	tar -zcf $(name)-noswig.tgz $^ $(headers) $(modules) $(word 1,$(MAKEFILE_LIST))
-#distaiw - with aiwlib
+tar: $(all_sources); tar -zcf $(name)-all.tgz $(all_sources)
 #-------------------------------------------------------------------------------
 ehost:=$(word 1,$(subst :, ,$(to)))
 epath:=$(word 2,$(subst :, ,$(to))) 
-export:
+
+export: $(all_sources)
 ifeq (,$(strip $(epath)))
 	@mkdir -p "$(strip $(to))"
-	@tar -cf "$(strip $(to))"/$(name)-$$$$.tar $(sources); cd "$(strip $(to))"; tar -xf $(name)-$$$$.tar; rm $(name)-$$$$.tar
+	@tar -cf "$(strip $(to))"/$(name)-$$$$.tar $(all_sources); cd "$(strip $(to))"; tar -xf $(name)-$$$$.tar; rm $(name)-$$$$.tar
 else
 	@ssh $(ehost) mkdir -p "$(strip $(epath))"
-	@tar -zcf /tmp/$(name)-$$$$.tgz $(sources); scp /tmp/$(name)-$$$$.tgz $(to); rm /tmp/$(name)-$$$$.tgz; \
+	@tar -zcf /tmp/$(name)-$$$$.tgz $(all_sources); scp /tmp/$(name)-$$$$.tgz $(to); rm /tmp/$(name)-$$$$.tgz; \
 	ssh $(ehost) "cd '$(strip $(epath))'; tar -zxf $(name)-$$$$.tgz; rm $(name)-$$$$.tgz;"
 endif
 	@echo export to \"$(to)\" completed

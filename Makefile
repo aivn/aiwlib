@@ -53,7 +53,8 @@ swig/$(MESH_NAME).i: swig/mesh.i
 	python -c "for l in open('swig/mesh.i'): print l[:-1]%{'name':'$(MESH_NAME)', 'type':'$(MESH_TYPE)', 'dim':'$(MESH_DIM)'}" > swig/$(MESH_NAME).i
 endif
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o swig/*.py swig/*_wrap.cxx python/aiwlib/_*.so python/aiwlib/{swig,iostream}.py
+clean:; rm -rf swig/*.o python/aiwlib/_*.so 
+cleanall: clean; rm -rf swig/*.py swig/*_wrap.cxx python/aiwlib/{swig,iostream}.py
 #clean-%: ; rm -f $(foreach n, $(filter-out $(word 1,$(subst -, ,$@)),$(subst -, ,$@)), \
 #				src/$(n)_wrap.cxx src/$(n)_wrap.o src/_$(n).so src/$(n).py src/$(n).i python/aivlib/$(n).py* python/aivlib/_$(n).so #lib/$(n).o )
 #-------------------------------------------------------------------------------
@@ -62,7 +63,7 @@ install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python/aiwlib  $(PYTHONDIR)
 	-for i in $(BIN_LIST); do cp -f bin/$i $(BINDIR); done
-install-links: all uninstall
+links-install install-links: all uninstall
 	-ln -s include/aiwlib $(INCLUDEDIR)
 	-ln -s python/aiwlib  $(PYTHONDIR)
 	-for i in $(BIN_LIST); do ln -s bin/$i $(BINDIR); done
