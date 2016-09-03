@@ -66,6 +66,7 @@ define imodule
 @echo "%typemap(out) float&  %{ \$$result = PyFloat_FromDouble ( *\$$1 ); %}" >> $@
 @echo "%typemap(out) double& %{ \$$result = PyFloat_FromDouble ( *\$$1 ); %}" >> $@
 @echo '%feature("autodoc","1");' >> $@
+@echo '%include "std_string.i"' >> $@
 @echo "%inline %{ namespace aiw{}; %}" >> $@
 endef
 #-------------------------------------------------------------------------------

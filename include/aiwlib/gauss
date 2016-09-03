@@ -1,0 +1,70 @@
+// -*- C++ -*-
+#ifndef AIW_GAUSS_HPP
+#define AIW_GAUSS_HPP
+/**
+ * Copyright (C) 2010-2011, 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991) or later
+ **/
+//------------------------------------------------------------------------------
+#include <sys/time.h>
+#include <stdlib.h>
+#include <math.h>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+#ifndef MINGW
+	const double rand_alpha = 1./(1.+RAND_MAX), rand_alpha2PI = 2*M_PI/(1.+RAND_MAX);
+
+	inline void rand_init(){
+		timeval t;
+		gettimeofday(&t, NULL);
+		srand(t.tv_usec);
+	}
+	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
+	template <int D, class T> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
+#else //MINGW
+	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
+#endif //MINGW
+	//--------------------------------------------------------------------------
+    template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& b){
+		// a*cos(b.abs()) - a%b*sin(b)/b.abs() + b*(a*b)*(1-cos(b))/(b*b);
+		double b2 = b*b;
+		if(b2<1e-16) return a;
+		double b_abs = sqrt(b2); 
+		double sin_b, cos_b; sincos(b_abs, &sin_b, &cos_b);
+		return a*cos_b - a%b*(sin_b/b_abs) + b*((a*b)*(1-cos_b)/b2);
+	}
+	//--------------------------------------------------------------------------
+    template <int R, typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T> &b){
+		Vec<3, T> res=a, add=a;
+		for(int i=1; i<=R; i++){ add %= b/-i; res += add; }
+		return res;
+	};
+	//--------------------------------------------------------------------------
+	inline aiw::Vec<3, double> polar(double theta, double phi){
+		double s_th, c_th; sincos(theta, &s_th, &c_th);
+		double s_ph, c_ph; sincos(phi,   &s_ph, &c_ph);
+		return Vec(s_th*c_ph, s_th*s_ph, c_th);
+	}
+	template <typename T> inline aiw::Vec<2, double> polar(const aiw::Vec<3, T> &n){ //==> theta, phi
+		return Vec(acos(n[2]/n.abs()), atan2(n[1], n[0]));
+	}
+	//--------------------------------------------------------------------------
+	template <typename T> inline aiw::Vec<2, T> perp(const aiw::Vec<2, T> &a){ return Vec<2, T>(-a[1], a[0]); } 
+	template <typename T> inline aiw::Vec<3, T> perp(const aiw::Vec<3, T> &a){ 
+		Vec<3, T> a_fabs = a.fabs(); 
+		int i_max = a_fabs[0]>a_fabs[1]?0:1; 
+		if(a_fabs[i_max]<a_fabs[2]) i_max = 2;
+		Vec<3, T> ort; ort[i_max] = 1.; Vec<3, T> p = ort%a;
+		return p/p.abs(); 
+	} 
+	//--------------------------------------------------------------------------
+#ifndef MINGW
+	template <typename T> aiw::Vec<3, T> void gauss_rotate(const aiw::Vec<3, T>& a, double g){
+		return rotate(a, rotate(perp(a), a*(rand_alpha2PI*random()/a.abs()))*(g*rand_gauss())); 
+	}
+#endif //MINGW
+	//--------------------------------------------------------------------------
+}; 
+#endif //AIW_GAUSS_HPP

@@ -18,6 +18,9 @@ endef
 #-------------------------------------------------------------------------------
 aiwlib_include:=$(shell dirname $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))))
 aiwlib:=$(dir $(aiwlib_include))
+#ifeq ($(wildcard $(aiwlib)python/,)
+#aiwlib:=
+#endif
 include $(aiwlib_include)/aiwlib/config.mk
 all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(basename $m).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
 sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
@@ -89,18 +92,27 @@ $(name).i: $(MAKEFILE_LIST)
 	@for i in $(headers); do echo "#include \"$$i\"" >> $@; done
 	@echo "%}" >> $@	
 	@for i in $(headers); do echo "%include \"$$i\"" >> $@; done
+ifneq ($(wildcard $(aiwlib)python/aiwlib/),)
+	@echo "%pythoncode %{import sys; sys.path.insert(1, '$(aiwlib)python/')%}" >> $@
+endif
 	@echo $(ifinish) >> $@
 #-------------------------------------------------------------------------------
 clean:; rm -f $(name)_wrap.o $(addsuffix .o, $(basename $(modules))) _$(name).so 
 cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py
 #-------------------------------------------------------------------------------
+ifeq ($(words $(wildcard $(aiwlib)python/aiwlib/ $(aiwlib)swig/ $(aiwlib)Makefile)),3)
+aiwlib_local_check:; 
+else 
+aiwlib_local_check:; @echo Warning: local aiwlib FAILED! 
+endif
+
 ifeq ($(strip $(findstring swig,$(with))),swig)
 all_sources:=$(all_sources) $(name).i $(name).py $(name)_wrap.cxx
 endif
 
-ifeq ($(strip $(findstring aiwlib,$(with))),aiwlib)
-all_sources:=$(all_sources) $(aiwlib)Makefile $(wildcard $(aiwlib)python/aiwlib/*.py) 
-all_sources:=$(all_sources) $(shell echo $(aiwlib)swig/{iostream,swig,mesh,swig}.i)
+ifeq ($(strip $(findstring aiwlib,$(with))),aiwlib) 
+all_sources:=$(all_sources) $(wildcard $(aiwlib)Makefile $(aiwlib)python/aiwlib/*.py) 
+all_sources:=$(all_sources) $(wildcard $(shell echo $(aiwlib)swig/{iostream,swig,mesh,swig}.i))
 ifeq ($(strip $(findstring swig,$(with))),swig)
 all_sources:=$(sort $(all_sources) $(wildcard $(aiwlib)swig/*.i $(aiwlib)swig/*_wrap.cxx))
 endif
@@ -114,12 +126,12 @@ $(name).tgz $(name).md5: $(sources)
 	md5sum $(name).tar > $(name).md5
 	gzip -c $(name).tar > $(name).tgz
 	rm $(name).tar
-tar: $(all_sources); tar -zcf $(name)-all.tgz $(all_sources)
+tar: aiwlib_local_check $(all_sources); tar -zcf $(name)-all.tgz $(all_sources)
 #-------------------------------------------------------------------------------
 ehost:=$(word 1,$(subst :, ,$(to)))
 epath:=$(word 2,$(subst :, ,$(to))) 
 
-export: $(all_sources)
+export: aiwlib_local_check $(all_sources)
 ifeq (,$(strip $(epath)))
 	@mkdir -p "$(strip $(to))"
 	@tar -cf "$(strip $(to))"/$(name)-$$$$.tar $(all_sources); cd "$(strip $(to))"; tar -xf $(name)-$$$$.tar; rm $(name)-$$$$.tar

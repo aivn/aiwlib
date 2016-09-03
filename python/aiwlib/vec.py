@@ -80,7 +80,7 @@ def _decltype(a, b):
     TT = [_cxx_types_table[x.T] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
-_is_vec = lambda X: type(X) in (list, tuple) or hasattr(X,'T')
+_is_vec = lambda X: type(X) in (list, tuple) or hasattr(X, 'T')
 def _2sz(X, sz):
     if len(X)==sz: return X._getdata() if hasattr(X, '_getall') else X
     if len(X)==1: return (X[0],)*sz
@@ -229,19 +229,31 @@ class Vec:
     def round(self): return Vec(*[math.round(x) for x in self._getdata()], T=self._T())
     def min(self): return min(self._getdata())
     def max(self): return max(self._getdata())
+    def imin(self): return min(zip(self._getdata(), range(self._D())))[1]
+    def imax(self): return max(zip(self._getdata(), range(self._D())))[1]
     def sum(self): return sum(self._getdata())
-    def nan(self): return Ind(*[ math.isnan(x) for x in self._getdata()])
-    def inf(self): return Ind(*[ math.isinf(x) for x in self._getdata()])
-    def cnan(self): return any([ math.isnan(x) for x in self._getdata()])
-    def cinf(self): return any([ math.isinf(x) for x in self._getdata()])
-    def prod(self): return reduce(lambda a, b:a*b, self.__getdata())
+    def nan(self): return Ind(*[math.isnan(x) for x in self._getdata()])
+    def inf(self): return Ind(*[math.isinf(x) for x in self._getdata()])
+    def cknan(self): return any([math.isnan(x) for x in self._getdata()])
+    def ckinf(self): return any([math.isinf(x) for x in self._getdata()])
+    def prod(self): return reduce(lambda a, b: a*b, self.__getdata())
     def __nonzero__(self): return all(self._getdata())    
     #---------------------------------------------------------------------------
-    def __rmod__(self, x):
-        if self._T() not in ('int', 'int32_t'): raise Exception('incorrect rvalue type in %r%%%r'%(x, self))
-        r = Ind(D=self._D())
-        for i in range(self._D()): r[i] = x%self[i]; x /= self[i]
+    def __mod__(a, b):
+        ab = _conv(a, b)
+        if len(ab)==2: return ab[0][0]*ab[1][1]-ab[1][0]*ab[0][1]
+        elif len(ab)==3: return Vec(*[ab[1][0]*ab[2][1]-ab[2][1]*ab[1][1], 
+                                      ab[2][0]*ab[0][1]-ab[0][1]*ab[2][1], 
+                                      ab[0][0]*ab[1][1]-ab[1][1]*ab[0][1]], T=_decltype(a, b))
+        else: raise Exception('incorrect arguments in vectors product %r%%%r'%(a, b))
+    #---------------------------------------------------------------------------
+    def __rmod__(a, b):
+        if type(b) in (list, tuple): return -(a%b)
+        if a._T() not in ('int', 'int32_t'): raise Exception('incorrect rvalue type in %r%%%r'%(x, self))
+        r = Ind(D=a._D())
+        for i in range(a._D()): r[i] = b%a[i]; b /= a[i]
         return r
+    #---------------------------------------------------------------------------
     def __ixor__(self, Up):
         if self._T() not in ('int', 'int32_t'): raise Exception('incorrect lvalue type in %r^=%r'%(self, Up))
         for i in range(self._D()-1):
