@@ -8,6 +8,22 @@ def get_login() :
     try: return os.getlogin()
     except OSError, e: return os.environ.get('USER')
 #-----------------------------------------------------------------------------
+def make_path(repo, calc_num=3):
+    'создает уникальную директорию расчета в репозитории repo на основе текущей даты и времени'
+    repo = mixt.normpath(repo) #repo%self
+    name = time.strftime("c%y_%W_")+str(time.localtime()[6]+1); s = len(name)
+    while 1: 
+        try: lpath = os.listdir(repo)
+        except OSError, e: lpath = ['']
+        n = max([0]+[int(p[s:]) for p in lpath if p.startswith(name) and p[s:].isdigit()])+1
+        path = os.path.join(repo, name+'%%0%si'%calc_num%n)+'/'
+        try: os.makedirs(path)
+        except OSError, err: # check collision
+            if err.errno!=17: raise
+            continue
+        break
+    return path
+#-----------------------------------------------------------------------------
 def mk_daemon():
     'начинает демонизацию'
     if os.fork(): sys.exit()
@@ -59,7 +75,8 @@ string2date = lambda s: time.mktime(time.strptime(s, "%Y.%m.%d-%X"))
 def string2bool(value):
     if value in 'Y y YES Yes yes ON On on TRUE True true V v 1'.split(): return True
     if value in 'N n NO No no OFF Off off FALSE False false X x 0'.split(): return False
-    raise Exception('incorrect value=%s for convert to bool'%value)
+    raise Exception('incorrect value=%s for convert to bool, Y|y|YES|Yes|yes|ON|On|on|TRUE|True|true|V|v|1' 
+                    ' or N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0 expected'%value)
 def size2string(sz):
     for d, p in ((1,'%iB'), (2**10,'%iK'), (2**20,'%.1fM'), (2**30,'%.1fG'), (2**40,'%.2fT')):
         if sz>=d: return p%(float(sz)/d)

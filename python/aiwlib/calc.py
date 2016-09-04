@@ -1,47 +1,34 @@
 # -*- coding: utf-8 -*-
 import os, sys, time, cPickle, socket, mixt, chrono
 #-------------------------------------------------------------------------------
-def _make_path(self):
-    'создает уникальную директорию расчета на основе текущей даты и времени'
-    repo = mixt.normpath(Calc.repo%self)
-    name = time.strftime("c%y_%W_")+str(time.localtime()[6]+1); s = len(name)
-    while 1: 
-        try: lpath = os.listdir(repo)
-        except OSError, e: lpath = ['']
-        n = max([0]+[int(p[s:]) for p in lpath if p.startswith(name) and p[s:].isdigit()])+1
-        self.path = os.path.join(repo, name+'%%0%si'%Calc._calc_num%n)+'/'
-        try: os.makedirs(self.path)
-        except OSError, err: # check collision
-            if err.errno!=17: raise
-            continue
-        break
-    return self.path
-#-------------------------------------------------------------------------------
-def _iattr(self, D, **kw_args):
-    'пытается установить аттрибуты на основе D, иначе на основе Calc.__dict__, иначе из kw_args'
-    for k, v in kw_args.items(): setattr(self, k, D.pop(k, Calc.__dict__.pop(k, v)))
 _is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _rtable, _G, ghelp = [], {}, []
+_ignore_list = 'path statelist runtime progress args _progressbar'.split()
+_racs_params, _racs_cl_params, _cl_args, _args_from_racs = {}, set(), [], []
 #-------------------------------------------------------------------------------
-#_ignore_list = 'path repo statelist runtime progress args _progressbar'.split()
+def _init_hook(self): pass
+def _make_path_hook(self): 
+    self.path = mixt.make_path(_racs_params['_repo']%self, _racs_params['_calc_num']) 
+    return self.path
+#-------------------------------------------------------------------------------
 class Calc:
-    'Работа с расчетом (записью в базе) - уникальной директорией расчета и сохранение/восстановление параметров в файле .RACS'
-    _ignore_list = tuple('path repo _progressbar _ignore_list'.split())
-    _starttime = time.time()
+    '''Работа с расчетом (записью в базе) --- создание уникальной директории расчета 
+    и сохранение/восстановление параметров в файле .RACS'''
+    _starttime = time.time() #???
     #---------------------------------------------------------------------------
     def __init__(self, **D):
-        # значения по умолчанию при построении выборки или создании расчета руками
-        _iattr(self, D, runtime=chrono.Time(time.time()-Calc._starttime), statelist=[], progress=0., args=sys.argv) #???
-        _iattr(Calc, D, repo='repo', _symlink=False, _statechecker=False, _on_exit=False, _calc_num=3,
-               _auto_pull=False, _clean_path=False)
-        self.__dict__.update(D)
-        for k, v in getattr(Calc, '_qargs', []):
+        self._starttime, self.runtime, self.statelist = time.time(), chrono.Time(0.), []
+        self.progress, self.args = 0., list(_cl_args)
+        for k, v in D.items():
+            if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
+            elif not k in _racs_params: self.k = v
+        for k, v in _args_from_racs:
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
             self.__dict__[k] = v
         if 'path' in self.__dict__:
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
-        if hasattr(Calc, '_init_hook'): Calc._init_hook(self)
+        _init_hook(self)
         if 'path' in self.__dict__ and os.path.exists(self.path+'.RACS'):
             self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
@@ -51,7 +38,7 @@ class Calc:
     #---------------------------------------------------------------------------
     def __getattr__(self, attr):
         'нужен для создания уникальной директории расчета по первому требованию (ленивые вычисления)'
-        if attr=='path': return getattr(Calc, '_make_path_hook', _make_path)(self)
+        if attr=='path': return _make_path_hook(self)
         raise AttributeError(attr)
     #---------------------------------------------------------------------------
     def commit(self): 'Сохраняет содержимое расчета в базе'; cPickle.dump(self.par_dict(), open(self.path+'.RACS', 'w')) 
@@ -176,16 +163,17 @@ class Calc:
 #-------------------------------------------------------------------------------
 class _Wrap: 
     def __init__(self, calc, core):
-        self.__dict__['_calc'], self.__dict__['_core'] = calc, core
+        self.__dict__['_calc'], self.__dict__['_core'], self.__dict__['_set_attrs'] = calc, core, set()
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
     def __getattr__(self, attr): return getattr(self._core, attr)
     def __setattr__(self, attr, value):
-        if attr in self._calc.__dict__: # перекрываем значениe по умолчанию
+        if if not attr in self._set_attrs and attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
             value = self._calc.__dict__[attr] # через getattr?
-            if getattr(self._core, attr).__class__==bool: value = mixt.string2bool(value)
-            else: value = getattr(self._core, attr).__class__(value)
+            if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
+            value = getattr(self._core, attr).__class__(value)            
+            self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)
     def _del__(self):
-        if getattr(self._calc, '_auto_pull', 0): self._calc.pull(self._core)
+        if _racs_params['_auto_pull']: self._calc.pull(self._core)
 #-------------------------------------------------------------------------------
