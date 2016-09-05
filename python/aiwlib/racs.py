@@ -31,7 +31,7 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
 могут задаваться как с одним, так и с двумя минусами, короткие имена
 только с одним. Параметр path задается без минусов.
 
-  --repo=PATH --- задает путь к репозитрию для создания расчета
+  -r|--repo=PATH --- задает путь к репозитрию для создания расчета
     path=PATH --- явно задает путь к директории расчета, если расчет сущестовал 
                   словарь расчета будет обновлен из директории расчета
   -p|--clean-path[=Y] --- очищать явно заданную директорию расчета, при этом
@@ -49,11 +49,12 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
                        состояние расчета и сохранять измения параметров на диск
   -n|--calc-num=3 --- число знаков в номере расчета (в текущем дне) при 
                       автоматической генерации имени директории расчета 
-  -P|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
+  -a|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
                          контролируемых расчетом объектов.
+  -m|--commit-sources[=Y] --- сохранять исходные коды расчета
 '''
 #-------------------------------------------------------------------------------
-import os, sys, math, gtable, calc
+import os, sys, math, gtable, calc, sources
 from calc import Calc
 from math import * #???
 #-------------------------------------------------------------------------------
@@ -97,6 +98,7 @@ while 1:
         '''%(os.getpid(), self.path, self.path)
         f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
+    if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
     if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')
     return self.path
 calc._make_path_hook = _make_path_hook
@@ -120,8 +122,9 @@ if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
     print ''.join(l for l in open(sys.modules['__main__'].__file__) if '#@' in l),
     sys.exit()
 #-------------------------------------------------------------------------------
-opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('', 'repo'),
-         'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('P', True), 'clean-path':('p', True), 'copies':('c', 1) }
+opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
+         'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', True), 
+         'copies':('c', 1), 'commit-sources':('m', True) }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, arg_seqs, arg_order, i = list(sys.argv[1:]), {}, [], 0
 while i<len(calc._cl_args):
