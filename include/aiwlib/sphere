@@ -34,11 +34,20 @@ namespace aiw{
 	public:		
 		void set(uint64_t index, int rank);
 		BaseSphIndex(uint64_t index, int rank){ set(index, rank); }
-		uint64_t get_index() const;
-		int get_rank() const;
+		uint64_t index() const;
+		int rank() const;
+
+		inline SphInd operator ++ (int);
+		inline SphInd operator ++ ();
+		inline SphInd operator -- (int);
+		inline SphInd operator -- ();
 	};
 	//--------------------------------------------------------------------------
 	struct SphCellInd: public SphInd{
+		SphCellInd up() const;
+		SphCellInd down() const;
+		inline operator uint64_t() const { return index(); }
+
 		SphCellInd(const aiw::Vec<3> &r, int rank);
 		double area() const;
 		const aiw::Vec<3>& center() const;
@@ -49,6 +58,10 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 	struct SphVertInd: public SphInd{
+		SphVertInd up() const;
+		SphVertInd down() const;
+		inline operator uint64_t() const { return index(); }
+
 		const aiw::Vec<3>& center() const;
 		SphCellInd cellInd(int i) const;  // 0<=i<6
 		SphEdgeInd edgeInd(int i) const;  // 0<=i<6	
@@ -56,6 +69,10 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 	struct SphEdgeInd: public SphInd{
+		SphEdgeInd up() const;
+		SphEdgeInd down() const;
+		inline operator uint64_t() const { return index(); }
+
 		const aiw::Vec<3>& vert(int i) const; // 0<=i<2
 		SphVertInd vertInd(int i) const;    // 0<=i<2
 		SphCellInd cellInd(int i) const;        // 0<=i<2

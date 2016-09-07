@@ -95,15 +95,6 @@ namespace aiw{
 
 		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
 		inline operator bool() const { for(int i=0; i<D; i++) if(!p[i]) return false; return true; }
-
-		inline Vec min_ort() const { 
-			int max_i=0; T max_v=fabs(p[0]); 
-			for(int i=1; i<D; i++){ 
-				T v=fabs(p[i]); if(max_v<v){ max_v = v; max_i = i; } 
-			}  
-			Vec res; res[max_i] = 1.; return res;
-		}
-		
 	}; // end of class Vec
 	template <typename T, typename ... Args>
 	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
