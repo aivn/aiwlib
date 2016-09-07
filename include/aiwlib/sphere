@@ -30,17 +30,17 @@ namespace aiw{
 	// const aiw::Vec<2, uint64_t>& sph_edge_vert(uint64_t ID, int rank); // близжайшие вершины ребра
 	//--------------------------------------------------------------------------
 	class SphInd{
-		uint64_t index_; // 5 бит на ранг, остальное на индекс
+		uint64_t I; // 5 СТАРШИХ бит на ранг, остальное на индекс
 	public:		
-		void set(uint64_t index, int rank);
-		BaseSphIndex(uint64_t index, int rank){ set(index, rank); }
-		uint64_t index() const;
-		int rank() const;
+		inline void set(uint64_t index, int rank){ I = index|(rank<<59); }
+		inline BaseSphIndex(uint64_t index, int rank){ set(index, rank); }
+		inline uint64_t index() const { return I&0x07ffffffffffffff; }
+		int rank() const { return I>>59; }
 
-		inline SphInd operator ++ (int);
-		inline SphInd operator ++ ();
-		inline SphInd operator -- (int);
-		inline SphInd operator -- ();
+		inline SphInd operator ++ (){ SphIndex res; res.I = I--; return res; }
+		inline SphInd operator ++ (int){ ++I; return *this; }
+		inline SphInd operator -- (){ SphIndex res; res.I = I--; return res; }
+		inline SphInd operator -- (int){ --I; return *this; }
 	};
 	//--------------------------------------------------------------------------
 	struct SphCellInd: public SphInd{
