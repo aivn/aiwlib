@@ -1,0 +1,54 @@
+// -*- C++ -*-
+#ifndef AIW_GEOMETRY_HPP
+#define AIW_GEOMETRY_HPP
+
+/**
+ * Copyright (C) 2016 Sergey Zhdanov, Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <memory>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+#ifndef SWIG
+	struct BaseFigure{
+		virtual Vecf<3> get_min() const = 0;
+		virtual Vecf<3> get_max() const = 0;
+		virtual bool check(const Vecf<3> &r) const = 0;
+		virtual ~BaseFigure(){}
+	};
+#endif //SWIG
+	//--------------------------------------------------------------------------
+	class Figure{
+		std::shared_ptr<BaseFigure> figure;
+
+		friend Figure cylinder(const Vecf<3> bottom_origin_center, const Vecf<3> &n, double R, double H);
+		friend Figure box(const Vecf<3> bottom_origin_center, const Vecf<3> &n, double phi, double A, double B, double H);
+		friend Figure cube(const Vecf<3> bottom_origin_center, const Vecf<3> &n, double phi, double A);
+		friend Figure spheroid(const Vecf<3> center, double R);
+
+	public:
+		Vecf<3> get_min() const { return figure->get_min(); }
+		Vecf<3> get_max() const { return figure->get_max(); }
+		bool check(const aiw::Vecf<3> &r) const { return figure->check(r); }
+
+		aiw::Figure move(const aiw::Vecf<3> &offset);
+		aiw::Figure rotate(const aiw::Vecf<3> &center, const aiw::Vecf<3> &n_phi);
+		aiw::Figure transform(const aiw::Vecf<3> &ox, const aiw::Vecf<3> &oy, const Vecf<3> &oz);    
+
+		aiw::Figure operator + (const aiw::Figure &other) const;
+		aiw::Figure operator - (const aiw::Figure &other) const;
+		aiw::Figure operator * (const aiw::Figure &other) const;
+	};
+	//--------------------------------------------------------------------------
+	aiw::Figure cylinder(const aiw::Vecf<3> bottom_origin_center, const aiw::Vecf<3> &n, double R, double H);
+	aiw::Figure box(const aiw::Vecf<3> bottom_origin_center, const aiw::Vecf<3> &n, double phi, double A, double B, double H);
+	aiw::Figure cube(const aiw::Vecf<3> bottom_origin_center, const aiw::Vecf<3> &n, double phi, double A);
+	aiw::Figure spheroid(const aiw::Vecf<3> center, double R);
+//sphere
+//ellipse
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_GEOMETRY_HPP

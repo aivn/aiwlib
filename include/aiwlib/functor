@@ -1,0 +1,14 @@
+// -*- C++ -*-
+#ifndef AIW_ _HPP
+#define AIW_ _HPP
+
+/**
+ * Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_ _HPP
