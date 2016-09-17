@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, sys, time, cPickle, socket, mixt, chrono
+import os, sys, time, cPickle, socket, .mixt, .chrono
 #-------------------------------------------------------------------------------
 _is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _rtable, _G, ghelp = [], {}, []
@@ -81,18 +81,19 @@ class Calc:
     #---------------------------------------------------------------------------
     def get_size(self): 'Размер расчета в байтах'; return int(os.popen("du -bs "+self.path).readline().split()[0])
     #---------------------------------------------------------------------------
-    def push(self, X, ignore_list=[], **kw_args):
+    def push(self, X, ignore_list=[], _prefix='', **kw_args):
         '''устанавливает аттрибуты объекта X согласно объекту расчета, 
         параметры расчета имеют более высокий приоритет, чем параметры kw_args'''
-        ignore_list = self._ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this','thisown']
-        if type(X) is dict: X.update(kw_args); X.update(self.par_dict(*ignore_list))
+        ignore_list = self._ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this', 'thisown']
+        params = self.par_dict(*ignore_list).items()
+        if _prefix: params = filter(lambda i: i[0].startswith(_prefix), params)
+        if type(X) is dict: X.update(kw_args); X.update(params)
         elif hasattr(X, '__swig_setmethods__'): 
-            for k, v in kw_args.items()+filter(lambda i: i[0] in X.__swig_setmethods__,
-                                               self.par_dict(*ignore_list).items()): setattr(X, k, v)
+            for k, v in kw_args.items()+filter(lambda i: i[0] in X.__swig_setmethods__, params): setattr(X, k, v)
         else: 
-            for k, v in kw_args.items()+self.par_dict(*ignore_list): setattr(X, k, v) 
+            for k, v in kw_args.items()+params: setattr(X, k, v) 
     #---------------------------------------------------------------------------
-    def pull(self, X, ignore_list=[], **kw_args):
+    def pull(self, X, ignore_list=[], _prefix='', **kw_args):
         '''устанавливает аттрибуты объекта расчета согласно объекту X, 
         параметры kw_args имеют более высокий приоритет, чем параметры расчета
         автоматически устанавливаются аттрибуты имеющие методы __get/setstate__ 
@@ -106,10 +107,10 @@ class Calc:
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
-                           [not hasattr(v, '_racs_pull_lock')]) or not _is_swig_object(v): self[k] = v
+                           [not hasattr(v, '_racs_pull_lock')]) or not _is_swig_object(v): self[_prefix+k] = v
         for k, v in kw_args.items(): self[k] = v
     #---------------------------------------------------------------------------
-    def wrap(self, core): return _Wrap(self, core)
+    def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
     #---------------------------------------------------------------------------
     def __call__(self, expr):        
         try:
@@ -156,24 +157,24 @@ class Calc:
     def get(self, name, value=None): return self[name] if name in self.__dict__ else value
     def __contains__(self, key): return key in self.__dict__
     #---------------------------------------------------------------------------
-
 #    def __setattr__(self, attr, value):
 #        if attr in self.__dict__: self.__dict__[attr] = value.__class__(self.__dict__[attr])
 #        else: self.__dict__[attr] = value
 #-------------------------------------------------------------------------------
 class _Wrap: 
-    def __init__(self, calc, core):
-        self.__dict__['_calc'], self.__dict__['_core'], self.__dict__['_set_attrs'] = calc, core, set()
+    def __init__(self, calc, core, prefix):
+        self.__dict__['_calc'], self.__dict__['_core'] = calc, core 
+        self.__dict__['_set_attrs'], self.__dict__['_prefix'] = set(), prefix
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
     def __getattr__(self, attr): return getattr(self._core, attr)
     def __setattr__(self, attr, value):
-        if if not attr in self._set_attrs and attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
-            value = self._calc.__dict__[attr] # через getattr?
+        if not attr in self._set_attrs and self._prefix+attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
+            value = self._calc.__dict__[self._prefix+attr] # через getattr?
             if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
             value = getattr(self._core, attr).__class__(value)            
             self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)
     def _del__(self):
-        if _racs_params['_auto_pull']: self._calc.pull(self._core)
+        if _racs_params['_auto_pull']: self._calc.pull(self._core, _prefix=self._prefix) 
 #-------------------------------------------------------------------------------

@@ -36,6 +36,7 @@ namespace aiw{
 
 		aiw::Figure move(const aiw::Vecf<3> &offset);
 		aiw::Figure rotate(const aiw::Vecf<3> &center, const aiw::Vecf<3> &n_phi);
+		aiw::Figure rotate(const aiw::Vecf<3> &center, const aiw::Vecf<3> &ort_x, const aiw::Vecf<3> &ort_y); //ort_z = ort_x%ort_y
 		aiw::Figure transform(const aiw::Vecf<3> &ox, const aiw::Vecf<3> &oy, const Vecf<3> &oz);    
 
 		aiw::Figure operator + (const aiw::Figure &other) const;

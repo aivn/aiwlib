@@ -54,9 +54,9 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
 '''
 #-------------------------------------------------------------------------------
-import os, sys, math, gtable, calc, sources
-from calc import Calc
-from math import * #???
+import os, sys, math, inspect, socket, cPickle, thread, .gtable, .calc, .sources
+from .calc import Calc
+#from math import * #???
 #-------------------------------------------------------------------------------
 #   hooks
 #-------------------------------------------------------------------------------
@@ -103,17 +103,68 @@ while 1:
     return self.path
 calc._make_path_hook = _make_path_hook
 #-------------------------------------------------------------------------------
-def _on_exit(calc): 
+def _on_exit(self): 
+    if hasattr(self, '_run4stat'):
+        connect = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connect.connect(('127.0.0.1', self._run4stat[0]))
+        s = cPickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]]) 
+        connect.send('%08i'%len(s)+s); connect.close()
+        return 
     import os, time, mixt, chrono
     try:
         runtime = chrono.Time(time.time()-self._starttime)
-        print 'RUNTIME %s SIZE %s (.RACS %s) %s'%(runtime, os.popen('du -hs '+calc.path).readline().split()[0],
-                                                  mixt.size2string(os.path.getsize(calc.path+'.RACS')), calc.path)
-        # calc.update() ???
-        if calc.statelist[-1][0]=='started':
-            if hasattr(sys, 'last_value'): calc.add_state('stopped')
-            else: calc.progress, calc.runtime = 1., runtime; calc.add_state('finished')
-    finally: calc.commit()
+        print 'RUNTIME %s SIZE %s (.RACS %s) %s'%(runtime, os.popen('du -hs '+self.path).readline().split()[0],
+                                                  mixt.size2string(os.path.getsize(self.path+'.RACS')), self.path)
+        # self.update() ???
+        if self.statelist[-1][0]=='started':
+            if hasattr(sys, 'last_value'): self.add_state('stopped')
+            else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
+    finally: self.commit()
+#-------------------------------------------------------------------------------
+def run4stat(self, _count, _copies=1, _mkdir=True, **params):
+    '''проводит _count одинаковых расчетов для набора статистики, 
+    запуская не более _copies одновременно, для каждого расчета создается
+    своя директория path+номер расчета (если не указано _nodir). 
+    Словарь params содержит параметры с результатми сбора статистики (ключи словаря) попадающие
+    в итоговый расчет. Значениями словаря являются функции собирающие статистику. Имена аргументов
+    функций отвечают параметрам, передаваемым через TCP/IP с дочерних расчетов в головной расчет, 
+    функции получают их в виде отдельных списков. Значения этих же параметров сохраняются в отдельном 
+    файле .stat в формате pickle в виде словаря {имя-параметра:список-значений}.'''
+    path = self.path # создаем путь для головного расчета
+    cargs = set(sum([inspect.getargspec(f) for f in params.values()], [])) # список параметров для передачи
+    stat = dict([(k, [None]*_count) for k in cargs]) # словарь с результатами
+    #------------ запуск сервера --------------------------
+    serv, port = socket.socket(AF_INET,SOCK_STREAM), 2048
+    serv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    while 1:
+        try: serv.bind(('127.0.0.1', port)); break  
+        except socket.error, e: port += 1
+    serv.listen(5)
+    def recv_data():
+        while cnum<_count or pids: #???
+            connect, addr = serv.accept()
+            data = cPickle.loads(int(connect.recv(connect.recv(8)))); c = data.pop(0)
+            for k, v in zip(cargs, data): stat[k][c] = v
+    thread.start_new_thread(recv_data, ())
+    #-------------- цикл по расчетам ---------------------
+    pids = []
+    for cnum in xrange(_count):
+        if len(pids)==_copies:
+            p = os.waitpid(-1, 0)[0]
+            pids.remove(p)
+        pid = os.fork()
+        if not pid: 
+            if _dir: self.path += '%%0%ii/'%(math.log10(_count)+1)%cnum; os.mkdir(self.path)
+            self._run4stat = [port, cnum]+cargs
+            return # очередной расчет запущен
+        self.set_progress(float(cnum)/_count)
+        pids.append(pid)
+    while(pids): pids.remove(os.waitpid(-1, 0)[0])
+    #-------------- окончание расчета --------------------
+    cPickle.dump(stat, open(path+'.stat', 'w'))
+    for k, f in params.items(): setattr(self, k, f(*dict([(i, stat[i]) for i in inspect.getargspec(f)])))
+    sys.exit()
+#calc.Calc.run4stat = run4stat
 #-------------------------------------------------------------------------------
 #   parse command line options
 #-------------------------------------------------------------------------------

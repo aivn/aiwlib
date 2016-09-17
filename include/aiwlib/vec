@@ -101,6 +101,11 @@ namespace aiw{
 		return Vec<1+sizeof...(Args), T>(x, args...);
 	}
 	//--------------------------------------------------------------------------
+	template<int D> using Vecf = Vec<D, float>;
+	inline Vec<1+sizeof...(Args), T> vecf(T x, Args ... args){
+		return Vec<1+sizeof...(Args), float>(x, args...);
+	}
+	//--------------------------------------------------------------------------
 	//  compare 
 	//--------------------------------------------------------------------------
 #define VEC_BIN_OP_DELETE(OP)											\

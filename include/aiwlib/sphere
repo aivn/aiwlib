@@ -2,6 +2,11 @@
 #ifndef AIW_SPHERE_HPP
 #define AIW_SPHERE_HPP
 
+/**
+ * Copyright (C) 2016 Antov V. Ivanov and Sergey Khilkov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
 #include "vec"
 
 namespace aiw{
@@ -34,8 +39,12 @@ namespace aiw{
 	public:		
 		inline void set(uint64_t index, int rank){ I = index|(rank<<59); }
 		inline BaseSphIndex(uint64_t index, int rank){ set(index, rank); }
+		inline BaseSphIndex():I(~((uint64_t)0)){} // по умолчанию индекс невалидный
+
 		inline uint64_t index() const { return I&0x07ffffffffffffff; }
 		int rank() const { return I>>59; }
+		inline operator bool() const { return index()!=0x07ffffffffffffff; }
+		inline bool operator !() const { return index()==0x07ffffffffffffff; }
 
 		inline SphInd operator ++ (){ SphIndex res; res.I = I--; return res; }
 		inline SphInd operator ++ (int){ ++I; return *this; }

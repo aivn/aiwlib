@@ -28,6 +28,9 @@ Vecf<3> trans_vec_back(const Vecf<3> &r, const Vecf<3> &center, const Vecf<3> &o
                 x*z1 + y*z2 + z*z3) + center;
 }
 //------------------------------------------------------------------------------
+//   rotate
+//------------------------------------------------------------------------------
+/* from Zhdanov
 struct RotatedFigure: public BaseFigure{
     std::shared_ptr<BaseFigure> child;
     Vecf<3> center;
@@ -54,6 +57,47 @@ struct RotatedFigure: public BaseFigure{
     };    
     virtual bool check(const Vecf<3> &r) const {return child->check(rotop(r-center)(-n_phi).val + center);};
 };
+*/
+//------------------------------------------------------------------------------
+struct RotatedFigure: public BaseFigure{ // from aiv
+    std::shared_ptr<BaseFigure> child;
+    Vecf<3> center;
+    Vecf<3> n_phi;
+    // virtual Vecf<3> get_min() const {return rotop(child->get_min()-center)(n_phi).val+center;};
+    // virtual Vecf<3> get_max() const {return rotop(child->get_max()-center)(n_phi).val+center;};
+    virtual Vecf<3> get_min() const {
+        Vecf<3> fcenter = (child->get_max() + child->get_min()) * 0.5;
+        Vecf<3> fhdiag  = (child->get_max() - child->get_min()) * 0.5;
+        Vecf<3> tmp  = rotop(child->get_min()-center)(n_phi).val+center;
+        for (int ix=-1;ix<=1;ix+=2) for (int iy=-1;iy<=1;iy+=2) for (int iz=-1;iz<=1;iz+=2){
+            tmp <<= rotop(fcenter + (fhdiag ^ Vctr(ix,iy,iz)) - center)(n_phi).val+center;
+        }
+        return tmp;
+    };
+    virtual Vecf<3> get_max() const {
+        Vecf<3> fcenter = (child->get_max() + child->get_min()) * 0.5;
+        Vecf<3> fhdiag  = (child->get_max() - child->get_min()) * 0.5;
+        Vecf<3> tmp  = rotop(child->get_max()-center)(n_phi).val+center;
+        for (int ix=-1;ix<=1;ix+=2) for (int iy=-1;iy<=1;iy+=2) for (int iz=-1;iz<=1;iz+=2){
+            tmp >>= rotop(fcenter + (fhdiag ^ Vctr(ix,iy,iz)) - center)(n_phi).val+center;
+        }
+        return tmp;
+    };    
+    virtual bool check(const Vecf<3> &r) const {return child->check(rotop(r-center)(-n_phi).val + center);};
+};
+//------------------------------------------------------------------------------
+Figure Figure::rotate(const Vecf<3> &center, const aiw::Vecf<3> &ort_x, const aiw::Vecf<3> &ort_y){
+    RotatedFigure *f = new RotatedFigure; 
+    f->child = figure; f->center = center; f->n_phi = n_phi;
+    Figure res; res.figure.reset(f); return res;
+}
+Figure Figure::rotate(const Vecf<3> &center, const Vecf<3> &n_phi){
+    RotatedFigure *f = new RotatedFigure; 
+    f->child = figure; f->center = center; f->n_phi = n_phi;
+    Figure res; res.figure.reset(f); return res;
+}
+//------------------------------------------------------------------------------
+//   transform
 //------------------------------------------------------------------------------
 struct TransformedFigure: public BaseFigure{
     std::shared_ptr<BaseFigure> child;
@@ -99,12 +143,6 @@ struct MovedFigure: public BaseFigure{
 Figure Figure::move(const Vecf<3> &offset){
     MovedFigure *f = new MovedFigure; 
     f->child = figure; f->offset = offset;
-    Figure res; res.figure.reset(f); return res;
-}
-//------------------------------------------------------------------------------
-Figure Figure::rotate(const Vecf<3> &center, const Vecf<3> &n_phi){
-    RotatedFigure *f = new RotatedFigure; 
-    f->child = figure; f->center = center; f->n_phi = n_phi;
     Figure res; res.figure.reset(f); return res;
 }
 //------------------------------------------------------------------------------

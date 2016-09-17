@@ -1,0 +1,227 @@
+// -*- C++ -*-
+#ifndef AIW_MAGNETICS_HPP
+#define AIW_MAGNETICS_HPP
+
+/**
+ * Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <functional>
+#include <vector>
+#include "geometry"
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class MagneticSubLattice{ // подрешетка, <1KB
+		//----------------------------------------------------------------------
+		struct aniso_t{ // ось анизотропии, 16 байт
+			Vecf<3> n; // направление оси анизотропии
+			float K;   // величина анизотропии
+			inline float W1(Vecf<3> m) const { float mn = m*n; return K*mn*mn; }
+			inline float W3(Vecf<3> m) const { float mn = m*n; return K*mn*mn*mn*mn; }
+			inline Vecf<3> H1(Vecf<3> m) const { return 2*K*m*n*n; }
+			inline Vecf<3> H3(Vecf<3> m) const { float mn = m*n; return 4*K*mn*mn*mn*n; }
+		};
+		//----------------------------------------------------------------------
+		aniso_t K1[16], K3[16];     // линейные и кубические оси анизотропии
+		int K1sz, K3sz;
+	public:
+		MagneticSubLattice(): K1sz(0), K3sz(0) {}
+
+#ifndef SWIG
+		//----------------------------------------------------------------------
+		struct link_t{ // обменная связь 20 байт ;-(			
+			Ind<3> offset;  // смещение в соседнюю ячейку 
+			uint32_t sl;   // подрешетка целевого атома, как то зашить ее в смещение или J?
+			float J;        // величина обменного интеграла 
+		};
+		//----------------------------------------------------------------------
+		std::vector<link_t> links;  // обменные связи внутри подрешетки
+#endif //SWIG
+
+		int add_link(aiw::Ind<3> offset, int sl, float J){ 
+			link_t l; l.offset = offset; l.sl = sl; l.J = J; links.push_back(l); 
+			return links.size();
+		}
+		void add_aniso1(aiw::Vecf<3> n, float K){ K1[K1sz].n = n; K1[K1sz++].J = J; }
+		void add_aniso3(aiw::Vecf<3> n, float K){ K3[K3sz].n = n; K3[K3sz++].J = J; }
+
+		Vecf<3> coord;  // положение атома внутри ячейки, в относительных ед [0:1]
+		float Ms; // магнитный момент ???		
+		float gamma, alpha; // прецессия и диссипация
+			
+		inline float Waniso(Vecf<3> m) const {  
+			float S = 0.;
+			for(int i=0; i<K1sz; ++i) S += K1[i].W1(m); 
+			for(int i=0; i<K3sz; ++i) S += K3[i].W3(m); 
+			return S;
+		}
+		inline Vecf<3> Haniso(Vecf<3> &m) const {
+			Vecf<3> S;
+			for(int i=0; i<K1sz; ++i) S += K1[i].H1(m); 
+			for(int i=0; i<K3sz; ++i) S += K3[i].H3(m); 
+			return S;
+		}
+	};
+	//--------------------------------------------------------------------------
+	class MagneticData{
+		//----------------------------------------------------------------------
+		struct lattice_t{ // кристаллическая решетка
+			std::vector<MagneticSubLattice> sublats; // подрешетки
+			Vecf<3> step;                      // размеры ячейки		
+			Ind<3>  tile_sz;                   // размеры tile в ячейках
+			Vecf<3> base_r;                    // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
+			Vecf<3> orts[3];                   // повороты (преобразования) осей координат из локальной в глобальную сист.координат
+
+			inline uint32_t pos2idx(const Ind<3> &pos, uint32_t sl, uint32_t stage) const { 
+				return pos[0] + tile_sz[0]*(pos[1] + tile_sz[1]*(pos[2] + tile_sz[2]*(sl+sublats.size()*stage)));
+			}
+		};
+		//----------------------------------------------------------------------
+		struct app_link_t{ // дополнительная обменная связь на интерфейсе, 16 байт
+			uint32_t src, dst; // номер атома в tile (внутри одной стадии!!!)
+			int tile;  // смещение относительно текущего tile
+			float J;   // обменный интеграл
+		};
+		struct app_DM_link_t: public app_link_t { Vctf<3> D; };  // обмен Дзялошинского-Мориа, 28 байт
+		struct app_H_t{ uint32_t src; Vctf<3> H; };  // дополнительное поле, 16 байт
+		//----------------------------------------------------------------------
+		// tile-ы всех решеток лежат в общем массиве
+		struct tile_t{
+			static const int tile_off = ~(1<<31);
+			lattice_t *plat; // кристаллическая решетка к которой относится tile
+			int nb[26]; // соседние tile-ы (смещение от this), tile_off если соседа нету
+			char *data;  // указатель на массивы магнитных моментов, по подрешеткам (лежат друг за другом)
+			// uint32_t count; // число активных атомов в tile?
+
+			std::vector<app_link_t> app_links; // дополнительные связи
+			std::vector<app_DM_link_t> app_dm_links; // дополнительные связи
+			std::vector<app_H_t> app_H; // дополнительные поля
+
+			// тип T должен иметь оператор приведения к Vecf<3> и оператор присваивания от Vecf<3>
+			template<typename C> inline const C& m(const Ind<3> &pos, uint32_t sl, uint32_t stage) const{
+				return ((C const*)data)[plat->pos2idx(pos, sl, stage)];
+			}
+			template<typename C> inline C& m(const Ind<3> &pos, uint32_t sl, uint32_t stage){
+				return ((C*)data)[plat->pos2idx(pos, sl, stage)];
+			}
+			template<typename C> inline Vecf<3> Hexch(const Ind<3> &pos, uint32_t sl, uint32_t stage, 
+													  Vec<3, uint32_t> &app) const {				
+				uint32_t mID = plat->pos2idx(pos, sl, stage);			
+				Vecf<3> m = ((C*)data)[mID];
+				auto links = plat->sublats[sl].links;
+				Vecf<3> H;
+				for(auto i=links.begin(); i!=links.end(); ++i){
+					Ind<3> pos2 = pos+i->offset; int gID = 0, mul = 1;
+					for(int k=0; k<3; k++){ 
+						if(pos2[k]<0){ gID += mul; pos2[k] += cell->tile_sz[k]; }
+						else if(pos2[k]>=cell->tile_sz[k]){ gID += 2*mul; pos2[k] -= cell->tile_sz[k]; }
+						mul *= 3;
+					}
+					const tile_t *gr2 = gID?(nb[gID-1]==tile_out?nullptr:this+nb[gID-1]):this;
+					if(gr2) H += Vecf<3>((C*)(gr2->data[gr2->cell->pos2idx(pos2, i->sl, stage)]))*m*i->J;
+				}
+				while(app[0]<app_links.size() && app_links[app[0]].src<mID) ++app[0];
+				while(app[0]<app_links.size() && app_links[app[0]].src==mID){ 
+					auto l = app_links[app[0]++];
+					H += Vecf<3>((C*)((this+l.tile)->data)[l.dst])*m*l.J;
+				}
+				while(app[1]<app_DM_links.size() && app_DM_links[app[1]].src<mID) ++app[1];
+				while(app[1]<app_DM_links.size() && app_DM_links[app[1]].src==mID){ 
+					auto l = app_links[app[1]++]; Vecf<3> m2 = (C*)((this+l.tile)->data)[l.dst];
+					H += m2*m*l.J + m2%l.D;
+				}
+				return H; 
+			}
+			inline Vecf<3> Hstat(const Ind<3> &pos, uint32_t sl, Vec<3, uint32_t> &app) const {				
+				uint32_t mID = plat->pos2idx(pos, sl, 0);			
+				Vecf<3> H;
+				while(app[2]<app_H.size() && app_H[app[2]].src<mID) ++app[2]; 
+				while(app[2]<app_H.size() && app_H[app[2]].src==mID) H += app_H[app[2]++].H; 
+				return H; 
+			}
+		};		
+		//----------------------------------------------------------------------
+		std::vector<lattice_t> lats;
+		std::vector<tile_t> tiles;
+		char *data;
+		int Nstages, szT;
+		uint64_t total_count; // общее количество актуальных (!!!) атомов, используется в get_coords, get_magns
+	public:
+		MagneticData(int Nlats=0): lats(Nlats), data(nullptr) {}
+		~MagneticData(){ delete [] data; }
+		
+		Vecf<3> Hext; // внешнее поле
+		float time;  // время
+		// float T;     // температура
+		
+		// настройка подрешеток
+		void set_sublattice_sz(int lat, int sz){ lats[lat].sublats.resize(sz); }
+		int  get_sublattice_sz(int lat) const { return lats[lat].sublats.size(); }
+		MagneticSubLattice& get_sublattice(int lat, int sl){ lats[lat].sublats[sl]; } 
+
+		// создает tile-ы и инициализирует ссылки на соседей
+		void set_geometry(int lat, Figure fig,  
+						  int periodic_bc_mask, // ??? отдельный метод инициализации, либо явно задавать размеры коробки для ПГУ ???
+						  Vecf<3> step,  // размеры ячейки		
+						  Ind<3>  tile_sz,  // размеры tile в ячейках
+						  Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
+						  Vecf<3> ort_x, Vecf<3> ort_y); // ort_z = ort_x%ort_y
+		void set_interface(int lat1, int sl1, int lat2, int sl2, int max_count, float max_len, 
+						   std::function<void(Vecf<3>, Vecf<3>, float&, Vecf<3>&)> app_func=0);
+		void set_app_H(int lat, int sl, Vecf<3> (*setH)(Vecf<3>));
+		// void set_app_H(int lat, int sl, const BaseInitConditions<Vecf<3> > &); ???
+		
+		void mem_init(int szT, int Nstages_); 
+
+		void magn_init(int lat, int sublat, std::function<Vecf<3>(Vecf<3>)> &init_func, 
+					   void (*conv)(const Vecf<3>&, char*)=nullptr, int stage=0);
+		
+		void dump_head(aiw::IOstream &) const;
+		void dump_data(aiw::IOstream &, bool pack, void (*conv)(const char*, Vecf<3>&)=nullptr, int stage=0) const;
+		void load_head(aiw::IOstream &);
+		void load_data(aiw::IOstream &, bool pack, void (*conv)(const Vecf<3>&, char*)=nullptr, int stage=0);
+
+		void get_coords(int lat, int sl, std::vector<Vecf<3> >&) const;
+		void get_links(std::vector<Vec<2, uint64_t> >&) const; //только для всех магнитных моментов ???
+		void get_magns(int lat, int sl, std::vector<Vecf<3> >&, 
+					   std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;
+		void get_pack_magns(int lat, int sl, std::vector<uint16_t>&, 
+							std::function<void(const char*, uint16_t&)> conv=0, int stage=0) const;
+
+#ifndef SWIG
+		// запуcкать для отдельных решеток и подрешеток???
+		// f(C &m, const Vecf<3> &Hstat, const MagneticSubLattice &SL, const Vecf<3> &Hexch, C mm[32]);
+		template <typename C, int src=0, int dst=0, int L=32> 
+		void foreach(std::function<void(C&, const Vecf<3>&, const MagneticSubLattice&, const Vecf<3>&, C*)> &func, 
+					 int exch, int stage, Ind<L> lats_mask=Ind<L>(-1)){
+			if(src&dst) WRAISE("incorrect masks", exch, src, dst, stage); // защита от дурака???
+			int Nt = tiles.size();
+#pragma omp parallel for
+			for(int it=0; it<Nt; ++it){ // цикл по tile-ам
+				C mm[32];
+				tile_t &tile = tiles[it];
+				const lattice_t &lat = *(tile->plat);
+				int lat_mask = lats_mask[&lat-&(lats[0])];
+				Vec<3, uint32_t> app;
+				for(uint32_t sl=0; sl<lat.sublats.size(); ++sl){ // цикл по подрешеткам
+					if(!(lat_mask&(1<<sl))) continue;
+					for(Ind<3> pos; pos^=lat.tile_sz; ++pos){ // цикл по атомам
+						C &m = tile.m<C>(pos, sl, stage);
+						if(!m) continue;
+						Vecf<3> Hstat = Hext + tile.Hstat(pos, sl, app);
+						Vecf<3> Hexch; if(exch>=0) Hexch = tile.Hexch<C>(pos, sl, exch, app);
+						for(int i=0; i<32; i++) if(src&(1<<i)) mm[i] = tile.m<C>(pos, sl, i);
+						func(m, Hstat, lat.sublats[sl], Hexch, mm);
+						for(int i=0; i<32; i++) if(dst&(1<<i)) tile.m<C>(pos, sl, i) = mm[i];
+					} // конец цикла по атомам
+				} // конец цикла по подрешеткам
+			} // конец цикла по tile-ам
+		}
+#endif SWIG
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_MAGNETICS_HPP
