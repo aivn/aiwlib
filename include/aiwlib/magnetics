@@ -66,14 +66,19 @@ namespace aiw{
 		}
 	};
 	//--------------------------------------------------------------------------
+	void magnetic_CC_set(aiw::MagneticSubLattice&, float J, int self_sl); // кубическая решетка
+	void magnetic_BCC_set(aiw::MagneticSubLattice&, float J, int dst_sl); // ОЦК решетка
+	void magnetic_FCC3_set(aiw::MagneticSubLattice&, float J, int dst_sl1, int dst_sl2); // неполная ГЦК решетка
+	void magnetic_FCC4_set(aiw::MagneticSubLattice&, float J, int dst_sl1, int dst_sl2, int dst_sl3); // полная ГЦК решетка
+	//--------------------------------------------------------------------------
 	class MagneticData{
 		//----------------------------------------------------------------------
 		struct lattice_t{ // кристаллическая решетка
 			std::vector<MagneticSubLattice> sublats; // подрешетки
-			Vecf<3> step;                      // размеры ячейки		
-			Ind<3>  tile_sz;                   // размеры tile в ячейках
-			Vecf<3> base_r;                    // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
-			Vecf<3> orts[3];                   // повороты (преобразования) осей координат из локальной в глобальную сист.координат
+			Vecf<3> step;     // размеры ячейки		
+			Ind<3>  tile_sz;  // размеры tile в ячейках
+			Vecf<3> base_r;   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
+			Vecf<3> orts[3];  // повороты (преобразования) осей координат из локальной в глобальную сист.координат
 
 			inline uint32_t pos2idx(const Ind<3> &pos, uint32_t sl, uint32_t stage) const { 
 				return pos[0] + tile_sz[0]*(pos[1] + tile_sz[1]*(pos[2] + tile_sz[2]*(sl+sublats.size()*stage)));
@@ -92,15 +97,25 @@ namespace aiw{
 		struct tile_t{
 			static const int tile_off = ~(1<<31);
 			lattice_t *plat; // кристаллическая решетка к которой относится tile
-			int nb[26]; // соседние tile-ы (смещение от this), tile_off если соседа нету
+			int nb[27];  // соседние tile-ы (смещение от this), tile_off если соседа нету, в центре [13] всегда 0
 			char *data;  // указатель на массивы магнитных моментов, по подрешеткам (лежат друг за другом)
+			std::vector<bool> usage; // таблица активности атомов (дискретная геометрия), непуст только для граничных tile-ов
+			Vecf<3> base_r; // координаты левого нижнего угла в системе связанной с решеткой
 			// uint32_t count; // число активных атомов в tile?
 
 			std::vector<app_link_t> app_links; // дополнительные связи
 			std::vector<app_DM_link_t> app_dm_links; // дополнительные связи
 			std::vector<app_H_t> app_H; // дополнительные поля
 
-			// тип T должен иметь оператор приведения к Vecf<3> и оператор присваивания от Vecf<3>
+			inline bool check(const Ind<3> &pos, uint32_t sl) const {
+				return usage.empty() || usage[plat->pos2idx(pos, sl, 0)];
+			}
+			inline Vecf<3> coord(const Ind<3> &pos, uint32_t sl) const {
+				Vecf<3> r = base_r + ((pos+plat->sublats[sl].coord)&plat->step); // координаты в сист.связанной с решеткой
+				return plat->base_r + vecf(r&plat->orts[0], r&plat->orts[1], r&plat->orts[2]);
+			}
+
+			// тип С должен иметь оператор приведения к Vecf<3> и оператор присваивания от Vecf<3>
 			template<typename C> inline const C& m(const Ind<3> &pos, uint32_t sl, uint32_t stage) const{
 				return ((C const*)data)[plat->pos2idx(pos, sl, stage)];
 			}
@@ -114,13 +129,13 @@ namespace aiw{
 				auto links = plat->sublats[sl].links;
 				Vecf<3> H;
 				for(auto i=links.begin(); i!=links.end(); ++i){
-					Ind<3> pos2 = pos+i->offset; int gID = 0, mul = 1;
-					for(int k=0; k<3; k++){ 
-						if(pos2[k]<0){ gID += mul; pos2[k] += cell->tile_sz[k]; }
-						else if(pos2[k]>=cell->tile_sz[k]){ gID += 2*mul; pos2[k] -= cell->tile_sz[k]; }
+					Ind<3> pos2 = pos+i->offset; int gID = 13, mul = 1;
+					for(int k=0; k<3; k++){ // коррекция pos2 и определения номера соседнего tile
+						if(pos2[k]<0){ gID -= mul; pos2[k] += cell->tile_sz[k]; }
+						else if(pos2[k]>=cell->tile_sz[k]){ gID += mul; pos2[k] -= cell->tile_sz[k]; }
 						mul *= 3;
 					}
-					const tile_t *gr2 = gID?(nb[gID-1]==tile_out?nullptr:this+nb[gID-1]):this;
+					const tile_t *gr2 = nb[gID]==tile_off?nullptr:this+nb[gID];
 					if(gr2) H += Vecf<3>((C*)(gr2->data[gr2->cell->pos2idx(pos2, i->sl, stage)]))*m*i->J;
 				}
 				while(app[0]<app_links.size() && app_links[app[0]].src<mID) ++app[0];

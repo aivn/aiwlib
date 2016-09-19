@@ -2,7 +2,7 @@
 # Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
 # This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
 
-import struct
+import struct, math
 from swig import *
 #-------------------------------------------------------------------------------
 #   C++ TYPES TABLE
@@ -221,21 +221,21 @@ class Vec:
     # periodic ???
     def circ(self): return Vec(*(self._getdata()[l%self._D():]+self._getdata()[:l%self._D()]), T=self._T()) #???
     def abs(self): return sum([x*x for x in self._getdata()])**.5
-    def pow(self, x): Vec(*[x**p for x in self._getdata()])
-    #mod(self, x: Vec(*[x**p for x in self._getdata()])
-    def fabs(self): return Vec(*[abs(x) for x in self._getdata()])
-    def ceil(self): return Vec(*[math.ceil(x) for x in self._getdata()], T=self._T())
-    def floor(self): return Vec(*[math.floor(x) for x in self._getdata()], T=self._T())
-    def round(self): return Vec(*[math.round(x) for x in self._getdata()], T=self._T())
+    def pow(self, p): Vec(*[x**p for x in self._getdata()])
+    def fabs(self): return Vec(*map(abs, self._getdata()))
+    def ceil(self): return Vec(*map(math.ceil, self._getdata()), T=self._T())
+    def floor(self): return Vec(*map(math.floor, self._getdata()), T=self._T())
+#    def round(self): return Vec(*[math.round(x) for x in self._getdata()], T=self._T()) ???
+    def fmod(self, y): return Vec(*[math.fmod(x, y) for x in self._getdata()], T=self._T())
     def min(self): return min(self._getdata())
     def max(self): return max(self._getdata())
     def imin(self): return min(zip(self._getdata(), range(self._D())))[1]
     def imax(self): return max(zip(self._getdata(), range(self._D())))[1]
     def sum(self): return sum(self._getdata())
-    def nan(self): return Ind(*[math.isnan(x) for x in self._getdata()])
-    def inf(self): return Ind(*[math.isinf(x) for x in self._getdata()])
-    def cknan(self): return any([math.isnan(x) for x in self._getdata()])
-    def ckinf(self): return any([math.isinf(x) for x in self._getdata()])
+    def nan(self): return Ind(*map(math.isnan, self._getdata()))
+    def inf(self): return Ind(*map(math.isinf, self._getdata()))
+    def cknan(self): return any(map(math.isnan, self._getdata()))
+    def ckinf(self): return any(map(math.isinf, self._getdata()))
     def prod(self): return reduce(lambda a, b: a*b, self.__getdata())
     def __nonzero__(self): return all(self._getdata())    
     #---------------------------------------------------------------------------

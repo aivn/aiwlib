@@ -79,6 +79,7 @@ namespace aiw{
 		inline Vec ceil() const { Vec v; for(int i=0; i<D; i++) v[i] = ::ceil(p[i]); return v; }
 		inline Vec floor() const { Vec v; for(int i=0; i<D; i++) v[i] = ::floor(p[i]); return v; }
 		inline Vec round() const { Vec v; for(int i=0; i<D; i++) v[i] = ::round(p[i]); return v; }
+		inline Vec fmod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], x); return v; }
 
 		inline T min() const { T res = p[0]; for(int i=1; i<D; i++) res = res<p[i]?res:p[i]; return res; }
 		inline T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }

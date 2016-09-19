@@ -23,22 +23,63 @@ void MagneticData::set_geometry(int lat, Figure fig,
 
 	if(L.orts[0]!=ort_x || L.orts[1]!=ort_y || L.orts[2]!=ort_z) fig = fig.rotate(base_r, ort_x, ort_y); // ??? transform ???
 	Vecf<3> a = fig.get_min(), b = fig.get_max(); 
+	for(int i=0; i<3; i++){ float d = ::fmod(base_r[i]-a[i], step[i]); a[i] += d>0?d-step[i]:d; }
+	for(int i=0; i<3; i++){ float d = ::fmod(base_r[i]-b[i], step[i]); b[i] += d<0?d+step[i]:d; }
 
-	Mesh<char, 3> nodes(...); // сетка узлов и tile-ов
+	Mesh<char, 3> nodes; // сетка узлов и tile-ов
+	nodes.init(((b-a)/step).round()+Indx<3>(1), a, b+step);
 	nodes.fill(0);
-
 	
-	// отмечаем все узлы попавшие в fig - nodes[i] = 1
-	// находим все внутренние tile (nodes[i] |= 2) и граничные (у которых хотя бы один узел внутри, nodes[i] |= 4)
-	// расширяем множество граничных tile-ов наружу (nodes[i] |= 8)
+	for(Ind<3> i; i^=nodes.bbox(); ++i) if(fig.check(nodes.pos2coord(i))) nodes[i] = 1; // отмечаем все узлы попавшие в fig
+	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){ // внутренние |=2, внешние |=4, граничные |=6
+		for(Ind<3> d; d^=Ind<3>(2); ++d) nodes[i] |= nodes[i+d]&1?2:4;
+	}
+	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){ // расширяем множество граничных tile-ов наружу |=8
+		if(nodes[i]&6==6) for(Ind<3> d; d^=Ind<3>(3); ++d){ 
+				Ind<3> j = i+d-ind(1);
+				if(ind(0)<=j && j<nodes.bbox()) nodes[j] |= 8;
+			}
+	}
 	// проходим по всем tile, считаем число внутренних (для расчета числа атомов), для граничных поверяем все атомы,
-	//          если хотя бы один атом внутри - учитываем его
-	// завести в tile_t std::vector<bool> указывающий на активность атома (иначе теряется информация о геометрии)!
-	// сделать общие для всех tile-ов массивы доп связей, полей и т.д.?
-
-	tile_t tile; 
-	tile.plat = &(lats[lat]);
-	// добавлем tile-ы
+	// если хотя бы один атом внутри - учитываем его, добавлем tile-ы
+	Mesh<int, 3> tiles_pos; tiles_pos.init(nodes.bbox()-ind(1)); tiles_pos.fill(-1); 
+	int last_tile = 0, full_tile_len = lats[lat].sublats.size()*tile_sz.prod(), start_tile = tiles.size();
+	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){
+		if(nodes[i]&10==0) continue; // 2+8
+		tile_t tile; 
+		tile.plat = &(lats[lat]);
+		tile.base_r = nodes.pos2coord(i);
+		if(nodes[i]&2){ // внутренний tile
+			total_count += full_tile_len;
+			tiles_pos[i] = last_tile++;
+			tiles.push_back(tile);
+			continue;
+		}
+		std::vector<bool> usage(full_tile_len, false); bool use = false;
+		for(uint32_t sl=0; sl<lats[lat].sublats.size(); ++sl){ 
+			for(Ind<3> pos; pos^=tile_sz; ++pos) if(fig.check(tile.coord(pos, sl))){
+					usage[tile.plat->pos2idx(pos, sl, 0)] = true;
+					use = true; total_count++; 
+				}
+		}
+		if(one){
+			tiles_pos[i] = last_tile++;
+			tiles.push_back(tile);
+			tiles.back().usage.swap(usage);
+		} 
+	}
+	
+	// устанавливаем связи между tile
+	for(Ind<3> i; i^=tiles_pos.bbox()-ind(1); ++i){
+		if(tiles_pos[i]==-1) continue;
+		tile_t &tile = tiles[start_tile+tiles_pos[i]];
+		for(Ind<3> d; d^=Ind<3>(3); ++d){
+			Ind<3> j = i+d-ind(1);
+			// где то тут должны быть ПГУ
+			tile.nb[d[0]+3*d[1]+9*d[2]] = (ind(0)<=j && j<tiles_pos.bbox() && tiles_pos[j]>=0)? 
+										   tiles_pos[j]-tiles_pos[i] : tile_t::tile_off;			   
+		}
+	}
 }
 //------------------------------------------------------------------------------
 void MagneticData::set_interface(int lat1, int sl1, int lat2, int sl2, int max_count, float max_len, 
