@@ -22,7 +22,7 @@ swig/%.py swig/%_wrap.cxx: swig/%.i
 	$(SWIG) $(SWIGOPT) $<
 python/aiwlib/_%.so:  swig/%_wrap.cxx
 	$(show_target)
-	$(GCC) -shared -I$(PYTHON_H_PATH) -o $@ $<
+	$(CXX) -shared -I$(PYTHON_H_PATH) -o $@ $<
 #-------------------------------------------------------------------------------
 iostream: python/aiwlib/iostream.py python/aiwlib/_iostream.so;
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
