@@ -1,0 +1,16 @@
+// -*- C++ -*-
+#ifndef AIW_MAGNETIC_INIT_CONDITIONS_HPP
+#define AIW_MAGNETIC_INIT_CONDITIONS_HPP
+
+#include <functional>
+#include "vec"
+
+namespace aiw{
+//------------------------------------------------------------------------------
+    MagneticUniformIC: public std::function<Vecf<3>(Vecf<3>)> {
+	Vecf<3> m0;
+	Vecf<3> operator()(Vecf<3> r){ return m0; }
+    };
+//------------------------------------------------------------------------------
+}
+#endif //AIW_MAGNETIC_INIT_CONDITIONS_HPP

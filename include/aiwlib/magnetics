@@ -11,6 +11,7 @@
 #include <vector>
 #include "geometry"
 #include "vec"
+#include "magnetic_init_conditions"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
