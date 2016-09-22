@@ -7,9 +7,9 @@
 
 namespace aiw{
 //------------------------------------------------------------------------------
-    MagneticUniformIC: public std::function<Vecf<3>(Vecf<3>)> {
-	Vecf<3> m0;
-	Vecf<3> operator()(Vecf<3> r){ return m0; }
+    MagneticUniformIC{
+		Vecf<3> m0;
+		Vecf<3> operator()(Vecf<3> r){ return m0; }
     };
 //------------------------------------------------------------------------------
 }
