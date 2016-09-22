@@ -103,8 +103,9 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	template<int D> using Vecf = Vec<D, float>;
-	inline Vec<1+sizeof...(Args), T> vecf(T x, Args ... args){
-		return Vec<1+sizeof...(Args), float>(x, args...);
+	template <typename ... Args> 
+	inline Vecf<sizeof...(Args)> vecf(Args ... args){
+		return Vecf<sizeof...(Args)>(args...);
 	}
 	//--------------------------------------------------------------------------
 	//  compare 
