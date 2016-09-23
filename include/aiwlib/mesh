@@ -233,7 +233,7 @@ namespace aiw{
 		void __C_setstate__(const std::string &state){
 			std::stringstream buf(state);
 			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
-			head.resize(h_sz); buf.read(head.first(), h_sz);
+			head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
 			Ind<D> box_; Vec<D> bmin_, bmax_; int logscale_; 
 			buf.read((char*)&box_, sizeof(box));          
 			buf.read((char*)&out_value, sizeof(out_value));
