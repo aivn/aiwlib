@@ -22,6 +22,9 @@ namespace aiw{
 	IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}		
 	IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}		
 //------------------------------------------------------------------------------
+	template <typename T, int D> IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }
+	template <typename T, int D> IOstream& operator > (IOstream& S, T (&p)[D]){ for(int i=0; i<D; i++) S>p[i]; return S; }
+//------------------------------------------------------------------------------
 #endif //AIW_BINARY_IO_HPP
 
 //------------------------------------------------------------------------------
