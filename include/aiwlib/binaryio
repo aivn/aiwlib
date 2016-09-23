@@ -1,10 +1,9 @@
 // -*- C++ -*-
-#ifndef AIW_BINARY_IO_HPP
-#define AIW_BINARY_IO_HPP
-
 #include "iostream"
 
 namespace aiw{
+#ifndef AIW_BINARY_IO_HPP
+#define AIW_BINARY_IO_HPP
 //------------------------------------------------------------------------------
 #define BIOP(T)															\
 	IOstream& operator < (IOstream& S, T  x){ S.write(&x, sizeof(T)); return S; } \
@@ -40,10 +39,10 @@ namespace aiw{
 //------------------------------------------------------------------------------
 #if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
 #define AIW_BINARY_IO_STD_VECTOR
-	template<typename T> IOstream& operator < (IOstream& S, const std::vector<T>& x){
+	template<typename T> IOstream& operator < (aiw::IOstream& S, const std::vector<T>& x){
 		S<uint64_t(x.size()); S.write(&x[0], x.size()*sizeof(T)); return S;
 	}		
-	template<typename T> IOstream& operator > (IOstream& S, std::vector<T>& x){
+	template<typename T> IOstream& operator > (aiw::IOstream& S, std::vector<T>& x){
 		uint64_t sz; S>sz; x.resize(sz); S.read(&x[0], sz*sizeof(T)); return S;
 	}
 #endif //_GLIBCXX_VECTOR
