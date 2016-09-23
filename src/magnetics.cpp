@@ -28,7 +28,7 @@ void MagneticData::set_geometry(int lat, Figure fig,
 	for(int i=0; i<3; i++){ float d = ::fmod(base_r[i]-b[i], step[i]); b[i] += d<0?d+step[i]:d; }
 
 	Mesh<char, 3> nodes; // сетка узлов и tile-ов
-	nodes.init(((b-a)/step).round()+Indx<3>(1), a, b+step);
+	nodes.init(((b-a)/step).round()+Ind<3>(1), a, b+step);
 	nodes.fill(0);
 	
 	for(Ind<3> i; i^=nodes.bbox(); ++i) if(fig.check(nodes.pos2coord(i))) nodes[i] = 1; // отмечаем все узлы попавшие в fig
@@ -36,7 +36,7 @@ void MagneticData::set_geometry(int lat, Figure fig,
 		for(Ind<3> d; d^=Ind<3>(2); ++d) nodes[i] |= nodes[i+d]&1?2:4;
 	}
 	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){ // расширяем множество граничных tile-ов наружу |=8
-		if(nodes[i]&6==6) for(Ind<3> d; d^=Ind<3>(3); ++d){ 
+		if((nodes[i]&6)==6) for(Ind<3> d; d^=Ind<3>(3); ++d){ 
 				Ind<3> j = i+d-ind(1);
 				if(ind(0)<=j && j<nodes.bbox()) nodes[j] |= 8;
 			}
@@ -46,13 +46,13 @@ void MagneticData::set_geometry(int lat, Figure fig,
 	Mesh<int, 3> tiles_pos; tiles_pos.init(nodes.bbox()-ind(1)); tiles_pos.fill(-1); 
 	int last_tile = 0, full_tile_len = lats[lat].sublats.size()*tile_sz.prod(), start_tile = tiles.size();
 	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){
-		if(nodes[i]&10==0) continue; // 2+8
+		if((nodes[i]&10)==0) continue; // 2+8
 		tile_t tile; tile.magn_count = 0;
 		tile.plat = &(lats[lat]);
 		tile.base_r = nodes.pos2coord(i);
 		if(nodes[i]&2){ // внутренний tile
 			tiles_pos[i] = last_tile++;
-			tile.magn_count = tile.plat->tiles_sz.prod()*tile.plat->sublats.size();
+			tile.magn_count = tile.plat->tile_sz.prod()*tile.plat->sublats.size();
 			tiles.push_back(tile);
 			continue;
 		}
@@ -94,7 +94,7 @@ void MagneticData::set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2
 			const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats, sublats2 = t2->plat->sublats;
 			Ind<2> sl_sz(sublats1.size(), sublats2.size());
 			for(Ind<2> sl; sl^=sl_sz; ++sl){ // двойной цикл по подрешеткам
-				if(sl[0]&sl_mask1==0 || sl[1]&sl_mask2==0) continue;				
+				if((sl[0]&sl_mask1)==0 || (sl[1]&sl_mask2)==0) continue;				
 				for(Ind<3> pos1; pos1^=t1->plat->tile_sz; ++pos1){  // внешний цикл по ячейкам в тайлах     
 					app_DM_link_t appl; appl.src = t1->plat->pos2idx(pos1, sl[0], 0);
 					if(t1->usage.size() && !t1->usage[appl.src]) continue;
@@ -124,13 +124,13 @@ void MagneticData::set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2
 void MagneticData::set_app_H(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> app_func){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl){ // цикл по подрешеткам
-			if(sl&sl_mask==0) continue;				
+		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
+			if((sl&sl_mask)==0) continue;				
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлах     
 				app_H_t H; H.src = t1->plat->pos2idx(pos, sl, 0);
 				if(t1->usage.size() && !t1->usage[H.src]) continue;
-				H.H = app_func(t1->coord(pos1, sl));
+				H.H = app_func(t1->coord(pos, sl));
 				if(H.H) t1->app_H.push_back(H);
 			} // конец цикла по ячейкам в тайле
 		} // конец цикла по подрешеткам
@@ -141,27 +141,27 @@ void MagneticData::mem_init(size_t szT_, size_t Nstages_){
 	delete [] data;
 	szT = szT_; Nstages = Nstages_;
 	size_t tot_sz = 0; magn_count = 0;
-	for(auto t=tiles.begin(); t!=tiles.end(); ++t) tot_sz += t->plat->tile_sz.prod()*t->plat->sublats.size();
+	for(auto t=tiles.begin(); t!=tiles.end(); ++t) tot_sz += t->plat->tile_sz.prod()*t->plat->sublats.size()*szT;
 	data = new char[tot_sz*Nstages]; tot_sz = 0;
 	for(auto t=tiles.begin(); t!=tiles.end(); ++t){ 
 		t->data = data+tot_sz; size_t Nm = t->plat->tile_sz.prod()*t->plat->sublats.size();
 		tot_sz += Nm*Nstages;
 		if(t->usage.empty()) magn_count += Nm;
-		else for(auto i=t->usage.begin(); i!=t->usage.end(); t-; ++i) if(*i) magn_count++;
+		else for(auto i=t->usage.begin(); i!=t->usage.end(); ++i) if(*i) magn_count++;
 	}
 }
 //------------------------------------------------------------------------------
 void MagneticData::magn_init(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> init_func, 
-					   std::function<void(Vecf<3>, char*)> conv=0, int stage=0){
+					   std::function<void(Vecf<3>, char*)> conv, int stage){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl){ // цикл по подрешеткам
-			if(sl&sl_mask==0) continue;				
+		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
+			if((sl&sl_mask)==0) continue;				
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлах     
 				if(!t1->check(pos, sl)) continue;
 				Vecf<3> m = init_func(t1->coord(pos, sl));
-				if(conv) conv(m, t1->m(pos, sl, stage));
+				if(conv) conv(m, t1->data+t1->plat->pos2idx(pos, sl, stage)*szT);
 				else t1->m<Vecf<3> >(pos, sl, stage) = m;
 			} // конец цикла по ячейкам в тайле
 		} // конец цикла по подрешеткам
@@ -193,21 +193,21 @@ void MagneticData::dump_head(aiw::IOstream &S) const {
 	}
 	S<int(tiles.size());
 	for(auto t=tiles.begin(); t!=tiles.end(); ++t) 
-		S<int(t.plat-lats[0])<t.nb<t.usage<t.base_r<t.magn_count<t.app_links<t.app_dm_links<t.app_H;
+		S<int(t->plat-&lats[0])<t->nb<t->usage<t->base_r<t->magn_count<t->app_links<t->app_dm_links<t->app_H;
 }
 //------------------------------------------------------------------------------
-void MagneticData::load_head(aiw::IOstream &str, size_t szT_, size_t Nstages_){
+void MagneticData::load_head(aiw::IOstream &S, size_t szT_, size_t Nstages_){
 	uint64_t data_format; int sz;
 	S>head>data_format>szT>Nstages>magn_count>sz; lats.resize(sz);
 	for(uint32_t i=0; i<lats.size(); i++){
-		const lattice_t &l = lats[i]; 
+		lattice_t &l = lats[i]; 
 		S>l.step>l.tile_sz>l.base_r>l.orts>sz; l.sublats.resize(sz);
 		for(uint32_t k=0; k<l.sublats.size(); ++k) l.sublats[k].load(S);
 	}
 	S>sz; tiles.resize(sz);
 	for(auto t=tiles.begin(); t!=tiles.end(); ++t){ 
-		S>sz; t.plat = &(lats[sz]);
-		S>t.nb>t.usage>t.base_r>t.magn_count>t.app_links>t.app_dm_links>t.app_H;
+		S>sz; t->plat = &(lats[sz]);
+		S>t->nb>t->usage>t->base_r>t->magn_count>t->app_links>t->app_dm_links>t->app_H;
 	}
 }
 //------------------------------------------------------------------------------
@@ -215,10 +215,10 @@ void MagneticData::dump_data(aiw::IOstream &S, bool pack, std::function<void(con
 	S<time<Hext<pack<stage; Vecf<3> buf[4096]; int cursor=0;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl) 
+		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 				if(t1->check(pos, sl)){
-					if(conv) conv(t1->data+t1->plat->pos2idx(pos, sl, stage), buf[cursor++]);
+					if(conv) conv(t1->data+t1->plat->pos2idx(pos, sl, stage)*szT, buf[cursor++]);
 					else buf[cursor++] = t1->m<Vecf<3> >(pos, sl, stage);
 					if(cursor==4096){ S.write(buf, sizeof(Vecf<3>)*cursor); cursor = 0; }
 				}
@@ -226,12 +226,12 @@ void MagneticData::dump_data(aiw::IOstream &S, bool pack, std::function<void(con
 	if(cursor) S.write(buf, sizeof(Vecf<3>)*cursor);
 }
 //------------------------------------------------------------------------------
-void MagneticData::load_data(aiw::IOstream &S, bool pack, std::function<void(const Vecf<3>&, char*)> conv, int stage_){
-	Vecf<3> buf[4096]; int stage, cursor=0, buf_sz=0; uint64_t read_sz=0;
+void MagneticData::load_data(aiw::IOstream &S, std::function<void(const Vecf<3>&, char*)> conv, int stage_){
+	Vecf<3> buf[4096]; int stage, cursor=0, buf_sz=0; uint64_t read_sz=0; uint8_t pack;
 	S>time>Hext>pack>stage; if(stage_>=0) stage = stage_;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl) 
+		std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 				if(t1->check(pos, sl)){
 					if(cursor==buf_sz){ 
@@ -239,7 +239,7 @@ void MagneticData::load_data(aiw::IOstream &S, bool pack, std::function<void(con
 						S.read(buf, sizeof(Vecf<3>)*buf_sz); 
 						cursor = 0; read_sz += buf_sz;
 					}
-					if(conv) conv(buf[cursor++], t1->data+t1->plat->pos2idx(pos, sl, stage));
+					if(conv) conv(buf[cursor++], t1->data+t1->plat->pos2idx(pos, sl, stage)*szT);
 					else t1->m<Vecf<3> >(pos, sl, stage) = buf[cursor++];
 				}
 	} // конец цикла по тайлам	
@@ -252,8 +252,8 @@ void MagneticData::get_coords(int lat, int sl_mask, std::vector<Vecf<3> > &p) co
 	p.clear();
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl) 
+		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 					if(t1->check(pos, sl)) p.push_back(t1->coord(pos, sl));
@@ -268,14 +268,14 @@ void MagneticData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //тол
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
 		Vec<2, uint32_t> app;
-		for(uint32_t sl; sl<sublats.size(); ++sl){ // цикл по подрешеткам
+		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлe
 				uint32_t idx1 = t1->plat->pos2idx(pos, sl, 0);
 				if(t1->usage.size() && !t1->usage[idx1]) continue;
-				for(auto l=sublats.links.begin(); l!=sublats.links.end(); ++l){ // цикл по регулярным связям в ячейке
+				for(auto l=sublats[sl].links.begin(); l!=sublats[sl].links.end(); ++l){ // цикл по регулярным связям в ячейке
 					Ind<3> pos2 = pos+l->offset; int gID = 13, mul = 1;
 					for(int k=0; k<3; k++){ // коррекция pos2 и определение номера соседнего tile
-						if(pos2[k]<0){ gID -= mul; pos2[k] += plat->tile_sz[k]; }
+						if(pos2[k]<0){ gID -= mul; pos2[k] += t1->plat->tile_sz[k]; }
 						else if(pos2[k]>=t1->plat->tile_sz[k]){ gID += mul; pos2[k] -= t1->plat->tile_sz[k]; }
 						mul *= 3;
 					}
@@ -292,15 +292,15 @@ void MagneticData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //тол
 				} // конец цикла по регулярным связям в ячейке
 				while(app[0]<t1->app_links.size() && t1->app_links[app[0]].src<idx1) ++app[0];
 				while(app[0]<t1->app_links.size() && t1->app_links[app[0]].src==idx1){ 
-					auto l = t1->app_links[app[0]++]; auto t2 = t1+l->tile; 
+					auto l = t1->app_links[app[0]++]; auto t2 = t1+l.tile; 
 					uint64_t dst = offsets[t2-tiles.begin()];
 					if(t2->usage.empty()) dst += l.dst;
 					else for(uint32_t k=0; k<l.dst; ++k) if(t2->usage[k]) ++dst;
 					if(!ulinks[dst]) p.push_back(Vec<2, uint64_t>(cursor, dst));
 				}
-				while(app[1]<t1->app_DM_links.size() && t1->app_DM_links[app[1]].src<idx1) ++app[1];
-				while(app[1]<t1->app_DM_links.size() && t1->app_DM_links[app[1]].src==idx1){ 
-					auto l = t1->app_DM_links[app[1]++]; auto t2 = t1+l->tile; 
+				while(app[1]<t1->app_dm_links.size() && t1->app_dm_links[app[1]].src<idx1) ++app[1];
+				while(app[1]<t1->app_dm_links.size() && t1->app_dm_links[app[1]].src==idx1){ 
+					auto l = t1->app_dm_links[app[1]++]; auto t2 = t1+l.tile; 
 					uint64_t dst = offsets[t2-tiles.begin()];
 					if(t2->usage.empty()) dst += l.dst;
 					else for(uint32_t k=0; k<l.dst; ++k) if(t2->usage[k]) ++dst;
@@ -313,33 +313,33 @@ void MagneticData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //тол
 }
 //------------------------------------------------------------------------------
 void MagneticData::get_magns(int lat, int sl_mask, std::vector<Vecf<3> > &p, 
-							 std::function<void(const char*, Vecf<3>&)> conv, int stage=0) const {
+							 std::function<void(const char*, Vecf<3>&)> conv, int stage) const {
 	p.clear(); Vecf<3> m;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl) 
+		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 					if(t1->check(pos, sl)){ 
-						if(conv){ conv(t1->data+t1->plat->pos2idx(pos, sl, stage), m); p.push_back(m); }
-						else p.push_back(t1->m(pos, sl, stage));
+						if(conv){ conv(t1->data+t1->plat->pos2idx(pos, sl, stage)*szT, m); p.push_back(m); }
+						else p.push_back(t1->m<Vecf<3> >(pos, sl, stage));
 					}
 	} // конец цикла по тайлам	
 }
 //------------------------------------------------------------------------------
 void MagneticData::get_pack_magns(int lat, int sl_mask, std::vector<uint16_t> &p, 
-								  std::function<void(const char*, uint16_t&)> conv, int stage=0) const {
+								  std::function<void(const char*, uint16_t&)> conv, int stage) const {
 	p.clear(); uint16_t m;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats;
-		for(uint32_t sl; sl<sublats.size(); ++sl) 
+		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 					if(t1->check(pos, sl)){ 
-						if(conv){ conv(t1->data+t1->plat->pos2idx(pos, sl, stage), m); p.push_back(m); }
-						else p.push_back(t1->m(pos, sl, stage));
+						if(conv){ conv(t1->data+t1->plat->pos2idx(pos, sl, stage)*szT, m); p.push_back(m); }
+						else p.push_back(t1->m<uint16_t>(pos, sl, stage));
 					}
 	} // конец цикла по тайлам	
 }
