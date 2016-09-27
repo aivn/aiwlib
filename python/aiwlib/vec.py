@@ -41,7 +41,8 @@ _vec_types_table, _swig_modules, _vec_swig_type = {}, [], []
 def view_swig_modules():
     for stt in _swig_modules: stt.out_table()
 _get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
-_get_T = lambda V: V.split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V else 'double' if 'Vec' in V else 'int'
+_get_T = lambda V: V.split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V \
+    else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
 
 def checkout_swig_types_table(stt):
     if stt in _swig_modules: return 
@@ -49,7 +50,7 @@ def checkout_swig_types_table(stt):
     for i in range(stt.size()):
         V = stt.get_item(i)
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
-        elif V.split()[0] in ('Vec<', 'Ind<', 'aiw::Vec<', 'aiw::Ind<'):
+        elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
             D, T = _get_D(V), _get_T(V)
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
@@ -107,8 +108,9 @@ class Vec:
     #---------------------------------------------------------------------------
     def __len__(self): return self._D()
     def __str__(self): return ' '.join(map(str, self._getdata()))
-    def __repr__(self): return ('Ind(%s)' if self._T() in ('int', 'int32_t') else 'Vec(%s)' if self._T()=='double'
-                                else 'Vec(%%s,T=\'%s\')'%self._T())%','.join(map(repr, self._getdata()))
+    def __repr__(self): return ('Ind(%s)' if self._T() in ('int', 'int32_t') else 'Vecf(%s)' if self._T()=='float'
+                                else 'Vec(%s)' if self._T()=='double' else 'Vec(%%s,T=\'%s\')'%self._T()
+                                )%','.join(map(repr, self._getdata()))
     #---------------------------------------------------------------------------
     def _getdata(self):
         'return Vec data as list'
@@ -274,7 +276,8 @@ PVec.__name__, Vec = 'Vec', PVec; del PVec
 
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
 Ind = ind = lambda *args, **kw_args: Vec(*args, T='int', **kw_args)
-__all__ = ['Vec', 'vec', 'Ind', 'ind', 'angle']
+Vecf = vecf = lambda *args, **kw_args: Vec(*args, T='float', **kw_args)
+__all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle']
 #-------------------------------------------------------------------------------
 #add_swig_types_table(SwigTypesTable())
 #print '======================================================'
