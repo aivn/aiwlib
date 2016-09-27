@@ -95,7 +95,7 @@ namespace aiw{
 		inline bool ckinf() const { for(int i=0; i<D; i++) if(isinf(p[i])) return true; return false; }
 
 		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
-		inline operator bool() const { for(int i=0; i<D; i++) if(!p[i]) return false; return true; }
+		inline operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; }
 	}; // end of class Vec
 	template <typename T, typename ... Args>
 	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
@@ -317,9 +317,14 @@ namespace aiw{
 	//	if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
 	//}
 	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
-		s<<"Vec<"<<D<<"szT="<<sizeof(T)<<">:";
 		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
-	} 
+		}
+	/*
+	template <typename S, int D, typename T> S& std::enable_if<S::write, S&>
+	operator << (S &s, const Vec<D, T> &v){
+		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; 
+		return s;
+		}*/
 //---------------------------------------------------------------------------
 }; // end of namespace aiw
 
