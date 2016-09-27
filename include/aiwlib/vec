@@ -313,18 +313,14 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//  ostream operation
 	//--------------------------------------------------------------------------
-	//template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
-	//	if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
-	//}
 	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
 		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
-		}
-	/*
-	template <typename S, int D, typename T> S& std::enable_if<S::write, S&>
-	operator << (S &s, const Vec<D, T> &v){
-		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; 
-		return s;
-		}*/
+	}
+#ifdef AIW_IOSTREAM_HPP
+	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
+		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
+	}
+#endif //AIW_IOSTREAM_HPP
 //---------------------------------------------------------------------------
 }; // end of namespace aiw
 
