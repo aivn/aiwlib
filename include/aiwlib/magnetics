@@ -199,8 +199,7 @@ namespace aiw{
 		
 		void mem_init(size_t szT, size_t Nstages_=1); 
 
-		void magn_init(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> init_func, 
-					   std::function<void(Vecf<3>, char*)> conv=0, int stage=0);
+		void magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::function<void(Vecf<3>, char*)> conv=0, int stage=0);
 		
 		void dump_head(aiw::IOstream &) const;
 		void dump_data(aiw::IOstream &, bool pack, std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;

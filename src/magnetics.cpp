@@ -151,8 +151,7 @@ void MagneticData::mem_init(size_t szT_, size_t Nstages_){
 	}
 }
 //------------------------------------------------------------------------------
-void MagneticData::magn_init(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> init_func, 
-					   std::function<void(Vecf<3>, char*)> conv, int stage){
+void MagneticData::magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::function<void(Vecf<3>, char*)> conv, int stage){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
 		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
@@ -160,7 +159,7 @@ void MagneticData::magn_init(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>
 			if((sl&sl_mask)==0) continue;				
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлах     
 				if(!t1->check(pos, sl)) continue;
-				Vecf<3> m = init_func(t1->coord(pos, sl));
+				Vecf<3> m = IC(t1->coord(pos, sl));
 				if(conv) conv(m, t1->data+t1->plat->pos2idx(pos, sl, stage)*szT);
 				else t1->m<Vecf<3> >(pos, sl, stage) = m;
 			} // конец цикла по ячейкам в тайле
@@ -171,15 +170,15 @@ void MagneticData::magn_init(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>
 //   dump/load data
 //------------------------------------------------------------------------------		
 void MagneticSubLattice::dump(aiw::IOstream &S) const {
-	S<coord<Ms<gamma<alpha;
-	S<K1sz; for(int i=0; i<K1sz; ++i) S<K1[i].n<K1[i].K;
-	S<K3sz; for(int i=0; i<K3sz; ++i) S<K3[i].n<K3[i].K;
+	S<coord<Ms<gamma<alpha<K1sz<K3sz;
+	S.write(K1, K1sz*sizeof(MagneticSubLattice::aniso_t));
+	S.write(K3, K3sz*sizeof(MagneticSubLattice::aniso_t));
 	S<links;
 }
 void MagneticSubLattice::load(aiw::IOstream &S){
-	S>coord>Ms>gamma>alpha;
-	S>K1sz; for(int i=0; i<K1sz; ++i) S>K1[i].n>K1[i].K;
-	S>K3sz; for(int i=0; i<K3sz; ++i) S>K3[i].n>K3[i].K;
+	S>coord>Ms>gamma>alpha>K1sz>K3sz;
+	S.read(K1, K1sz*sizeof(MagneticSubLattice::aniso_t));
+	S.read(K3, K3sz*sizeof(MagneticSubLattice::aniso_t));
 	S>links;
 }
 //------------------------------------------------------------------------------		
