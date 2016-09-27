@@ -96,9 +96,11 @@ class Vec:
     def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
         self._swig_init()
-        self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
-        if len(args)==1: args = args*self.D
+        if len(args)==1: 
+            if args[0].__class__ in (list, tuple) or isinstance(args[0], self.__class__): args = args[0]
+            else: args = args*self.D
         elif len(args)==0: args = (0.,)*self.D
+        self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
         if len(args)!=self.D: raise Exception('Vec<%i,%s>%r --- incorrect args length %i'%(self.D, self.T, args, len(args)))
         #_vec_types_table.get((self.T, self.D), lambda x:None)(self.this)
         if (self.T, self.D) in _vec_types_table: cxx_m, i = _vec_types_table[self.T,self.D]; cxx_m.set_type(self.this, i)
@@ -240,6 +242,7 @@ class Vec:
     def ckinf(self): return any(map(math.isinf, self._getdata()))
     def prod(self): return reduce(lambda a, b: a*b, self.__getdata())
     def __nonzero__(self): return all(self._getdata())    
+    def __hash__(self): return hash(tuple(self._getdata()))
     #---------------------------------------------------------------------------
     def __mod__(a, b):
         ab = _conv(a, b)
