@@ -97,7 +97,7 @@ class Vec:
     def __init__(self, *args, **kw_args):
         self._swig_init()
         if len(args)==1: 
-            if args[0].__class__ in (list, tuple) or isinstance(args[0], self.__class__): args = args[0]
+            if args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
             else: args = args*self.D
         elif len(args)==0: args = (0.,)*self.D
         self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
@@ -278,8 +278,15 @@ for k, v in Vec.__dict__.items():
 PVec.__name__, Vec = 'Vec', PVec; del PVec
 
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
-Ind = ind = lambda *args, **kw_args: Vec(*args, T='int', **kw_args)
-Vecf = vecf = lambda *args, **kw_args: Vec(*args, T='float', **kw_args)
+
+class Ind(Vec):
+    def __init__(self, *args, **kw_args): kw_args['T'] = 'int'; Vec.__init__(self, *args, **kw_args)
+ind = lambda *args, **kw_args: Ind(*args, **kw_args)
+
+class Vecf(Vec):
+    def __init__(self, *args, **kw_args): kw_args['T'] = 'float'; Vec.__init__(self, *args, **kw_args)
+vecf = lambda *args, **kw_args: Vecf(*args, **kw_args)
+
 __all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle']
 #-------------------------------------------------------------------------------
 #add_swig_types_table(SwigTypesTable())
