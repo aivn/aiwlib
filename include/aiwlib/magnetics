@@ -9,48 +9,49 @@
 
 #include <functional>
 #include <vector>
+#include <string>
+#include "iostream"
 #include "geometry"
 #include "vec"
 #include "magnetic_init_conditions"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class MagneticSubLattice{ // подрешетка, <1KB
+	struct MagneticSubLattice{ // подрешетка, <1KB
+#ifndef SWIG
 		//----------------------------------------------------------------------
 		struct aniso_t{ // ось анизотропии, 16 байт
-			Vecf<3> n; // направление оси анизотропии
-			float K;   // величина анизотропии
+			Vecf<3> n;  // направление оси анизотропии
+			float K;    // величина анизотропии
+
 			inline float W1(Vecf<3> m) const { float mn = m*n; return K*mn*mn; }
 			inline float W3(Vecf<3> m) const { float mn = m*n; return K*mn*mn*mn*mn; }
 			inline Vecf<3> H1(Vecf<3> m) const { return 2*K*m*n*n; }
 			inline Vecf<3> H3(Vecf<3> m) const { float mn = m*n; return 4*K*mn*mn*mn*n; }
 		};
 		//----------------------------------------------------------------------
-		aniso_t K1[16], K3[16];     // линейные и кубические оси анизотропии
+		aniso_t K1[16], K3[16]; // линейные и кубические оси анизотропии
 		int K1sz, K3sz;
-	public:
-		MagneticSubLattice(): K1sz(0), K3sz(0) {}
-
-#ifndef SWIG
 		//----------------------------------------------------------------------
 		struct link_t{ // обменная связь 20 байт ;-(			
-			Ind<3> offset;  // смещение в соседнюю ячейку 
+			Ind<3> offset; // смещение в соседнюю ячейку 
 			uint32_t sl;   // подрешетка целевого атома, как то зашить ее в смещение или J?
-			float J;        // величина обменного интеграла 
+			float J;       // величина обменного интеграла 
 		};
 		//----------------------------------------------------------------------
-		std::vector<link_t> links;  // обменные связи внутри подрешетки
+		std::vector<link_t> links; // обменные связи внутри подрешетки
 #endif //SWIG
+		MagneticSubLattice(): K1sz(0), K3sz(0) {}
 
 		int add_link(aiw::Ind<3> offset, int sl, float J){ 
 			link_t l; l.offset = offset; l.sl = sl; l.J = J; links.push_back(l); 
 			return links.size();
 		}
-		void add_aniso1(aiw::Vecf<3> n, float K){ K1[K1sz].n = n; K1[K1sz++].J = J; }
-		void add_aniso3(aiw::Vecf<3> n, float K){ K3[K3sz].n = n; K3[K3sz++].J = J; }
+		void add_aniso1(aiw::Vecf<3> n, float K){ K1[K1sz].n = n; K1[K1sz++].K = K; }
+		void add_aniso3(aiw::Vecf<3> n, float K){ K3[K3sz].n = n; K3[K3sz++].K = K; }
 
-		Vecf<3> coord;  // положение атома внутри ячейки, в относительных ед [0:1]
-		float Ms; // магнитный момент ???		
+		Vecf<3> coord;      // положение атома внутри ячейки, в относительных ед [0:1]
+		float Ms;           // магнитный момент ???		
 		float gamma, alpha; // прецессия и диссипация
 			
 		inline float Waniso(Vecf<3> m) const {  
@@ -65,6 +66,8 @@ namespace aiw{
 			for(int i=0; i<K3sz; ++i) S += K3[i].H3(m); 
 			return S;
 		}
+		void dump(aiw::IOstream &) const;
+		void load(aiw::IOstream &);
 	};
 	//--------------------------------------------------------------------------
 	void magnetic_CC_set(aiw::MagneticSubLattice&, float J, int self_sl); // кубическая решетка
@@ -84,6 +87,7 @@ namespace aiw{
 			inline uint32_t pos2idx(const Ind<3> &pos, uint32_t sl, uint32_t stage) const { 
 				return pos[0] + tile_sz[0]*(pos[1] + tile_sz[1]*(pos[2] + tile_sz[2]*(sl+sublats.size()*stage)));
 			}
+			inline Vecf<3> coord(const Vecf<3> &r) const { return base_r + vecf(r&orts[0], r&orts[1], r&orts[2]); }
 		};
 		//----------------------------------------------------------------------
 		struct app_link_t{ // дополнительная обменная связь на интерфейсе, 16 байт
@@ -91,8 +95,8 @@ namespace aiw{
 			int tile;  // смещение относительно текущего tile
 			float J;   // обменный интеграл
 		};
-		struct app_DM_link_t: public app_link_t { Vctf<3> D; };  // обмен Дзялошинского-Мориа, 28 байт
-		struct app_H_t{ uint32_t src; Vctf<3> H; };  // дополнительное поле, 16 байт
+		struct app_DM_link_t: public app_link_t { Vecf<3> D; };  // обмен Дзялошинского-Мориа, 28 байт
+		struct app_H_t{ uint32_t src; Vecf<3> H; };  // дополнительное поле, 16 байт
 		//----------------------------------------------------------------------
 		// tile-ы всех решеток лежат в общем массиве
 		struct tile_t{
@@ -102,18 +106,20 @@ namespace aiw{
 			char *data;  // указатель на массивы магнитных моментов, по подрешеткам (лежат друг за другом)
 			std::vector<bool> usage; // таблица активности атомов (дискретная геометрия), непуст только для граничных tile-ов
 			Vecf<3> base_r; // координаты левого нижнего угла в системе связанной с решеткой
-			// uint32_t count; // число активных атомов в tile?
+			uint32_t magn_count; // число активных атомов в tile
 
-			std::vector<app_link_t> app_links; // дополнительные связи
+			std::vector<app_link_t> app_links;       // дополнительные связи
 			std::vector<app_DM_link_t> app_dm_links; // дополнительные связи
-			std::vector<app_H_t> app_H; // дополнительные поля
+			std::vector<app_H_t> app_H;              // дополнительные поля
 
 			inline bool check(const Ind<3> &pos, uint32_t sl) const {
 				return usage.empty() || usage[plat->pos2idx(pos, sl, 0)];
 			}
-			inline Vecf<3> coord(const Ind<3> &pos, uint32_t sl) const {
-				Vecf<3> r = base_r + ((pos+plat->sublats[sl].coord)&plat->step); // координаты в сист.связанной с решеткой
-				return plat->base_r + vecf(r&plat->orts[0], r&plat->orts[1], r&plat->orts[2]);
+			inline Vecf<3> coord(const Ind<3> &pos, uint32_t sl) const { 
+				return plat->coord(base_r + ((pos+plat->sublats[sl].coord)&plat->step)); 
+			}
+			inline Vecf<3> center() const { // центр tile
+				return plat->coord(base_r + (plat->tile_sz&plat->step)*.5); 
 			}
 
 			// тип С должен иметь оператор приведения к Vecf<3> и оператор присваивания от Vecf<3>
@@ -132,21 +138,21 @@ namespace aiw{
 				for(auto i=links.begin(); i!=links.end(); ++i){
 					Ind<3> pos2 = pos+i->offset; int gID = 13, mul = 1;
 					for(int k=0; k<3; k++){ // коррекция pos2 и определения номера соседнего tile
-						if(pos2[k]<0){ gID -= mul; pos2[k] += cell->tile_sz[k]; }
-						else if(pos2[k]>=cell->tile_sz[k]){ gID += mul; pos2[k] -= cell->tile_sz[k]; }
+						if(pos2[k]<0){ gID -= mul; pos2[k] += plat->tile_sz[k]; }
+						else if(pos2[k]>=plat->tile_sz[k]){ gID += mul; pos2[k] -= plat->tile_sz[k]; }
 						mul *= 3;
 					}
 					const tile_t *gr2 = nb[gID]==tile_off?nullptr:this+nb[gID];
-					if(gr2) H += Vecf<3>((C*)(gr2->data[gr2->cell->pos2idx(pos2, i->sl, stage)]))*m*i->J;
+					if(gr2) H += Vecf<3>((C*)(gr2->data[gr2->plat->pos2idx(pos2, i->sl, stage)]))*m*i->J;
 				}
 				while(app[0]<app_links.size() && app_links[app[0]].src<mID) ++app[0];
 				while(app[0]<app_links.size() && app_links[app[0]].src==mID){ 
 					auto l = app_links[app[0]++];
 					H += Vecf<3>((C*)((this+l.tile)->data)[l.dst])*m*l.J;
 				}
-				while(app[1]<app_DM_links.size() && app_DM_links[app[1]].src<mID) ++app[1];
-				while(app[1]<app_DM_links.size() && app_DM_links[app[1]].src==mID){ 
-					auto l = app_links[app[1]++]; Vecf<3> m2 = (C*)((this+l.tile)->data)[l.dst];
+				while(app[1]<app_dm_links.size() && app_dm_links[app[1]].src<mID) ++app[1];
+				while(app[1]<app_dm_links.size() && app_dm_links[app[1]].src==mID){ 
+					auto l = app_dm_links[app[1]++]; Vecf<3> m2 = (C*)((this+l.tile)->data)[l.dst];
 					H += m2*m*l.J + m2%l.D;
 				}
 				return H; 
@@ -163,12 +169,12 @@ namespace aiw{
 		std::vector<lattice_t> lats;
 		std::vector<tile_t> tiles;
 		char *data;
-		int Nstages, szT;
-		uint64_t total_count; // общее количество актуальных (!!!) атомов, используется в get_coords, get_magns
+		size_t szT, Nstages, magn_count; // размер типа, число стадий и число актуальных магнитных моментов
 	public:
-		MagneticData(int Nlats=0): lats(Nlats), data(nullptr) {}
+		MagneticData(int Nlats=0): lats(Nlats), data(nullptr), szT(0), Nstages(0), magn_count(0) {}
 		~MagneticData(){ delete [] data; }
 		
+		std::string head;
 		Vecf<3> Hext; // внешнее поле
 		float time;  // время
 		// float T;     // температура
@@ -176,7 +182,7 @@ namespace aiw{
 		// настройка подрешеток
 		void set_sublattice_sz(int lat, int sz){ lats[lat].sublats.resize(sz); }
 		int  get_sublattice_sz(int lat) const { return lats[lat].sublats.size(); }
-		MagneticSubLattice& get_sublattice(int lat, int sl){ lats[lat].sublats[sl]; } 
+		MagneticSubLattice& get_sublattice(int lat, int sl){ return lats[lat].sublats[sl]; } 
 
 		// создает tile-ы и инициализирует ссылки на соседей
 		void set_geometry(int lat, Figure fig,  
@@ -185,20 +191,21 @@ namespace aiw{
 						  Ind<3>  tile_sz,  // размеры tile в ячейках
 						  Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
 						  Vecf<3> ort_x, Vecf<3> ort_y); // ort_z = ort_x%ort_y
-		void set_interface(int lat1, int sl1, int lat2, int sl2, int max_count, float max_len, 
-						   std::function<void(Vecf<3>, Vecf<3>, float&, Vecf<3>&)> app_func=0);
-		void set_app_H(int lat, int sl, Vecf<3> (*setH)(Vecf<3>));
-		// void set_app_H(int lat, int sl, const BaseInitConditions<Vecf<3> > &); ???
+		void set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
+							std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func=0);
+		void set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
+							std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func=0);
+		void set_app_H(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> app_func);
 		
-		void mem_init(int szT, int Nstages_); 
+		void mem_init(size_t szT, size_t Nstages_=1); 
 
-		void magn_init(int lat, int sublat, std::function<Vecf<3>(Vecf<3>)> &init_func, 
-					   void (*conv)(const Vecf<3>&, char*)=nullptr, int stage=0);
+		void magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::function<void(Vecf<3>, char*)> conv=0, int stage=0);
 		
 		void dump_head(aiw::IOstream &) const;
-		void dump_data(aiw::IOstream &, bool pack, void (*conv)(const char*, Vecf<3>&)=nullptr, int stage=0) const;
-		void load_head(aiw::IOstream &);
-		void load_data(aiw::IOstream &, bool pack, void (*conv)(const Vecf<3>&, char*)=nullptr, int stage=0);
+		void dump_data(aiw::IOstream &, bool pack, std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;
+		void load_head(aiw::IOstream &, size_t szT_=12, size_t Nstages_=1);
+		// stage=-1 --- загружать данные в стадию задаваемую из файла
+		void load_data(aiw::IOstream &, std::function<void(const Vecf<3>&, char*)> conv=0, int stage=0);
 
 		void get_coords(int lat, int sl, std::vector<Vecf<3> >&) const;
 		void get_links(std::vector<Vec<2, uint64_t> >&) const; //только для всех магнитных моментов ???
@@ -219,7 +226,7 @@ namespace aiw{
 			for(int it=0; it<Nt; ++it){ // цикл по tile-ам
 				C mm[32];
 				tile_t &tile = tiles[it];
-				const lattice_t &lat = *(tile->plat);
+				const lattice_t &lat = *(tile.plat);
 				int lat_mask = lats_mask[&lat-&(lats[0])];
 				Vec<3, uint32_t> app;
 				for(uint32_t sl=0; sl<lat.sublats.size(); ++sl){ // цикл по подрешеткам
@@ -236,7 +243,7 @@ namespace aiw{
 				} // конец цикла по подрешеткам
 			} // конец цикла по tile-ам
 		}
-#endif SWIG
+#endif //SWIG
 	};
 	//--------------------------------------------------------------------------
 };

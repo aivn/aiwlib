@@ -1,10 +1,9 @@
 // -*- C++ -*-
-#ifndef AIW_BINARY_IO_HPP
-#define AIW_BINARY_IO_HPP
-
 #include "iostream"
 
 namespace aiw{
+#ifndef AIW_BINARY_IO_HPP
+#define AIW_BINARY_IO_HPP
 //------------------------------------------------------------------------------
 #define BIOP(T)															\
 	IOstream& operator < (IOstream& S, T  x){ S.write(&x, sizeof(T)); return S; } \
@@ -22,6 +21,9 @@ namespace aiw{
 	IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}		
 	IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}		
 //------------------------------------------------------------------------------
+	template <typename T, int D> IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }
+	template <typename T, int D> IOstream& operator > (IOstream& S, T (&p)[D]){ for(int i=0; i<D; i++) S>p[i]; return S; }
+//------------------------------------------------------------------------------
 #endif //AIW_BINARY_IO_HPP
 
 //------------------------------------------------------------------------------
@@ -37,11 +39,27 @@ namespace aiw{
 //------------------------------------------------------------------------------
 #if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
 #define AIW_BINARY_IO_STD_VECTOR
-	template<typename T> IOstream& operator < (IOstream& S, const std::vector<T>& x){
-		S<uint64_t(x.size()); S.write(&x[0], x.size()*sizeof(T)); return S;
+	template<typename T> IOstream& operator < (aiw::IOstream& S, const std::vector<T>& x){
+		S<uint64_t(x.size()); S.write(x.data(), x.size()*sizeof(T)); return S;
 	}		
-	template<typename T> IOstream& operator > (IOstream& S, std::vector<T>& x){
-		uint64_t sz; S>sz; x.resize(sz); S.read(&x[0], sz*sizeof(T)); return S;
+	template<typename T> IOstream& operator > (aiw::IOstream& S, std::vector<T>& x){
+		uint64_t sz; S>sz; x.resize(sz); S.read(x.data(), sz*sizeof(T)); return S;
+	}
+	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& x){
+		S<uint64_t(x.size()); uint64_t cursor=0, buf=0;
+		for(auto i=x.begin(); i!=x.end(); ++i){
+			buf |= int(*i)<<cursor++; 
+			if(cursor==64){ S<buf; cursor = 0; }
+		}
+		return S;
+	}		
+	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& x){
+		uint64_t sz; S>sz; x.resize(sz); uint64_t cursor=64, buf=0;
+		for(auto i=x.begin(); i!=x.end(); ++i){
+			if(cursor==64){ S>buf; cursor = 0; }
+			*i = buf&(1<<cursor++);
+		}
+		return S;
 	}
 #endif //_GLIBCXX_VECTOR
 //------------------------------------------------------------------------------

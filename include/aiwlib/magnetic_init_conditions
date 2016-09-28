@@ -7,9 +7,13 @@
 
 namespace aiw{
 //------------------------------------------------------------------------------
-    MagneticUniformIC: public std::function<Vecf<3>(Vecf<3>)> {
-	Vecf<3> m0;
-	Vecf<3> operator()(Vecf<3> r){ return m0; }
+    struct MagneticBaseIC{
+		virtual Vecf<3> operator()(const Vecf<3> &r) = 0;
+    };	
+//------------------------------------------------------------------------------
+    struct MagneticUniformIC: public MagneticBaseIC {
+		Vecf<3> m0;
+		Vecf<3> operator()(const Vecf<3> &r){ return m0; }
     };
 //------------------------------------------------------------------------------
 }
