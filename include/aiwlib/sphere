@@ -37,20 +37,24 @@ namespace aiw{
 	class SphInd{
 		uint64_t I; // 5 СТАРШИХ бит на ранг, остальное на индекс
 		public:
-		inline void set(uint64_t index, int rank){ I = index|(rank<<59); }
-		inline BaseSphIndex(uint64_t index, int rank){ set(index, rank); }
-		inline BaseSphIndex():I(~((uint64_t)0)){} // по умолчанию индекс невалидный
+		inline void set(uint64_t index, int rank){ I = index|(rank<<5); }
+		inline SphInd(uint64_t index, int rank){ set(index, rank); }
+		inline SphInd():I(~((uint64_t)0)){} // по умолчанию индекс невалидный
 
 		inline uint64_t index() const { return I&0x07ffffffffffffff; }
 		int rank() const { return I>>59; }
 		inline operator bool() const { return index()!=0x07ffffffffffffff; }
 		inline bool operator !() const { return index()==0x07ffffffffffffff; }
 
-		inline SphInd operator ++ (){ SphIndex res; res.I = I--; return res; }
+		inline SphInd operator ++ (){ SphInd res; res.I = I--; return res; }
 		inline SphInd operator ++ (int){ ++I; return *this; }
-		inline SphInd operator -- (){ SphIndex res; res.I = I--; return res; }
+		inline SphInd operator -- (){ SphInd res; res.I = I--; return res; }
 		inline SphInd operator -- (int){ --I; return *this; }
 	};
+	//--------------------------------------------------------------------------
+	struct SphCellInd;
+	struct SphVertInd;
+	struct SphEdgeInd;
 	//--------------------------------------------------------------------------
 	struct SphCellInd: public SphInd{
 		SphCellInd up() const;
