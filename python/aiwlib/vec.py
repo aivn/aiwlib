@@ -51,7 +51,8 @@ def checkout_swig_types_table(stt):
         V = stt.get_item(i)
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
-            D, T = _get_D(V), _get_T(V)
+            try: D, T = _get_D(V), _get_T(V)
+            except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
     for i in patchL: stt.patch(i, *_vec_swig_type)

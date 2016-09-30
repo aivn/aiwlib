@@ -119,9 +119,9 @@ namespace aiw{
 			return false;
 		}
 
-		Mesh copy(){ Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
-		Mesh flip(int a, bool axe=true){
-			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = &((*this)[I]); A.mul[a] = -mul[a];
+		Mesh copy() const { Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
+		Mesh flip(int a, bool axe=true) const {
+			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = (void*)&((*this)[I]); A.mul[a] = -mul[a];
 			if(axe){
 				A.bmin[a] = bmax[a]; A.bmax[a] = bmin[a]; 
 				if(logscale&1<<a){ A.step[a] = 1./step[a]; A.rstep[a] = exp(log(bmin[a]/bmax[a])/box[a]); }
@@ -136,9 +136,9 @@ namespace aiw{
 			if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
 		}
 	public:
-		Mesh transpose(int a, int b){ Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
+		Mesh transpose(int a, int b) const { Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
 		
-		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)){
+		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)) const {
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
 				if(a[i]<0) a[i] += box[i]; if(b[i]<=0) b[i] += box[i];
@@ -180,7 +180,7 @@ namespace aiw{
 		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
 
 #ifndef SWIG		
-		template <typename S> void out2dat(S &&str, bool coords=true){
+		template <typename S> void out2dat(S &&str, bool coords=true) const {
 			for(Ind<D> pos; pos^=box; ++pos){
 				if(coords) str<<pos2coord(pos); else str<<pos;
 				str<<" "<<(*this)[pos]<<"\n";
@@ -188,7 +188,8 @@ namespace aiw{
 			}
 		}
 #endif //SWIG
-		template <typename S> void out2dat(S &str, bool coords=true){ out2dat(std::move(str)); }
+		void out2dat(std::ostream &str, bool coords=true) const { out2dat(std::move(str), coords); }
+		void out2dat(IOstream &str, bool coords=true) const { out2dat(std::move(str), coords); }
 		
 		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
@@ -200,6 +201,9 @@ namespace aiw{
 			} while(next(pos));
 		}
 		template <typename T2> void fill(const Mesh<T2, D> &M){
+			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
+		}
+		void fill(const Mesh &M){ 
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}
 
