@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-import os, sys, time, cPickle, socket, .mixt, .chrono
+import os, sys, time, cPickle, socket 
+import aiwlib.mixt as mixt 
+import aiwlib.chrono as chrono
 #-------------------------------------------------------------------------------
 _is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _rtable, _G, ghelp = [], {}, []
@@ -21,7 +23,7 @@ class Calc:
         self.progress, self.args = 0., list(_cl_args)
         for k, v in D.items():
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
-            elif not k in _racs_params: self.k = v
+            elif not k in _racs_params: self.__dict__[k] = v
         for k, v in _args_from_racs:
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
             self.__dict__[k] = v
@@ -34,7 +36,7 @@ class Calc:
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
     #---------------------------------------------------------------------------
-    def par_dict(self, *ignore_list): return dict((k,v) for k,v in self.__dict__.items() if not k in self._ignore_list+ignore_list)
+    def par_dict(self, *ignore_list): return dict((k,v) for k,v in self.__dict__.items() if not k in _ignore_list+list(ignore_list))
     #---------------------------------------------------------------------------
     def __getattr__(self, attr):
         'нужен для создания уникальной директории расчета по первому требованию (ленивые вычисления)'
@@ -84,7 +86,7 @@ class Calc:
     def push(self, X, ignore_list=[], _prefix='', **kw_args):
         '''устанавливает аттрибуты объекта X согласно объекту расчета, 
         параметры расчета имеют более высокий приоритет, чем параметры kw_args'''
-        ignore_list = self._ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this', 'thisown']
+        ignore_list = _ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this', 'thisown']
         params = self.par_dict(*ignore_list).items()
         if _prefix: params = filter(lambda i: i[0].startswith(_prefix), params)
         if type(X) is dict: X.update(kw_args); X.update(params)
@@ -98,7 +100,7 @@ class Calc:
         параметры kw_args имеют более высокий приоритет, чем параметры расчета
         автоматически устанавливаются аттрибуты имеющие методы __get/setstate__ 
         (но не имеющие аттрибута _racs_pull_lock) или не-являющиеся объектами swig'''
-        ignore_list = self._ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this','thisown']
+        ignore_list = _ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this','thisown']
         if type(X) is dict: 
             for k, v in X.items():
                 if not k in ignore_list and type(v) in (int,float,long,bool): self[k] = v
@@ -112,6 +114,7 @@ class Calc:
     #---------------------------------------------------------------------------
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
     #---------------------------------------------------------------------------
+    _except_report_table = []
     def __call__(self, expr):        
         try:
             if type(expr) is str: 
@@ -123,7 +126,9 @@ class Calc:
             else: return eval(expr, self.par_dict(), _G) if expr.co_filename.endswith('!!') else eval(expr, _G, self)
         except Exception, e: 
             if _G['on_racs_call_error']==0: raise
-            elif _G['on_racs_call_error'] in (1,2): mixt.except_report(short=_G['on_racs_call_error']-1)
+            elif _G['on_racs_call_error'] in (1,2): 
+                report = ''.join(mixt.except_report(None, short=_G['on_racs_call_error']-1))
+                if not report in self._except_report_table: self._except_report_table.append(report)
     #---------------------------------------------------------------------------
     #def __getitem__(self, arg):
     #    'для форматирования строки'

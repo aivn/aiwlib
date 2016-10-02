@@ -54,8 +54,12 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
 '''
 #-------------------------------------------------------------------------------
-import os, sys, math, inspect, socket, cPickle, thread, .gtable, .calc, .sources
-from .calc import Calc
+import os, sys, math, inspect, socket, cPickle, thread, atexit 
+import aiwlib.gtable 
+import aiwlib.calc as calc
+import aiwlib.mixt as mixt
+import aiwlib.sources as sources
+from aiwlib.calc import Calc
 #from math import * #???
 #-------------------------------------------------------------------------------
 #   hooks
@@ -83,9 +87,9 @@ def _make_path_hook(self):
 import os, sys, cPickle, time, socket
 d2s = lambda t: time.strftime('%Y.%%m.%d-%X', time.localtime(t))
 '''
-        print>>f, inspect.getsource(get_login)
-        print>>f, inspect.getsource(mk_daemon)
-        print>>f, inspect.getsource(set_output)
+        print>>f, inspect.getsource(mixt.get_login)
+        print>>f, inspect.getsource(mixt.mk_daemon)
+        print>>f, inspect.getsource(mixt.set_output)
         print>>f, '''mk_daemon(); set_output()
 while 1:
     if '%i' in os.listdir('/proc/'): time.sleep(10)
@@ -113,13 +117,13 @@ def _on_exit(self):
     import os, time, mixt, chrono
     try:
         runtime = chrono.Time(time.time()-self._starttime)
-        print 'RUNTIME %s SIZE %s (.RACS %s) %s'%(runtime, os.popen('du -hs '+self.path).readline().split()[0],
-                                                  mixt.size2string(os.path.getsize(self.path+'.RACS')), self.path)
         # self.update() ???
-        if self.statelist[-1][0]=='started':
+        if self.statelist and self.statelist[-1][0]=='started':
             if hasattr(sys, 'last_value'): self.add_state('stopped')
             else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
     finally: self.commit()
+    print 'RUNTIME %s SIZE %s (.RACS %s) %s'%(runtime, os.popen('du -hs '+self.path).readline().split()[0],
+                                              mixt.size2string(os.path.getsize(self.path+'.RACS')), self.path)
 #-------------------------------------------------------------------------------
 def run4stat(self, _count, _copies=1, _mkdir=True, **params):
     '''проводит _count одинаковых расчетов для набора статистики, 
@@ -205,11 +209,11 @@ while i<len(calc._cl_args):
     elif A.startswith('-') and A!='-':
         for k, v in opts.items():
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):
-                calc._racs_params[k] = True; _racs_cl_params.add(k); del calc._cl_args[i]; break
+                calc._racs_params[k] = True; calc._racs_cl_params.add(k); del calc._cl_args[i]; break
             elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):
                 x = A.split('=', 1)[1]
                 calc._racs_params[k] = mixt.string2bool(x) if type(v[1]) is bool else int(x) if type(v[1]) is int else x
-                _racs_cl_params.add(k); del calc._cl_args[i]; break
+                calc._racs_cl_params.add(k); del calc._cl_args[i]; break
         else: i += 1
     else: i += 1
 #-------------------------------------------------------------------------------
@@ -220,15 +224,16 @@ if arg_seqs:
     #queue = reduce(lambda L, a: [l+[(a,x)] for x in arg_seqs[a] for l in L], arg_order, [[(a0,x)] for x in arg_seqs[a0]])
     copies, pids = calc._racs_params['copies'], []
     queue = reduce(lambda L, a: [l+[(a,x)] for x in arg_seqs[a] for l in L], arg_order, [[('racs_master', os.getpid())]])
-    print 'Start queue for %i items in %i threads, master PID=%i'(len(queue), copies, os.getpid())
+    print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
     if calc._racs_params['_daemonize']: set_output()
     for q in queue:
         if len(pids)==copies:
             p = os.waitpid(-1, 0)[0]
             pids.remove(p)
-        calc._args_from_racs += q #+[('master', os.getpid())]
+        calc._args_from_racs = q #+[('master', os.getpid())]
+        print q, calc._args_from_racs, os.getpid()
         pid = os.fork()
-        if not pid: break
+        if not pid: print q, calc._args_from_racs, os.getpid(); break
         pids.append(pid)
     else:
         while(pids): pids.remove(os.waitpid(-1, 0)[0])
