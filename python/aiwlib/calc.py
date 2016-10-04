@@ -5,8 +5,8 @@ import aiwlib.chrono as chrono
 #-------------------------------------------------------------------------------
 _is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _rtable, _G, ghelp = [], {}, []
-_ignore_list = 'path statelist runtime progress args _progressbar'.split()
-_racs_params, _racs_cl_params, _cl_args, _args_from_racs = {}, set(), [], []
+_ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
+_racs_params, _racs_cl_params, _cl_args, _args_from_racs, _arg_seqs, _arg_order = {}, set(), [], [], {}, []
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -21,13 +21,34 @@ class Calc:
     def __init__(self, **D):
         self._starttime, self.runtime, self.statelist = time.time(), chrono.Time(0.), []
         self.progress, self.args = 0., list(_cl_args)
-        for k, v in D.items():
+        for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
             elif not k in _racs_params: self.__dict__[k] = v
-        for k, v in _args_from_racs:
+        #-----------------------------------------------------------------------
+        #   серийный запуск и демонизация расчета
+        #-----------------------------------------------------------------------
+        if _arg_seqs:
+            copies, pids = _racs_params['_copies'], []
+            queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
+            print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
+            if _racs_params['_daemonize']: mixt.mk_daemon() #mixt.set_output()
+            for q in queue:
+                if len(pids)==copies:
+                    p = os.waitpid(-1, 0)[0]
+                    pids.remove(p)
+                global _args_from_racs; _args_from_racs = q #+[('master', os.getpid())]
+                pid = os.fork()
+                if not pid:  break
+                pids.append(pid)
+            else:
+                while(pids): pids.remove(os.waitpid(-1, 0)[0])
+                sys.exit()
+        elif _racs_params.get('_daemonize'): mixt.mk_daemon()
+        #-----------------------------------------------------------------------
+        for k, v in _args_from_racs: # накат сторонних параметров
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
             self.__dict__[k] = v
-        if 'path' in self.__dict__:
+        if 'path' in self.__dict__: # подготовка пути
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
         _init_hook(self)
@@ -36,14 +57,18 @@ class Calc:
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
     #---------------------------------------------------------------------------
-    def par_dict(self, *ignore_list): return dict((k,v) for k,v in self.__dict__.items() if not k in _ignore_list+list(ignore_list))
+    def par_dict(self, *ignore_list): 
+        return dict([(k, v) for k, v in self.__dict__.items() if k[0]!='_' and not k in _ignore_list+list(ignore_list)])
     #---------------------------------------------------------------------------
     def __getattr__(self, attr):
         'нужен для создания уникальной директории расчета по первому требованию (ленивые вычисления)'
         if attr=='path': return _make_path_hook(self)
         raise AttributeError(attr)
     #---------------------------------------------------------------------------
-    def commit(self): 'Сохраняет содержимое расчета в базе'; cPickle.dump(self.par_dict(), open(self.path+'.RACS', 'w')) 
+    def commit(self): 
+        'Сохраняет содержимое расчета в базе' 
+        cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
+                     open(self.path+'.RACS', 'w')) 
     #---------------------------------------------------------------------------
     def add_state(self, state, info=None, host=socket.gethostname(), login=mixt.get_login()):
         'Устанавливает статус расчета, НЕ вызывает commit()'
@@ -120,10 +145,10 @@ class Calc:
             if type(expr) is str: 
                 if expr.startswith('@'): k, v = expr.split('=', 1); self[k] = v
                 elif expr.startswith('$'): return ' '.join(os.popen(expr[1:]%self).readlines()).strip() 
-                elif expr.endswith('!!'): exec(expr[:-2], self.par_dict(), _G)  
+                elif expr.endswith('!!'): exec(expr[:-2], dict(self.__dict__), _G)  
                 elif expr.endswith('!'): exec(expr[:-1], _G, self)  
                 else: return eval(expr, _G, self) 
-            else: return eval(expr, self.par_dict(), _G) if expr.co_filename.endswith('!!') else eval(expr, _G, self)
+            else: return eval(expr, dict(self.__dict__), _G) if expr.co_filename.endswith('!!') else eval(expr, _G, self)
         except Exception, e: 
             if _G['on_racs_call_error']==0: raise
             elif _G['on_racs_call_error'] in (1,2): 

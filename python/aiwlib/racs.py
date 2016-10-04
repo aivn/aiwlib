@@ -40,7 +40,7 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
                        директорию расчета
   -d|--daemonize[=N] --- "демонизировать" расчет при запуске (освободить терминал, 
                          вывод будет перенаправлен в logfile в директории расчета),
-                         "демонизация" происходит при импорте модуля racs
+                         "демонизация" происходит при создание экземпляра класса Calc
   -S|--statechecker[=Y] --- запускать демона, фиксирующего  в файле .RACS аварийное
                             завершение расчета
   -c|--copies=1 --- число копий процесса при проведении расчетов с серийными 
@@ -70,6 +70,7 @@ def _init_hook(self):
         if not os.path.exists(self.path): os.makedirs(self.path)
         if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
         if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')    
+    self.add_state('started', os.getpid())
 calc._init_hook = _init_hook
 #-------------------------------------------------------------------------------
 def _make_path_hook(self):
@@ -104,6 +105,7 @@ while 1:
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
     if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')
+    self.commit() #???
     return self.path
 calc._make_path_hook = _make_path_hook
 #-------------------------------------------------------------------------------
@@ -181,7 +183,7 @@ opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', T
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', True), 
          'copies':('c', 1), 'commit-sources':('m', True) }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
-calc._cl_args, arg_seqs, arg_order, i = list(sys.argv[1:]), {}, [], 0
+calc._cl_args, calc._arg_seqs, calc._arg_order, i = list(sys.argv[1:]), {}, [], 0
 while i<len(calc._cl_args):
     A = calc._cl_args[i]
     if mixt.is_name_eq(A) and A.split('=', 1)[1][0]=='[' and A[-1]==']':
@@ -201,7 +203,7 @@ while i<len(calc._cl_args):
                     if not L: raise Exception('incorrect step or limits in expression '+A)
                     break
             else: raise Exception('incorrect sequence expression '+A)
-        arg_seqs[arg] = L; arg_order.append(arg); del calc._cl_args[i]
+        calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
     elif mixt.is_name_eq(A): 
         k, v = A.split('=', 1)
         if v.startswith('@'): v = eval(v[1:], math.__dict__)
@@ -209,34 +211,12 @@ while i<len(calc._cl_args):
     elif A.startswith('-') and A!='-':
         for k, v in opts.items():
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):
-                calc._racs_params[k] = True; calc._racs_cl_params.add(k); del calc._cl_args[i]; break
-            elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):
+                calc._racs_params['_'+k] = True; calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
+            elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):    
                 x = A.split('=', 1)[1]
-                calc._racs_params[k] = mixt.string2bool(x) if type(v[1]) is bool else int(x) if type(v[1]) is int else x
-                calc._racs_cl_params.add(k); del calc._cl_args[i]; break
+                calc._racs_params['_'+k] = mixt.string2bool(x) if type(v[1]) is bool else int(x) if type(v[1]) is int else x
+                calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
         else: i += 1
     else: i += 1
-#-------------------------------------------------------------------------------
-if calc._racs_params['_daemonize']: mixt.mk_daemon()
-#-------------------------------------------------------------------------------
-if arg_seqs:
-    #a0, i, copies, pids = arg_order.pop(0), 1, 1, []
-    #queue = reduce(lambda L, a: [l+[(a,x)] for x in arg_seqs[a] for l in L], arg_order, [[(a0,x)] for x in arg_seqs[a0]])
-    copies, pids = calc._racs_params['copies'], []
-    queue = reduce(lambda L, a: [l+[(a,x)] for x in arg_seqs[a] for l in L], arg_order, [[('racs_master', os.getpid())]])
-    print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
-    if calc._racs_params['_daemonize']: set_output()
-    for q in queue:
-        if len(pids)==copies:
-            p = os.waitpid(-1, 0)[0]
-            pids.remove(p)
-        calc._args_from_racs = q #+[('master', os.getpid())]
-        print q, calc._args_from_racs, os.getpid()
-        pid = os.fork()
-        if not pid: print q, calc._args_from_racs, os.getpid(); break
-        pids.append(pid)
-    else:
-        while(pids): pids.remove(os.waitpid(-1, 0)[0])
-        sys.exit()
 #-------------------------------------------------------------------------------
 __all__ = ['Calc']
