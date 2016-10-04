@@ -111,7 +111,7 @@ class ProgressBar:
         self.stdout.write('\r'+prompt+'#'*(self.width-len(prompt)-3-len(result))+'] '+result+' \n') 
         self.stdout.flush()
 #-----------------------------------------------------------------------------
-def table2strlist(LL, pattern=None, s_line=1, s_empty=2, s_bound=1, max_len=None):
+def table2strlist(LL, pattern=None, s_line=1, s_empty=2, s_bound=1, max_len=None, conv2str=str):
     '''преобразует таблицу (список списков строк) LL в список форматированных строк. 
 pattern --- паттерн аналогичный заголовку таблиц LaTeX (|lrt|), 
 s_line, s_empty, s_bound --- число пробелов до вертикальных линий, между колонками без линий и по краям (если нет линий)'''
@@ -129,7 +129,8 @@ s_line, s_empty, s_bound --- число пробелов до вертикаль
     R = []
     for L in LL:
         if L == None: R.append(hline); continue
-        L = map(str, L); strnum = max([ l.count('\n')+1 for l in L ]); L = [ (l.split('\n')+['']*strnum)[:strnum] for l in L ]
+        L = map(conv2str, L)
+        strnum = max([ l.count('\n')+1 for l in L ]); L = [ (l.split('\n')+['']*strnum)[:strnum] for l in L ]
         for snum in range(strnum): R.append(( P%tuple([ j(l[snum], w) for j, l, w in zip(just, L, width_list) ]) )[:max_len])
     return [ l+'\n' for l in R ]
 #---------------------------------------------------------------------------------------------------------

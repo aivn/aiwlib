@@ -54,7 +54,7 @@ class Select:
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
                         l.append(R(c))
-                        if f==1 and not l[-1]: self._L.pop(-1); SELECT._i -= 1; break
+                        if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
                 elif check_tree: vizit(p, start, part)
                 start += part
                 if self.progressbar: self.progressbar.out(start, dirname+' ')
@@ -75,9 +75,12 @@ class Select:
         if calc_size or self.c_size: self.c_size = sum([ l[0].get_size() for l in self._L if l ])
         self.c_runtime = sum([ getattr(l[0], 'runtime', 0) for l in self._L if l ])        
     #---------------------------------------------------------------------------
-    def astable(self, head=True, tw=None): 
+    def astable(self, head=True, tw=None, colored=True): 
         'вернуть выборку в виде таблицы (как список строк)'
-        return mixt.table2strlist([None, self.head]*head+[None]+[l[1:] if l else None for l in self._L]+[None], max_len=tw)
+        colors = {None:'1;33', 'stopped':'1;31', 'killed':'1;7;31'}
+        conv2str=lambda x:'\033[%sm%s\033[m'%(colors[x], x) if x is None or (type(x) is str and x in colors) else str(x)
+        return mixt.table2strlist([None, self.head]*head+[None]+[l[1:] if l else None for l in self._L]+[None], 
+                                  max_len=tw, conv2str=(conv2str if colored else str))
     def __str__(self): return ''.join(self.astable())
     def asdata(self, head=True, patt='', fname=None): 
         'вернуть (как список строк) или записать выборку, в формате .dat-файла'
@@ -145,9 +148,9 @@ class Select:
     #---------------------------------------------------------------------------
     # ??? что то странное ???
     def __getitem__(self, i): 
-        if type(i) is tuple: r, i = i[0], i[1]+SELECT._i; return self._L[i][r] if self._L[i] else None
-        i += SELECT._i; return self._L[i][0] if self._L[i] else None
-    def __setitem__( self, i, x ) : self._L[i[1]+SELECT._i][i[0]] = x
+        if type(i) is tuple: r, i = i[0], i[1]+Select._i; return self._L[i][r] if self._L[i] else None
+        i += Select._i; return self._L[i][0] if self._L[i] else None
+    def __setitem__( self, i, x ) : self._L[i[1]+Select._i][i[0]] = x
     def __delitem__( self, i ) : 
         if self._L[i] : 
             if self.c_size : self.c_size -= self._L[i][0].get_size() 
@@ -155,7 +158,7 @@ class Select:
             del self._L[i]
             if i and i<len(self._L) and not self._L[i-1] and not self._L[i] : del self._L[i] # double separator delete
     def __getslice__( self, begin, end ) : 
-        S = SELECT(None); S.progress, S.runtime, S._L = self.progress, self.runtime, self._L[begin:end]
+        S = Select(None); S.progress, S.runtime, S._L = self.progress, self.runtime, self._L[begin:end]
         S._recalc_ts(self.c_size); return S
     def __delslice__(self, begin, end): self._L[begin:end] = [None] if None in self._L[begin:end] else []; self._recalc_ts()
 #-------------------------------------------------------------------------------
