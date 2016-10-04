@@ -68,13 +68,11 @@ _$(name).so : $(name)_wrap.o $(addsuffix .o,$(basename $(modules))) $(objects)
 #   compile object files
 #-------------------------------------------------------------------------------
 ifndef MODULE
-$(name)_wrap.o: $(name)_wrap.cxx
-#$(addsuffix .o,$(basename $(modules) $($(name)_modules))) : $(filter-out %:, $(subst \,,$(shell $(GCC) -DPYTHON -I$(PY) $(CXXOPT) -M $(modules) $($(name)_modules))))
+$(name)_wrap.o $(addsuffix .o,$(basename $(modules))): \
+	$(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(modules) $(name)_wrap.cxx)))
 %.o:; @$(MAKE) --no-print-directory -f $(word 1, $(MAKEFILE_LIST)) \
 	MODULE:=$(strip $(foreach m,$(modules) $(name)_wrap.cxx,$(shell if [ $(basename $m) == $* ]; then echo $m; fi ))) $@
 else
-#ifeq ($(MODULE),)
-#endif
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
 	$(CXX) -I$(aiwlib_include) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
@@ -82,7 +80,7 @@ endif
 #   .i file
 #-------------------------------------------------------------------------------
 $(name).i: $(MAKEFILE_LIST)
-	@echo $(MAKEFILE_LIST) 
+#	@echo $(MAKEFILE_LIST) 
 	$(show_target)
 	$(imodule)
 #	@echo '%include "std_string.i"' >> $@

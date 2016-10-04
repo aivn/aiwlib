@@ -77,7 +77,7 @@ class Select:
     #---------------------------------------------------------------------------
     def astable(self, head=True, tw=None, colored=True): 
         'вернуть выборку в виде таблицы (как список строк)'
-        colors = {None:'1;33', 'stopped':'1;31', 'killed':'1;7;31'}
+        colors = {None:'1;33', 'stopped':'1;31', 'killed':'1;7;31', 'started':'1;33'}
         conv2str=lambda x:'\033[%sm%s\033[m'%(colors[x], x) if x is None or (type(x) is str and x in colors) else str(x)
         return mixt.table2strlist([None, self.head]*head+[None]+[l[1:] if l else None for l in self._L]+[None], 
                                   max_len=tw, conv2str=(conv2str if colored else str))
