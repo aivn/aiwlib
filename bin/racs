@@ -99,8 +99,9 @@ else: print>>sys.stderr, __doc__, 'Action not setting!'; sys.exit()
 from aiwlib.select import Select
 
 S = Select(fromL, ev_list, pbar, csz, ctr)
-report = 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
-                                             (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
+report = ''.join(['\033[31m']+aiwlib.calc.Calc._except_report_table+['\033[0m']) if  aiwlib.calc.Calc._except_report_table else ''
+report += 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
+                                        (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
 starttime = time.time()
 if action==['Xremove']:
     print report

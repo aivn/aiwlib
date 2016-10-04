@@ -10,7 +10,7 @@ def get_login() :
 #-----------------------------------------------------------------------------
 def make_path(repo, calc_num=3):
     'создает уникальную директорию расчета в репозитории repo на основе текущей даты и времени'
-    repo = mixt.normpath(repo) #repo%self
+    repo = normpath(repo) #repo%self
     name = time.strftime("c%y_%W_")+str(time.localtime()[6]+1); s = len(name)
     while 1: 
         try: lpath = os.listdir(repo)

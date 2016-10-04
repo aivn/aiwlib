@@ -5,6 +5,15 @@
 	catch(...){ return NULL; } 
  }
 
+%%pythoncode %%{
+def _setstate(self, state):
+    if not hasattr(self, 'this'): self.__init__()
+    self.__C_setstate__(state)
+def _swig_setattr(self, class_type, name, value):
+    if name in class_type.__swig_setmethods__: value = getattr(self, name).__class__(value)
+    return _swig_setattr_nondynamic(self, class_type, name, value, 0)
+%%}
+
 %%typemap(out) bool&   %%{ $result = PyBool_FromLong    ( *$1 ); %%}
 %%typemap(out) char&   %%{ $result = PyInt_FromLong     ( *$1 ); %%}
 %%typemap(out) short&  %%{ $result = PyInt_FromLong     ( *$1 ); %%}

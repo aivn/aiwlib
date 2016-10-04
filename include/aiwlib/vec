@@ -48,7 +48,7 @@ namespace aiw{
 		inline T  periodic(int i) const { i %= D; if(i<0) i += D; return p[i]; } 
 		inline T& periodic(int i)       { i %= D; if(i<0) i += D; return p[i]; } 
 		inline Vec circ(int l) const { // cyclic shift
-			Vec res; l %= D;
+			Vec res; l %= D; if(l<0) l += D;
 			for(int i=0; i<l; i++) res.p[i] = p[D-l+i]; 
 			for(int i=l; i<D; i++) res.p[i] = p[i-l]; 
 			return res; 
@@ -57,6 +57,10 @@ namespace aiw{
 		template <typename ... Args> 
 		inline Vec<sizeof ...(Args), T> operator ()(Args ... xxx) const { 
 			return Vec<sizeof ...(Args), T>((*this)[xxx]...); // periodic ???
+		}
+		template <int D2> inline Vec<D2, T> operator ()(const Vec<D2, int> &I) const { 
+			Vec<D2, T> res; for(int i=0; i<D2; i++) res[i] = (*this)[I[i]]; 
+			return res;
 		}
 
 		// *** OTHER FUNCTIONS ***
@@ -79,7 +83,14 @@ namespace aiw{
 		inline Vec ceil() const { Vec v; for(int i=0; i<D; i++) v[i] = ::ceil(p[i]); return v; }
 		inline Vec floor() const { Vec v; for(int i=0; i<D; i++) v[i] = ::floor(p[i]); return v; }
 		inline Vec round() const { Vec v; for(int i=0; i<D; i++) v[i] = ::round(p[i]); return v; }
-		inline Vec fmod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], x); return v; }
+		template <typename T2> inline Vec<D, decltype(T()/T2())> fmod(T x) const { 
+			 Vec<D, decltype(T()/T2())> v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], x); 
+			 return v; 
+		}
+		template <typename T2> inline Vec<D, decltype(T()/T2())> fmod(const Vec<D, T2> &b) const { 
+			Vec<D, decltype(T()/T2())> v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], b[i]); 
+			return v; 
+		}
 
 		inline T min() const { T res = p[0]; for(int i=1; i<D; i++) res = res<p[i]?res:p[i]; return res; }
 		inline T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }
@@ -296,7 +307,7 @@ namespace aiw{
 	//  index work
 	//--------------------------------------------------------------------------
 	template<int D> using Ind = Vec<D, int>;
-	template<typename ... Args> Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
+	template<typename ... Args> inline Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
 
 	template<int D> inline Ind<D>& operator ++ (Ind<D> &I){ I[0]++; return I; }
 	template<int D> inline bool operator ^= (Ind<D> &pos, const Ind<D> &Up){
@@ -315,6 +326,9 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
 		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
+	}
+	template <int D, typename T> std::ostream& operator >> (std::ostream &s, Vec<D, T> &v){	
+		for(int i=0; i<D; i++) s>>v[i]; return s;
 	}
 #ifdef AIW_IOSTREAM_HPP
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
