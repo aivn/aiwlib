@@ -24,6 +24,8 @@ namespace aiw{
 	double sph_cell_area(uint64_t ID, int rank); // площадь ячейки
 	const aiw::Vec<3, uint64_t>& sph_cell_vert(uint64_t ID, int rank); // индексы вершин ячейки
 	const aiw::Vec<3, uint64_t>& sph_cell_cell(uint64_t ID, int rank); // близжайшие соседи ячейки
+	uint64_t sph_cells_num(int rank);
+	uint64_t sph_vertex_num(int rank);
 	// const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 
 	const aiw::Vec<3>& sph_vert(uint64_t ID, int rank); // вершина (узел) сетки

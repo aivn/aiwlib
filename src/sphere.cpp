@@ -25,6 +25,7 @@ namespace aiw{
 		if (i<0) i+=N;
 		for(int j=i; j<N; j++) result[j-i]=r[j];
 		for(int j=0; j<i; j++) result[N-i+j]=r[j];
+		//WOUT(r, i, result)
 		return result;
 	}
 	//---------------------------------------------------------------------------------------------------------
@@ -36,18 +37,18 @@ namespace aiw{
 		ind[ind[3]]=1;
 		int l = ind[0] * ind[1] * ind[2];//Это не ind.volume()
 		ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
-		Vec<5,uint64_t> nb;
+		Vec<5,int64_t> nb;
 		if ( ind[4]<2 ) {
-			Ind3 tmp = Ind3(ind[0],ind[1],ind[2]);
+			Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
 			tmp[ind[3]] = -tmp[ind[3]];
 			nb =  tmp | (ind[3]+1+ind[4])%3 | (5-ind[4]+1)%5;
 		} else {
 			if ( ind[4]==4 ) {
-				Ind3 tmp = Ind3(ind[0],ind[1],ind[2]);
+				Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
 				tmp[(ind[3]+1)%3] = -tmp[(ind[3]+1)%3];
 				nb = tmp|ind[3]|ind[4];
 			} else {
-				Ind3 tmp = Ind3(ind[0],ind[1],ind[2]);
+				Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
 				nb = tmp|(ind[3]+4-ind[4])%3|(5-ind[4]);
 			}
 		}
@@ -60,8 +61,14 @@ namespace aiw{
 		return current_rank; // Потенциальный race
 	}
 	//---------------------------------------------------------------------------------------------------------
-	uint64_t sph_cells_num(int rank = current_rank){ return 60l<<2*rank;}
-	uint64_t sph_vertex_num(int rank = current_rank){ return (30l<<2*rank) +2l;}
+	uint64_t sph_cells_num(int rank = current_rank){
+		if (rank>=0 && rank<30) return 60l<<2*rank;//30 не влезает в uint64_t
+		else return 0;
+	}
+	uint64_t sph_vertex_num(int rank = current_rank){
+		if (rank>=0 && rank<30) return (30l<<2*rank) +2l;//30 не влезает в uint64_t
+		else return 0;
+	}
 	//---------------------------------------------------------------------------------------------------------
 	void sph_free_table(int rank){ // освобождает таблицы старше ранга rank (включительно)
 		int old_rank=current_rank;
@@ -98,9 +105,9 @@ namespace aiw{
 		int ver = 0;
 		bool* tmp = new bool[60];
 		cell_centers[0] = new Vec<3>[72];
-		for (int i = 0; i < 60; i++) tmp[i] = 0;
+		for (int i = 0; i < 60; i++) tmp[i] = false;
 		for (int i=0; i<12; i++) {
-			Ind3 ind(1,1,1);
+			Vec<3, int> ind(1,1,1);
 			int ind3 = i>>2;
 			ind[ (ind3+1)%3 ] = (i%2)*2 - 1;
 			ind[ (ind3+2)%3 ] = (i%4) - ( ( ind[ (ind3+1)%3 ] + 1 ) >> 1 ) - 1;
@@ -153,7 +160,7 @@ namespace aiw{
 		if (tmp) {delete [] tmp;tmp=0;}
 		for(int i =0 ; i<32;i++){
 			Ind6 cur = vertex_cells[0][i];
-			if (cur[5]>0){
+			if (cur[5]!=uint64_t(-1)){
 				for(int j=0; j<6;j++){
 					cell_neighbours[0][cur[j]][((j%2)*2+1)%3] = cur[(j+1)%6];//Здесь тоже есть лажа, но этого не видно, может её и нет?
 					cell_neighbours[0][cur[j]][((j%2)*2+2)%3] = cur[(j+5)%6];
@@ -173,6 +180,7 @@ namespace aiw{
 		uint64_t CurVN = sph_vertex_num(rank);
 		uint64_t PrevN= sph_cells_num(rank-1);
 		uint64_t PrevVN= sph_vertex_num(rank-1);
+		//WOUT(rank);
 		if (rank!=0){
 			if(!normals[rank]){
 				normals[rank] = new Vec<3>[3 *  PrevN];
@@ -200,7 +208,7 @@ namespace aiw{
 			cell_neighbours[rank] = new Ind3[CurN];
 			for(int k =0; k< 32; k++){
 				Ind6 cur  = vertex_cells[rank][k];
-				if(cur[5] > 0) {
+				if(cur[5] != uint64_t(-1)) {
 					for(int i=0; i<6; i++){
 						int num = (i%2)*2;
 						cell_neighbours[rank][cur[i]][(num+2)%3] = cur[(i+5)%6];
@@ -242,83 +250,83 @@ namespace aiw{
 	}
 	//---------------------------------------------------------------------------------------------------------
 	void arrs_init( int rank ){
+		//WOUT(rank);
 		if (rank==0) init_zero_rank();
 		else {
-			if (rank>0){
-				//тут нужна другая функция
-				//Увеличивать быстродействе здесь будем потом
-				//Заполнение vertex vertex_cells  cell_vertex
-				uint64_t CurN = sph_cells_num(rank);
-				uint64_t PrevN = CurN/4;//Для читаемости.
-				uint64_t PrevVN = sph_vertex_num(rank);
-				cell_vertex[rank] = new Ind3[CurN];
-				vertex_cells[rank] = new Ind6[PrevVN];
-				bool* tmp = new bool[PrevN*3];//т.к. в нашем обходе вершины могут (и будут) встречаться дважды, мы будем проверять, что они ещё не пройдены
-				for (uint64_t i = 0; i < PrevN*3; i++) tmp[i] = 0;
-				Ind3  cni[3] = {
-					Ind3(3,0,2),
-					Ind3(1,0,3),
-					Ind3(2,0,1)
-				};//треугольники при вершине со стороны 0 ,1 или 2
-				Ind3  vni[3] = {
-					Ind3(1,0,2),
-					Ind3(2,1,0),
-					Ind3(0,2,1)
-				};// номера вершин в соответствующих треугольниках
-				int exch[3] = {2, 1, 0};//перестановка (2,0)
-				uint64_t CurVN = sph_vertex_num(rank-1);
-				for ( uint64_t i = 0; i < PrevN; i++ ){//цикл по всем центральным треугольникам нашей сетки
-					for (int num = 0; num < 3; num++ ){//цикл по номеру вершины центрального треугольника
-						if ( (!tmp[ 3*i + num ])){//&& (ver< k) ){
-							// необходимость в дополнительнм условии пропала
-							uint64_t nb  = cell_neighbours[rank-1][i][num];
-							//                    if (rank==8) WOUT(i, nb, num);
-							bool orient = (cell_vertex[rank-1][i][1]==cell_vertex[rank-1][nb][1]);
-							vertex[CurVN] = vertex[ cell_vertex[rank-1][i][(num+1)%3] ] + vertex[cell_vertex[rank-1][i][(num+2)%3]];
-							vertex[CurVN]*=1/vertex[CurVN].abs();
-							Ind3 ind(i*4);
-							Ind3 inb(nb*4);
-							vertex_cells[rank][CurVN] = (ind+cni[num])|(inb+cni[ exch[num]*orient +(1-orient)*num ]);//ещё пройтись по всем из vertex_cells  и записать в cell_vertex
-							for(int l = 0; l < 3; l++){
-								cell_vertex[rank][ vertex_cells[rank][CurVN][l] ] [ vni[num][l] ] = CurVN;
-								cell_vertex[rank][ vertex_cells[rank][CurVN][l+3] ] [  vni[exch[num]*orient +(1-orient)*num ][l] ] = CurVN;
-							}
-							tmp[3*nb+orient*exch[num] + (1-orient)*num] = 1;
-							tmp[3*i+num]=1;
-							CurVN++;
+			//тут нужна другая функция
+			//Увеличивать быстродействе здесь будем потом
+			//Заполнение vertex vertex_cells  cell_vertex
+			uint64_t CurN = sph_cells_num(rank);
+			uint64_t PrevN = CurN/4;//Для читаемости.
+			uint64_t CurVN = sph_vertex_num(rank);
+			uint64_t PrevVN = sph_vertex_num(rank-1);
+			cell_vertex[rank] = new Ind3[CurN];
+			vertex_cells[rank] = new Ind6[CurVN];
+			bool* tmp = new bool[PrevN*3];//т.к. в нашем обходе вершины могут (и будут) встречаться дважды, мы будем проверять, что они ещё не пройдены
+			for (uint64_t i = 0; i < PrevN*3; i++) tmp[i] = 0;
+			Ind3  cni[3] = {
+				Ind3(3,0,2),
+				Ind3(1,0,3),
+				Ind3(2,0,1)
+			};//треугольники при вершине со стороны 0 ,1 или 2
+			Ind3  vni[3] = {
+				Ind3(1,0,2),
+				Ind3(2,1,0),
+				Ind3(0,2,1)
+			};// номера вершин в соответствующих треугольниках
+			int exch[3] = {2, 1, 0};//перестановка (2,0)
+			uint64_t ver = PrevVN;
+			for ( uint64_t i = 0; i < PrevN; i++ ){//цикл по всем центральным треугольникам нашей сетки
+				for (int num = 0; num < 3; num++ ){//цикл по номеру вершины центрального треугольника
+					if ( (!tmp[ 3*i + num ])){//&& (ver< k) ){
+						// необходимость в дополнительнм условии пропала
+						uint64_t nb  = cell_neighbours[rank-1][i][num];
+						//                    if (rank==8) WOUT(i, nb, num);
+						bool orient = (cell_vertex[rank-1][i][1]==cell_vertex[rank-1][nb][1]);
+						vertex[ver] = vertex[ cell_vertex[rank-1][i][(num+1)%3] ] + vertex[cell_vertex[rank-1][i][(num+2)%3]];
+						vertex[ver]*=1/vertex[ver].abs();
+						Ind3 ind(i*4);
+						Ind3 inb(nb*4);
+						vertex_cells[rank][ver] = (ind+cni[num])|(inb+cni[ exch[num]*orient +(1-orient)*num ]);//ещё пройтись по всем из vertex_cells  и записать в cell_vertex
+						for(int l = 0; l < 3; l++){
+							cell_vertex[rank][ vertex_cells[rank][ver][l] ] [ vni[num][l] ] = ver;
+							cell_vertex[rank][ vertex_cells[rank][ver][l+3] ] [  vni[exch[num]*orient +(1-orient)*num ][l] ] = ver;
 						}
+						tmp[3*nb+orient*exch[num] + (1-orient)*num] = 1;
+						tmp[3*i+num]=1;
+						ver++;
 					}
 				}
-				if ( tmp ){ delete [] tmp; tmp=0;}
-				//для предыдущих уровней распространить vertex_cells  на текущий и дописать cell_vertex
-				if (rank>1) {
-					uint64_t Prev2N = PrevN/4;
-					uint64_t Prev2VN = sph_vertex_num(rank-2);
-					for(uint64_t i = 0; i< Prev2VN; i++ ){
-						Ind6 cur  = vertex_cells[rank-1][i];
-						Ind6 next = Ind6(cur[0]%4,cur[1]%4,cur[2]%4, cur[3]%4, cur[4]%4, cur[5]>0?cur[5]%4:3 );
-						vertex_cells[rank][i] = cur * 4 + next;
-						for(int l = 0; l <(cur[5]<0?5:6); l++){
-							cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l]-1 ] = i;
-						}//next[l] не может быть 0, т.к. 0 инцидентны только вершинам появившимся на текущем уровне
-					}
-					for(uint64_t i = Prev2VN; i < PrevVN; i++ ){//Вершины появившиеся на предыдущем уровне рекурсии
-						Ind6 cur =vertex_cells[rank-1][i];
-						int num1 = 5 - (cur[0]%4) -(cur[2]%4), num2 = 5 - (cur[3]%4) - (cur[5]%4);
-						Ind6 next = (vni[num1]|vni[num2])+ Ind6((uint64_t)1);
-						vertex_cells[rank][i] = cur * 4 +next;
-						for(int l =0 ; l<6; l++){
-							cell_vertex[rank][ vertex_cells[rank][i][l] ][next[l] -1] = i;
-						}//среди этих вершин заведомо нет центров граней
-					}
-				} else {
-					for(int i=0; i< 32; i++){
-						Ind6 cur = vertex_cells[0][i];
-						Ind6 next = (cur[5]!=-1)? Ind6(1,3,1,3,1,3):Ind6(2,2,2,2,2,3);
-						vertex_cells[rank][i] = cur*4+next;
-						for(int l = 0; l < (cur[5]<0?5:6); l++){
-							cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l] -1 ] = i;
-						}
+			}
+			if ( tmp ){ delete [] tmp; tmp=0;}
+			//для предыдущих уровней распространить vertex_cells  на текущий и дописать cell_vertex
+			if (rank>1) {
+				uint64_t Prev2N = PrevN/4;
+				uint64_t Prev2VN = sph_vertex_num(rank-2);
+				for(uint64_t i = 0; i< Prev2VN; i++ ){
+					Ind6 cur  = vertex_cells[rank-1][i];
+					Ind6 next = Ind6(cur[0]%4,cur[1]%4,cur[2]%4, cur[3]%4, cur[4]%4, cur[5]>0?cur[5]%4:3 );
+					vertex_cells[rank][i] = cur * 4 + next;
+					for(int l = 0; l <(cur[5]==uint64_t(-1)?5:6); l++){
+						cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l]-1 ] = i;
+					}//next[l] не может быть 0, т.к. 0 инцидентны только вершинам появившимся на текущем уровне
+				}
+				for(uint64_t i = Prev2VN; i < PrevVN; i++ ){//Вершины появившиеся на предыдущем уровне рекурсии
+					Ind6 cur =vertex_cells[rank-1][i];
+					int num1 = 5 - (cur[0]%4) -(cur[2]%4), num2 = 5 - (cur[3]%4) - (cur[5]%4);
+					Ind6 next = (vni[num1]|vni[num2])+ Ind6((uint64_t)1);
+					vertex_cells[rank][i] = cur * 4 +next;
+					for(int l =0 ; l<6; l++){
+						cell_vertex[rank][ vertex_cells[rank][i][l] ][next[l] -1] = i;
+					}//среди этих вершин заведомо нет центров граней
+				}
+			} else {
+				for(int i=0; i< 32; i++){
+					Ind6 cur = vertex_cells[0][i];
+					Ind6 next = (cur[5]!=uint64_t(-1))? Ind6(1,3,1,3,1,3):Ind6(2,2,2,2,2,3);
+					vertex_cells[rank][i] = cur*4+next;
+					for(int l = 0; l < (cur[5]==uint64_t(-1)?5:6); l++){
+						cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l] -1 ] = i;
 					}
 				}
 			}
@@ -328,13 +336,17 @@ namespace aiw{
 	//---------------------------------------------------------------------------------------------------------
 	void sph_init_table(int rank){
 		//  WOUT(_R, AR);
+		//WOUT(rank, current_rank);
 		if( current_rank>=rank ) return;
 		else {
 			Vec<3> *tmp3 = vertex;
 			vertex = new Vec<3>[sph_vertex_num(rank)];
 			for(uint64_t i=0; i< sph_vertex_num(); i++) vertex[i] = tmp3[i];
-			delete [] tmp3;
-			for(int i=current_rank; i<=rank; i++) arrs_init(rank); // инициализация массивов
+			if (tmp3) delete [] tmp3;
+			//WOUT(rank);
+			for(int i=std::max(current_rank+1,0); i<=rank; i++){
+				arrs_init(i); // инициализация массивов
+			}
 		}
 		current_rank=rank;
 		//  WOUT(2);
