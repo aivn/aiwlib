@@ -86,12 +86,14 @@ class Select:
         'вернуть (как список строк) или записать выборку, в формате .dat-файла'
         if type(patt) is str: patt = patt.split()
         D = reduce(lambda D, C: dict([(k, D.get(k, set())|set([v])) for k, v in C.par_dict().items()
-                                      if hashable(v) and mixt.compare(k, patt) ]), self.nodes(), {}) if patterns else {}
+#                                      if hashable(v) and mixt.compare(k, patt) ]), self.nodes(), {}) if patt else {}
+                                      if mixt.compare(k, patt) ]), self.nodes(), {}) if patt else {}
         R = ['#: %s = %r\n'%(k, list(S)[0]) for k, S in D.items() if len(S)==1] + mixt.table2strlist( 
             [['#:'+self.head[0]]+self.head[1:]]*bool(head)+[ l[1:] if l else ['']*len(self.head) for l in self._L ],
             'l'*len(self.head))
-        if fname: (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(map(str.rstrip, R)); return []
-        else: return map(str.rstrip, R)
+        R = [l.lstrip(' ') for l in R]
+        if fname: (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
+        else: return R 
     def paths(self, fname=''):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
         return [l[0].path+fname for l in self._L if l and os.path.exists(l[0].path+fname)]

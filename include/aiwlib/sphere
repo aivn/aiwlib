@@ -7,7 +7,10 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#include <utility>
 #include "vec"
+#include "iostream"
+#include "binaryio"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -91,6 +94,87 @@ namespace aiw{
 		const aiw::Vec<3>& vert(int i) const;   // 0<=i<2
 		SphVertInd vertInd(int i) const;        // 0<=i<2
 		SphCellInd cellInd(int i) const;        // 0<=i<2
+	};
+	//--------------------------------------------------------------------------
+	// контейнер
+	//--------------------------------------------------------------------------
+	template <typename T> class Sphere{
+		std::shared_ptr<BaseAlloc> mem;
+		T *ptr;           
+		int R; size_t sz;
+	public:
+		std::string head;
+
+		size_t size() const { return sz; }
+		size_t __len__(){ return sz; } 
+		int rank() const { return R; }
+
+		void init(int R_){		 
+			R = R_; 
+			if(R>=0){
+				sz = sph_cells_num(R);
+				sph_init_table(R_);
+				mem.reset(new MemAlloc<T>(sz)); ptr = mem->get_addr();	
+			} else { ptr = nullptr; sz = 0; mem.reset(); }
+		}
+		Sphere(int R_=-1): ptr(nullptr), R(-1), sz(0){ init(R_); }
+		Sphere copy() const { Sphere res(R); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
+
+		inline const T& operator [] (const Vec<3> &r) const { return ptr[get_cell_id(r)]; }
+		inline       T& operator [] (const Vec<3> &r)       { return ptr[get_cell_id(r)]; }
+		inline const T& operator [] (size_t i) const { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
+		inline       T& operator [] (size_t i)       { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
+
+		T&   __getitem__(const Vec<3> &r){ return (*this)[r]; }
+		void __setitem__(const Vec<3> &r, const T &val ){ (*this)[r] = val; }
+		T&   __getitem__(size_t I){ return (*this)[I]; }
+		void __setitem__(size_t I, const T &val){ (*this)[I] = val; }
+
+		std::string __getstate__() const { 
+			std::stringstream buf;
+			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
+			buf.write((const char*)&R, sizeof(R)); if(sz) buf.write(ptr, sizeof(T)*sz);         
+			return buf.str();
+		}
+		void __C_setstate__(const std::string &state){
+			std::stringstream buf(state);
+			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
+			head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
+			int R_; buf.read(&R_, sizeof(R)); init(R_);
+			if(sz) buf.read(ptr, sizeof(T)*sz);         
+		}
+#ifndef SWIG
+		void dump(aiw::IOstream &&S) const { 
+			S<head<int(0)<int(sizeof(T))<R;
+			S.write(this->ptr, sizeof(T)*sz);
+		}
+		void load(aiv::IOstream &&S, int use_mmap=0){ // 0 - not use, 1 - readonly, 2 - rw
+			std::string h; int D, szT; size_t s = S.tell(); S>h>D>szT;
+			if(D!=0 || szT!=sizeof(T)){ 
+				S.seek(s); 
+				WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h); 
+			}
+			head = h; S>R; sz = sph_cells_num(R);
+			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+			else{ mem.reset(new MemAlloc<T>(sz)); ptr = mem->get_addr();  S.read(ptr, sizeof(T)*sz); }
+		}
+#endif //SWIG
+		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
+		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
+
+		void min_max(T &a, T &b, size_t &pos_a, size_t &pos_b) const {
+			if(sz){ pos_a = pos_b = 0; a = b = ptr[0]; } else pos_a = pos_b = -1;
+			for(size_t i=1; i<sz; ++i){
+				if(a>ptr[i]){ a = ptr[i]; pos_a = i; }
+				if(b<ptr[i]){ b = ptr[i]; pos_b = i; }
+			}
+		}
+		void fill(const T &x){ for(size_t i=0; i<sz; ++i) ptr[i] = x; }
+		// template <typename T2> void fill(const Sphere<T2> &sph);
+		// void fill(const Sphere &sph);
+		// void fill(IOstream &&S);
+
+		static const bool _racs_pull_lock = true;		
 	};
 	//--------------------------------------------------------------------------
 };

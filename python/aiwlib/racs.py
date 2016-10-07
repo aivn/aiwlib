@@ -118,6 +118,7 @@ def _on_exit(self):
         return 
     import os, time, mixt, chrono
     try:
+        for wrap in self._wraps: self.pull(wrap._core, _prefix=wrap._prefix) 
         runtime = chrono.Time(time.time()-self._starttime)
         # self.update() ???
         if self.statelist and self.statelist[-1][0]=='started':

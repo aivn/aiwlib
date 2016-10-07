@@ -32,12 +32,18 @@ namespace aiw{
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
 			for(int i=0; i<D; i++){
 				step[i] = logscale&1<<i? exp(log(bmax[0]/bmin[0])/box[i]) :(bmax[i]-bmin[i])/box[i];
-				axes[i] = i; rstep[i] = logscale&1<<i? 1./log(step[i]) : 1/step[i];
+				axes[i] = i; rstep[i] = logscale&1<<i? 1./log(step[i]) : 1./step[i];
 			}
 		}
+	protected:
+		size_t sz_init(const aiw::Ind<D> &box_){ 
+			box = box_; box.prod(sz); mul[0] = sizeof(T); 
+			for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+			return sz;
+		}
+	public:
 		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
-			size_t sz_; box_.prod(sz_); mem.reset(new MemAlloc<T>(sz_)); ptr = mem->get_addr();
-			box = box_; sz = sz_; mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+			mem.reset(new MemAlloc<T>(sz_init(box_))); ptr = mem->get_addr(); 
 			set_axes(bmin_, bmax_, logscale_);
 		}
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
@@ -48,16 +54,15 @@ namespace aiw{
 			S<head<D<int(sizeof(T))<box;
 			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
 		}
-		// дублирование кода инициализации ;-(
 		void load(aiw::IOstream &&S, int use_mmap=0){ // 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
-			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh load ", D, sizeof(T), S.name, rD, szT, b, s); }
-			if(use_mmap){
-				box = b; box.prod(sz); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr();
-				mul[0] = sizeof(T); for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
-				bmin = vec(0.); bmax = box;	logscale = 0;
-				for(int i=0; i<D; i++){	step[i] = rstep[i] = 1.; axes[i] = i; }
-			} else { init(b); S.read(ptr, sz*sizeof(T)); }
+			if(rD!=D || szT!=sizeof(T)){ 
+				S.seek(s); 
+				WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), b, h); 
+			}
+			head = h; sz_init(b);
+			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); set_axes(vec(0.), box); }
+			else { init(b); S.read(ptr, sz*sizeof(T)); }
 		}
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
@@ -191,7 +196,6 @@ namespace aiw{
 		void out2dat(std::ostream &str, bool coords=true) const { out2dat(std::move(str), coords); }
 		void out2dat(IOstream &str, bool coords=true) const { out2dat(std::move(str), coords); }
 		
-		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
 			do {
@@ -200,6 +204,7 @@ namespace aiw{
 				if(b<x){ b = x; pos_b = pos; }
 			} while(next(pos));
 		}
+		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		template <typename T2> void fill(const Mesh<T2, D> &M){
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}

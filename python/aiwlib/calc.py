@@ -20,7 +20,7 @@ class Calc:
     #---------------------------------------------------------------------------
     def __init__(self, **D):
         self._starttime, self.runtime, self.statelist = time.time(), chrono.Time(0.), []
-        self.progress, self.args = 0., list(_cl_args)
+        self.progress, self.args, self._wraps = 0., list(_cl_args), []
         for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
             elif not k in _racs_params: self.__dict__[k] = v
@@ -28,6 +28,7 @@ class Calc:
         #   серийный запуск и демонизация расчета
         #-----------------------------------------------------------------------
         if _arg_seqs:
+            global _args_from_racs; _base_args_from_racs = list(_args_from_racs)
             copies, pids = _racs_params['_copies'], []
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
             print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
@@ -36,9 +37,9 @@ class Calc:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]
                     pids.remove(p)
-                global _args_from_racs; _args_from_racs = q #+[('master', os.getpid())]
+                _args_from_racs = _base_args_from_racs+q #+[('master', os.getpid())]
                 pid = os.fork()
-                if not pid:  break
+                if not pid: break
                 pids.append(pid)
             else:
                 while(pids): pids.remove(os.waitpid(-1, 0)[0])
@@ -134,7 +135,7 @@ class Calc:
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
-                           [not hasattr(v, '_racs_pull_lock')]) or not _is_swig_object(v): self[_prefix+k] = v
+                           [not hasattr(v, '_racs_pull_lock')]) or not _is_swig_obj(v): self[_prefix+k] = v
         for k, v in kw_args.items(): self[k] = v
     #---------------------------------------------------------------------------
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
@@ -196,15 +197,14 @@ class _Wrap:
         self.__dict__['_calc'], self.__dict__['_core'] = calc, core 
         self.__dict__['_set_attrs'], self.__dict__['_prefix'] = set(), prefix
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
+        if _racs_params['_auto_pull']: calc._wraps.append(self) # for exit hook
     def __getattr__(self, attr): return getattr(self._core, attr)
     def __setattr__(self, attr, value):
         if not attr in self._set_attrs and self._prefix+attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
             value = self._calc.__dict__[self._prefix+attr] # через getattr?
             if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
             value = getattr(self._core, attr).__class__(value)            
-            self._set_attrs.add(attr)
+        self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)
-    def _del__(self):
-        if _racs_params['_auto_pull']: self._calc.pull(self._core, _prefix=self._prefix) 
 #-------------------------------------------------------------------------------
