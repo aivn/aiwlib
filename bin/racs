@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #-----------------------------------------------------------------------------
-'''racs список-репозиториев/ список-выражений действие
+'''racs директория-расчета (показывает содержимое файла .RACS) либо
+racs список-репозиториев/ список-выражений действие
 
 Репозитории должны заканчиваться на символ '/'.
 
@@ -56,7 +57,13 @@
 #-----------------------------------------------------------------------------
 #   parse arguments
 #-----------------------------------------------------------------------------
-import os, sys
+import os, sys, cPickle, pprint
+if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
+    sys.path.append('')
+    if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
+    print pprint.pformat(cPickle.load(open(sys.argv[1]))).replace('\\n','\n')
+    sys.exit()
+
 from aiwlib.mixt import *
 import aiwlib.gtable, aiwlib.calc
 

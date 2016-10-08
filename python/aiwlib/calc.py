@@ -16,11 +16,9 @@ def _make_path_hook(self):
 class Calc:
     '''Работа с расчетом (записью в базе) --- создание уникальной директории расчета 
     и сохранение/восстановление параметров в файле .RACS'''
-    _starttime = time.time() #???
     #---------------------------------------------------------------------------
     def __init__(self, **D):
-        self._starttime, self.runtime, self.statelist = time.time(), chrono.Time(0.), []
-        self.progress, self.args, self._wraps = 0., list(_cl_args), []
+        self.runtime, self.progress, self.statelist, self.args, self._wraps = chrono.Time(0.), 0., [], list(_cl_args), []
         for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
             elif not k in _racs_params: self.__dict__[k] = v

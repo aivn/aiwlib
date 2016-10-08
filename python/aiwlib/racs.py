@@ -54,7 +54,7 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
 '''
 #-------------------------------------------------------------------------------
-import os, sys, math, inspect, socket, cPickle, thread, atexit 
+import os, sys, math, time, inspect, socket, cPickle, thread, atexit 
 import aiwlib.gtable 
 import aiwlib.calc as calc
 import aiwlib.mixt as mixt
@@ -71,6 +71,7 @@ def _init_hook(self):
         if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
         if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')    
     self.add_state('started', os.getpid())
+    self._starttime = time.time()
 calc._init_hook = _init_hook
 #-------------------------------------------------------------------------------
 def _make_path_hook(self):
