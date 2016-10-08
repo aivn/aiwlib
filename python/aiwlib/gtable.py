@@ -65,6 +65,13 @@ use('@logfile', '" ".join(open(path+"logfile").readlines()).strip() if os.path.e
 #use( 'priority', 0, 'приоритет запуска' ) #???
 use('on_racs_call_error', 2, 'действия при ошибке в методе _RACS.__call__: 0 --- остановка, 1 --- полный отчет, 2 --- краткий отчет, 3 --- игнорировать') #???
 #-------------------------------------------------------------------------------
+class _Region:
+    def __init__(self, a, b): self.a, self.b = a, b
+    def __getitem__(self, d): return _Region(self.a-d, self.b+d)
+    def __radd__(self, other): return _Region(other+self.a, other+self.b)
+    def __eq__(self, other): return self.a<=other and other<=self.b
+use('EPS', _Region(0,0), 'объект интевала')
+#-------------------------------------------------------------------------------
 for k, v in math.__dict__.items() : 
     if k[0]!='_': use(k, v,  'число %k'%k if type(k) is float else v.__doc__.replace('\n',' '))
 del k, v, use
