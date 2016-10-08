@@ -99,8 +99,8 @@ class Vec:
         self._swig_init()
         if len(args)==1: 
             if args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
-            else: args = args*self.D
-        elif len(args)==0: args = (0.,)*kw_args['D']
+            else: args = args*kw_args.get('D', 1)
+        elif len(args)==0: args = (0.,)*kw_args.get('D', 0)
         self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
         if len(args)!=self.D: raise Exception('Vec<%i,%s>%r --- incorrect args length %i'%(self.D, self.T, args, len(args)))
         #_vec_types_table.get((self.T, self.D), lambda x:None)(self.this)
