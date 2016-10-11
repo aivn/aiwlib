@@ -86,14 +86,32 @@ $(name).i: $(MAKEFILE_LIST)
 #	@echo '%include "std_string.i"' >> $@
 	@echo $(iheader) >> $@
 #	@H=$(aiwmake); $(iinclude)
+ifneq ($(filter Mesh%,$(aiwinst)),)
+	@echo "%{ #include <aiwlib/mesh> %}" >> $@
+	@echo "%include \"aiwlib/mesh\"" >> $@
+endif
+ifneq ($(filter Sphere%,$(aiwinst)),)
+	@echo "%{ #include <aiwlib/sphere> %}" >> $@
+	@echo "%include \"aiwlib/sphere\"" >> $@
+endif
 	@echo "%{" >> $@
 	@for i in $(headers); do echo "#include \"$$i\"" >> $@; done
 	@echo "%}" >> $@	
 	@for i in $(headers); do echo "%include \"$$i\"" >> $@; done
+	@$(foreach i,$(filter Mesh%,$(aiwinst)), \
+	echo '%template($(word 1,$(subst -, ,$i))) aiw::Mesh<$(word 2,$(subst -, ,$i)),$(word 3,$(subst -, ,$i))>;' >> $@;)
+	@$(foreach i,$(filter Sphere%,$(aiwinst)), \
+	echo '%template($(word 1,$(subst -, ,$i))) aiw::Sphere<$(word 2,$(subst -, ,$i))>;' >> $@;)
+	@$(foreach i,$(aiwinst), echo '%pythoncode %{$(word 1,$(subst -, ,$i)).__setstate__ = _setstate %}' >> $@;)
 ifneq ($(wildcard $(aiwlib)python/aiwlib/),)
 	@echo "%pythoncode %{import sys; sys.path.insert(1, '$(aiwlib)python/')%}" >> $@
 endif
+ifneq ($(filter Sphere%,$(aiwinst))$(filter Mesh%,$(aiwinst)),)
+	@echo "%pythoncode %{from aiwlib.vec import *%}" >> $@
+endif
 	@echo $(ifinish) >> $@
+#-------------------------------------------------------------------------------
+#   other targets
 #-------------------------------------------------------------------------------
 clean:; rm -f $(name)_wrap.o $(addsuffix .o, $(basename $(modules))) _$(name).so 
 cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py

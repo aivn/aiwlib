@@ -194,7 +194,7 @@ namespace aiw{
 		}
 #endif //SWIG
 		void out2dat(std::ostream &str, bool coords=true) const { out2dat(std::move(str), coords); }
-		void out2dat(IOstream &str, bool coords=true) const { out2dat(std::move(str), coords); }
+		void out2dat(aiw::IOstream &str, bool coords=true) const { out2dat(std::move(str), coords); }
 		
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
@@ -255,8 +255,8 @@ namespace aiw{
 		static const bool _racs_pull_lock = true;
 	};
 //------------------------------------------------------------------------------
-	template <typename T, int D> IOstream& operator < (IOstream &S, const Mesh<T, D> &M){ M.dump(S); return S; }
-	template <typename T, int D> IOstream& operator > (IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
+	template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }
+	template <typename T, int D> aiw::IOstream& operator > (aiw::IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
 //------------------------------------------------------------------------------
 };
 #endif //AIW_MESH_HPP
