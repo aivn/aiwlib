@@ -52,15 +52,16 @@ def _recognize_word(word, wordlist):
     if len(variants) != 1: raise ParseError(0, name=word, variants=variants)
     return variants[0]
 #-------------------------------------------------------------------------------
-def _recognize_argument(s, arglist, aliases, use_abbrv):
+def _recognize_argument(arg, arglist, aliases, use_abbrv):
     '''распознает аргумент s, который может быть задан в виде аббревиатуры и 
     находиться либо в списке аргументов args либо в словаре синонимов aliases.
     Возвращает либо распознанный аргумент (обязательно из arglist ?) либо None (в случае неудачи)'''
     args = filter(lambda s: not s.startswith('_'), list(arglist))+sum(aliases.values(), [])
+    if _opt and arg.startswith(_opt): arg = arg[len(_opt):]
     try:
-        if use_abbrv: res = _recognize_word(s, args) 
-        elif s in args: res = s
-        else: raise ParseError(0, name=s, variants=[])
+        if use_abbrv: res = _recognize_word(arg, args) 
+        elif arg in args: res = arg
+        else: raise ParseError(0, name=arg, variants=[])
         for k, v in aliases.items():
             if res in v: return k
         return res
@@ -97,7 +98,7 @@ def _signature(f, n=None):
 #-------------------------------------------------------------------------------
 _is_name = lambda a: a and a[0].isalpha() and a.replace('_','').isalnum() # имя опции
 _is_ex_opt = lambda a: _opt and a.startswith(_opt) and _is_name(a[len(_opt):]) # явная опция
-_is_arg = lambda a: _is_name(a) or _is_ext_opt(a) # имя опции либо явная опция
+_is_arg = lambda a: _is_name(a) or _is_ex_opt(a) # имя опции либо явная опция
 _is_key_eq_val = lambda a: _eq and _eq in a and not a[a.index(_eq):].startswith(_eq+_eq) and _is_arg(a.split(_eq,1)[0]) # [--]k=v
 _opt_list = lambda self: set(dir(self)+self._opt_list # список опций для объекта self
                              +getattr(self, '__swig_setmethods__', {}).keys())-set(['this', 'thisown']+self._ignore_list)
@@ -138,7 +139,7 @@ def _call_method(self, name, method, arglist, istream):
     else:
         argnames, defaults, pos_args_name, kw_args_name = _func_info(method)
         parser = Parser(**dict( zip(argnames, [UnknownValue()]*(len(argnames)-len(defaults))+defaults) ))
-        parser.__doc__ = method.__doc__
+        parser.__doc__ = (method.__doc__.split('\n', 1)+[''])[1] if method.__doc__ and method.__doc__[0]=='@' else method.__doc__
         pos_args, kw_args = ([] if pos_args_name else None), ({} if kw_args_name else None)
         parser(arglist, name, istream, order=list(argnames), args=pos_args, kw_args=kw_args, mode=0)
         if any(v.__class__ is UnknownValue for v in parser.__dict__.values()): 
@@ -244,8 +245,8 @@ class Parser:
                     else: raise 
                     loglist.append(arglist.pop(0)) 
                     continue
-                optname = _recognize_argument(a[len(_opt):], _opt_list(self), self._aliases, _opt and a.startswith(_opt))
-                if _is_opt(a) and optname and callable(getattr(self, optname)): 
+                optname = _recognize_argument(a, _opt_list(self), self._aliases, _opt and a.startswith(_opt))
+                if _is_arg(a) and optname and callable(getattr(self, optname)): 
                     loglist.append(arglist.pop(0))
                     _call_method(self, optname, getattr(self, optname), arglist, istream) 
                     continue
@@ -254,7 +255,7 @@ class Parser:
                     setattr(self, key, _type_convert(getattr(self, key), a))
                     loglist.append(key+_eq+arglist.pop(0)) 
                     continue
-                if _is_opt(a) and optname and len(arglist)>1 and arglist[1] not in (_bra, _ket, _end, _file, _stdin): 
+                if _is_arg(a) and optname and len(arglist)>1 and arglist[1] not in (_bra, _ket, _end, _file, _stdin): 
                     val = arglist[1]; del arglist[:2]; loglist.append(a+' '+val)
                     setattr(self, optname, _type_convert(getattr(self, optname), val))
                     continue
@@ -272,6 +273,7 @@ class Parser:
                 if mode and istream and os.isatty(istream.fileno()) and os.isatty(sys.stdout.fileno()): print '^C'
                 else: raise
             except Exception, e:
+                #ParseError.arglist[:] = list(arglist)
                 if not mode: del loglist[-1]
                 if mode and istream and os.isatty(istream.fileno()) and os.isatty(sys.stdout.fileno()): 
                     lt, lv, tb = ( sys.last_type, sys.last_value, sys.last_traceback 
@@ -291,29 +293,30 @@ class Parser:
         #-----------------------------------------------------------------------
         def doc(name):
             attr, sign = getattr(self, name), names(name)
-            if isinstance(Parser, attr): res = [sign+'(...)', (attr.__doc__.split('\n')[0] if attr.__doc__ else '???')]
+            if isinstance(attr, Parser): res = [sign+'(...)', (attr.__doc__.split('\n')[0] if attr.__doc__ else '')]
             elif callable(attr): res = [_signature(attr, sign), 
-                                        self._help_table.get(name, attr.__doc__.split('\n', 1)[1] 
+                                        self._help_table.get(name, (attr.__doc__.split('\n', 1)+[''])[1] 
                                                              if attr.__doc__ and attr.__doc__[0]=='@' 
-                                                             else attr.__doc__ if attr.__doc__ else '???')]
-            else: res = ['%s=%r'%(sign, attr), self._help_table.get(name, '???')]
+                                                             else attr.__doc__ if attr.__doc__ else '')]
+            else: res = ['%s=%r'%(sign, attr), self._help_table.get(name, '')]
             if not opt and not detailed: res[1] = res[1].split('\n')[0]
-            return '\033[2m%s\033[0m --- %s'%res
+            if res[1]: res[1] = ' --- '+res[1]
+            return name, '\033[1m%s\033[0m%s'%tuple(res)
         #-----------------------------------------------------------------------
         if opt: 
             opt = _recognize_argument(opt, _opt_list(self), self._aliases, True)
             if not opt: raise
             attr = getattr(self, opt)
-            if isinstance(Parser, attr): attr.help(detailed=detailed, less=less); return
-            text = doc(opt)
+            if isinstance(attr, Parser): attr.help(detailed=detailed, less=less); return
+            text = doc(opt)[1]
         else: 
             D = dict(doc(k) for k in _opt_list(self) if names(k))
             text = self.__doc__%_HelpNamespace(D)
-            text = '\n'.join([text]+[D[k] for k in sorted(D.keys())])
+            text = '\n'.join(([text] if text else [])+[D[k] for k in sorted(D.keys())])
         #try: tty_sz = int(os.popen('stty size').readline().split()[1])
         #except: tty_sz = 80
         #for l in text.split('\n'):
-        print text            
+        print text
 #-------------------------------------------------------------------------------
 class _HelpNamespace: 
     def __init__(self, D): self.D = D
@@ -332,15 +335,9 @@ class CheckSelect(Parser):
 #-------------------------------------------------------------------------------
 #   READLINE
 #-------------------------------------------------------------------------------
-def _rl_completer( l, state ) :
-    if state : return _last_complete_list[state]
-    if _dot and _dot in l and all(map( _is_ex_opt_or_name, l.split(_dot) )[:-1]) : #??? aliases ???
-        sub, start = _kw_stack[-1][0], ''
-        for ll in [ i[len(_opt):] if i.startswith(_opt) else i for i in l.split(_dot) ][:-1] : 
-            sub, start = getattr( sub, ll, None ) if ll[0]!='_' and isinstance( sub, Parser ) else None, start+_dot+ll
-        start = _opt+start[len(_dot):]+_dot; ll = l.split(_dot)[-1]; ll = ll[len(_opt):] if ll.startswith(_opt) else ll
-        _last_complete_list[:] = [ start+i for i in dir(sub)+sum( sub._aliases.values(), [] ) if i[0]!='_' and ( not ll or i.startswith( ll ) ) ]
-    else : _last_complete_list[:] = filter( lambda i : not l or i.startswith( l if l.startswith(_opt) else _opt+l ), _kw_stack[-1][1:] )
+def _rl_completer(l, state):
+    if state: return _last_complete_list[state]
+    _last_complete_list[:] = filter(lambda i: not l or i.startswith(l if l.startswith(_opt) else _opt+l), _kw_stack[-1][1:])
 #    B, io = _kw_stack[-1][0], []
 #     while isinstance(B,Parser) : 
 #         if B._implicit_opt : io.append( B._aliases.get( B._implicit_opt, [B._implicit_opt] )[0] ); B = getattr( B, B._implicit_opt, None )
@@ -349,23 +346,31 @@ def _rl_completer( l, state ) :
 #     if io : _last_complete_list.append( _opt+_dot.join(io)+' '+l )
     _last_complete_list.extend(filter( lambda i : i.startswith(l), rl_keywords ))
     path = os.path.dirname( os.path.expandvars( os.path.expanduser( l ) ) ); d, f = os.path.split( l )
-    if not path : path = './'
-    if os.path.isdir( path ) : _last_complete_list.extend([ p+'/'*os.path.isdir(p) for p in 
-                                                            [ os.path.join( d, i ) for i in os.listdir(path) if not f or i.startswith( f ) ] ])
+    if not path: path = './'
+    if os.path.isdir(path): _last_complete_list.extend([ p+'/'*os.path.isdir(p) for p in 
+                                                         [ os.path.join(d, i) for i in os.listdir(path) 
+                                                           if not f or i.startswith(f) ] ])
     return _last_complete_list[0]
-#-----------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 loglist, _kw_stack = [], []
-if os.isatty(sys.stdout.fileno()) and os.isatty(sys.stdin.fileno()) :
+if os.isatty(sys.stdout.fileno()) and os.isatty(sys.stdin.fileno()):
     try:
         import readline
-        _history_path, _last_complete_list, rl_keywords = os.path.expanduser( "~/.%s.history"%os.path.basename(sys.argv[0]) ), [], []
-        atexit.register( lambda hp=_history_path : readline.write_history_file(hp) )
-        if os.path.exists( _history_path ) : readline.read_history_file( _history_path )
+        _history_path, _last_complete_list, rl_keywords = os.path.expanduser("~/.%s.history"%os.path.basename(sys.argv[0])), [], []
+        atexit.register(lambda hp=_history_path: readline.write_history_file(hp))
+        if os.path.exists(_history_path): readline.read_history_file(_history_path)
         readline.parse_and_bind('tab: complete') 
-        readline.set_completer( _rl_completer )
+        readline.set_completer(_rl_completer)
         readline.set_completer_delims(' ')
     except ImportError, e: print 'Module readline not found'
-#-----------------------------------------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
+def parse(parser, args):
+    try: return parser(args)
+    except ParseError, e: 
+        sys.stderr.write('>>> %s <<< %s\nParseError:%s\n'%(ParseError.arglist[0] if ParseError.arglist else loglist[-1], 
+                                                           ' '.join(map(repr, ParseError.arglist[1:])), e)) 
+    except: raise
+#-------------------------------------------------------------------------------
 
 #TODO
 # поддержка списков и словарей
