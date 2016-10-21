@@ -16,7 +16,10 @@ namespace aiw{
 		static const int rank = R;             // ранг тензора
 		T p[size];                             // массив коэффициентов
 
-		operator Vec<3,T> (){ static_assert(R==1, "can't convert Tesor3S<R!=1> to Vec"); return Vec<3, T>(p[0], p[1], p[2]); }
+		inline Vec<3,T> vec() const { // ???
+			static_assert(R==1, "can't convert Tensor3S<R!=1> to Vec"); 
+			return Vec<3,T>(p[0], p[1], p[2]); 
+		}
 
 		constexpr int fact(int n){ return n?n*fact(n-1):1; }
 		constexpr int coef(int i, int j){ return fact(R)/fact(i)/fact(j)/fact(R-i-j); }
@@ -57,6 +60,10 @@ namespace aiw{
 			WASSERT(i+j<=R, "incorrect index", i, j, R); 
 			return p[j+i*(R+1)-i*(i-1)/2]; 
 		}
+		const T& get(int i, int j) const { 
+			WASSERT(i+j<=R, "incorrect index", i, j, R); 
+			return p[j+i*(R+1)-i*(i-1)/2]; 
+		}
 		// свертка двух тензоров с рангами различающимися на единицу дает вектор
 		inline Vec<3,T> operator * (const Tensor3S<R-1,T> &t) const { 
 			Vec<3,T> m;
@@ -70,11 +77,6 @@ namespace aiw{
 			return m;
 		} 
 		inline Vec<3,T> operator * (const Tensor3S<R+1,T> &t) const { return t*(*this); }
-		//----------------------------------------------------------------------
-		//void out2dat(Ostream &f) const {
-		//	f.printf(" #%i", R);
-		//	for(int i=0; i<size(); i++) f.printf(":%s@%g", (pows[i]^3).c_str("x"), p[i]);
-		//}	
 	};
 	//--------------------------------------------------------------------------
 	template <int R, typename T> inline Tensor3S<R, T> operator * (const Tensor3S<R, T> &t, T x){
@@ -93,21 +95,27 @@ namespace aiw{
 	template <int R, typename T> inline Tensor3S<R-1,T> operator * (const Vec<3,T> &m, const Tensor3S<R,T> &t){ return t*m; }
 	//--------------------------------------------------------------------------
 	// свертка общего вида двух тензоров, предыдущие свертки (частные случаи) введены как оптимизации этой
-#define ABS(x) (x<0?-x:x)
+#define ABS(x) ((x)<0?-(x):(x))
 	template <int R1, int R2, typename T> 
-	inline typename std::enable_if<ABS(R1-R2)>1, Tensor3S<ABS(R1-R2),T> >::type
-	operator * (const Tensor3S<R1,T> &t1, const Tensor3S<R2,T> &t2){ // свертка
+	inline typename std::enable_if<(ABS(R1-R2)>1), Tensor3S<ABS(R1-R2),T> >::type
+	operator * (const Tensor3S<R1,T> &t1, const Tensor3S<R2,T> &t2){
 		Tensor3S<ABS(R1-R2),T> res;
 		for(int i=0; i<=(R1<R2?R1:R2); ++i) 
 			for(int j=0; j<=(R1<R2?R1:R2)-i; ++j){
 				T C = R1<R2? t1.get(i,j)*t1.coef(i,j) : t2.get(i,j)*t2.coef(i,j);
 				for(int k=0; k<=res.rank; ++k)
 					for(int l=0; l<=res.rank-k; ++l)
-						res.get(k, l) += C*(R1<R2?t2:t1).get(i+k, j+l);
+						res.get(k, l) += C*(R1<R2?t2.get(i+k, j+l):t1.get(i+k, j+l));
 			}
 		return res;
 	}
 #undef ABS
+	//--------------------------------------------------------------------------
+	template <int R, typename T> std::ostream& operator <<(std::ostream &str, const Tensor3S<R,T> &t){
+		str<<"{0,0,"<<R<<":"<<t.get(0,0);
+		for(int i=1; i<=R; ++i) for(int j=0; j<=R-i; ++j) str<<" "<<i<<","<<j<<","<<R-i-j<<":"<<t.get(i,j);
+		return str<<"}";
+	}
 	//--------------------------------------------------------------------------
 }
 #endif //AIW_TENSOR3S_HPP
