@@ -41,6 +41,10 @@ namespace aiw{
 			//printf("'%s' ==> set_type(%p:%p, %i) ==> '%s'\n", ((SwigPyObject*)obj)->ty->str, 
 			//	   obj, SWIG_Python_GetSwigThis(obj), T, module->types[T]->str);
 			((SwigPyObject*)obj)->ty = module->types[T]; 
+			if(((SwigPyObject*)obj)->own){ 
+				((SwigPyObject*)obj)->own = -1; 
+				// patched_objects_table.push_back((SwigPyObject*)obj);
+			}
 		}
 		void out_table() const {
 			printf("module %p\n", module);
@@ -62,6 +66,9 @@ namespace aiw{
 	}
 	class PVec{ char p[1024]; };
 	//	printf("_wrap_delete_PVec(%p) '%s'\n", args, SWIGTYPE_p_aiw__PVec->str); //aiv
+	void destroy_swig_object(PyObject* obj){
+		::free(((SwigPyObject*)obj)->ptr); ((SwigPyObject*)obj)->ptr = NULL;
+	}
 //------------------------------------------------------------------------------
 };
 #endif //SWIGPYTHON

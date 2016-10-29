@@ -275,6 +275,8 @@ class Vec:
             if self[i]<Up[i]: return True 
             else: self[i] = 0; self[i+1] += 1 
         return self[self._D()-1]<Up[D-1]
+    #---------------------------------------------------------------------------
+    def __del__(self): destroy_swig_object(self.this)
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    
     ab, bc = b-a, c-b; ab /= ab.abs(); bc /= bc.abs()
