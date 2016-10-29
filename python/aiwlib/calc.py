@@ -3,7 +3,8 @@ import os, sys, time, cPickle, socket
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono
 #-------------------------------------------------------------------------------
-_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
+#_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
+_is_swig_obj = lambda X: str(type(X))=="<type 'SwigPyObject'>"
 _rtable, _G, ghelp = [], {}, []
 _ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
 _racs_params, _racs_cl_params, _cl_args, _args_from_racs, _arg_seqs, _arg_order = {}, set(), [], [], {}, []

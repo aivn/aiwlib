@@ -18,7 +18,7 @@ def get_py_sources(is_user=lambda f: not f.startswith('/usr/')):
 def get_so_sources(name):
     'возвращает список исходных файлов для C++-модуля name, собранного при помощи SWIG и aiwlib'
     makefile = getattr(sys.modules[name], '__makefile__', None)
-    if not makefile or not '_'+name in sys.modules: return []
+    if not makefile or not name in sys.modules: return []
     olddir, makedir = os.getcwd(), os.path.dirname(makefile)
     if makedir: os.chdir(makedir)
     try: return os.popen('make -f "%s" sources'%makefile).readline().split()    
