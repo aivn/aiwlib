@@ -45,10 +45,10 @@ namespace aiw{
 	inline aiw::Vec<3, double> polar(double theta, double phi){
 		double s_th, c_th; sincos(theta, &s_th, &c_th);
 		double s_ph, c_ph; sincos(phi,   &s_ph, &c_ph);
-		return Vec(s_th*c_ph, s_th*s_ph, c_th);
+		return vec(s_th*c_ph, s_th*s_ph, c_th);
 	}
 	template <typename T> inline aiw::Vec<2, double> polar(const aiw::Vec<3, T> &n){ //==> theta, phi
-		return Vec(acos(n[2]/n.abs()), atan2(n[1], n[0]));
+		return vec(acos(n[2]/n.abs()), atan2(n[1], n[0]));
 	}
 	//--------------------------------------------------------------------------
 	template <typename T> inline aiw::Vec<2, T> perp(const aiw::Vec<2, T> &a){ return Vec<2, T>(-a[1], a[0]); } 
@@ -61,7 +61,7 @@ namespace aiw{
 	} 
 	//--------------------------------------------------------------------------
 #ifndef MINGW
-	template <typename T> aiw::Vec<3, T> void gauss_rotate(const aiw::Vec<3, T>& a, double g){
+	template <typename T> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, double g){
 		return rotate(a, rotate(perp(a), a*(rand_alpha2PI*random()/a.abs()))*(g*rand_gauss())); 
 	}
 #endif //MINGW

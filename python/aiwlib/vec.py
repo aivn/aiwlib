@@ -28,7 +28,7 @@ _cxx_types_table = { 'char':                 (10, 1, int,     'c',  1,  lambda t
                      'double':               (95, 1, float,   'd',  8,  lambda t:t[0],         lambda x:(x,)            ),
                      'std::complex<float>':  (90, 2, complex, 'ff', 8,  lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
                      'std::complex<double>': (95, 2, complex, 'dd', 16, lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
-                     int: 'int32_t', long: 'int64_t', float: 'double', complex:'std::complex<double>'
+                     int: 'int', long: 'int64_t', float: 'double', complex:'std::complex<double>'
 }
 for k, v in _cxx_types_table.items():
     if type(k) is str: _cxx_types_table[v[:2]] = k
@@ -48,13 +48,15 @@ def checkout_swig_types_table(stt):
     if stt in _swig_modules: return 
     _swig_modules.append(stt); patchL = []
     for i in range(stt.size()):
-        V = stt.get_item(i)
+        V = stt.get_item(i) #; print i, V
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
+        #if V.split()[0] in ('QVec', 'aiw::QVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
             try: D, T = _get_D(V), _get_T(V)
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
+            #print i, D, T, repr(V)
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
@@ -96,6 +98,7 @@ class Vec:
     def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
     def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
+        #print '*******', args, kw_args, '******'
         self._swig_init()
         if len(args)==1: 
             if args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
@@ -108,6 +111,7 @@ class Vec:
         # print _vec_types_table, self.T, self.D
         # как то контролировать/узнавать тип вектора на основе get_swig_type(self.this)? Когда может вызываться конструктор?
         self._setdata(args)
+        #print '*******', self.D, self.T, '******'
     #---------------------------------------------------------------------------
     def __len__(self): return self._D()
     def __str__(self): return ' '.join(map(str, self._getdata()))
@@ -278,6 +282,7 @@ def angle(a, b, c):
 #-------------------------------------------------------------------------------
 #   FINAL ACTIONS
 #-------------------------------------------------------------------------------
+#del PVec.__swig_destroy__ # ugly workaround!!!
 PVec._swig_init = PVec.__init__
 for k, v in Vec.__dict__.items():
     if k not in ('__doc__',): setattr(PVec, k, v)

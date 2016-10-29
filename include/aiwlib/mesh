@@ -74,7 +74,7 @@ namespace aiw{
 			return p;
 		}
 		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const {
-			Ind<D> r;
+			Vec<D> r;
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
 			return r;
 		}
@@ -185,16 +185,21 @@ namespace aiw{
 		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
 
 #ifndef SWIG		
-		template <typename S> void out2dat(S &&str, bool coords=true) const {
+		template <typename S> void out2dat(S &&str, bool coords=true, const char* prefix=nullptr) const {
 			for(Ind<D> pos; pos^=box; ++pos){
+				if(prefix) str<<prefix<<" ";
 				if(coords) str<<pos2coord(pos); else str<<pos;
 				str<<" "<<(*this)[pos]<<"\n";
 				if(pos[0]==box[0]-1) str<<"\n";
 			}
 		}
 #endif //SWIG
-		void out2dat(std::ostream &str, bool coords=true) const { out2dat(std::move(str), coords); }
-		void out2dat(aiw::IOstream &str, bool coords=true) const { out2dat(std::move(str), coords); }
+		void out2dat(std::ostream &str=std::cout, bool coords=true, const char* prefix=nullptr) const { 
+			out2dat(std::move(str), coords, prefix); 
+		}
+		void out2dat(aiw::IOstream &str, bool coords=true, const char* prefix=nullptr) const { 
+			out2dat(std::move(str), coords, prefix); 
+		}
 		
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];

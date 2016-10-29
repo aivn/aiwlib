@@ -15,6 +15,14 @@
 
 namespace aiw{
 //------------------------------------------------------------------------------
+/*
+#ifndef SWIG
+	static void *_trivial_cast(void *x, int *SWIGUNUSEDPARM(newmemory)) { return x; }
+	//static swig_type_info _swigtp1 = {"_p_aiw__PVec", "aiw::PVec *", 0, 0, (void*)0, 0};
+	//static swig_cast_info _swigcp1[] = {  {&_swigtp1, _trivial_cast, 0, 0},{0, 0, 0, 0}};
+	static swig_cast_info _swigcp1[] = {  {0, _trivial_cast, 0, 0},{0, 0, 0, 0},{0, 0, 0, 0}};
+#endif //SWIG
+*/
 	class SwigTypesTable{
 		swig_module_info *module;
 	public:
@@ -25,8 +33,15 @@ namespace aiw{
 		const char* get_item(int i){ return module->types[i]->str; }
 		void patch(int dstT, const SwigTypesTable &srcM, int srcT){
 			module->types[dstT]->clientdata = srcM.module->types[srcT]->clientdata;
+			//_swigcp1[0].type = module->types[dstT];
+			//_swigcp1[1].type = module->types[srcT];
+			//module->types[dstT]->cast = _swigcp1; 
 		}
-		void set_type(PyObject* obj, int T){ ((SwigPyObject*)obj)->ty = module->types[T]; }
+		void set_type(PyObject* obj, int T){ 
+			//printf("'%s' ==> set_type(%p:%p, %i) ==> '%s'\n", ((SwigPyObject*)obj)->ty->str, 
+			//	   obj, SWIG_Python_GetSwigThis(obj), T, module->types[T]->str);
+			((SwigPyObject*)obj)->ty = module->types[T]; 
+		}
 		void out_table() const {
 			printf("module %p\n", module);
 			for(int i=0; i<size(); i++){
@@ -46,6 +61,7 @@ namespace aiw{
 		return PyString_FromStringAndSize( ((const char*)obj)+offset, size);
 	}
 	class PVec{ char p[1024]; };
+	//	printf("_wrap_delete_PVec(%p) '%s'\n", args, SWIGTYPE_p_aiw__PVec->str); //aiv
 //------------------------------------------------------------------------------
 };
 #endif //SWIGPYTHON

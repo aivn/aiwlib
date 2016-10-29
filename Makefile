@@ -1,15 +1,7 @@
-ifndef PYTHONDIR
 PYTHONDIR=/usr/lib/python2.7
-endif
-
 #LIBDIR=/usr/lib
-ifndef INCLUDEDIR
 INCLUDEDIR=/usr/include
-endif
-
-ifndef BINDIR
 BINDIR=/usr/bin
-endif
 BIN_LIST=racs
 
 include include/aiwlib/config.mk
@@ -17,10 +9,13 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 all: iostream swig $(shell if [ -f TARGETS ]; then cat TARGETS; fi);
 iostream swig: %:python/aiwlib/%.py python/aiwlib/_%.so;
+.PRECIOUS : swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
-.PRECIOUS : swig/%.py swig/%.o src/%.o
+swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
+swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
+
 python/aiwlib/%.py: swig/%.py; @cp $< $@
 swig/%.py swig/%_wrap.cxx: swig/%.i 
 	$(show_target)
@@ -47,16 +42,7 @@ Mesh%:
 	MESH_TYPE:="$(word 2,$(subst -, ,$@))" MESH_DIM:="$(word 3,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-$(MESH_NAME): python/aiwlib/$(MESH_NAME).py python/aiwlib/_$(MESH_NAME).so iostream swig; 
-swig/$(MESH_NAME).py swig/$(MESH_NAME)_wrap.cxx: include/aiwlib/mesh
-swig/$(MESH_NAME).i: #swig/mesh.i
-	$(imodule)
-	@echo '%{#include "../include/aiwlib/mesh"%}' >> $@
-	@echo '%include "../include/aiwlib/mesh"' >> $@
-	@echo '%template($(MESH_NAME)) aiw::Mesh<$(MESH_TYPE), $(MESH_DIM)>;' >> $@
-	@echo '%pythoncode %{$(MESH_NAME).__setstate__ = _setstate %}' >> $@
-	@echo '%pythoncode %{from vec import *%}' >> $@	
-#	python -c "for l in open('swig/mesh.i'): print l[:-1]%{'name':'$(MESH_NAME)', 'type':'$(MESH_TYPE)', 'dim':'$(MESH_DIM)'}" > swig/$(MESH_NAME).i
+include include/aiwlib/mesh.mk
 endif
 #-------------------------------------------------------------------------------
 #   Sphere
@@ -67,16 +53,7 @@ Sphere%:
 	SPHERE_TYPE:="$(word 2,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-$(SPHERE_NAME): python/aiwlib/$(SPHERE_NAME).py python/aiwlib/_$(SPHERE_NAME).so iostream swig; 
-python/aiwlib/_$(SPHERE_NAME).so: src/sphere.o
-swig/$(SPHERE_NAME).py swig/$(SPHERE_NAME)_wrap.cxx: include/aiwlib/sphere
-swig/$(SPHERE_NAME).i:
-	$(imodule)
-	@echo '%{#include "../include/aiwlib/sphere"%}' >> $@
-	@echo '%include "../include/aiwlib/sphere"' >> $@
-	@echo '%template($(SPHERE_NAME)) aiw::Sphere<$(SPHERE_TYPE) >;' >> $@
-	@echo '%pythoncode %{$(SPHERE_NAME).__setstate__ = _setstate %}' >> $@
-	@echo '%pythoncode %{from vec import *%}' >> $@	
+include include/aiwlib/sphere.mk
 endif
 #-------------------------------------------------------------------------------
 #   other targets
