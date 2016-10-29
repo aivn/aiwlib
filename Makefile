@@ -63,13 +63,15 @@ cleanall: clean; rm -rf swig/*.py swig/*_wrap.cxx python/aiwlib/{swig,iostream}.
 #clean-%: ; rm -f $(foreach n, $(filter-out $(word 1,$(subst -, ,$@)),$(subst -, ,$@)), \
 #				src/$(n)_wrap.cxx src/$(n)_wrap.o src/_$(n).so src/$(n).py src/$(n).i python/aivlib/$(n).py* python/aivlib/_$(n).so #lib/$(n).o )
 #-------------------------------------------------------------------------------
-uninstall:; rm -rf `cat install-links`; rm -f install-links
+uninstall:; 
+	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib 
+	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
 install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python/aiwlib  $(PYTHONDIR)
-	-for i in $(BIN_LIST); do cp -f bin/$i $(BINDIR); done
+	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
 links-install install-links: all uninstall
-	-ln -s include/aiwlib $(INCLUDEDIR)
-	-ln -s python/aiwlib  $(PYTHONDIR)
-	-for i in $(BIN_LIST); do ln -s bin/$i $(BINDIR); done
+	-ln -s $$(pwd)/include/aiwlib $(INCLUDEDIR)
+	-ln -s $$(pwd)/python/aiwlib  $(PYTHONDIR)
+	-for i in $(BIN_LIST); do ln -s $$(pwd)/bin/$$i $(BINDIR); done
 #-------------------------------------------------------------------------------
