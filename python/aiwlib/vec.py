@@ -159,7 +159,8 @@ class Vec:
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
         if szT*self.D!=len(state)-4: raise Exception('incorrect state size')
         push_vec_data(self, 0, state[4:], szT*self.D)
-        _vec_types_table.get((self.T, self.D), lambda x:None)(self.this)  #???
+        cxx_m, i = _vec_types_table.get((self.T, self.D), (0,0))
+        if cxx_m: cxx_m.set_type(self.this, i)
     #---------------------------------------------------------------------------
     def __lt__(self, other): return all(a< b for a, b in _conv(self, other)) 
     def __le__(self, other): return all(a<=b for a, b in _conv(self, other)) 
