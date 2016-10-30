@@ -84,11 +84,11 @@ class Calc:
         'Устанавливает статус расчета, вызывает commit()'
         self.add_state(state, info, host, login); self.commit()
     #---------------------------------------------------------------------------
-    def set_progress(self, progress, runtime=-1, pbar_prompt=''):
+    def set_progress(self, progress, runtime=-1, prompt=''):
         '''Устанавливает progress и runtime, выводит при необходимости mixt.ProgressBar. 
         prompt=@clean очищает ProgressBar, @close prompt result закрывает ProgressBar'''
         if not hasattr(self, 'statelist'): self.statelist = []
-        runtime = (Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else Time(runtime)
+        runtime = (chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime)
         self.__dict__['progress'], self.__dict__['runtime'] = progress, runtime
         if os.path.exists(self.path+'.RACS'): 
             L = open(self.path+'.RACS').readlines()
@@ -97,11 +97,11 @@ class Calc:
                 L[L.index("sS'runtime'\n")+5] = 'F%g\n'%runtime
                 open(self.path+'.RACS', 'w').write(''.join(L))
             else: self.commit() #self.md5sources = self.commit() ???
-        if pbar_prompt:
+        if prompt:
             if not '_progressbar' in self.__dict__: self.__dict__['_progressbar'] = mixt.ProgressBar()
-            if pbar_prompt=='@clean': self._progressbar.clean()  
-            elif pbar_prompt.startswith('@close '): self._progressbar.close(*pbar_prompt[7:].rsplit(' ',1)) 
-            else: self._progressbar.out(progress, pbar_prompt)
+            if prompt=='@clean': self._progressbar.clean()  
+            elif prompt.startswith('@close '): self._progressbar.close(*prompt[7:].rsplit(' ',1)) 
+            else: self._progressbar.out(progress, prompt)
     #---------------------------------------------------------------------------
     # def commit_sources( self, *L ) : 
     #    'Сохраняет файлы с исходным кодом программы в базе'

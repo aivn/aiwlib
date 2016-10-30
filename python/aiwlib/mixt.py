@@ -101,7 +101,7 @@ class ProgressBar:
             t = time.time()-self.start
             if progress>0: prompt +=' %s from %s ['%(time2string(t, 0), time2string(t/progress, 0))
             else: prompt += '['
-            new_p = int(progress*(self.width-len(prompt)-2)+.5)
+            new_p = int(progress*(self.width-len(prompt)-4)+.5)
             if new_p != self.progress: 
                 self.progress = new_p 
                 self.stdout.write('\r'+prompt+'#'*new_p+' '*(self.width-len(prompt)-new_p-1) + ']') 
