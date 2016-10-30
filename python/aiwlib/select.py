@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, time, gzip, mixt, gtable, calc
+import os, sys, time, gzip, mixt, gtable, calc
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][+|-]') возвращает кортеж csfh из 4-х значений
@@ -49,7 +49,10 @@ class Select:
             if LL: part /= len(LL)
             for p in sorted(LL):
                 if os.path.exists(os.path.join(p, '.RACS')):
-                    R = calc.Calc(path=p) # try?
+                    try: R = calc.Calc(path=p) # try?
+                    except Exception, e: 
+                        calc.Calc._except_report_table.append('%s: %s in %s\n'%(e.__class__.__name__, e, p)) 
+                        continue 
                     l = [R]; self._L.append(l); Select._i += 1
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
@@ -111,11 +114,10 @@ class Select:
     def get_keys(self, mode='or'):
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
         starttime = time.time()
-        keys = [l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys() for l in self._L if l]
-        S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, set(keys.pop(0)))
+        keys = [set(l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys()) for l in self._L if l]
+        S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, keys.pop(0))
         self.runtime = time.time()-starttime
-        return sorted(list(S))
-    
+        return sorted(list(S))    
     def get_values_summary(self, *patterns):   #???
         'все значения выражений и ключей для расчетов выборки'
         D, i, starttime = {}, 0., time.time()
