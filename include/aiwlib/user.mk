@@ -52,7 +52,7 @@ $(name)-sets :
 #   start swig
 #-------------------------------------------------------------------------------
 #$(name).py $(name)_wrap.cxx : $(name).i $(headers) $($(name)_headers)
-$(name).py $(name)_wrap.cxx : $(name).i $(headers)
+$(name).py $(name)_wrap.cxx: $(name).i $(headers)
 	$(show_target)
 	swig $(SWIGOPT) -I$(aiwlib_include) $(name).i
 	@mv $(name).py /tmp/$$$$.py; echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $(name).py; \
@@ -61,15 +61,15 @@ $(name).py $(name)_wrap.cxx : $(name).i $(headers)
 #-------------------------------------------------------------------------------
 #   link shared library
 #-------------------------------------------------------------------------------
-_$(name).so : $(name)_wrap.o $(addsuffix .o,$(basename $(modules))) $(objects)
+_$(name).so: $(name)_wrap.o $(addsuffix .o,$(basename $(modules))) $(objects)
 	$(show_target)
 	$(GCC) -shared -o $@ $^ $(LINKOPT) #-laiw
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
+$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(headers))))
 ifndef MODULE
-$(name)_wrap.o $(addsuffix .o,$(basename $(modules))): \
-	$(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(modules) $(name)_wrap.cxx)))
+$(addsuffix .o,$(basename $(modules))): $(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(modules))))
 %.o:; @$(MAKE) --no-print-directory -f $(word 1, $(MAKEFILE_LIST)) \
 	MODULE:=$(strip $(foreach m,$(modules) $(name)_wrap.cxx,$(shell if [ $(basename $m) == $* ]; then echo $m; fi ))) $@
 else

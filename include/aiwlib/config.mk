@@ -59,7 +59,6 @@ define imodule
 @echo "__makefile__ = '$(word 1, $(MAKEFILE_LIST))'" >> $@
 @echo "_$(notdir $(basename $@)).__makefile__ = '$(word 1, $(MAKEFILE_LIST))'" >> $@
 @echo "%}" >> $@
-#@echo '%inline %{static const char * __makefile__ = "$(word 1, $(MAKEFILE_LIST))"; %}' >> $@
 @echo "%typemap(out) bool&   %{ \$$result = PyBool_FromLong    ( *\$$1 ); %}" >> $@
 @echo "%typemap(out) char&   %{ \$$result = PyInt_FromLong     ( *\$$1 ); %}" >> $@
 @echo "%typemap(out) short&  %{ \$$result = PyInt_FromLong     ( *\$$1 ); %}" >> $@
