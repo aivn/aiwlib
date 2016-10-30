@@ -59,9 +59,12 @@ endif
 #   other targets
 #-------------------------------------------------------------------------------
 clean:; rm -rf swig/*.o src/*.o python/aiwlib/_*.so 
-cleanall: clean; rm -rf swig/*.py swig/*_wrap.cxx python/aiwlib/{swig,iostream}.py
-#clean-%: ; rm -f $(foreach n, $(filter-out $(word 1,$(subst -, ,$@)),$(subst -, ,$@)), \
-#				src/$(n)_wrap.cxx src/$(n)_wrap.o src/_$(n).so src/$(n).py src/$(n).i python/aivlib/$(n).py* python/aivlib/_$(n).so #lib/$(n).o )
+cleanall: clean 
+	for i in swig/*.py; do rm -f $$i python/aiwlib/$$(basename $$i){,c}; done 
+	rm -f swig/*_wrap.cxx 
+	-for i in $$(cat TARGETS); do rm -f swig/$${i%%-*}.i; done
+clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python/aiwlib/_$${n:6}.so
+cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python/aiwlib/$${n:9}.py{,c}
 #-------------------------------------------------------------------------------
 uninstall:; 
 	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib 
