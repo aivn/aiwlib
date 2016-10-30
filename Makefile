@@ -7,7 +7,7 @@ BIN_LIST=racs
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig $(shell if [ -f TARGETS ]; then cat TARGETS; fi);
+all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f TARGETS ]; then cat TARGETS; fi);
 iostream swig: %:python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS : swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
