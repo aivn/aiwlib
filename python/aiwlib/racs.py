@@ -200,8 +200,8 @@ while i<len(calc._cl_args):
                     if t==',': b, t = b-a, ':'
                     if t==':': b, t = int((c-a)/b+1.5), '#'
                     if t=='#': d = (c-a)/(b-1); L = [a+d*j for j in range(int(b))]
-                    if t=='@': b, t = int(log(c/a)/log(b)+1.5), '^' # c=a*d**(n-1)
-                    if t=='^': d = exp(log(c/a)/(b-1)); L = [a*d**j for j in range(int(b))]
+                    if t=='@': b, t = int(math.log(c/a)/math.log(b)+1.5), '^' # c=a*d**(n-1)
+                    if t=='^': d = math.exp(math.log(c/a)/(b-1)); L = [a*d**j for j in range(int(b))]
                     if not L: raise Exception('incorrect step or limits in expression '+A)
                     break
             else: raise Exception('incorrect sequence expression '+A)
