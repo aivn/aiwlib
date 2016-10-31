@@ -129,8 +129,9 @@ s_line, s_empty, s_bound --- число пробелов до вертикаль
     R = []
     for L in LL:
         if L == None: R.append(hline); continue
-        L = map(conv2str, L)
+        L = map(str, L) #L = map(conv2str, L)
         strnum = max([ l.count('\n')+1 for l in L ]); L = [ (l.split('\n')+['']*strnum)[:strnum] for l in L ]
-        for snum in range(strnum): R.append(( P%tuple([ j(l[snum], w) for j, l, w in zip(just, L, width_list) ]) )[:max_len])
+        for snum in range(strnum): R.append(( P%tuple([ conv2str(j(l[snum], w)) 
+                                                        for j, l, w in zip(just, L, width_list) ]) )[:max_len])
     return [ l+'\n' for l in R ]
 #---------------------------------------------------------------------------------------------------------

@@ -203,6 +203,7 @@ while i<len(calc._cl_args):
                     if t=='@': b, t = int(math.log(c/a)/math.log(b)+1.5), '^' # c=a*d**(n-1)
                     if t=='^': d = math.exp(math.log(c/a)/(b-1)); L = [a*d**j for j in range(int(b))]
                     if not L: raise Exception('incorrect step or limits in expression '+A)
+                    L = [float('%g'%x) for x in L]
                     break
             else: raise Exception('incorrect sequence expression '+A)
         calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
