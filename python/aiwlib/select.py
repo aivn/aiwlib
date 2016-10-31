@@ -38,7 +38,7 @@ class Select:
                   check_tree=True ):  # опускаться вниз по дереву каталогов
         self._L, self.c_size, self.c_runtime, self.progressbar = [], c_size, 0, progressbar
         if not fromL: self._L, self.head, self._ev_list = [], [], []; return
-        self.fromL, starttime, csfhL = ([fromL] if type(fromL)==str else list(fromL)), time.time(), map(parse, ev_list)
+        fromL, starttime, csfhL = ([fromL] if type(fromL)==str else list(fromL)), time.time(), map(parse, ev_list)
         self.head, self._ev_list = [c[0].co_filename for c in csfhL if not c[3]], [c for c in csfhL if not c[3]]
         if self.progressbar: self.progressbar.clean()
         old_ = calc._G.get('_'); calc._G['_'] = self
@@ -63,8 +63,9 @@ class Select:
                 if self.progressbar: self.progressbar.out(start, dirname+' ')
             return start
 	#-----------------------------------------------------------------------
-        start, self.fromL = 0., filter(os.path.isdir, self.fromL) 
-        for repository in fromL: start = vizit(repository, start, 1./len(self.fromL)) 
+        start, self.fromL = 0., filter(os.path.isdir, fromL)
+        calc.Calc._except_report_table.extend(['repository "%s" not found\n'%r for r in fromL if not os.path.isdir(r)])
+        for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL)) 
         #repository = os.path.abspath( os.path.expanduser( os.path.expandvars(chain2afuse(repository)) ) )+'/'
         _after_calc(self._L, csfhL); Select._i = 0; self._recalc_ts()
         if old_: calc._G['_'] = old_
