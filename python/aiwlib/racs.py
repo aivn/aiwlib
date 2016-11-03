@@ -64,19 +64,9 @@ from aiwlib.calc import Calc
 #-------------------------------------------------------------------------------
 #   hooks
 #-------------------------------------------------------------------------------
-def _init_hook(self):
-    if 'path' in self.__dict__: 
-        if os.path.exists(self.path) and calc._racs_params['_clean_path']: os.system('rm -rf %s/*'%self.path)
-        if not os.path.exists(self.path): os.makedirs(self.path)
-        if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
-        if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')    
-    self.add_state('started', os.getpid())
-    self._starttime = time.time()
-calc._init_hook = _init_hook
-#-------------------------------------------------------------------------------
-def _make_path_hook(self):
-    self.path = mixt.make_path(calc._racs_params['_repo']%self, calc._racs_params['_calc_num']) 
-    if calc._racs_params['_symlink'] and not os.path.samefile(os.getcwd(), calc._racs_params['_repo']):
+def _calc_configure(self):
+    if calc._racs_params['_symlink'] and not (os.path.exists(calc._racs_params['_repo']) and 
+                                              os.path.samefile(os.getcwd(), calc._racs_params['_repo'])):
         try:
             if os.path.islink('_') or os.path.exists('_'): os.remove('_')
             os.symlink(self.path, '_')
@@ -87,7 +77,7 @@ def _make_path_hook(self):
         print>>f, '''#!/usr/bin/python -S
 # -*- coding: utf-8 -*-
 import os, sys, cPickle, time, socket
-d2s = lambda t: time.strftime('%Y.%%m.%d-%X', time.localtime(t))
+d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))
 '''
         print>>f, inspect.getsource(mixt.get_login)
         print>>f, inspect.getsource(mixt.mk_daemon)
@@ -107,6 +97,19 @@ while 1:
     if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
     if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1): mixt.set_output(self.path+'logfile')
     self.commit() #???
+#-------------------------------------------------------------------------------
+def _init_hook(self):
+    self.add_state('started', os.getpid())
+    self._starttime = time.time()
+    if 'path' in self.__dict__: 
+        if calc._racs_params['_clean_path'] and os.path.exists(self.path): os.system('rm -rf %r'%self.path)
+        if not os.path.exists(self.path): os.makedirs(self.path)
+        _calc_configure(self)
+calc._init_hook = _init_hook
+#-------------------------------------------------------------------------------
+def _make_path_hook(self):
+    self.path = mixt.make_path(calc._racs_params['_repo']%self, calc._racs_params['_calc_num']) 
+    _calc_cofigure(self)
     return self.path
 calc._make_path_hook = _make_path_hook
 #-------------------------------------------------------------------------------

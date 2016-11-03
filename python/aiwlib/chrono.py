@@ -25,10 +25,12 @@ class Time:
         elif isinstance(val, Time): self.val = val.val
         elif type(val)==str:
             pm, val = (-1, val[1:]) if val.startswith('-') else (1, val)
-            if not ':' in val: self.val = pm*float(val) #secs
-            elif val.count(':')==1: h, m = map(float,val.split(':')); self.val = pm*(3600*h+60*m)
-            elif val.count(':')==2: h, m, s = map(float,val.split(':')); self.val = pm*(3600*h+60*m+s)
-            else: raise IllegalInitTimeValue(val)
+            try:
+                if not ':' in val: self.val = pm*float(val) #secs
+                elif val.count(':')==1: h, m = map(float,val.split(':')); self.val = pm*(3600*h+60*m)
+                elif val.count(':')==2: h, m, s = map(float,val.split(':')); self.val = pm*(3600*h+60*m+s)
+                else: raise IllegalInitTimeValue(val)
+            except ValueError, e: raise IllegalInitTimeValue(val)
         else: raise IllegalInitTimeValue(val)
         self.h, self.m, self.s = int(abs(self.val)/3600), int(abs(self.val)/60)%60, self.val%60
     def setval(self): self.val = self.h*3600+self.m*60+self.s
@@ -79,7 +81,7 @@ class Date:
         elif type(val)==str:
             if not ':' in val and val.count('.')<=1: self.val = float(val) #secs
             else:
-                try: self.val = _time.strptime(val, '%Y.%m.%d-%H:%M:%S' if ':' in val else '%Y.%m.%d')
+                try: self.val = _time.mktime(_time.strptime(val, '%Y.%m.%d-%H:%M:%S' if ':' in val else '%Y.%m.%d'))
                 except: raise IllegalInitDateValue(val)
         else: raise IllegalInitDateValue(val)
         self.Y, self.M, self.D, self.h, self.m, self.s = _time.localtime(self.val)[:6]

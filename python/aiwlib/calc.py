@@ -40,7 +40,7 @@ class Calc:
                 pid = os.fork()
                 if not pid: break
                 pids.append(pid)
-                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i'%pid
+                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i ...'%(pid, os.getpid())
             else:
                 while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); print 'PID=%i finished'%p
                 sys.exit()
@@ -53,7 +53,7 @@ class Calc:
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
         _init_hook(self)
-        if 'path' in self.__dict__ and os.path.exists(self.path+'.RACS'):
+        if 'path' in self.__dict__ and not _racs_params['_clean_path'] and os.path.exists(self.path+'.RACS'):
             self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
@@ -136,8 +136,8 @@ class Calc:
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
-                           [not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__')])\
-                           or not _is_swig_obj(v): self[_prefix+k] = v
+                           [not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__')]
+                           ) or not _is_swig_obj(v): self[_prefix+k] = v
         for k, v in kw_args.items(): self[k] = v
     #---------------------------------------------------------------------------
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)

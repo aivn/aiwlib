@@ -16,7 +16,9 @@ iostream swig: %:python/aiwlib/%.py python/aiwlib/_%.so;
 swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
 
-python/aiwlib/%.py: swig/%.py; @cp $< $@
+python/aiwlib/%.py: swig/%.py; 
+	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
+	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 swig/%.py swig/%_wrap.cxx: swig/%.i 
 	$(show_target)
 	$(SWIG) $(SWIGOPT) $<
