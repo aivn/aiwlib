@@ -35,13 +35,14 @@ class Calc:
             for q in queue:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]
-                    pids.remove(p)
+                    pids.remove(p); print 'PID=%i finished'%p
                 _args_from_racs = _base_args_from_racs+q #+[('master', os.getpid())]
                 pid = os.fork()
                 if not pid: break
                 pids.append(pid)
+                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i'%pid
             else:
-                while(pids): pids.remove(os.waitpid(-1, 0)[0])
+                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); print 'PID=%i finished'%p
                 sys.exit()
         elif _racs_params.get('_daemonize'): mixt.mk_daemon()
         #-----------------------------------------------------------------------
@@ -135,7 +136,8 @@ class Calc:
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
-                           [not hasattr(v, '_racs_pull_lock')]) or not _is_swig_obj(v): self[_prefix+k] = v
+                           [not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__')])\
+                           or not _is_swig_obj(v): self[_prefix+k] = v
         for k, v in kw_args.items(): self[k] = v
     #---------------------------------------------------------------------------
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)

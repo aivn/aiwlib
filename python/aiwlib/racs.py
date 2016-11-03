@@ -105,7 +105,7 @@ while 1:
         f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
-    if calc._racs_params['_daemonize']: mixt.set_output(self.path+'logfile')
+    if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1): mixt.set_output(self.path+'logfile')
     self.commit() #???
     return self.path
 calc._make_path_hook = _make_path_hook
@@ -126,8 +126,10 @@ def _on_exit(self):
             if hasattr(sys, 'last_value'): self.add_state('stopped')
             else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
     finally: self.commit()
-    print 'RUNTIME %s SIZE %s (.RACS %s) %s'%(runtime, os.popen('du -hs '+self.path).readline().split()[0],
-                                              mixt.size2string(os.path.getsize(self.path+'.RACS')), self.path)
+    rsz = os.path.getsize(self.path+'.RACS') 
+    rcolor = ('' if rsz<4096 else ';33' if rsz<4096*3 else ';31' if rsz<4096*10 else ';37;41' if rsz<4096*30 else ';37;5;41')+'m%s'
+    print 'RUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
+        runtime, os.popen('du -hs '+self.path).readline().split()[0], rcolor%mixt.size2string(rsz), self.path)
 #-------------------------------------------------------------------------------
 def run4stat(self, _count, _copies=1, _mkdir=True, **params):
     '''проводит _count одинаковых расчетов для набора статистики, 

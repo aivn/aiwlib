@@ -78,7 +78,7 @@ def string2bool(value):
     raise Exception('incorrect value=%s for convert to bool, Y|y|YES|Yes|yes|ON|On|on|TRUE|True|true|V|v|1' 
                     ' or N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0 expected'%value)
 def size2string(sz):
-    for d, p in ((1,'%iB'), (2**10,'%iK'), (2**20,'%.1fM'), (2**30,'%.1fG'), (2**40,'%.2fT')):
+    for d, p in ((2**40,'%.2fT'), (2**30,'%.1fG'), (2**20,'%.1fM'), (2**10,'%.1fK'), (1,'%iB')):
         if sz>=d: return p%(float(sz)/d)
     return '0'
 def hashable(x):
