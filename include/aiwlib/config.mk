@@ -1,22 +1,16 @@
 # main options for make
 #-------------------------------------------------------------------------------
 SHELL=/bin/bash
-
-ifndef PYTHON_H_PATH
 PYTHON_H_PATH=/usr/include/python2.7
-endif
 
-CXXOPT:=$(CXXOPT) -Wall -fopenmp -O3 -fPIC -g -std=c++11 -I$(PYTHON_H_PATH)
+CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH)
 LINKOPT:=$(LINKOPT) -lgomp -lz
 SWIGOPT:=$(SWIGOPT) -Wall -python -c++
+MPIOPT:=$(MPIOPT) -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/
 
-ifndef SWIG
 SWIG:=swig
-endif
-
-ifndef GCC
 GCC:=g++
-endif
+MPICC:=mpiCC
 #-------------------------------------------------------------------------------
 #GCC:=i586-mingw32msvc-g++
 #CXXOPT:= -O3 -DMINGW -g 

@@ -1,0 +1,42 @@
+// -*- C++ -*-
+#ifndef AIW_MPI4PY_HPP
+#define AIW_MPI4PY_HPP
+
+#include <mpi.h>
+#include <string>
+namespace aiw{
+//------------------------------------------------------------------------------
+	inline bool mpi_init(){ int argc = 0; return MPI_Init(&argc, 0)==MPI_SUCCESS; }
+	inline bool mpi_finalize(){ return MPI_Finalize()==MPI_SUCCESS; }
+//------------------------------------------------------------------------------
+	inline int mpi_proc_count(){
+		int sz;
+		if(MPI_Comm_size(MPI_COMM_WORLD, &sz)!=MPI_SUCCESS) return -1;
+		return sz;
+	}
+	inline int mpi_proc_number(){
+		int num;
+		if(MPI_Comm_rank(MPI_COMM_WORLD, &num)!=MPI_SUCCESS) return -1;
+		return num;
+	}
+//------------------------------------------------------------------------------
+	inline bool mpi_send(std::string data, int proc){ 
+		return MPI_Send((void*)data.c_str(), data.size(), MPI_BYTE, proc, 0, MPI_COMM_WORLD)==MPI_SUCCESS; 
+	}
+	struct aiw_mpi_msg_t {
+		int source;
+		std::string data;
+	};
+	inline bool mpi_recv(aiw_mpi_msg_t &msg, int proc){ 
+		MPI_Status status; int count = 0;
+		if(proc==-1) proc = MPI_ANY_SOURCE;
+		if(MPI_Probe(proc, MPI_ANY_TAG, MPI_COMM_WORLD, &status)!=MPI_SUCCESS) return false;
+		if(MPI_Get_count(&status, MPI_BYTE, &count)!=MPI_SUCCESS) return false;
+		msg.data.resize(count); msg.source = status.MPI_SOURCE;
+		if(MPI_Recv((void*)msg.data.c_str(), count, MPI_BYTE, proc, 
+					MPI_ANY_TAG, MPI_COMM_WORLD, &status)!=MPI_SUCCESS) return false; 
+		return true;
+	}
+//------------------------------------------------------------------------------
+}
+#endif //AIW_MPI4PY_HPP

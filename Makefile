@@ -8,20 +8,24 @@ include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
 all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f TARGETS ]; then cat TARGETS; fi);
-iostream swig: %:python/aiwlib/%.py python/aiwlib/_%.so;
-.PRECIOUS : swig/%.py swig/%.o src/%.o
+iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
+.PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
 swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
+swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
 
-python/aiwlib/%.py: swig/%.py; 
+python/aiwlib/%.py: swig/%.py
 	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 swig/%.py swig/%_wrap.cxx: swig/%.i 
 	$(show_target)
 	$(SWIG) $(SWIGOPT) $<
+#-------------------------------------------------------------------------------
+#   make shared library
+#-------------------------------------------------------------------------------
 python/aiwlib/_%.so: swig/%_wrap.o
 	$(show_target)
 	$(GCC) -shared -o $@ $^
@@ -35,6 +39,12 @@ else
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -MM $(MODULE))))
 	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
+#-------------------------------------------------------------------------------
+#   mpi4py
+#-------------------------------------------------------------------------------
+python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
+	$(show_target)
+	$(MPICC) $(MPIOPT) -shared -o $@ $<
 #-------------------------------------------------------------------------------
 #   Mesh
 #-------------------------------------------------------------------------------
