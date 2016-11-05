@@ -188,6 +188,7 @@ namespace aiw{
 		// void fill(IOstream &&S);
 
 		static const bool _racs_pull_lock = true;		
+		size_t __sizeof__() const { return sizeof(Sphere) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
 	};
 	//--------------------------------------------------------------------------
 };

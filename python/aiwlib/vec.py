@@ -277,6 +277,7 @@ class Vec:
             else: self[i] = 0; self[i+1] += 1 
         return self[self._D()-1]<Up[D-1]
     #---------------------------------------------------------------------------
+    def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
     def __del__(self): destroy_swig_object(self.this)
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    

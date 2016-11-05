@@ -58,10 +58,21 @@ racs список-репозиториев/ список-выражений де
 #   parse arguments
 #-----------------------------------------------------------------------------
 import os, sys, cPickle, pprint
+
 if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     sys.path.append('')
     if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
-    print pprint.pformat(cPickle.load(open(sys.argv[1]))).replace('\\n','\n')
+    X = cPickle.load(open(sys.argv[1]))
+    #class Key:
+    #    def __init__(self, k, v): self.k, self.sz = k, getattr(v, '__sizeof__', lambda: -1)()
+    #    def __repr__(self): return repr(self.k)+'[%sB]'%self.sz if self.sz>256 else repr(self.k)
+    #    def __hash__(self): return hash(self.k)
+    #    def __cmp__(self, other): return cmp(self.k, other.k)
+    #if type(X) is dict: X = dict((Key(k, v), v) for k, v in X.items())
+    try: width = int(os.popen('stty size').readline().split()[1]) if sys.stdout.isatty() else 80
+    except: width = 80
+    print pprint.PrettyPrinter(width=width).pformat(X) 
+    #print pprint.pformat(cPickle.load(open(sys.argv[1]))).replace('\\n','\n')
     sys.exit()
 
 from aiwlib.mixt import *

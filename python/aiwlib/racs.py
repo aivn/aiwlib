@@ -52,6 +52,10 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -a|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
                          контролируемых расчетом объектов.
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
+  --mpi[=N] --- для запуска из под MPI. Подгружает libmpi.so с флагом RTLD_GLOBAL,
+                вызывает MPI_Init/Finalize, создает уникальные директории расчетов. 
+                При серийном запуске число копий определяется средствами mpirun и 
+                обеспечивается распределение заданий
 '''
 #-------------------------------------------------------------------------------
 import os, sys, math, time, inspect, socket, cPickle, thread, atexit 
@@ -65,8 +69,8 @@ from aiwlib.calc import Calc
 #   hooks
 #-------------------------------------------------------------------------------
 def _calc_configure(self):
-    if calc._racs_params['_symlink'] and not (os.path.exists(calc._racs_params['_repo']) and 
-                                              os.path.samefile(os.getcwd(), calc._racs_params['_repo'])):
+    if calc._racs_params['_symlink'] and not (os.path.exists(calc._racs_params['_repo']) 
+                                              and os.path.samefile(os.getcwd(), calc._racs_params['_repo'])):
         try:
             if os.path.islink('_') or os.path.exists('_'): os.remove('_')
             os.symlink(self.path, '_')
@@ -95,7 +99,8 @@ while 1:
         f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
-    if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1): mixt.set_output(self.path+'logfile')
+    if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1) or calc._racs_params['_mpi']: 
+        mixt.set_output(self.path+'logfile')
     self.commit() #???
 #-------------------------------------------------------------------------------
 def _init_hook(self):
@@ -103,12 +108,20 @@ def _init_hook(self):
     self._starttime = time.time()
     if 'path' in self.__dict__: 
         if calc._racs_params['_clean_path'] and os.path.exists(self.path): os.system('rm -rf %r'%self.path)
+        if calc._racs_params['_mpi']==2: 
+            self.path = os.path.join(self.path, '%%0%ii/'%len(str(mpi_proc_count()))%mpi_proc_number())
         if not os.path.exists(self.path): os.makedirs(self.path)
         _calc_configure(self)
 calc._init_hook = _init_hook
 #-------------------------------------------------------------------------------
 def _make_path_hook(self):
-    self.path = mixt.make_path(calc._racs_params['_repo']%self, calc._racs_params['_calc_num']) 
+    if not calc._racs_params['_mpi'] or (calc._racs_params['_mpi']==2 and mpi_proc_number()==0): 
+        self.path = mixt.make_path(calc._racs_params['_repo']%self, calc._racs_params['_calc_num']) 
+    if calc._racs_params['_mpi']==2: 
+        if mpi_proc_number()==0:
+            for p in range(1, mpi_proc_count()): mpi_send(self.path)
+        else: self.path = mpi_recv(0)[0]
+        self.path += '%%0%ii/'%len(str(mpi_proc_count()))%mpi_proc_number(); os.makedirs(self.path)
     _calc_cofigure(self)
     return self.path
 calc._make_path_hook = _make_path_hook
@@ -188,7 +201,7 @@ if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', True), 
-         'copies':('c', 1), 'commit-sources':('m', True) }
+         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False) }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, calc._arg_seqs, calc._arg_order, i = list(sys.argv[1:]), {}, [], 0
 while i<len(calc._cl_args):
@@ -226,5 +239,13 @@ while i<len(calc._cl_args):
                 calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
         else: i += 1
     else: i += 1
+if calc._racs_params['_mpi']: 
+    calc._racs_params['_daemonize'] = False
+    import ctypes; _mpi = ctypes.CDLL('libmpi.so', ctypes.RTLD_GLOBAL)
+    try: from aiwlib.mpi4py import *
+    except ImportError, e: print>>sys.stderr, '\033[37;1;41m Try "make mpi4py" in aiwlib/ directory? \033[0m'; raise
+    mpi_init()
+    if not calc._arg_seqs: atexit.register(mpi_finalize)
+    calc._racs_params['_mpi'] = 3 if calc._arg_seqs and mpi_proc_count()>1 else 2 if mpi_proc_count()>1 else 1
 #-------------------------------------------------------------------------------
 __all__ = ['Calc']

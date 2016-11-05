@@ -57,7 +57,7 @@ $(name).py $(name)_wrap.cxx: $(name).i $(headers)
 	swig $(SWIGOPT) -I$(aiwlib_include) $(name).i
 	@mv $(name).py /tmp/$$$$.py; echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $(name).py; \
 	cat /tmp/$$$$.py >> $(name).py; rm /tmp/$$$$.py
-	@echo echo -e "\033[7mFile \"$(name).py\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
+	@echo -e "\033[7mFile \"$(name).py\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 #-------------------------------------------------------------------------------
 #   link shared library
 #-------------------------------------------------------------------------------

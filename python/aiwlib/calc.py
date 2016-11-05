@@ -2,6 +2,8 @@
 import os, sys, time, cPickle, socket 
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono
+try: from aiwlib.mpi4py import *
+except ImportError, e: pass
 #-------------------------------------------------------------------------------
 #_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _is_swig_obj = lambda X: "<type 'SwigPyObject'>" in [str(type(X)), str(type(getattr(X, 'this', None)))]
@@ -26,10 +28,27 @@ class Calc:
         #-----------------------------------------------------------------------
         #   серийный запуск и демонизация расчета
         #-----------------------------------------------------------------------
-        if _arg_seqs:
+        if _racs_params.get('_mpi', 0)==3:
+            if mpi_proc_number()==0: # головной процесс
+                for q in reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[]]):
+                    data, proc = mpi_recv(-1) # получаем запрос на задание
+                    path = mixt.make_path(_racs_params['_repo']%self, _racs_params['_calc_num'])
+                    mpi_send(_args_from_racs+q+[('path', path)], proc)
+                else: 
+                    for p in range(1, mpi_proc_count()): mpi_send(None, p)
+                    mpi_finalize(); sys.exit()                
+            else:
+                while 1:
+                    mpi_send((socket.gethostname(), login=mixt.get_login(), os.getpid()), 0)
+                    global _args_from_racs; _args_from_racs = mpi_recv(0)[0]
+                    if not _args_from_racs: mpi_finalize(); sys.exit()
+                    pid = os.fork()
+                    if not pid: break
+                    os.waitpid(-1, 0)
+        elif _arg_seqs:
             global _args_from_racs; _base_args_from_racs = list(_args_from_racs)
-            copies, pids = _racs_params['_copies'], []
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
+            copies, pids = _racs_params['_copies'], []
             print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
             if _racs_params['_daemonize']: mixt.mk_daemon() #mixt.set_output()
             for q in queue:
@@ -44,7 +63,7 @@ class Calc:
             else:
                 while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); print 'PID=%i finished'%p
                 sys.exit()
-        elif _racs_params.get('_daemonize'): mixt.mk_daemon()
+        elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------
         for k, v in _args_from_racs: # накат сторонних параметров
             if k in self.__dict__: v = self.__dict__[k].__class__(v)
@@ -210,3 +229,4 @@ class _Wrap:
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)
 #-------------------------------------------------------------------------------
+__all__ = ['Calc']

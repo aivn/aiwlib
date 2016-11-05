@@ -258,6 +258,7 @@ namespace aiw{
 			for(Ind<D> pos; pos^=box; ++pos) buf.read((char*)&get(pos), sizeof(T));
 		}
 		static const bool _racs_pull_lock = true;
+		size_t __sizeof__() const { return sizeof(Mesh) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
 	};
 //------------------------------------------------------------------------------
 	template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }
