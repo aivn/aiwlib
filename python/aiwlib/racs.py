@@ -115,14 +115,14 @@ def _init_hook(self):
 calc._init_hook = _init_hook
 #-------------------------------------------------------------------------------
 def _make_path_hook(self):
-    if not calc._racs_params['_mpi'] or (calc._racs_params['_mpi']==2 and mpi_proc_number()==0): 
+    if calc._racs_params['_mpi']<2 or (calc._racs_params['_mpi']==2 and mpi_proc_number()==0): 
         self.path = mixt.make_path(calc._racs_params['_repo']%self, calc._racs_params['_calc_num']) 
-    if calc._racs_params['_mpi']==2: 
+    if calc._racs_params['_mpi']==2: # раздаем путь группе MPI процессов
         if mpi_proc_number()==0:
-            for p in range(1, mpi_proc_count()): mpi_send(self.path)
+            for p in range(1, mpi_proc_count()): mpi_send(self.path, p)
         else: self.path = mpi_recv(0)[0]
         self.path += '%%0%ii/'%len(str(mpi_proc_count()))%mpi_proc_number(); os.makedirs(self.path)
-    _calc_cofigure(self)
+    _calc_configure(self)
     return self.path
 calc._make_path_hook = _make_path_hook
 #-------------------------------------------------------------------------------

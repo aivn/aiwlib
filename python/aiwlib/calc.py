@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, sys, time, cPickle, socket 
+import os, sys, time, cPickle, socket, shutil 
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono
 try: from aiwlib.mpi4py import *
@@ -28,6 +28,7 @@ class Calc:
         #-----------------------------------------------------------------------
         #   серийный запуск и демонизация расчета
         #-----------------------------------------------------------------------
+        global _args_from_racs
         if _racs_params.get('_mpi', 0)==3:
             if mpi_proc_number()==0: # головной процесс
                 for q in reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[]]):
@@ -40,13 +41,13 @@ class Calc:
             else:
                 while 1:
                     mpi_send((socket.gethostname(), mixt.get_login(), os.getpid()), 0)
-                    global _args_from_racs; _args_from_racs = mpi_recv(0)[0]
+                    _args_from_racs = mpi_recv(0)[0]
                     if not _args_from_racs: mpi_finalize(); sys.exit()
                     pid = os.fork()
                     if not pid: break
                     os.waitpid(-1, 0)
         elif _arg_seqs:
-            global _args_from_racs; _base_args_from_racs = list(_args_from_racs)
+            _base_args_from_racs = list(_args_from_racs)
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
             copies, pids = _racs_params['_copies'], []
             print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
@@ -72,7 +73,7 @@ class Calc:
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
         _init_hook(self)
-        if 'path' in self.__dict__ and not _racs_params['_clean_path'] and os.path.exists(self.path+'.RACS'):
+        if 'path' in self.__dict__ and not _racs_params.get('_clean_path', False) and os.path.exists(self.path+'.RACS'):
             self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
@@ -90,6 +91,8 @@ class Calc:
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
                      open(self.path+'.RACS', 'w')) 
+        if _racs_params['_mpi']==2 and mpi_proc_number()==0: 
+            shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
     def add_state(self, state, info=None, host=socket.gethostname(), login=mixt.get_login()):
         'Устанавливает статус расчета, НЕ вызывает commit()'
@@ -116,6 +119,8 @@ class Calc:
                 L[L.index("sS'progress'\n")+2] = 'F%g\n'%progress
                 L[L.index("sS'runtime'\n")+5] = 'F%g\n'%runtime
                 open(self.path+'.RACS', 'w').write(''.join(L))
+                if _racs_params['_mpi']==2 and mpi_proc_number()==0: 
+                    shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
             else: self.commit() #self.md5sources = self.commit() ???
         if prompt:
             if not '_progressbar' in self.__dict__: self.__dict__['_progressbar'] = mixt.ProgressBar()

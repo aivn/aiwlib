@@ -85,7 +85,7 @@ def hashable(x):
     try: hash(x); return True
     except: return False
 def get_tty_width(stream=sys.stdout, default=80):
-    try: return int(os.popen('stty size').readline().split()[1]) if stream.isatty() else default if default else 80
+    try: return int(os.popen('stty size 2> /dev/null').readline().split()[1]) if stream.isatty() else default if default else 80
     except: return default if default else 80
 def compare(name, patterns):
     if name=='' and '' not in patterns: return False #patch for '' in '*'
