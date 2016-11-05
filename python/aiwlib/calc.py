@@ -39,7 +39,7 @@ class Calc:
                     mpi_finalize(); sys.exit()                
             else:
                 while 1:
-                    mpi_send((socket.gethostname(), login=mixt.get_login(), os.getpid()), 0)
+                    mpi_send((socket.gethostname(), mixt.get_login(), os.getpid()), 0)
                     global _args_from_racs; _args_from_racs = mpi_recv(0)[0]
                     if not _args_from_racs: mpi_finalize(); sys.exit()
                     pid = os.fork()
