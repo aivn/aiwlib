@@ -16,6 +16,9 @@ def parse(ev):
       ! ==> выполнять выражение функцией exec для расчета, скрывать результат (колонку выборки)
      !! ==> выполнять выражение функцией exec в глобальном пространстве имен, скрывать результат (колонку выборки)
     -|+ ==> hide=1|0 --- скрывать/показывать результат (колонку выборки) 
+    Как альтернатива $... допускается использовать в выражении expr конструкции вида
+    ...[/shell-command/]..., при этом shell-command форматируется по словарю расчета
+    запускается и заменяется результатом выполнения в виде строки без \\n.
     '''
     if not type(ev) is str: raise Exception('type of parse argument=%r must be str, not %r'%(ev, type(ev)))
     sort, fltr, hide, evex = 0, 0, None, 0
@@ -25,7 +28,9 @@ def parse(ev):
         if ev[-1] in '+-': ev, hide = ev[:-1], ev[-1]=='-'
         if ev[-1] in '?%#': ev, hide, fltr = ev[:-1], (hide, ev[-1]=='?')[hide==None], 1-'? %#'.index(ev[-1])
         title, ev = ev.split('=', 1) if mixt.is_name_eq(ev) else (ev, ev)
-    return compile('" ".join(os.popen("%s"%%self).readlines()).strip()'%ev[1:] if ev.startswith('$') and not evex else ev, 
+    if ev[0]!='$' and ev.count('[/')==ev.count('/]'): 
+        ev = ev.replace('[/', '(" ".join([l.strip() for l in os.popen("""').replace('/]', '"""%self).readlines()]))')
+    return compile('" ".join(l.strip() for l in os.popen(%r%%self).readlines())'%ev[1:] if ev.startswith('$') and not evex else ev, 
                    ev+'!'*evex if evex else title, 'exec' if evex else 'eval'), sort, fltr, hide
 #-------------------------------------------------------------------------------
 class Select:

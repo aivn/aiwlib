@@ -4,20 +4,20 @@
   key=value --- задает значение параметра расчета key, значение конвертируется 
 к типу значения параметра по умолчанию. 
   key=@expression --- задает значение параметра расчета key, значение вычисляется 
-функцией eval в словаре модуля math и конвертируется к типу значения параметра 
-по умолчанию.
+функцией eval в словаре модуля math и на основе уже заданных параметров, затем 
+конвертируется к типу значения параметра по умолчанию.
 Возможно задание серии значений параметра как 
-  key=[expression]  --- expression вычисляется функцией eval в словаре модуля math
+  key=[expression]  --- expression вычисляется функцией eval
   key=[x1,x2..xn]   --- хаскелль-стиль для арифметической прогрессии
   key=[x1:step..xn] --- арифметическая прогрессия с шагом step
   key=[x1@step..xn] --- геометрическая прогрессия с множителем step
   key=[x1#size..xn] --- арифметическая прогрессия из size элементов
   key=[x1^size..xn] --- геометрическая прогрессия из size элементов
-Значения x1, xn, step, size вычисляются функцией eval в словаре модуля math.
-Параметры x1 и xn всегда включаются в серию. При явном задании параметра step шаг 
-всегда корректируется для точного попадания в xn. Параметр size должен
-быть целочисленным  (не менее двух). Если серии заданы для нескольких параметров,
-вычисляются все возможные комбинации значений (декартово произведение).
+Значения x1, xn, step, size вычисляются функцией eval в словаре модуля math и уже 
+заданных аргументах. Параметры x1 и xn всегда включаются в серию. При явном задании 
+параметра step шаг всегда корректируется для точного попадания в xn. Параметр size 
+должен быть целочисленным  (не менее двух). Если серии заданы для нескольких 
+параметров, вычисляются все возможные комбинации значений (декартово произведение).
 
   -h|--help --- показать эту справку и выйти
 
@@ -208,13 +208,13 @@ while i<len(calc._cl_args):
     A = calc._cl_args[i]
     if mixt.is_name_eq(A) and A.split('=', 1)[1][0]=='[' and A[-1]==']':
         arg, l = A.split('=', 1)
-        try: L = eval(l, math.__dict__)
+        try: L = eval(l, math.__dict__, dict(calc._args_from_racs))
         except SyntaxError, e:
             s = l[1:-1]
             for t in '#^@:,':
                 if s.count('..')==1 and s.split('..')[0].count(t)==1:
                     ab, c = s.split('..'); a, b = ab.split(t)
-                    a, b, c = [float(eval(x, math.__dict__)) for x in (a, b, c)]
+                    a, b, c = [float(eval(x, math.__dict__, dict(calc._args_from_racs))) for x in (a, b, c)]
                     if t==',': b, t = b-a, ':'
                     if t==':': b, t = int((c-a)/b+1.5), '#'
                     if t=='#': d = (c-a)/(b-1); L = [a+d*j for j in range(int(b))]
@@ -227,7 +227,7 @@ while i<len(calc._cl_args):
         calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
     elif mixt.is_name_eq(A): 
         k, v = A.split('=', 1)
-        if v.startswith('@'): v = eval(v[1:], math.__dict__)
+        if v.startswith('@'): v = eval(v[1:], math.__dict__, dict(calc._args_from_racs))
         calc._args_from_racs.append((k, v)); del calc._cl_args[i]
     elif A.startswith('-') and A!='-':
         for k, v in opts.items():

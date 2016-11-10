@@ -91,7 +91,7 @@ class Calc:
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
                      open(self.path+'.RACS', 'w')) 
-        if _racs_params['_mpi']==2 and mpi_proc_number()==0: 
+        if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
     def add_state(self, state, info=None, host=socket.gethostname(), login=mixt.get_login()):
