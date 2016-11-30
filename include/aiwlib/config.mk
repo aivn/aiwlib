@@ -48,7 +48,9 @@ define imodule
 @echo "    if not hasattr(self, 'this'): self.__init__()" >> $@
 @echo "    self.__C_setstate__(state)" >> $@
 @echo "def _swig_setattr(self, class_type, name, value):" >> $@
-@echo "    if name in class_type.__swig_setmethods__: value = getattr(self, name).__class__(value)" >> $@
+@echo "    if name in class_type.__swig_setmethods__:" >> $@
+@echo "        try: value = getattr(self, name).__class__(value)" >> $@
+@echo "        except: pass" >> $@
 @echo "    return _swig_setattr_nondynamic(self, class_type, name, value, 0)" >> $@
 @echo "__makefile__ = '$(word 1, $(MAKEFILE_LIST))'" >> $@
 @echo "_$(notdir $(basename $@)).__makefile__ = '$(word 1, $(MAKEFILE_LIST))'" >> $@
