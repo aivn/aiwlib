@@ -9,7 +9,7 @@
 #ifdef SWIGPYTHON
 #include <stdio.h>
 
-// #include "vec"
+#include "vec"
 // aiw::Vec<3> f(){ return aiw::vec(1.,2.,3.); }
 // void g(aiw::Ind<2> x){ std::cout<<"x="<<x<<std::endl; }
 
@@ -41,7 +41,7 @@ namespace aiw{
 			//printf("'%s' ==> set_type(%p:%p, %i) ==> '%s'\n", ((SwigPyObject*)obj)->ty->str, 
 			//	   obj, SWIG_Python_GetSwigThis(obj), T, module->types[T]->str);
 			((SwigPyObject*)obj)->ty = module->types[T]; 
-			((SwigPyObject*)obj)->own = 0; 
+			//((SwigPyObject*)obj)->own = 0; // ???
 		}
 		void out_table() const {
 			printf("module %p\n", module);

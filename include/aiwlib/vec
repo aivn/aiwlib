@@ -9,9 +9,15 @@
 #include <math.h>
 #include "debug"
 
+#ifdef SWIG
+namespace aiw{
+	template <int D, typename T=double> struct Vec{	T p[D]; };
+	template <int D> struct Ind{  int p[D]; };
+	template <int D> struct Vecf{ float p[D]; };
+}
+#else //SWIG
 namespace aiw{
 //---------------------------------------------------------------------------
-#ifndef SWIG
 	template <int D, typename T=double> class Vec{
 	public:
 		T p[D];
