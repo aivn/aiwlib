@@ -43,6 +43,10 @@ namespace aiw{
 		virtual size_t read(void* buf, size_t size) = 0; // add swig typemap for bind to python style?
 		virtual size_t write(const void* buf, size_t size) = 0;
 		virtual void flush() = 0;
+
+		// for iostream compability ;-(
+		size_t tellg() const { return this->tell(); }
+		void seekg(size_t offset, int whence=0){ this->seek(offset, whence); }
 		
 #ifndef SWIG
 		virtual std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
@@ -67,6 +71,15 @@ namespace aiw{
 		aiw::IOstream& operator << (double v){ printf("%lf", v); return *this; }
 		aiw::IOstream& operator << (const std::string &S){ printf("%s", S.c_str()); return *this; }
 		// aiw::IOstream& operator << (IOstream& (*func)(IOstream&)){ return func(*this); }
+
+		aiw::IOstream& getline(char *buf, int bufsz, char delim='\n'){
+			for(int pos=0; pos<bufsz; pos++){
+				char c; if(this->read(&c, 1)!=1) break;
+				if(c==delim) break;
+				buf[pos] = c;
+			}
+			return *this; 
+		}
 
 		// operators < > for binary IO
 	};

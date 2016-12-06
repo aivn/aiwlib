@@ -3,6 +3,7 @@
 #define AIW_MESH_HPP
 
 #include <utility>
+#include <map> // for in4dat
 #include "iostream"
 #include "vec"
 #include "binaryio"
@@ -27,7 +28,7 @@ namespace aiw{
 		inline aiw::Ind<D> bbox() const { return box; }
 		size_t mem_size() const { return mem->get_size(); }
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
-
+		//----------------------------------------------------------------------
 		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
 			for(int i=0; i<D; i++){
@@ -48,7 +49,7 @@ namespace aiw{
 			WOUT(this);
 		}
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
-
+		//----------------------------------------------------------------------
 		//???оптимизировать для простых случаев???		
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const {
@@ -68,7 +69,7 @@ namespace aiw{
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
-		
+		//----------------------------------------------------------------------		
 		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const {
 			Ind<D> p;
 			for(int i=0; i<D; i++) p[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
@@ -79,7 +80,7 @@ namespace aiw{
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
 			return r;
 		}
-
+		//----------------------------------------------------------------------
 #ifndef SWIG		
 		inline const T& get(const aiw::Ind<D> &pos) const {
 			WASSERT(Ind<D>()<=pos && pos<box, "position out of box", pos, box);
@@ -124,7 +125,7 @@ namespace aiw{
 			}				
 			return false;
 		}
-
+		//----------------------------------------------------------------------
 		Mesh copy() const { Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
 		Mesh flip(int a, bool axe=true) const {
 			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = (void*)&((*this)[I]); A.mul[a] = -mul[a];
@@ -143,7 +144,7 @@ namespace aiw{
 		}
 	public:
 		Mesh transpose(int a, int b) const { Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
-		
+		//----------------------------------------------------------------------
 		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)) const {
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
@@ -161,7 +162,7 @@ namespace aiw{
 			A.mul = mul&d; A.ptr = (char*)ptr + mul*a;
 			return A;
 		}
-
+		//----------------------------------------------------------------------
 		template <class T2, int D2> Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
 			if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 			int n = 0; Mesh<T2, D2> A;
@@ -175,7 +176,7 @@ namespace aiw{
 			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
 			return A;
 		}
-
+		//----------------------------------------------------------------------
 		template<int P> inline const T& periodic_bc(Ind<D> pos) const {
 			for(int i=0; i<D; i++) if(P&(1<<i)){
 					while(pos[i]<0) pos[i] += box[i];
@@ -184,25 +185,38 @@ namespace aiw{
 			return get(pos);
 		}
 		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
-
-#ifndef SWIG		
-		template <typename S> void out2dat(S &&str, bool coords=true, const char* prefix=nullptr) const {
-			for(Ind<D> pos; pos^=box; ++pos){
+		//----------------------------------------------------------------------
+		// coords содержит режимы вывода для каждой из координатных осей: 
+		//    0 --- выводить значения из сетки вдоль оси в одну строку через пробел
+		//    1 --- выводить номер ячейки
+		//    2 --- выводить координату центра ячейки
+		//    3 --- не выводить ни номер ячейки ни координату центра ячейки
+		//   +4 --- не выводить пустую строку при изменении номера ячейки, не влияет на режим 0
+#ifndef SWIG				
+		template <typename S> void out2dat(S &&str, Ind<D> coords=Ind<D>(1), const char* prefix=nullptr) const {
+			Ind<D> B1 = box, B2 = box; int nl_id = -1;
+			for(int i=0; i<D; i++){ 
+				if(coords[i]&3 && B1[i]) B1[i] = 1; else B2[i] = 1; 
+				if(coords[i]==4) coords[i] = 0;
+				if(nl_id==-1 && coords[i]&3 && !(coords[i]&4)) nl_id = i;
+			}
+			for(Ind<D> pos; pos^=B1; ++pos){
 				if(prefix) str<<prefix<<" ";
-				if(coords) str<<pos2coord(pos); else str<<pos;
-				str<<" "<<(*this)[pos]<<"\n";
-				if(pos[0]==box[0]-1) str<<"\n";
+				Vec<D> r = pos2coord(pos);
+				for(int i=0; i<D; i++) if((coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
+				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
+				str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
 			}
 			str.flush();
 		}
 #endif //SWIG
-		void out2dat(std::ostream &str=std::cout, bool coords=true, const char* prefix=nullptr) const { 
+		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(1), const char* prefix=nullptr) const { 
 			out2dat(std::move(str), coords, prefix); 
 		}
-		void out2dat(aiw::IOstream &str, bool coords=true, const char* prefix=nullptr) const { 
+		void out2dat(aiw::IOstream &str, aiw::Ind<D> coords=aiw::Ind<D>(1), const char* prefix=nullptr) const { 
 			out2dat(std::move(str), coords, prefix); 
 		}
-		
+		//----------------------------------------------------------------------
 		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
 			do {
@@ -211,6 +225,7 @@ namespace aiw{
 				if(b<x){ b = x; pos_b = pos; }
 			} while(next(pos));
 		}
+		//----------------------------------------------------------------------
 		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		template <typename T2> void fill(const Mesh<T2, D> &M){
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
@@ -232,7 +247,7 @@ namespace aiw{
 		}
 #endif //SWIG
 		void fill(aiw::IOstream &S){ fill(std::move(S)); }
-
+		//----------------------------------------------------------------------
 		// operators +, -, *, /, % etc?
 
 		std::string __getstate__() const { 
