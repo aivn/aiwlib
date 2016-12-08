@@ -46,7 +46,6 @@ namespace aiw{
 		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
 			mem.reset(new MemAlloc<T>(sz_init(box_))); ptr = mem->get_addr(); 
 			set_axes(bmin_, bmax_, logscale_);
-			WOUT(this);
 		}
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
 		//----------------------------------------------------------------------
@@ -56,19 +55,23 @@ namespace aiw{
 			S<head<D<int(sizeof(T))<box;
 			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
 		}
-		void load(aiw::IOstream &&S, int use_mmap=0){ // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ 
 				S.seek(s); 
-				WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), b, h); 
+				if(raise_on_error){ WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), b, h); }
+				else return false;
 			}
 			head = h; sz_init(b);
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); set_axes(vec(0.), box); }
 			else { init(b); S.read(ptr, sz*sizeof(T)); }
+			return true;
 		}
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
-		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
+			return load(std::move(S), use_mmap, raise_on_error); 
+		}
 		//----------------------------------------------------------------------		
 		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const {
 			Ind<D> p;
@@ -193,13 +196,14 @@ namespace aiw{
 		//    3 --- не выводить ни номер ячейки ни координату центра ячейки
 		//   +4 --- не выводить пустую строку при изменении номера ячейки, не влияет на режим 0
 #ifndef SWIG				
-		template <typename S> void out2dat(S &&str, Ind<D> coords=Ind<D>(1), const char* prefix=nullptr) const {
+		template <typename S> void out2dat(S &&str, Ind<D> coords=Ind<D>(2), const char* prefix=nullptr) const {
 			Ind<D> B1 = box, B2 = box; int nl_id = -1;
 			for(int i=0; i<D; i++){ 
-				if(coords[i]&3 && B1[i]) B1[i] = 1; else B2[i] = 1; 
 				if(coords[i]==4) coords[i] = 0;
+				if(coords[i]==0 && B1[i]) B1[i] = 1; else B2[i] = 1; 
 				if(nl_id==-1 && coords[i]&3 && !(coords[i]&4)) nl_id = i;
 			}
+			// WOUT(box, coords, B1, B2, nl_id);
 			for(Ind<D> pos; pos^=B1; ++pos){
 				if(prefix) str<<prefix<<" ";
 				Vec<D> r = pos2coord(pos);
@@ -210,10 +214,10 @@ namespace aiw{
 			str.flush();
 		}
 #endif //SWIG
-		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(1), const char* prefix=nullptr) const { 
+		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { 
 			out2dat(std::move(str), coords, prefix); 
 		}
-		void out2dat(aiw::IOstream &str, aiw::Ind<D> coords=aiw::Ind<D>(1), const char* prefix=nullptr) const { 
+		void out2dat(aiw::IOstream &str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { 
 			out2dat(std::move(str), coords, prefix); 
 		}
 		//----------------------------------------------------------------------
