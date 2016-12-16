@@ -22,7 +22,7 @@ aiwlib:=$(dir $(aiwlib_include))
 #aiwlib:=
 #endif
 include $(aiwlib_include)/aiwlib/config.mk
-all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(basename $m).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
+all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(notdir $(basename $m)).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
 sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
 #-------------------------------------------------------------------------------
 .PRECIOUS : %.py _%.so %.o %_wrap.cxx %.i
