@@ -56,7 +56,7 @@ namespace aiw{
 			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw
-			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
+			std::string h; int rD=-1, szT=-1; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
 			if(rD!=D || szT!=sizeof(T)){ 
 				S.seek(s); 
 				if(raise_on_error){ WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), b, h); }

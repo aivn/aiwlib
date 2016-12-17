@@ -80,8 +80,8 @@ def _decltype(a, b):
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
-    elif iT<2: ab[iT] = _cxx_types_table[type(x)]
-    TT = [_cxx_types_table[x.T] for x in ab]
+    elif iT<2: ab[iT] = _cxx_types_table[type(ab[iT])]
+    TT = [_cxx_types_table[x if type(x) is str else x.T] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
 _is_vec = lambda X: type(X) in (list, tuple) or hasattr(X, 'T')

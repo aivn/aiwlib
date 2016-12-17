@@ -16,6 +16,10 @@ def _make_path_hook(self):
     self.path = mixt.make_path(_racs_params['_repo']%self, _racs_params['_calc_num']) 
     return self.path
 #-------------------------------------------------------------------------------
+def _expr_preproc(expr):
+    'обрабатывает $ и (%...%) в выражении'
+    pass
+#-------------------------------------------------------------------------------
 class Calc:
     '''Работа с расчетом (записью в базе) --- создание уникальной директории расчета 
     и сохранение/восстановление параметров в файле .RACS'''
@@ -167,18 +171,18 @@ class Calc:
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
     #---------------------------------------------------------------------------
     _except_report_table = []
-    def __call__(self, expr):        
+    def __call__(self, expr):
         try:
             if type(expr) is str: 
                 if expr.startswith('@'): k, v = expr.split('=', 1); self[k] = v
                 elif expr.startswith('$'): return ' '.join(os.popen(expr[1:]%self).readlines()).strip() 
                 elif expr.endswith('!!'): exec(expr[:-2], dict(self.__dict__), _G)  
-                elif expr.endswith('!'): exec(expr[:-1], _G, self)  
+                elif expr.endswith('!'): exec(expr[:-1], _G, self) 
                 else: return eval(expr, _G, self) 
             else: return eval(expr, dict(self.__dict__), _G) if expr.co_filename.endswith('!!') else eval(expr, _G, self)
         except Exception, e: 
             if _G['on_racs_call_error']==0: raise
-            elif _G['on_racs_call_error'] in (1,2): 
+            elif _G['on_racs_call_error'] in (1, 2): 
                 report = ''.join(mixt.except_report(None, short=_G['on_racs_call_error']-1))
                 if not report in self._except_report_table: self._except_report_table.append(report)
     #---------------------------------------------------------------------------
