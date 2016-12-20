@@ -41,7 +41,7 @@ _vec_types_table, _swig_modules, _vec_swig_type = {}, [], []
 def view_swig_modules():
     for stt in _swig_modules: stt.out_table()
 _get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
-_get_T = lambda V: V.split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V \
+_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V \
     else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
 
 def checkout_swig_types_table(stt):
@@ -56,7 +56,7 @@ def checkout_swig_types_table(stt):
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
-            #print i, D, T, repr(V)
+            #print i, D, repr(T), repr(V)
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
@@ -101,7 +101,8 @@ class Vec:
         #print '*******', args, kw_args, '******'
         self._swig_init()
         if len(args)==1: 
-            if args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
+            if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
+            elif args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
             else: args = args*kw_args.get('D', 1)
         elif len(args)==0: args = (0.,)*kw_args.get('D', 0)
         self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
