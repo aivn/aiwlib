@@ -233,7 +233,10 @@ class _Wrap:
         if not attr in self._set_attrs and self._prefix+attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
             value = self._calc.__dict__[self._prefix+attr] # через getattr?
             if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
-            value = getattr(self._core, attr).__class__(value)            
+            else:
+                dst = getattr(self._core, attr)                
+                value = dst.__class__(value, D=dst._D(), T=dst._T()) if getattr(dst, '_is_aiwlib_vec', 
+                                                                                False) else dst.__class__(value)
         self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)

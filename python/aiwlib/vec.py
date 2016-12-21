@@ -95,10 +95,11 @@ _2tuple = lambda X: X._getdata() if hasattr(X, '_getall') else tuple(X) if type(
 #   class Vec (python implementation)
 #-------------------------------------------------------------------------------
 class Vec:
+    _is_aiwlib_vec = True
     def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
     def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
-        #print '*******', args, kw_args, '******'
+        #print self.__class__.__name__, '*******', args, kw_args, '******'
         self._swig_init()
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
@@ -109,10 +110,12 @@ class Vec:
         if len(args)!=self.D: raise Exception('Vec<%i,%s>%r --- incorrect args length %i'%(self.D, self.T, args, len(args)))
         #_vec_types_table.get((self.T, self.D), lambda x:None)(self.this)
         if (self.T, self.D) in _vec_types_table: cxx_m, i = _vec_types_table[self.T,self.D]; cxx_m.set_type(self.this, i)
+        #if self._T() in ('int', 'int32_t'): self.__class__ = Ind
+        #if self._T()=='float': self.__class__ = Vecf
         # print _vec_types_table, self.T, self.D
         # как то контролировать/узнавать тип вектора на основе get_swig_type(self.this)? Когда может вызываться конструктор?
         self._setdata(args)
-        #print '*******', self.D, self.T, '******'
+        #print '*******', self.D, self.T, self.__repr__(), '******'
     #---------------------------------------------------------------------------
     def __len__(self): return self._D()
     def __str__(self): return ' '.join(map(str, self._getdata()))
@@ -279,7 +282,8 @@ class Vec:
         return self[self._D()-1]<Up[D-1]
     #---------------------------------------------------------------------------
     def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
-    def __del__(self): destroy_swig_object(self.this)
+    #def __del__(self): destroy_swig_object(self.this)
+    def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1])
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    
     ab, bc = b-a, c-b; ab /= ab.abs(); bc /= bc.abs()

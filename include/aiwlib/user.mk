@@ -86,6 +86,8 @@ $(name).i: $(MAKEFILE_LIST)
 #	@echo '%include "std_string.i"' >> $@
 	@echo $(iheader) >> $@
 #	@H=$(aiwmake); $(iinclude)
+	@echo "%{ #include <aiwlib/vec> %}" >> $@
+	@echo "%include \"aiwlib/vec\"" >> $@
 ifneq ($(filter Mesh%,$(aiwinst)),)
 	@echo "%{ #include <aiwlib/mesh> %}" >> $@
 	@echo "%include \"aiwlib/mesh\"" >> $@
