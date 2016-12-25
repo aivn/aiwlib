@@ -347,6 +347,8 @@ namespace aiw{
 namespace std{
 //---------------------------------------------------------------------------
 	template<typename T> struct less;
+#ifndef AIVV_LESS
+#define AIVV_LESS
 	template<> struct less<double> {
 		inline bool operator()(double x, double y) const { 
 			int px, py; frexp(x, &px); frexp(y, &py);	
@@ -359,6 +361,7 @@ namespace std{
 			return y-x > ldexp(1., (px<py?px:py)-16);
 		}
 	};
+#endif //AIVV_LESS
 	template<int D, typename T> struct less<aiw::Vec<D, T> > {
 		bool operator()(const aiw::Vec<D, T> &x, const aiw::Vec<D, T> &y ) const { 
 			less<T> cmp_l;

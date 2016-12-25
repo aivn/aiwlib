@@ -248,25 +248,8 @@ namespace aiw{
 				S.read(&(*this)[pos], sizeof(T));
 			}
 		}
-		template <typename S> void fill_from_dat(S&& str, Ind<D> rcols=Ind<D>(), int vcol=0){
-			Ind<D+1> columns = rcols|vcol;
-			if(columns==Ind<D+1>()) for(int i=0; i<D+1; i++) columns[i] = i;
-			long pos;
-			do {
-				char buf[4096]; pos = str.tellg(); str.getline(buf, 4096); // читаем строку
-				int i0; for(i0=0; i0<4096 && buf[i0]; i0++) if(buf[i0]!=' ' && buf[i0]!='\t') break; // пропускаем ведущие пробелы
-				if(buf[i0] && buf[i0]!='#'){ // если строка не пустая и не комментарий
-					std::stringstream ss(buf+i0); Vec<D> r; T v;
-					for(int i=0; i<D+1; i++) if(columns[i]<D) ss>>r[i]; else ss>>v;
-					if(ss.rdstate()==1) (*this)[r] = v;
-				}
-			} while(pos!=str.tellg());			
-		}
 #endif //SWIG
 		void fill(aiw::IOstream &S){ fill(std::move(S)); }
-		static const int D1=D+1;
-		void fill_from_dat(aiw::IOstream &S, Ind<D> rcols=Ind<D>(), int vcol=0){ fill_from_dat(std::move(S), rcols, vcol); }
-		void fill_from_dat(std::istream &S, Ind<D> rcols=Ind<D>(), int vcol=0){ fill_from_dat(std::move(S), rcols, vcol); }
 		//----------------------------------------------------------------------
 		// operators +, -, *, /, % etc?
 

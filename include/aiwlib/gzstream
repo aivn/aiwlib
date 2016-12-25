@@ -27,6 +27,7 @@ namespace aiw{
 		size_t read(void* buf, size_t size){ return ::gzread(pf.get(), buf, size); }
 		size_t write(const void* buf, size_t size){ return ::gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???
+		bool eof() const { return gzeof(pf.get()); }
 		int printf(const char * format, ...){
 			va_list args; va_start(args, format);   
 			int r = gzprintf(pf.get(), format, args);
