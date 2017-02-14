@@ -113,6 +113,11 @@ namespace aiw{
 
 		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
 		inline operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; }
+
+		template<typename T2> inline bool contains(const T2& x) const { 
+			for(int i=0; i<D; i++) if(p[i]==x) return true; 
+			return false;
+		}
 	}; // end of class Vec
 	template <typename T, typename ... Args>
 	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){

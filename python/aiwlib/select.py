@@ -120,6 +120,7 @@ class Select:
     def get_keys(self, mode='or'):
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
         starttime = time.time()
+        if not self._L: return []
         keys = [set(l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys()) for l in self._L if l]
         S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, keys.pop(0))
         self.runtime = time.time()-starttime

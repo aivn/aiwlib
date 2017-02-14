@@ -70,8 +70,8 @@ class Calc:
                 sys.exit()
         elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------
-        for k, v in _args_from_racs: # накат сторонних параметров
-            if k in self.__dict__: v = self.__dict__[k].__class__(v)
+        for k, v in _args_from_racs: # накат сторонних параметров            
+            if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
             self.__dict__[k] = v
         if 'path' in self.__dict__: # подготовка пути
             self.path = mixt.normpath(self.path)

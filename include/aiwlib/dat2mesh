@@ -1,0 +1,211 @@
+// -*- C++ -*-
+#ifndef AIW_DAT2MESH_HPP
+#define AIW_DAT2MESH_HPP
+
+/**
+ * Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <vector> 
+#include <algorithm> 
+#include "mesh"
+
+namespace aiw{
+#ifndef SWIG		
+	//--------------------------------------------------------------------------
+	//   some functions for parsing
+	//--------------------------------------------------------------------------
+	inline std::string strip(const std::string &s){
+		int a, b=s.size();
+		for(a=0; a<b; a++) if(s[a]!=' ' and s[a]!='\t' and s[a]!='\r' and s[a]!=' ') break;
+		for(a<b; b--) if(s[b-1]!=' ' and s[b-1]!='\t' and s[b-1]!='\r' and s[b-1]!=' ') break;
+		return std::string(s.c_str()+a, b-a);
+	}
+	//--------------------------------------------------------------------------
+	inline std::vector<std::string> split(const std::string &src){
+		std::stringstream ss(src); std::vector<std::string> dst;
+		while(not ss.rdstate()){ std::string s; ss>>s; dst.push_back(s); }
+		return dst;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T> inline bool convert(const std::vector<std::string> &src, int i, T &x){
+		if(i<0) i = src.size()-i;
+		if(i<0 or (int)src.size()<=i) return false; 
+		std::stringstream ss(src[i]);
+		return not (ss>>x).fail();
+	}
+	//--------------------------------------------------------------------------
+	template <int D> inline bool convert(const std::vector<std::string> &src, Ind<D> columns, Vec<D> dst){
+		for(int i=0; i<D; i++) if(not convert(src, columns[i], dst[i])) return false;
+		return true;
+	}
+	//--------------------------------------------------------------------------
+	inline int clustering(std::vector<double> &points, bool logscale, double eps, double &bmin, double &bmax){
+		std::sort(points.begin(), points.end()); 
+		std::vector<double> X; int N=0; double S=0., x_max=points[0];
+		for(auto x=points.begin(); x!=points.end(); ++x){
+			if((logscale and *x/x_max-1<eps) or (not logscale and *x-x_max<eps)){ S += logscale? log(*x): *x;	N++; }
+			else{ X.push_back(logscale? exp(S)/N: S/N); S = *x; N = 1; }
+			x_max = *x;
+		}
+		X.push_back(logscale? exp(S)/N: S/N);
+
+		if(logscale){
+			double hstep = sqrt(X.size()>1? exp(log(X.last()/X.first())/(X.size()-1)): 2*eps+points.last()/points.first());
+			bmin = X.first()/hstep; bmax = X.last()*hstep;
+		} else {
+			double hstep = (X.size()>1? (X.last()-X.first())/(X.size()-1): 2*eps+points.last()-points.first())/2;
+			bmin = X.first()-hstep; bmax = X.last()+hstep;
+		}
+		return X.size();
+	}
+	//--------------------------------------------------------------------------
+	//   fill mesh (without init)
+	//   rcols --- соотвествие столбцов осям сетки, по умолчанию последовательное (как в файле),
+	//             допускается индексация столбцов с конца строки (с минусом, как в Python)
+	//--------------------------------------------------------------------------
+	template <typename T, int D, typename S> void dat2Mesh(S&& str, Mesh<T, D> &dst, int vcol=0, Ind<D> rcols=Ind<D>()){
+		if(rcols==Ind<D>()){ 
+			for(int i=0; i<D; i++) rcols[i] = i;
+			if(vcol==0) vcol = D;
+		}
+		dst.head = "";
+		while(not str.eof()){
+			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
+			if(s.empty()) continue; else if(s[0]=='#'){ dst.head += s+"\n"; continue; }
+			auto l = split(s); Vec<D> r; T v;
+			if(convert(l, rcols, r) and convert(l, vcol, v)) (*this)[r] = v;
+		}
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, typename S> void dat2Mesh(S&& str, Mesh<T, D> &dst, std::vector<int> vcols={}, int vaxe=-1, 
+														   Ind<D> rcols=Ind<D>()){		
+		if(vaxe<0) vaxe = D-vaxe;
+		if(rcols==Ind<D>()){ 
+			for(int i=0; i<D; i++) rcols[i] = i<vaxe? i: i-1; 
+			if(vcols.empty()) for(int i=0; i<dst.bbox()[vaxe]; i++) vcols.push_back(i+D-1);
+		}
+		dst.head = "";
+		while(not str.eof()){
+			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
+			if(s.empty()) continue; else if(s[0]=='#'){ dst.head += s+"\n"; continue; }
+			auto l = split(s); Vec<D> r; T v;
+			if(not convert(l, rcols, r)) continue;
+			Ind<D> I = dst.coord2pos(r);
+			for(int i=0; i<dst.bbox()[vaxe]; i++) if(convert(l, vcols[i], v)){ I[vaxe] = i; (*this)[I] = v; } 
+		}
+	}
+	//--------------------------------------------------------------------------
+	//   make new mesh
+	//--------------------------------------------------------------------------
+	template <typename T, int D, typename S> 
+	Mesh<T,D> dat2Mesh(S &&str, T def_val=0.,  // значение по умолчанию
+					   int vcol=0,             // столбец из которого берутся значения
+					   Ind<D> rcols=Ind<D>(),  // соответствие столбцов координатам сетки, 
+					   int logscale=0,         // логарифмический масштаб (битовая маска)
+					   Vec<D> eps=Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+					   ){
+		if(rcols==Ind<D>()){ 
+			for(int i=0; i<D; i++) rcols[i] = i;
+			if(vcol==0) vcol = D;
+		}
+		std::string head; std::vector<Vec<D> > coords; std::vector<T> data;
+		while(not str.eof()){
+			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
+			if(s.empty()) continue; else if(s[0]=='#'){ head += s+"\n"; continue; }
+			auto l = split(s); Vec<D> r; T v;
+			if(convert(l, rcols, r) and convert(l, vcol, v)){ coords.push_back(r); data.push_back(v); }
+		}
+		Ind<D> bbox; Vec<D> bmin, bmax; std::vector<double> points(coords.size());
+		for(int axe=0; axe<D; axe++){
+			for(size_t i=0; i<coords.size(); ++i) points[i] = coords[i][axe];
+			bbox[axe] = clustering(points, logscale&1<<axe, eps[axe], bmin[axe], bmax[axe]);
+		}
+
+		Mesh<T, D> dst; dst.init(bbox, bmin, bmax, logscale); dst.head = head; dst.fill(def_val);
+		for(size_t i=0; i<coords.size(); ++i) dst[points[i]] = data[i];
+		return dst;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, typename S> 
+	Mesh<T,D> dat2Mesh(S &&str, T def_val=0.,     // значение по умолчанию
+					   std::vector<int> vcols={}, // столбцы из которых берутся значения
+					   int vaxe=-1,               // координата сетки по которой значения развернуты в строку
+					   Ind<D> rcols=Ind<D>(),     // соответствие столбцов координатам сетки, 
+					   int logscale=0,            // логарифмический масштаб (битовая маска)
+					   Vec<D> eps=Vec<D>(1e-6)    // ошибка (окно кластеризации) при разборе координат
+					   ){
+		if(vaxe<0) vaxe = D-vaxe;
+		if(rcols==Ind<D>()) for(int i=0; i<D; i++) rcols[i] = i<vaxe? i: i-1; 
+
+		std::string head; std::vector<Vec<D> > coords; std::vector<T> data;
+		while(not str.eof()){
+			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
+			if(s.empty()) continue; else if(s[0]=='#'){ head += s+"\n"; continue; }
+			auto l = split(s); Vec<D> r; T v;
+			if(vcols.empty()) for(size_t i=0; i<l.size(); i++) if(not rcols.contains(i)) vcols.push_back(i);
+			if(convert(l, rcols, r)){ 
+				coords.push_back(r);
+				for(size_t i=0; i<vcols.size(); i++) data.push_back(convert(l, vcols[i], v)? v: def_val); 
+			}
+		}
+		Ind<D> bbox; Vec<D> bmin, bmax; std::vector<double> points(coords.size());
+		for(int axe=0; axe<D; axe++){
+			if(axe==vaxe){ bbox[axe] = vcols.size(); bmin[axe] = 0; bmax[axe] = bbox[axe]; continue; }
+			for(size_t i=0; i<coords.size(); ++i) points[i] = coords[i][axe];
+			bbox[axe] = clustering(points, logscale&1<<axe, eps[axe], bmin[axe], bmax[axe]);
+		}
+
+		Mesh<T, D> dst; dst.init(bbox, bmin, bmax, logscale); dst.head = head;
+		for(size_t i=0; i<coords.size(); ++i){ 
+			Ind<D> I = dst.coord2pos(coords[i]);
+			for(I[vaxe]=0; I[vaxe]<dst.bbox()[vaxe]; I[vaxe]++) dst[I] = data[i*vcols.size()+I[vaxe]];
+		}
+		return dst;
+	}
+	//--------------------------------------------------------------------------
+#endif //SWIG
+	//--------------------------------------------------------------------------
+	//   frontends
+	//--------------------------------------------------------------------------
+	template <typename T, int D> void dat2Mesh(std::istream& str, aiw::Mesh<T, D> &dst, 
+											   int vcol=0, aiw::Ind<D> rcols=aiw::Ind<D>()){
+		dat2Mesh(std::move(str), dst, vcol, rcols);
+	}
+	template <typename T, int D> void dat2Mesh(aiw::IOstream& str, aiw::Mesh<T, D> &dst, 
+											   int vcol=0, aiw::Ind<D> rcols=aiw::Ind<D>()){
+		dat2Mesh(std::move(str), dst, vcol, rcols);
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D> void dat2Mesh(std::istream& str, aiw::Mesh<T, D> &dst, 
+											   std::vector<int> vcols={}, int vaxe=-1, aiw::Ind<D> rcols=aiw::Ind<D>()){		
+		dat2Mesh(std::move(str), dst, vcols, vaxe, rcols);
+	}
+	template <typename T, int D> void dat2Mesh(aiw::IOstream& str, aiw::Mesh<T, D> &dst, 
+											   std::vector<int> vcols={}, int vaxe=-1, aiw::Ind<D> rcols=aiw::Ind<D>()){		
+		dat2Mesh(std::move(str), dst, vcols, vaxe, rcols);
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D> 
+	aiw::Mesh<T,D> dat2Mesh(std::istream &str, T def_val=0.,  // значение по умолчанию
+							int vcol=0,                       // столбец из которого берутся значения
+							aiw::Ind<D> rcols=aiw::Ind<D>(),  // соответствие столбцов координатам сетки, 
+							int logscale=0,                   // логарифмический масштаб (битовая маска)
+							aiw::Vec<D> eps=aiw::Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+							){
+		return dat2Mesh(std::move(str), def_val, vcol, rcols, logscale, eps);
+	}
+	template <typename T, int D> 
+	aiw::Mesh<T,D> dat2Mesh(aiw::IOstream &str, T def_val=0., // значение по умолчанию
+							std::vector<int> vcols={},        // столбцы из которых берутся значения
+							int vaxe=-1,                      // координата сетки по которой значения развернуты в строку
+							aiw::Ind<D> rcols=aiw::Ind<D>(),  // соответствие столбцов координатам сетки, 
+							int logscale=0,                   // логарифмический масштаб (битовая маска)
+							aiw::Vec<D> eps=aiw::Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+					   ){
+		return dat2Mesh(std::move(str), def_val, vcols, vaxe, rcols, logscale, eps);
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_DAT2MESH_HPP

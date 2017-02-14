@@ -380,28 +380,28 @@ uint64_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только �
 }
 //------------------------------------------------------------------------------
 const Vec<3>& aiw::sph_cell(uint64_t ID, int rank){ // центр ячейки
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_centers[rank][ID];
 }
 //------------------------------------------------------------------------------
 double aiw::sph_cell_area(uint64_t ID, int rank){ // площадь ячейки
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_areas[rank][ID];
 }
 //------------------------------------------------------------------------------
 const Ind3& aiw::sph_cell_vert(uint64_t ID, int rank){ // индексы вершин ячейки
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
 const Ind3& aiw::sph_cell_cell(uint64_t ID, int rank){ // близжайшие соседи ячейки
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_neighbours[rank][ID];
 }
 // const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 //------------------------------------------------------------------------------
 const Vec<3>& aiw::sph_vert(uint64_t ID, int rank){ // вершина (узел) сетки
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex[ID];
 }
 //------------------------------------------------------------------------------
@@ -411,7 +411,7 @@ const Ind3& aiw::sph_vert_vert(uint64_t ID, int rank){ // индексы вер�
 }
 //------------------------------------------------------------------------------
 const Ind6& aiw::sph_vert_cell(uint64_t ID, int rank){ // ячейки, к которым относится вершина
-	WASSERT(rank>current_rank, "illegal rank", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex_cells[rank][ID];
 }
 //------------------------------------------------------------------------------

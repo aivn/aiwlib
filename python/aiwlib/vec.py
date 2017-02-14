@@ -49,6 +49,7 @@ def checkout_swig_types_table(stt):
     _swig_modules.append(stt); patchL = []
     for i in range(stt.size()):
         V = stt.get_item(i) #; print i, V
+        if not V: continue
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         #if V.split()[0] in ('QVec', 'aiw::QVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
@@ -258,6 +259,8 @@ class Vec:
     def prod(self): return reduce(lambda a, b: a*b, self.__getdata())
     def __nonzero__(self): return all(self._getdata())    
     def __hash__(self): return hash(tuple(self._getdata()))
+    def contains(self, x): return x in tuple(self._getdata())
+    def __contains__(self, x): return x in tuple(self._getdata())
     #---------------------------------------------------------------------------
     def __mod__(a, b):
         ab = _conv(a, b)
