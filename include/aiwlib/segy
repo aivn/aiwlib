@@ -1,0 +1,96 @@
+// -*- C++ -*-
+#ifndef AIW_SEGY_HPP
+#define AIW_SEGY_HPP
+
+/**
+ * Copyright (C) 2016-17 Anton V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <list>
+#include <vector>
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// принимает/возвращает сетки aiw::Mesh<float, 1|2|3>, ось времени в сейсмограммах всегда отвечает оси X, шаги отвечают шагам сеток 
+
+	// возвращает максимальную длину трассы, count --- максимальное число трасс для чтения
+	int segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, 
+					  size_t count, bool read_data);
+#ifndef SWIG
+	// segy_read... возвращают геометрию --- сетку размерами [8={PVx,PVy,PVz,PPx,PPy,PPz,dt,trace_sz}][Nx][опицонально Ny]
+	Mesh<float, 2> segy_read_geometry(IOstream &&S, bool read_file_head=true, size_t count=-1);
+	Mesh<float, 2> segy_read(IOstream &&S, Mesh<float, 2> &data, bool read_file_head=true, size_t count=-1);
+	Mesh<float, 3> segy_read(IOstream &&S, Mesh<float, 3> &data);
+
+	//void segy_write(IOstream &&S, const std::vector<float> &data, Vec<2> PV, Vec<3> PP);
+	void segy_write(IOstream &&S, const Mesh<float, 1> &data, Vec<2> PV, Vec<3> PP);
+	void segy_write(IOstream &&S, Mesh<float, 2> data, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
+	void segy_write(IOstream &&S, Mesh<float, 3> data, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
+#endif //SWIG 
+	inline aiw::Mesh<float, 2> segy_read_geometry(aiw::IOstream &S, bool read_file_head=true, size_t count=-1){ 
+		return segy_read_geometry(std::move(S), read_file_head, count); 
+	}	
+	inline aiw::Mesh<float, 2> segy_read(aiw::IOstream &S, aiw::Mesh<float, 2> &data, bool read_file_head=true, size_t count=-1){
+		return segy_read(std::move(S), data, read_file_head, count); 
+	}
+	inline aiw::Mesh<float, 3> segy_read(aiw::IOstream &S, aiw::Mesh<float, 3> &data){
+		return segy_read(std::move(S), data); 
+	}
+	inline void segy_write(aiw::IOstream &S, const aiw::Mesh<float, 1> &data, aiw::Vec<2> PV, aiw::Vec<3> PP){
+		segy_write(std::move(S), data, PV, PP); 
+	}
+	inline void segy_write(aiw::IOstream &S, aiw::Mesh<float, 2> data, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
+						   double rotate, bool write_file_head=true){ 
+		segy_write(std::move(S), data, PV, PP0, rotate, write_file_head); 
+	}
+	inline void segy_write(aiw::IOstream &S, aiw::Mesh<float, 3> data, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
+						   double rotate, bool write_file_head=true){
+		segy_write(std::move(S), data, PV, PP0, rotate, write_file_head); 
+	}
+	//--------------------------------------------------------------------------
+	// можно ввести поля определяющие позиции для записи обязательных данных в заголовок.
+	class SegyFileHead{
+		char head[3600];
+	public:
+		double dt;      // шаг по времени, в секундах
+		int trace_sz;   // число отсчетов в трассе
+		int profile_sz; // число трасс в профиле (магнитограмме)
+
+		SegyFileHead();
+
+		// pos --- позиция в байтах
+		void set_int16(int pos, int value){ int16_t x = value; memcpy(head+3200+pos, &x, 2); } 
+		void set_int32(int pos, int value){ int32_t x = value; memcpy(head+3200+pos, &x, 4); }
+		int get_int16(int pos) const { int16_t x; memcpy(&x, head+3200+pos, 2); return x; }
+		int get_int32(int pos) const { int32_t x; memcpy(&x, head+3200+pos, 4); return x; }
+
+		void dump(aiw::IOstream&);
+		void load(aiw::IOstream&);
+	};
+	//--------------------------------------------------------------------------
+	class SegyTraceHead{
+		char head[400];
+	public:
+		double dt;          // шаг по времени, в секундах
+		int trace_sz;       // число отсчетов в трассе
+		aiw::Vec<3> PV, PP; // координаты ПВ и ПП
+
+		SegyTraceHead();
+
+		// pos --- позиция в байтах
+		void set_int16(int pos, int value){ int16_t x = value; memcpy(head+pos, &x, 2); }
+		void set_int32(int pos, int value){ int32_t x = value; memcpy(head+pos, &x, 4); }
+		int get_int16(int pos) const { int16_t x; memcpy(&x, head+pos, 2); return x; }
+		int get_int32(int pos) const { int32_t x; memcpy(&x, head+pos, 4); return x; }
+
+		void dump(aiw::IOstream&);
+		bool load(aiw::IOstream&);
+
+		void write(aiw::IOstream &S, float *data);
+		aiw::Mesh<float, 1> read(aiw::IOstream&);
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_SEGY_HPP
