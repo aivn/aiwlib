@@ -9,7 +9,7 @@ SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 MPIOPT:=$(MPIOPT) -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/
 
 SWIG:=swig
-GCC:=g++
+GCC:=g++-4.9
 MPICC:=mpiCC
 #-------------------------------------------------------------------------------
 #GCC:=i586-mingw32msvc-g++
