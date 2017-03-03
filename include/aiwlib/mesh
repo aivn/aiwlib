@@ -206,7 +206,7 @@ namespace aiw{
 			for(Ind<D> pos; pos^=B1; ++pos){
 				if(prefix) str<<prefix<<" ";
 				Vec<D> r = pos2coord(pos);
-				for(int i=0; i<D; i++) if((coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
+				for(int i=0; i<D; i++) if(coords[i] && (coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
 				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
 				str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
 			}
