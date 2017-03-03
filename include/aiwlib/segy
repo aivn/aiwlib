@@ -25,9 +25,9 @@ namespace aiw{
 	Mesh<float, 3> segy_read(IOstream &&S, Mesh<float, 3> &data);
 
 	//void segy_write(IOstream &&S, const std::vector<float> &data, Vec<2> PV, Vec<3> PP);
-	void segy_write(IOstream &&S, const Mesh<float, 1> &data, Vec<2> PV, Vec<3> PP);
-	void segy_write(IOstream &&S, Mesh<float, 2> data, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
-	void segy_write(IOstream &&S, Mesh<float, 3> data, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
+	void segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP);
+	void segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
+	void segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate=0., bool write_file_head=true);
 #endif //SWIG 
 	inline aiw::Mesh<float, 2> segy_read_geometry(aiw::IOstream &S, bool read_file_head=true, size_t count=-1){ 
 		return segy_read_geometry(std::move(S), read_file_head, count); 
@@ -38,16 +38,16 @@ namespace aiw{
 	inline aiw::Mesh<float, 3> segy_read(aiw::IOstream &S, aiw::Mesh<float, 3> &data){
 		return segy_read(std::move(S), data); 
 	}
-	inline void segy_write(aiw::IOstream &S, const aiw::Mesh<float, 1> &data, aiw::Vec<2> PV, aiw::Vec<3> PP){
-		segy_write(std::move(S), data, PV, PP); 
+	inline void segy_write(aiw::IOstream &S, const aiw::Mesh<float, 1> &data, double z_pow, aiw::Vec<2> PV, aiw::Vec<3> PP){
+		segy_write(std::move(S), data, z_pow, PV, PP); 
 	}
-	inline void segy_write(aiw::IOstream &S, aiw::Mesh<float, 2> data, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
+	inline void segy_write(aiw::IOstream &S, const aiw::Mesh<float, 2> &data, double z_pow, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
 						   double rotate, bool write_file_head=true){ 
-		segy_write(std::move(S), data, PV, PP0, rotate, write_file_head); 
+		segy_write(std::move(S), data, z_pow, PV, PP0, rotate, write_file_head); 
 	}
-	inline void segy_write(aiw::IOstream &S, aiw::Mesh<float, 3> data, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
+	inline void segy_write(aiw::IOstream &S, const aiw::Mesh<float, 3> &data, double z_pow, aiw::Vec<2> PV, aiw::Vec<3> PP0, 
 						   double rotate, bool write_file_head=true){
-		segy_write(std::move(S), data, PV, PP0, rotate, write_file_head); 
+		segy_write(std::move(S), data, z_pow, PV, PP0, rotate, write_file_head); 
 	}
 	//--------------------------------------------------------------------------
 	// можно ввести поля определяющие позиции для записи обязательных данных в заголовок.
@@ -71,7 +71,7 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 	class SegyTraceHead{
-		char head[400];
+		char head[240];
 	public:
 		double dt;          // шаг по времени, в секундах
 		int trace_sz;       // число отсчетов в трассе

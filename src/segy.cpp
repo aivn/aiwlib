@@ -67,23 +67,25 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 //------------------------------------------------------------------------------
 //   write operations
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, Vec<2> PV, Vec<3> PP){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
 	SegyTraceHead tr; tr.PV = PV|0.; tr.PP = PP; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.dump(S);
-	for(int i=0; i<data.bbox()[0]; i++) S.write(&(data[ind(i)]), 4);
+	if(z_pow) for(int i=0; i<data.bbox()[0]; i++){ float f = data[ind(i)]*pow(i+1, z_pow); S.write(&f, 4); }
+	else for(int i=0; i<data.bbox()[0]; i++) S.write(&(data[ind(i)]), 4);
 }
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, Mesh<float, 2> data, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
 	if(write_file_head){
 		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]; fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
 	Vec<3> delta = vec(cos(rotate), sin(rotate), 0.)*data.step[1];
 	for(int ix=0; ix<data.bbox()[1]; ix++){ 
 		SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta*ix; tr.dump(S);
-		for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix)]), 4);
+		if(z_pow) for(int iz=0; iz<data.bbox()[0]; iz++){ float f = data[ind(iz, ix)]*pow(iz+1, z_pow); S.write(&f, 4); }
+		else for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix)]), 4);
 	}
 }
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, Mesh<float, 3> data, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
 	if(write_file_head){
 		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]; fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
@@ -91,7 +93,8 @@ void aiw::segy_write(IOstream &&S, Mesh<float, 3> data, Vec<2> PV, Vec<3> PP0, d
 	for(int iy=0; iy<data.bbox()[2]; iy++) 
 		for(int ix=0; ix<data.bbox()[1]; ix++){ 
 			SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta_x*ix + delta_y*iy; tr.dump(S);
-			for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix, iy)]), 4);
+			if(z_pow) for(int iz=0; iz<data.bbox()[0]; iz++){ float f = data[ind(iz, ix, iy)]*pow(iz+1, z_pow); S.write(&f, 4); }
+			else for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix, iy)]), 4);
 		}
 }
 //------------------------------------------------------------------------------
@@ -104,8 +107,9 @@ aiw::SegyFileHead::SegyFileHead(){
 //------------------------------------------------------------------------------
 void aiw::SegyFileHead::dump(aiw::IOstream &S){
 	set_int16(12, profile_sz); // chislo trass v seysmogramme (ne v faile!) 12-13
-	set_int16(16, dt*1e6+.5);  // shag diskretizacii, mks 16-17
+	set_int16(16, dt*1e6+.5);  // shag diskretizacii, mks 16-17 18-19 ???
 	set_int16(20, trace_sz);   // chislo otschetov v trasse 21-22
+	set_int16(22, trace_sz);   // chislo otschetov v trasse 23-24
 	set_int16(24, 5);	       // FORMAT
 	S.write(head, 3600);
 }
@@ -119,8 +123,15 @@ void aiw::SegyFileHead::load(aiw::IOstream &S){
 //------------------------------------------------------------------------------
 //   trace head
 //------------------------------------------------------------------------------
+int trID = 1;
 aiw::SegyTraceHead::SegyTraceHead(){
-	for(int i=0; i<400; i++) head[i] = 0;
+	set_int32(0, trID); set_int32(4, trID); trID++;
+	for(int i=0; i<240; i++) head[i] = 0;
+	for(int i=0; i<4; i++) set_int16(28+2*i, 1);  // buf_one1
+	for(int i=0; i<2; i++) set_int16(68+2*i, 1);  // buf_one2
+	for(int i=0; i<10; i++) set_int16(88+2*i, 1); // buf_one3
+	set_int16(118, 1); // FORMAT
+	set_int16(218, 1); // actual
 	dt = 0; trace_sz = 0;
 }
 //------------------------------------------------------------------------------
@@ -132,12 +143,11 @@ void aiw::SegyTraceHead::dump(aiw::IOstream &S){
 	set_int32(84, PP[1]+.5); 
 	set_int16(114, trace_sz);  //114 chislo otschetov v trasse
 	set_int16(116, dt*1e6+.5); //116 shag diskretizacii, mks
-	set_int16(118, 1);         //118 FORMAT
-	S.write(head, 400);
+	S.write(head, 240);
 }
 //------------------------------------------------------------------------------
 bool aiw::SegyTraceHead::load(aiw::IOstream &S){
-	if(S.read(head, 400)!=400) return false;
+	if(S.read(head, 240)!=240) return false;
 	PP[2] = get_int32(40); //40 relief PP
 	PV[0] = get_int32(72); 
 	PV[1] = get_int32(76); 
