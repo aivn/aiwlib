@@ -1,10 +1,17 @@
 // -*- C++ -*-
-#include "iostream"
-
-namespace aiw{
 #ifndef AIW_BINARY_IO_HPP
 #define AIW_BINARY_IO_HPP
-//------------------------------------------------------------------------------
+
+#include "iostream"
+#include <complex>
+#include <vector>
+#include <list>
+#include <map>
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	//   base types
+	//--------------------------------------------------------------------------
 #define BIOP(T)															\
 	inline IOstream& operator < (IOstream& S, T  x){ S.write(&x, sizeof(T)); return S; } \
 	inline IOstream& operator > (IOstream& S, T& x){ S.read(&x, sizeof(T)); return S; }
@@ -17,80 +24,80 @@ namespace aiw{
 	BIOP(float)
 	BIOP(double)
 #undef BIOP
-//------------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 	inline IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}	
 	inline IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}
-//------------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 	template <typename T, int D> 
 	inline IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }
 	template <typename T, int D> 
 	inline IOstream& operator > (IOstream& S, T (&p)[D]){ for(int i=0; i<D; i++) S>p[i]; return S; }
-//------------------------------------------------------------------------------
-#endif //AIW_BINARY_IO_HPP
-
-//------------------------------------------------------------------------------
-#if defined(_GLIBCXX_COMPLEX) && !defined(AIW_BINARY_IO_STD_COMPLEX)
-#define AIW_BINARY_IO_STD_COMPLEX
+	//--------------------------------------------------------------------------
+	//   complex numeric
+	//--------------------------------------------------------------------------
+//#if defined(_GLIBCXX_COMPLEX) && !defined(AIW_BINARY_IO_STD_COMPLEX)
+//#define AIW_BINARY_IO_STD_COMPLEX
 	template<typename T> 
 	inline IOstream& operator < (IOstream& S, const std::complex<T> &x){ S.write(&x, sizeof(std::complex<T>)); return S; }				
 	template<typename T> 
 	inline IOstream& operator > (IOstream& S, std::complex<T> &x){ S.read(&x, sizeof(std::complex<T>)); return S; }
-#endif //_GLIBCXX_COMPLEX
-//------------------------------------------------------------------------------
-#if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
-#define AIW_BINARY_IO_STD_VECTOR
-	template<typename T> inline IOstream& operator < (aiw::IOstream& S, const std::vector<T>& x){
-		S<uint64_t(x.size()); S.write(x.data(), x.size()*sizeof(T)); return S;
+//#endif //_GLIBCXX_COMPLEX
+	//--------------------------------------------------------------------------
+//#if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
+//#define AIW_BINARY_IO_STD_VECTOR
+	template<typename T> inline IOstream& operator < (aiw::IOstream& S, const std::vector<T>& X){
+		S<uint64_t(X.size()); for(size_t i=0; i<X.size(); i++) S<X[i]; return S;
 	}		
-	template<typename T> inline IOstream& operator > (aiw::IOstream& S, std::vector<T>& x){
-		uint64_t sz; S>sz; x.resize(sz); S.read(x.data(), sz*sizeof(T)); return S;
+	template<typename T> inline IOstream& operator > (aiw::IOstream& S, std::vector<T>& X){
+		uint64_t sz; S>sz; X.resize(sz); for(size_t i=0; i<X.size(); i++) S>X[i]; return S;
 	}
-	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& x){
-		S<uint64_t(x.size()); uint64_t cursor=0, buf=0;
-		for(auto i=x.begin(); i!=x.end(); ++i){
+	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& X){
+		S<uint64_t(X.size()); uint64_t cursor=0, buf=0;
+		for(auto i=X.begin(); i!=X.end(); ++i){
 			buf |= int(*i)<<cursor++; 
 			if(cursor==64){ S<buf; cursor = 0; }
 		}
 		return S;
 	}		
-	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& x){
-		uint64_t sz; S>sz; x.resize(sz); uint64_t cursor=64, buf=0;
-		for(auto i=x.begin(); i!=x.end(); ++i){
+	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& X){
+		uint64_t sz; S>sz; X.resize(sz); uint64_t cursor=64, buf=0;
+		for(auto i=X.begin(); i!=X.end(); ++i){
 			if(cursor==64){ S>buf; cursor = 0; }
 			*i = buf&(1<<cursor++);
 		}
 		return S;
 	}
-#endif //_GLIBCXX_VECTOR
-//------------------------------------------------------------------------------
-#if defined(_GLIBCXX_LIST) && !defined(AIW_BINARY_IO_STD_LIST)
-#define AIW_BINARY_IO_STD_LIST
-	template<typename T> inline IOstream& operator < (IOstream& S, const std::list<T>& x){
-		S<uint64_t(x.size()); for(auto I=x.begin(); x!=x.end(); ++x) S.write(&*x, sizeof(T)); return S;
+// #endif //_GLIBCXX_VECTOR
+	//--------------------------------------------------------------------------
+// #if defined(_GLIBCXX_LIST) && !defined(AIW_BINARY_IO_STD_LIST)
+// #define AIW_BINARY_IO_STD_LIST
+	template<typename T> inline IOstream& operator < (IOstream& S, const std::list<T>& X){
+		S<uint64_t(X.size()); for(auto I=X.begin(); I!=X.end(); ++X) S<*I; return S;
 	}		
-	template<typename T> inline IOstream& operator > (IOstream& S, std::list<T>& x){
-		uint64_t sz; S>sz; T v; for(size_t i=0; i<sz; i++){ S.read(&v, sizeof(T)); x.push_back(v); } return S;
+	template<typename T> inline IOstream& operator > (IOstream& S, std::list<T>& X){
+		uint64_t sz; S>sz; T v; for(size_t i=0; i<sz; i++){ S>v; X.push_back(v); } return S;
 	}
-#endif //_GLIBCXX_LIST
-//------------------------------------------------------------------------------
-#if defined(_GLIBCXX_MAP) && !defined(AIW_BINARY_IO_STD_MAP)
-#define AIW_BINARY_IO_STD_MAP
-	template<typename K, typename V> inline IOstream& operator < (IOstream& S, const std::map<K, V>& x){
-		S<uint64_t(x.size());
-		for(auto I=x.begin(); x!=x.end(); ++x){ S.write(&(x->first), sizeof(K)); S.write(&(x->second), sizeof(V)); }
+// #endif //_GLIBCXX_LIST
+	//--------------------------------------------------------------------------
+// #if defined(_GLIBCXX_MAP) && !defined(AIW_BINARY_IO_STD_MAP)
+// #define AIW_BINARY_IO_STD_MAP
+	template<typename K, typename V> inline IOstream& operator < (IOstream& S, const std::map<K, V>& X){
+		S<uint64_t(X.size());
+		for(auto I=X.begin(); I!=X.end(); ++X) S<I->first<I->second; 
 		return S;
 	}		
-	template<typename K, typename V> inline IOstream& operator > (IOstream& S, std::map<K, V>& x){
+	template<typename K, typename V> inline IOstream& operator > (IOstream& S, std::map<K, V>& X){
 		uint64_t sz; S>sz; K k; V v;
-		for(size_t i=0; i<sz; i++){ S.read(&k, sizeof(K)); S.read(&v, sizeof(V)); x[k] = v; }
+		for(size_t i=0; i<sz; i++){ S>k>v; X[k] = v; }
 		return S;
 	}		
-#endif //_GLIBCXX_MAP
-//------------------------------------------------------------------------------
+// #endif //_GLIBCXX_MAP
+	//--------------------------------------------------------------------------
 #if defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
 #define AIW_BINARY_IO_VEC
 	template<int D, typename T> inline IOstream& operator < (IOstream& S, const Vec<D, T>& x){ S.write(&x, sizeof(x)); return S; }
 	template<int D, typename T> inline IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
 #endif //AIW_VEC_HPP
-//------------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 };
+#endif //AIW_BINARY_IO_HPP
