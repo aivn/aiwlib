@@ -1,0 +1,41 @@
+// -*- C++ -*-
+#ifndef AIW_OBJCONF_HPP
+#define AIW_OBJCONF_HPP
+
+/**
+ * Provide macros for make push/pull object configuration method.
+ *
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <string>
+#include <iostream> // for DEBUG mode only
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename ConfT> void obj_conf_par(ConfT&, bool, const char*, const char*){}
+	template <typename ConfT, typename ParT, typename ... Args> 
+	void obj_conf_par(ConfT& conf, bool write_mode, const char *prefix, const char *str, ParT &par, Args ... args){
+		int i=0; while(str[i] and str[i]!=' ' and str[i]!=',' and str[i]!='\t') i++;
+		std::string key(str, i); key = prefix+key;
+#ifdef EBUG
+		if(write_mode) std::cerr<<" set key '"<<key<<"' from ("<<par<<") to ";
+		else std::cerr<<" get key '"<<key<<"'=("<<par<<")\n";
+#endif //EBUG
+		if(write_mode) conf.set(key, par); else conf.get(key, par);
+#ifdef EBUG
+		if(write_mode) std::cerr<<" ("<<par<<")\n";
+#endif //EBUG
+		while(str[i] and (str[i]==' ' or str[i]==',' or str[i]=='\t')) i++;
+		obj_conf_par(conf, write_mode, prefix, str+i, args...);
+	}
+	//--------------------------------------------------------------------------
+};
+
+#define CONFIGURATE(ARGS...) template<typename ConfT>					\
+	void configurate(ConfT &conf, bool wmode, const char *prefix=""){	\
+		aiw::obj_conf_par(conf, wmode, prefix, #ARGS, ARGS);			\
+	}
+
+#endif //AIW_OBJCONF_HPP
