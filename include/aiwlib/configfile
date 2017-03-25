@@ -1,0 +1,60 @@
+// -*- C++ -*-
+#ifndef AIW_CONFIGFILE_HPP
+#define AIW_CONFIGFILE_HPP
+
+/**
+ * Provide configuration file structure
+ *
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#ifndef SWIG
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <complex>
+#include <map>
+#endif //SWIG
+#include "debug"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T> void printf_obj(std::ostream &S, const T &X){ S<<X; }
+	template <typename T> void scanf_obj(std::istream &S, T &X){ S>>X; }
+	//--------------------------------------------------------------------------
+	void printf_obj(std::ostream &S, bool X);
+	void scanf_obj(std::istream &S, bool &X);
+	//--------------------------------------------------------------------------
+	template <typename T> void printf_obj(std::ostream &S, const std::complex<T> &X){
+		S<<X.real()<<(X.imag()>=0 and X.imag()!=-0?"+":"")<<X.imag()<<'j';
+	}
+	template <typename T> void scanf_obj(std::istream &S, std::complex<T> &X){
+		double x, y; char c; S>>x>>y>>c;
+		X = std::complex<T>(x, y);
+	}
+	//--------------------------------------------------------------------------
+	class ConfigFile{
+#ifndef SWIG
+		std::map<std::string, std::string> table;
+#endif //SWIG
+	public:
+#ifndef SWIG
+		template <typename T> void get(const std::string &key, const T &par){
+			std::stringstream buf; printf_obj(buf, par); table[key] = buf.str();
+		}
+		template <typename T> void set(const std::string &key, T &par){
+			auto I = table.find(key); if(I==table.end()) return;
+			std::stringstream buf(I.second()); scanf_obj(buf, par); 
+		}
+
+		void load(std::istream &&fin);
+		void dump(std::ostream &&S) const;
+#endif //SWIG
+		void load(const char *path){ load(std::ifstream(path)); }
+		void dump(const char *path) const { load(std::ofstream(path)); }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_CONFIGFILE_HPP
