@@ -122,7 +122,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 #ifdef AIW_VEC_HPP
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
-		if(D) s<<v[0]; for(int i=1; i<D; i++) s<<" "<<v[i]; return s;
+		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
 #endif //AIW_VEC_HPP
 	//--------------------------------------------------------------------------
