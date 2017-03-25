@@ -1,0 +1,75 @@
+// -*- C++ -*-
+#ifndef AIW_MAGNETS_LATTICE_HPP
+#define AIW_MAGNETS_LATTICE_HPP
+
+/**
+ * Copyright (C) 2016-17 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <vector>
+#include "../vec"
+#include "../binaryio"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct MagnAniso{ // ось анизотропии, 16 байт
+		Vecf<3> n; // направление оси анизотропии
+		float K;   // величина анизотропии
+		
+		inline float W1(Vecf<3> m) const { float mn = m*n; return K*mn*mn; }
+		inline float W3(Vecf<3> m) const { float mn = m*n; return K*mn*mn*mn*mn; }
+		inline Vecf<3> H1(Vecf<3> m) const { return 2*K*m*n*n; }
+		inline Vecf<3> H3(Vecf<3> m) const { float mn = m*n; return 4*K*mn*mn*mn*n; }
+	};
+	//--------------------------------------------------------------------------
+	struct MagnSubLattice{ // подрешетка, <1KB
+#ifndef SWIG
+		//----------------------------------------------------------------------
+		MagnAniso K1[16], K3[16]; // линейные и кубические оси анизотропии
+		int K1sz, K3sz;
+		//----------------------------------------------------------------------
+		struct link_t{ // обменная связь 20 байт ;-(			
+			Ind<3> offset; // смещение в соседнюю ячейку 
+			uint32_t sl;   // подрешетка целевого атома, как то зашить ее в смещение или J?
+			float J;       // величина обменного интеграла 
+		};
+		//----------------------------------------------------------------------
+		std::vector<link_t> links; // обменные связи внутри подрешетки
+#endif //SWIG
+		MagnSubLattice(): K1sz(0), K3sz(0) {}
+
+		int add_link(aiw::Ind<3> offset, int sl, float J){ 
+			link_t l; l.offset = offset; l.sl = sl; l.J = J; links.push_back(l); 
+			return links.size();
+		}
+		void add_aniso1(aiw::Vecf<3> n, float K){ K1[K1sz].n = n; K1[K1sz++].K = K; }
+		void add_aniso3(aiw::Vecf<3> n, float K){ K3[K3sz].n = n; K3[K3sz++].K = K; }
+
+		Vecf<3> coord;      // положение атома внутри ячейки, в относительных ед [0:1]
+		float Ms;           // магнитный момент ???		
+		float gamma, alpha; // прецессия и диссипация
+			
+		inline float Waniso(Vecf<3> m) const {  
+			float S = 0.;
+			for(int i=0; i<K1sz; ++i) S += K1[i].W1(m); 
+			for(int i=0; i<K3sz; ++i) S += K3[i].W3(m); 
+			return S;
+		}
+		inline Vecf<3> Haniso(Vecf<3> &m) const {
+			Vecf<3> S;
+			for(int i=0; i<K1sz; ++i) S += K1[i].H1(m); 
+			for(int i=0; i<K3sz; ++i) S += K3[i].H3(m); 
+			return S;
+		}
+		void dump(aiw::IOstream &) const;
+		void load(aiw::IOstream &);
+	};
+	//--------------------------------------------------------------------------
+	void magn_CC_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.);   // кубическая решетка
+	void magn_BCC_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.);  // ОЦК решетка
+	void magn_FCC3_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.); // неполная ГЦК решетка
+	void magn_FCC4_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.); // полная ГЦК решетка
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_MAGNETS_LATTICE_HPP

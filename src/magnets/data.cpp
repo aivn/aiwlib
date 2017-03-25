@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2016 Antov V. Ivanov, KIAM RAS, Moscow.
+ * Copyright (C) 2016-17 Antov V. Ivanov, KIAM RAS, Moscow.
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
@@ -168,19 +168,6 @@ void MagneticData::magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::func
 }
 //------------------------------------------------------------------------------		
 //   dump/load data
-//------------------------------------------------------------------------------		
-void MagneticSubLattice::dump(aiw::IOstream &S) const {
-	S<coord<Ms<gamma<alpha<K1sz<K3sz;
-	S.write(K1, K1sz*sizeof(MagneticSubLattice::aniso_t));
-	S.write(K3, K3sz*sizeof(MagneticSubLattice::aniso_t));
-	S<links;
-}
-void MagneticSubLattice::load(aiw::IOstream &S){
-	S>coord>Ms>gamma>alpha>K1sz>K3sz;
-	S.read(K1, K1sz*sizeof(MagneticSubLattice::aniso_t));
-	S.read(K3, K3sz*sizeof(MagneticSubLattice::aniso_t));
-	S>links;
-}
 //------------------------------------------------------------------------------		
 void MagneticData::dump_head(aiw::IOstream &S) const {
 	uint64_t data_format = 1704; // ???
