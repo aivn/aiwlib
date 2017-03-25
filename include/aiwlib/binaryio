@@ -94,7 +94,7 @@ namespace aiw{
 // #endif //_GLIBCXX_MAP
 	//--------------------------------------------------------------------------
 #if defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
-#define AIW_BINARY_IO_VEC
+// #define AIW_BINARY_IO_VEC
 	template<int D, typename T> inline IOstream& operator < (IOstream& S, const Vec<D, T>& x){ S.write(&x, sizeof(x)); return S; }
 	template<int D, typename T> inline IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
 #endif //AIW_VEC_HPP
