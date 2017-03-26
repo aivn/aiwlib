@@ -28,32 +28,46 @@ namespace aiw{
 	void scanf_obj(std::istream &S, bool &X);
 	//--------------------------------------------------------------------------
 	template <typename T> void printf_obj(std::ostream &S, const std::complex<T> &X){
-		S<<X.real()<<(X.imag()>=0 and X.imag()!=-0?"+":"")<<X.imag()<<'j';
+		// S<<X.real()<<(X.imag()>=0 and X.imag()!=-0?"+":"")<<X.imag()<<'j';
+		S<<X.real()<<(X.imag()>=0?"+":"-")<<fabs(X.imag())<<'j';
 	}
 	template <typename T> void scanf_obj(std::istream &S, std::complex<T> &X){
 		double x, y; char c; S>>x>>y>>c;
 		X = std::complex<T>(x, y);
 	}
 	//--------------------------------------------------------------------------
+	void scanf_obj(std::istream &S, std::string &X);
+	//--------------------------------------------------------------------------
+	// template <typename T> T scanf_obj(std::istream &S){ T X; S>>X; return X; }
+	//--------------------------------------------------------------------------
 	class ConfigFile{
 #ifndef SWIG
 		std::map<std::string, std::string> table;
 #endif //SWIG
 	public:
+		int no_key_act = 2; // 0 - ignore, 1 - warning, 2 - exception
 #ifndef SWIG
 		template <typename T> void get(const std::string &key, const T &par){
 			std::stringstream buf; printf_obj(buf, par); table[key] = buf.str();
 		}
 		template <typename T> void set(const std::string &key, T &par){
-			auto I = table.find(key); if(I==table.end()) return;
-			std::stringstream buf(I.second()); scanf_obj(buf, par); 
+			auto I = table.find(key);
+			if(I==table.end()){
+				if(no_key_act==1) WARNING("key not found in table, ", key); 
+				if(no_key_act==2) WRAISE("key not found in table, ", key);
+				return;
+			}
+			std::stringstream buf(I->second); scanf_obj(buf, par); 
 		}
 
 		void load(std::istream &&fin);
-		void dump(std::ostream &&S) const;
-#endif //SWIG
+		void dump(std::ostream &&fout) const;
+		void load(std::istream &fin){ load(std::move(fin)); }
+		void dump(std::ostream &fout) const { dump(std::move(fout)); }
+#endif //SWIG		
 		void load(const char *path){ load(std::ifstream(path)); }
-		void dump(const char *path) const { load(std::ofstream(path)); }
+		void dump(const char *path) const { dump(std::ofstream(path)); }
+		void clear(){ table.clear(); }
 	};
 	//--------------------------------------------------------------------------
 };

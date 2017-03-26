@@ -16,7 +16,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename ConfT> void obj_conf_par(ConfT&, bool, const char*, const char*){}
 	template <typename ConfT, typename ParT, typename ... Args> 
-	void obj_conf_par(ConfT& conf, bool write_mode, const char *prefix, const char *str, ParT &par, Args ... args){
+	void obj_conf_par(ConfT& conf, bool write_mode, const char *prefix, const char *str, ParT &par, Args& ... args){
 		int i=0; while(str[i] and str[i]!=' ' and str[i]!=',' and str[i]!='\t') i++;
 		std::string key(str, i); key = prefix+key;
 #ifdef EBUG
