@@ -11,7 +11,7 @@ all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f 
 iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{sphere,configfile,segy}.o); ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{sphere,configfile,segy,geometry}.o); ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
