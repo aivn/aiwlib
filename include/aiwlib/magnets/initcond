@@ -3,22 +3,23 @@
 #define AIW_MAGNETIC_INIT_CONDITIONS_HPP
 
 #include <functional>
-#include "vec"
+#include "../vec"
 
 namespace aiw{
 //------------------------------------------------------------------------------
-    struct MagneticBaseIC{
+    struct MagnBaseIC{
 		virtual Vecf<3> operator()(const Vecf<3> &r) = 0;
     };	
 //------------------------------------------------------------------------------
-    struct MagneticUniformIC: public MagneticBaseIC {
+    struct MagnUniformIC: public MagnBaseIC {
 		Vecf<3> m0;
 		Vecf<3> operator()(const Vecf<3> &r){ return m0; }
     };
+	/*
 //------------------------------------------------------------------------------
     struct MagneticRandomIC: public MagneticBaseIC {
 		Vecf<3> operator()(const Vecf<3> &r){ 
-			Vecf<3> m = Vec( (float)(rand())*2/RAND_MAX-1, (float)(rand())*2/RAND_MAX-1, (float)(rand())*2/RAND_MAX-1 ); 
+			Vecf<3> m = vecf( (float)(rand())*2/RAND_MAX-1, (float)(rand())*2/RAND_MAX-1, (float)(rand())*2/RAND_MAX-1 ); 
 			if(m.abs() > 1e-6) m /= m.abs();
 			return m; 
 			
@@ -29,27 +30,28 @@ namespace aiw{
 		double ttlphi = M_PI*0.5;          // угол поворота в конце стенки,
 		Vecf<3> wall_bgn,                  // координата начала стенки, 
 			wall_end,                  // координата конца стенки,
-			m_bgn = Vec(1., 0., 0.),   // намагниченноть в начале стенки,
-			n_wall = Vec(0., 0., 1.);  // направление распростронения стенки.
-    }
+			m_bgn = vecf(1., 0., 0.),   // намагниченноть в начале стенки,
+			n_wall = vecf(0., 0., 1.);  // направление распростронения стенки.
+    };
 //------------------------------------------------------------------------------
     struct MagneticBlochIC: public MagneticWallIC {
 		Vecf<3> operator()(const Vecf<3> &r){
 			Vecf<3> axis = n_wall;
-			float phi = (r[i]-wall_bgn)*n_wall*tphi/(wall_end-wall_bgn)*n_wall;
+			float phi = (r-wall_bgn)*n_wall*tphi/(wall_end-wall_bgn)*n_wall;
 			return m_bgn + sin(phi)*(m_bgn%axis)+(cos(phi)-1)*((m_bgn%axis)%axis);
 		}
     };
 
 //------------------------------------------------------------------------------
     struct MagneticNeelIC: public MagneticWallIC {
-		Vecf<3> intendet_axis = Vec(1., 0., 0.); //желаемая ось вращения, должна быть перпендекулярна n_wall
+		Vecf<3> intendet_axis = vecf(1., 0., 0.); //желаемая ось вращения, должна быть перпендекулярна n_wall
 		Vecf<3> operator()(const Vecf<3> &r){
 			Vecf<3> axis = n_wall%(intendet_axis%n_wall);
-			float phi = (r[i]-wall_bgn)*n_wall*tphi/(wall_end-wall_bgn)*n_wall;
+			float phi = (r-wall_bgn)*n_wall*tphi/(wall_end-wall_bgn)*n_wall;
 			return m_bgn + sin(phi)*(m_bgn%axis)+(cos(phi)-1)*((m_bgn%axis)%axis);
 		}
     };
 //------------------------------------------------------------------------------
+*/
 }
 #endif //AIW_MAGNETIC_INIT_CONDITIONS_HPP

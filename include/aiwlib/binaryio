@@ -10,6 +10,10 @@
 #include <list>
 #include <map>
 
+#define BINARYIO4POD													\
+	inline void dump(aiw::IOstream &S) const { S.write(this, sizeof(*this)); } \
+	inline void load(aiw::IOstream &S)       { S.read(this, sizeof(*this)); }  
+
 namespace aiw{
 	//--------------------------------------------------------------------------
 	//   base types
@@ -23,12 +27,19 @@ namespace aiw{
 	BIOP_I(int32_t)
 	BIOP_I(int64_t)
 #undef BIOP_I
+	BIOP(char)
+	BIOP(bool)
 	BIOP(float)
 	BIOP(double)
 #undef BIOP
 	//--------------------------------------------------------------------------
 	inline IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}	
 	inline IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}
+	//--------------------------------------------------------------------------
+	template <typename T> inline aiw::IOstream& //typename std::enable_if<T::dump, aiw::IOstream&>::type
+	operator <(IOstream &S, const T &X){ X.dump(S); return S; }
+	template <typename T> inline aiw::IOstream& //typename std::enable_if<T::load, aiw::IOstream&>::type
+	operator >(IOstream &S, T &X){ X.load(S); return S; }
 	//--------------------------------------------------------------------------
 	template <typename T, int D> 
 	inline IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }

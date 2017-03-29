@@ -4,16 +4,16 @@
  **/
 
 #include "../include/aiwlib/mesh"
-#include "../include/aiwlib/magnetics"
+#include "../include/aiwlib/magnets/data"
 #include "../include/aiwlib/binaryio"
 using namespace aiw;
 //------------------------------------------------------------------------------
-void MagneticData::set_geometry(int lat, Figure fig, 
-								int periodic_bc_mask,
-								Vecf<3> step,  // размеры ячейки		
-								Ind<3>  tile_sz,  // размеры tile в ячейках
-								Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
-								Vecf<3> ort_x, Vecf<3> ort_y){ // ort_z = ort_x%ort_y
+void MagnData::set_geometry(int lat, Figure fig, 
+							int periodic_bc_mask,
+							Vecf<3> step,  // размеры ячейки		
+							Ind<3>  tile_sz,  // размеры tile в ячейках
+							Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
+							Vecf<3> ort_x, Vecf<3> ort_y){ // ort_z = ort_x%ort_y
 	auto L = lats[lat];
 	L.tile_sz = tile_sz;
 	L.base_r = base_r;
@@ -83,15 +83,15 @@ void MagneticData::set_geometry(int lat, Figure fig,
 	}
 }
 //------------------------------------------------------------------------------
-void MagneticData::set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
-								  std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func){
+void MagnData::set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
+							  std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // внешний цикл по тайлам, t1 --- модифицируемый тайл
 		if(lat1>=0 && t1->plat!=&(lats[lat1])) continue;
 		Vecf<3> c1 = t1->center(); float r1 = (t1->plat->tile_sz&t1->plat->step).abs()*.5; // характерный размер tile
 		for(auto t2=tiles.begin(); t2!=tiles.end(); ++t2){ // внутренний цикл по тайлам
 			if(t1->plat==t2->plat || (lat2>=0 && t2->plat!=&(lats[lat2])) 
 			   || r1+(t2->plat->tile_sz&t2->plat->step).abs()*.5+max_link_len < (c1-t2->center()).abs()) continue;
-			const std::vector<MagneticSubLattice>& sublats1 = t1->plat->sublats, sublats2 = t2->plat->sublats;
+			const std::vector<MagnSubLattice>& sublats1 = t1->plat->sublats, sublats2 = t2->plat->sublats;
 			Ind<2> sl_sz(sublats1.size(), sublats2.size());
 			for(Ind<2> sl; sl^=sl_sz; ++sl){ // двойной цикл по подрешеткам
 				if((sl[0]&sl_mask1)==0 || (sl[1]&sl_mask2)==0) continue;				
@@ -115,16 +115,16 @@ void MagneticData::set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2
 		} // конец внутреннего цикла по тайлам
 	} // конец внешнего цикла по тайлам
 }
-void MagneticData::set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
+void MagnData::set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
 								  std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func){
 	set_interface1(lat1, sl_mask1, lat2, sl_mask2, max_link_len, app_func);
 	set_interface1(lat2, sl_mask2, lat1, sl_mask1, max_link_len, app_func);
 }
 //------------------------------------------------------------------------------
-void MagneticData::set_app_H(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> app_func){
+void MagnData::set_app_H(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>)> app_func){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
 			if((sl&sl_mask)==0) continue;				
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлах     
@@ -137,7 +137,7 @@ void MagneticData::set_app_H(int lat, int sl_mask, std::function<Vecf<3>(Vecf<3>
 	} // конец цикла по тайлам
 }
 //------------------------------------------------------------------------------		
-void MagneticData::mem_init(size_t szT_, size_t Nstages_){
+void MagnData::mem_init(size_t szT_, size_t Nstages_){
 	delete [] data;
 	szT = szT_; Nstages = Nstages_;
 	size_t tot_sz = 0; magn_count = 0;
@@ -151,10 +151,10 @@ void MagneticData::mem_init(size_t szT_, size_t Nstages_){
 	}
 }
 //------------------------------------------------------------------------------
-void MagneticData::magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::function<void(Vecf<3>, char*)> conv, int stage){
+void MagnData::magn_init(int lat, int sl_mask, MagnBaseIC& IC, std::function<void(Vecf<3>, char*)> conv, int stage){
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
 			if((sl&sl_mask)==0) continue;				
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлах     
@@ -169,7 +169,7 @@ void MagneticData::magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::func
 //------------------------------------------------------------------------------		
 //   dump/load data
 //------------------------------------------------------------------------------		
-void MagneticData::dump_head(aiw::IOstream &S) const {
+void MagnData::dump_head(aiw::IOstream &S) const {
 	uint64_t data_format = 1704; // ???
 	S<head<data_format<szT<Nstages<magn_count<int(lats.size());
 	for(uint32_t i=0; i<lats.size(); i++){
@@ -182,7 +182,7 @@ void MagneticData::dump_head(aiw::IOstream &S) const {
 		S<int(t->plat-&lats[0])<t->nb<t->usage<t->base_r<t->magn_count<t->app_links<t->app_dm_links<t->app_H;
 }
 //------------------------------------------------------------------------------
-void MagneticData::load_head(aiw::IOstream &S, size_t szT_, size_t Nstages_){
+void MagnData::load_head(aiw::IOstream &S, size_t szT_, size_t Nstages_){
 	uint64_t data_format; int sz;
 	S>head>data_format>szT>Nstages>magn_count>sz; lats.resize(sz);
 	for(uint32_t i=0; i<lats.size(); i++){
@@ -197,10 +197,10 @@ void MagneticData::load_head(aiw::IOstream &S, size_t szT_, size_t Nstages_){
 	}
 }
 //------------------------------------------------------------------------------
-void MagneticData::dump_data(aiw::IOstream &S, bool pack, std::function<void(const char*, Vecf<3>&)> conv, int stage) const {
+void MagnData::dump_data(aiw::IOstream &S, bool pack, std::function<void(const char*, Vecf<3>&)> conv, int stage) const {
 	S<time<Hext<pack<stage; Vecf<3> buf[4096]; int cursor=0;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 				if(t1->check(pos, sl)){
@@ -212,11 +212,11 @@ void MagneticData::dump_data(aiw::IOstream &S, bool pack, std::function<void(con
 	if(cursor) S.write(buf, sizeof(Vecf<3>)*cursor);
 }
 //------------------------------------------------------------------------------
-void MagneticData::load_data(aiw::IOstream &S, std::function<void(const Vecf<3>&, char*)> conv, int stage_){
+void MagnData::load_data(aiw::IOstream &S, std::function<void(const Vecf<3>&, char*)> conv, int stage_){
 	Vecf<3> buf[4096]; int stage, cursor=0, buf_sz=0; uint64_t read_sz=0; uint8_t pack;
 	S>time>Hext>pack>stage; if(stage_>=0) stage = stage_;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
-		std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
 				if(t1->check(pos, sl)){
@@ -234,11 +234,11 @@ void MagneticData::load_data(aiw::IOstream &S, std::function<void(const Vecf<3>&
 //------------------------------------------------------------------------------
 //   for vizualization
 //------------------------------------------------------------------------------		
-void MagneticData::get_coords(int lat, int sl_mask, std::vector<Vecf<3> > &p) const {
+void MagnData::get_coords(int lat, int sl_mask, std::vector<Vecf<3> > &p) const {
 	p.clear();
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
@@ -246,13 +246,13 @@ void MagneticData::get_coords(int lat, int sl_mask, std::vector<Vecf<3> > &p) co
 	} // конец цикла по тайлам	
 }
 //------------------------------------------------------------------------------
-void MagneticData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //только для всех магнитных моментов ???
+void MagnData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //только для всех магнитных моментов ???
 	p.clear(); 
 	std::vector<bool> ulinks(magn_count, false);
 	std::vector<uint64_t> offsets(tiles.size()); uint64_t cursor = 0; 
 	for(uint32_t i=0; i<tiles.size(); ++i){ offsets[i] = cursor; cursor += tiles[i].magn_count; }
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		Vec<2, uint32_t> app;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl){ // цикл по подрешеткам
 			for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos){  // цикл по ячейкам в тайлe
@@ -298,12 +298,12 @@ void MagneticData::get_links(std::vector<Vec<2, uint64_t> > &p) const { //тол
 	} // конец цикла по тайлам
 }
 //------------------------------------------------------------------------------
-void MagneticData::get_magns(int lat, int sl_mask, std::vector<Vecf<3> > &p, 
+void MagnData::get_magns(int lat, int sl_mask, std::vector<Vecf<3> > &p, 
 							 std::function<void(const char*, Vecf<3>&)> conv, int stage) const {
 	p.clear(); Vecf<3> m;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 
@@ -314,12 +314,12 @@ void MagneticData::get_magns(int lat, int sl_mask, std::vector<Vecf<3> > &p,
 	} // конец цикла по тайлам	
 }
 //------------------------------------------------------------------------------
-void MagneticData::get_pack_magns(int lat, int sl_mask, std::vector<uint16_t> &p, 
+void MagnData::get_pack_magns(int lat, int sl_mask, std::vector<uint16_t> &p, 
 								  std::function<void(const char*, uint16_t&)> conv, int stage) const {
 	p.clear(); uint16_t m;
 	for(auto t1=tiles.begin(); t1!=tiles.end(); ++t1){ // цикл по тайлам
 		if(lat>=0 && t1->plat!=&(lats[lat])) continue;
-		const std::vector<MagneticSubLattice>& sublats = t1->plat->sublats;
+		const std::vector<MagnSubLattice>& sublats = t1->plat->sublats;
 		for(uint32_t sl=0; sl<sublats.size(); ++sl) 
 			if(sl&sl_mask)
 				for(Ind<3> pos; pos^=t1->plat->tile_sz; ++pos) 

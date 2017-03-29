@@ -33,6 +33,7 @@ namespace aiw{
 			Ind<3> offset; // смещение в соседнюю ячейку 
 			uint32_t sl;   // подрешетка целевого атома, как то зашить ее в смещение или J?
 			float J;       // величина обменного интеграла 
+			BINARYIO4POD;
 		};
 		//----------------------------------------------------------------------
 		std::vector<link_t> links; // обменные связи внутри подрешетки
@@ -65,6 +66,10 @@ namespace aiw{
 		void dump(aiw::IOstream &) const;
 		void load(aiw::IOstream &);
 	};
+	//inline IOstream& operator <(IOstream &S, const MagnSubLattice &L){ L.dump(S); return S; }
+	//inline IOstream& operator >(IOstream &S, MagnSubLattice &L){ L.load(S); return S; }
+	//inline IOstream& operator <(IOstream &S, const MagnSubLattice::link_t &L){ S.write(&L, sizeof(L)); return S; }
+	//inline IOstream& operator >(IOstream &S,       MagnSubLattice::link_t &L){ S.read(&L, sizeof(L)); return S; }
 	//--------------------------------------------------------------------------
 	void magn_CC_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.);   // кубическая решетка
 	void magn_BCC_init(std::vector<MagnSubLattice>&, float J, float alpha, float gamma=1., float Ms=1.);  // ОЦК решетка

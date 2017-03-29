@@ -10,17 +10,18 @@
 #include <functional>
 #include <vector>
 #include <string>
-#include "iostream"
-#include "geometry"
-#include "vec"
-#include "magnetic_init_conditions"
+#include "../iostream"
+#include "../geometry"
+#include "../vec"
+#include "initcond"
+#include "lattice"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class MagnData{
 		//----------------------------------------------------------------------
 		struct lattice_t{ // кристаллическая решетка
-			std::vector<MagneticSubLattice> sublats; // подрешетки
+			std::vector<MagnSubLattice> sublats; // подрешетки
 			Vecf<3> step;     // размеры ячейки		
 			Ind<3>  tile_sz;  // размеры tile в ячейках
 			Vecf<3> base_r;   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
@@ -36,9 +37,10 @@ namespace aiw{
 			uint32_t src, dst; // номер атома в tile (внутри одной стадии!!!)
 			int tile;  // смещение относительно текущего tile
 			float J;   // обменный интеграл
+			BINARYIO4POD;
 		};
-		struct app_DM_link_t: public app_link_t { Vecf<3> D; };  // обмен Дзялошинского-Мориа, 28 байт
-		struct app_H_t{ uint32_t src; Vecf<3> H; };  // дополнительное поле, 16 байт
+		struct app_DM_link_t: public app_link_t { Vecf<3> D; BINARYIO4POD; };  // обмен Дзялошинского-Мориа, 28 байт
+		struct app_H_t{ uint32_t src; Vecf<3> H; 			BINARYIO4POD; };  // дополнительное поле, 16 байт
 		//----------------------------------------------------------------------
 		// tile-ы всех решеток лежат в общем массиве
 		struct tile_t{
@@ -113,8 +115,8 @@ namespace aiw{
 		char *data;
 		size_t szT, Nstages, magn_count; // размер типа, число стадий и число актуальных магнитных моментов
 	public:
-		MagneticData(int Nlats=0): lats(Nlats), data(nullptr), szT(0), Nstages(0), magn_count(0) {}
-		~MagneticData(){ delete [] data; }
+		MagnData(int Nlats=0): lats(Nlats), data(nullptr), szT(0), Nstages(0), magn_count(0) {}
+		~MagnData(){ delete [] data; }
 		
 		std::string head;
 		Vecf<3> Hext; // внешнее поле
@@ -124,7 +126,7 @@ namespace aiw{
 		// настройка подрешеток
 		void set_sublattice_sz(int lat, int sz){ lats[lat].sublats.resize(sz); }
 		int  get_sublattice_sz(int lat) const { return lats[lat].sublats.size(); }
-		MagneticSubLattice& get_sublattice(int lat, int sl){ return lats[lat].sublats[sl]; } 
+		MagnSubLattice& get_sublattice(int lat, int sl){ return lats[lat].sublats[sl]; } 
 
 		// создает tile-ы и инициализирует ссылки на соседей
 		void set_geometry(int lat, Figure fig,  
@@ -141,7 +143,7 @@ namespace aiw{
 		
 		void mem_init(size_t szT, size_t Nstages_=1); 
 
-		void magn_init(int lat, int sl_mask, MagneticBaseIC& IC, std::function<void(Vecf<3>, char*)> conv=0, int stage=0);
+		void magn_init(int lat, int sl_mask, MagnBaseIC& IC, std::function<void(Vecf<3>, char*)> conv=0, int stage=0);
 		
 		void dump_head(aiw::IOstream &) const;
 		void dump_data(aiw::IOstream &, bool pack, std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;
@@ -158,9 +160,9 @@ namespace aiw{
 
 #ifndef SWIG
 		// запуcкать для отдельных решеток и подрешеток???
-		// f(C &m, const Vecf<3> &Hstat, const MagneticSubLattice &SL, const Vecf<3> &Hexch, C mm[32]);
+		// f(C &m, const Vecf<3> &Hstat, const MagnSubLattice &SL, const Vecf<3> &Hexch, C mm[32]);
 		template <typename C, int src=0, int dst=0, int L=32> 
-		void foreach(std::function<void(C&, const Vecf<3>&, const MagneticSubLattice&, const Vecf<3>&, C*)> &func, 
+		void foreach(std::function<void(C&, const Vecf<3>&, const MagnSubLattice&, const Vecf<3>&, C*)> &func, 
 					 int exch, int stage, Ind<L> lats_mask=Ind<L>(-1)){
 			if(src&dst) WRAISE("incorrect masks", exch, src, dst, stage); // защита от дурака???
 			int Nt = tiles.size();
