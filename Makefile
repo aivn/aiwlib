@@ -1,5 +1,5 @@
 PYTHONDIR=/usr/lib/python2.7
-#LIBDIR=/usr/lib
+LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
 BIN_LIST=racs
@@ -7,9 +7,11 @@ BIN_LIST=racs
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f TARGETS ]; then cat TARGETS; fi);
+all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
 iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
+#-------------------------------------------------------------------------------
+libaiw.a: $(shell echo src/{sphere,configfile,segy}.o); ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
@@ -83,14 +85,16 @@ clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python/aiwlib/_$${n:6}.so
 cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python/aiwlib/$${n:9}.py{,c}
 #-------------------------------------------------------------------------------
 uninstall:; 
-	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib 
+	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw.a 
 	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
 install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python/aiwlib  $(PYTHONDIR)
+	-cp libaiw.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
 links-install install-links: all uninstall
 	-ln -s $$(pwd)/include/aiwlib $(INCLUDEDIR)
 	-ln -s $$(pwd)/python/aiwlib  $(PYTHONDIR)
+	-ln -s $$(pwd)/libaiw.a  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s $$(pwd)/bin/$$i $(BINDIR); done
 #-------------------------------------------------------------------------------
