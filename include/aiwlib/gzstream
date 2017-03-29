@@ -2,7 +2,9 @@
 #ifndef AIW_GZSTREAM_HPP
 #define AIW_GZSTREAM_HPP
 
+#ifndef SWIG
 #include <zlib.h>
+#endif //SWIG
 #include "iostream"
 
 namespace aiw{

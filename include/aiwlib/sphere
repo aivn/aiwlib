@@ -7,7 +7,9 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#ifndef SWIG		
 #include <utility>
+#endif //SWIG		
 #include "vec"
 #include "iostream"
 #include "binaryio"

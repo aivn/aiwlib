@@ -6,6 +6,8 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#ifndef SWIG		
+
 #include <cerrno>
 #include <cstring>
 #include <iostream>
@@ -54,4 +56,5 @@ namespace aiw{
 		if(errno) buf<<" [\033[31;1;5m"<<strerror(errno)<<"\033[0m] "; aiw::debug_out(buf, #args, args); buf<<"\n"; \
 		std::cerr<<buf.str(); throw buf.str().c_str(); }	
 //------------------------------------------------------------------------------
+#endif //SWIG		
 #endif //AIW_DEBUG_HPP

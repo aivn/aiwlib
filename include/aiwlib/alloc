@@ -7,6 +7,8 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#ifndef SWIG		
+
 #ifndef MINGW
 #    include <sys/mman.h>
 #    include <fcntl.h> 
@@ -58,4 +60,5 @@ namespace aiw{
 #endif //MINGW
 //---------------------------------------------------------------------------------------------
 };
+#endif //SWIG		
 #endif //AIW_ALLOC_HPP

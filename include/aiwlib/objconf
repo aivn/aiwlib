@@ -9,8 +9,10 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#ifndef SWIG		
 #include <string>
 #include <iostream> // for DEBUG mode only
+#endif //SWIG		
 
 namespace aiw{
 	//--------------------------------------------------------------------------

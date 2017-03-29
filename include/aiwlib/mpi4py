@@ -2,8 +2,11 @@
 #ifndef AIW_MPI4PY_HPP
 #define AIW_MPI4PY_HPP
 
+#ifndef SWIG		
 #include <mpi.h>
 #include <string>
+#endif //SWIG		
+
 namespace aiw{
 //------------------------------------------------------------------------------
 	inline bool mpi_init(){ int argc = 0; return MPI_Init(&argc, 0)==MPI_SUCCESS; }

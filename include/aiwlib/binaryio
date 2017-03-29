@@ -2,6 +2,8 @@
 #ifndef AIW_BINARY_IO_HPP
 #define AIW_BINARY_IO_HPP
 
+#ifndef SWIG		
+
 #include "iostream"
 #include <complex>
 #include <vector>
@@ -100,4 +102,5 @@ namespace aiw{
 #endif //AIW_VEC_HPP
 	//--------------------------------------------------------------------------
 };
+#endif //SWIG		
 #endif //AIW_BINARY_IO_HPP

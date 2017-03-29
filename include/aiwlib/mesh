@@ -2,7 +2,9 @@
 #ifndef AIW_MESH_HPP
 #define AIW_MESH_HPP
 
+#ifndef SWIG
 #include <utility>
+#endif //SWIG
 #include "iostream"
 #include "vec"
 #include "binaryio"

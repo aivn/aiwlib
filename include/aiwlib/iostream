@@ -2,9 +2,11 @@
 #ifndef AIW_IOSTREAM_HPP
 #define AIW_IOSTREAM_HPP
 
+#ifndef SWIG
 #include <cstdio>
 #include <string>
 #include <stdarg.h>
+#endif //SWIG
 #include "alloc"
 
 namespace aiw{
