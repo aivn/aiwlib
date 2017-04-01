@@ -13,26 +13,34 @@ ifinish= # user\'s code to include at finish SWIG file "$(name).i"
 CXXOPT=  # compile options
 LINKOPT= # linker options
 SWIGOPT= # SWIG options
-debug=   # yes or any
+debug=   # on or any
+cxxmain= # .cpp files with main() functions for make
 endef
 #-------------------------------------------------------------------------------
 aiwlib_include:=$(shell dirname $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))))
 aiwlib:=$(dir $(aiwlib_include))
+ifeq ($(wildcard $(aiwlib)libaiw.a),)
+libaiw_a:=-laiw
+else
+libaiw_a:=$(aiwlib)libaiw.a
+endif
 #ifeq ($(wildcard $(aiwlib)python/,)
 #aiwlib:=
 #endif
 include $(aiwlib_include)/aiwlib/config.mk
 all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(notdir $(basename $m)).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
 sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
+all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 #-------------------------------------------------------------------------------
 .PRECIOUS : %.py _%.so %.o %_wrap.cxx %.i
 #-------------------------------------------------------------------------------
-$(name) : _$(name).so $(name).py; 
+all: $(name) $(notdir $(basename $(cxxmain)));
+$(name): _$(name).so $(name).py; 
 #	@if [ "$(aiwlibs)" ]; then make-aivlib $(foreach m,$(aivlibs),'$m') ; fi
 #-------------------------------------------------------------------------------
 aiwmake:=$(sort $(aiwmake))
 aiwinst:=$(sort $(aiwinst))
-LINKOPT:=$(LINKOPT) -lpng -lz 
+#LINKOPT:=$(LINKOPT) -lpng -lz 
 #AIVLIB=aivlib.
 #-------------------------------------------------------------------------------
 $(name)-sets :
@@ -48,6 +56,7 @@ $(name)-sets :
 	@echo LINKOPT=\"$(LINKOPT)\" --- linker options
 	@echo SWIGOPT=\"$(SWIGOPT)\" --- SWIG options
 	@echo debug=\"$(debug)\" --- debug mode
+	@echo cxxmain=\"$(cxxmain)\" --- .cpp files with main() functions for make
 #-------------------------------------------------------------------------------
 #   start swig
 #-------------------------------------------------------------------------------
@@ -61,26 +70,18 @@ $(name).py $(name)_wrap.cxx: $(name).i $(headers)
 #-------------------------------------------------------------------------------
 #   link shared library
 #-------------------------------------------------------------------------------
-_$(name).so: $(name)_wrap.o $(addsuffix .o,$(basename $(modules))) $(objects)
+_$(name).so: $(name)_wrap.o $(all_objects)
 	$(show_target)
-	$(GCC) -shared -o $@ $^ $(LINKOPT) #-laiw
+	$(GCC) -shared -o $@ $^ $(LINKOPT) $(libaiw_a) -lz
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
 $(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(headers))))
-ifndef MODULE
-$(addsuffix .o,$(basename $(modules))): $(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(modules))))
-%.o:; @$(MAKE) --no-print-directory -f $(word 1, $(MAKEFILE_LIST)) \
-	MODULE:=$(strip $(foreach m,$(modules) $(name)_wrap.cxx,$(shell if [ $(basename $m) == $* ]; then echo $m; fi ))) $@
-else
-$(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
-	$(CXX) -I$(aiwlib_include) -o $(basename $(MODULE)).o -c $(MODULE)
-endif
+%.o:; $(CXX) -I$(aiwlib_include) -o $@ -c $<
 #-------------------------------------------------------------------------------
 #   .i file
 #-------------------------------------------------------------------------------
 $(name).i: $(MAKEFILE_LIST)
-#	@echo $(MAKEFILE_LIST) 
 	$(show_target)
 	$(imodule)
 #	@echo '%include "std_string.i"' >> $@
@@ -115,7 +116,7 @@ endif
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -f $(name)_wrap.o $(addsuffix .o, $(basename $(modules))) _$(name).so 
+clean:; rm -f $(name)_wrap.o $(all_objects) _$(name).so $(notdir $(basename $(cxxmain))) $(addsuffix .o,$(basename $(cxxmain))) 
 cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py
 #-------------------------------------------------------------------------------
 ifeq ($(words $(wildcard $(aiwlib)python/aiwlib/ $(aiwlib)swig/ $(aiwlib)Makefile)),3)
@@ -159,4 +160,13 @@ else
 	ssh $(ehost) "cd '$(strip $(epath))'; tar -zxf $(name)-$$$$.tgz; rm $(name)-$$$$.tgz;"
 endif
 	@echo export to \"$(to)\" completed
+#-------------------------------------------------------------------------------
+#   extras to makefile
+#-------------------------------------------------------------------------------
+mkextras:=$(firstword $(MAKEFILE_LIST)).extras
+$(shell echo '# This file is generated automatically, do not edit it!' > $(mkextras))
+$(shell echo '# The file contains additional dependencies and rules for building your project.' >> $(mkextras))
+$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects); $$(CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) -lz';done >> $(mkextras)	)
+$(shell for m in $(modules) $(cxxmain); do $(GCC) $(CXXOPT) -M $$m >> $(mkextras); done)
+include $(mkextras)
 #-------------------------------------------------------------------------------
