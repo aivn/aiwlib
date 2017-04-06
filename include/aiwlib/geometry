@@ -30,9 +30,9 @@ namespace aiw{
 		friend Figure spheroid(const Vecf<3> &center, double R);
 
 	public:
-		aiw::Vecf<3> get_min() const { return figure->get_min(); }
-		aiw::Vecf<3> get_max() const { return figure->get_max(); }
-		bool check(const aiw::Vecf<3> &r) const { return figure->check(r); }
+		aiw::Vecf<3> get_min() const { return figure?figure->get_min():Vecf<3>(-HUGE_VALF); }
+		aiw::Vecf<3> get_max() const { return figure?figure->get_max():Vecf<3>(HUGE_VALF); }
+		bool check(const aiw::Vecf<3> &r) const { return figure?figure->check(r):true; }
 
 		aiw::Figure move(const aiw::Vecf<3> &offset);
 		aiw::Figure rotate(const aiw::Vecf<3> &center, const aiw::Vecf<3> &n_phi);

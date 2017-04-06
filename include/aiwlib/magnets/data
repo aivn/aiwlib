@@ -46,14 +46,14 @@ namespace aiw{
 		struct tile_t{
 			static const int tile_off = ~(1<<31);
 			lattice_t *plat; // кристаллическая решетка к которой относится tile
-			int nb[27];  // соседние tile-ы (смещение от this), tile_off если соседа нету, в центре [13] всегда 0
-			char *data;  // указатель на массивы магнитных моментов, по подрешеткам (лежат друг за другом)
+			int nb[27];      // соседние tile-ы (смещение от this), tile_off если соседа нету, в центре [13] всегда 0
+			char *data;      // указатель на массивы магнитных моментов, по подрешеткам (лежат друг за другом)
 			std::vector<bool> usage; // таблица активности атомов (дискретная геометрия), непуст только для граничных tile-ов
-			Vecf<3> base_r; // координаты левого нижнего угла в системе связанной с решеткой
+			Vecf<3> base_r; // координаты левого нижнего угла в системе координат связанной с РЕШЕТКОЙ plat
 			uint32_t magn_count; // число активных атомов в tile
 
 			std::vector<app_link_t> app_links;       // дополнительные связи
-			std::vector<app_DM_link_t> app_dm_links; // дополнительные связи
+			std::vector<app_DM_link_t> app_dm_links; // дополнительные связи Дзялошинского-Мориа
 			std::vector<app_H_t> app_H;              // дополнительные поля
 
 			inline bool check(const Ind<3> &pos, uint32_t sl) const {
@@ -124,17 +124,17 @@ namespace aiw{
 		// float T;     // температура
 		
 		// настройка подрешеток
-		void set_sublattice_sz(int lat, int sz){ lats[lat].sublats.resize(sz); }
-		int  get_sublattice_sz(int lat) const { return lats[lat].sublats.size(); }
-		MagnSubLattice& get_sublattice(int lat, int sl){ return lats[lat].sublats[sl]; } 
+		std::vector<MagnSubLattice>& config_lat(int lat){ return lats[lat].sublats; }
 
 		// создает tile-ы и инициализирует ссылки на соседей
-		void set_geometry(int lat, Figure fig,  
-						  int periodic_bc_mask, // ??? отдельный метод инициализации, либо явно задавать размеры коробки для ПГУ ???
-						  Vecf<3> step,  // размеры ячейки		
-						  Ind<3>  tile_sz,  // размеры tile в ячейках
-						  Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
-						  Vecf<3> ort_x, Vecf<3> ort_y); // ort_z = ort_x%ort_y
+		void set_geometry(int lat, Figure fig,
+						  Vecf<3> step,    // размеры ячейки		
+						  Ind<3> tile_sz,  // размеры tile в ячейках
+						  Ind<3> max_tsz,  // максимальный размер области, в тайлах
+						  int periodic_bc, // битовая маска периодических граничных условий
+						  Vecf<3> base_r,  // координаты левого нижнего угла базовой ячейки в глобальной системе координат
+						  Ind<3> base_cl,  // положение базовой ячейки в области (задается в ячейках)
+						  Vecf<3> ort_x=vecf(1,0,0), Vecf<3> ort_y=vecf(0,1,0)); // ort_z = ort_x%ort_y, орты задающие систему координат в области, поворот отн. базовой ячейки
 		void set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
 							std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func=0);
 		void set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
@@ -151,11 +151,17 @@ namespace aiw{
 		// stage=-1 --- загружать данные в стадию задаваемую из файла
 		void load_data(aiw::IOstream &, std::function<void(const Vecf<3>&, char*)> conv=0, int stage=0);
 
-		void get_coords(int lat, int sl, std::vector<Vecf<3> >&) const;
+		// поддержка старого (текущего?) формата
+		void dump_head_spins(aiw::IOstream &) const;
+		void dump_data_spins(aiw::IOstream &, std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;
+		void load_head_spins(aiw::IOstream &, size_t szT_=12, size_t Nstages_=1);
+		void load_data_spins(aiw::IOstream &, std::function<void(const Vecf<3>&, char*)> conv=0, int stage=0);
+
+		void get_coords(int lat, int sl_mask, std::vector<Vecf<3> >&) const;
 		void get_links(std::vector<Vec<2, uint64_t> >&) const; //только для всех магнитных моментов ???
-		void get_magns(int lat, int sl, std::vector<Vecf<3> >&, 
+		void get_magns(int lat, int sl_mask, std::vector<Vecf<3> >&, 
 					   std::function<void(const char*, Vecf<3>&)> conv=0, int stage=0) const;
-		void get_pack_magns(int lat, int sl, std::vector<uint16_t>&, 
+		void get_pack_magns(int lat, int sl_mask, std::vector<uint16_t>&, 
 							std::function<void(const char*, uint16_t&)> conv=0, int stage=0) const;
 
 #ifndef SWIG

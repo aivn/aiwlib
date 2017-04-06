@@ -30,14 +30,17 @@ namespace aiw{
 	public:
         explicit Vec(T val=0) { for(int i=0; i<D; i++) p[i] = val; }    
 		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v.p[0]; }
-		template <class T2> Vec(const Vec<D, T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; }
 
 		template <typename ... Args> explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
 			set_x(xxx...); 
 		}
-		template <class T2> inline Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; return *this; }
 
+		template <class T2> Vec(const Vec<D, T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; }
+		template <class T2> inline Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v.p[i]; return *this; }
+		// template <class T2> inline operator Vec<D, T2>() const { Vec<D, T2> res; for(int i=0; i<D; i++) res[i] = p[i]; return res; }
+		
+		
 		inline T  operator [] (int i) const { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range", D, sizeof(T), i); 
 			return p[i]; 

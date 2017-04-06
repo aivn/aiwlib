@@ -9,29 +9,31 @@
 using namespace aiw;
 //------------------------------------------------------------------------------
 void MagnData::set_geometry(int lat, Figure fig, 
-							int periodic_bc_mask,
-							Vecf<3> step,  // размеры ячейки		
-							Ind<3>  tile_sz,  // размеры tile в ячейках
-							Vecf<3> base_r,   // координаты левого нижнего угла ячейки (0,0,0) в глобальной системе координат
+							Vecf<3> step,    // размеры ячейки		
+							Ind<3> tile_sz,  // размеры tile в ячейках
+							Ind<3> max_tsz,  // максимальный размер области, в тайлах
+							int periodic_bc, // битовая маска периодических граничных условий
+							Vecf<3> base_r,  // координаты левого нижнего угла базовой ячейки в глобальной системе координат
+							Ind<3> base_cl,  // положение базовой ячейки в области (задается в ячейках)
 							Vecf<3> ort_x, Vecf<3> ort_y){ // ort_z = ort_x%ort_y
-	auto L = lats[lat];
-	L.tile_sz = tile_sz;
-	L.base_r = base_r;
-	Vecf<3> ort_z = ort_x%ort_y;
-	L.orts[0] = vecf(ort_x[0], ort_y[0], ort_z[0]);
+	lattice_t& L = lats[lat]; L.tile_sz = tile_sz; L.base_r = base_r;
+	Vecf<3> ort_z = ort_x%ort_y, tstep = tile_sz&step, r0cell = -base_cl&step;
+	L.orts[0] = vecf(ort_x[0], ort_y[0], ort_z[0]); // орты решетки задают обратное преобразование координат?
 	L.orts[1] = vecf(ort_x[1], ort_y[1], ort_z[1]); 
 	L.orts[2] = vecf(ort_x[2], ort_y[2], ort_z[2]);
 
-	if(L.orts[0]!=ort_x || L.orts[1]!=ort_y || L.orts[2]!=ort_z) fig = fig.rotate(base_r, ort_x, ort_y); // ??? transform ???
-	Vecf<3> a = fig.get_min(), b = fig.get_max(); 
+	/*
+	if(L.orts[0]!=ort_x || L.orts[1]!=ort_y || L.orts[2]!=ort_z) fig = fig.rotate(base_r, ort_x, ort_y); // подстраиваем фигуру ??? transform ???
+	Vecf<3> a = fig.get_min(), b = fig.get_max(); // границы области, надо как то их подрезать согласно max_sz?
 	for(int i=0; i<3; i++){ float d = ::fmod(base_r[i]-a[i], step[i]); a[i] += d>0?d-step[i]:d; }
 	for(int i=0; i<3; i++){ float d = ::fmod(base_r[i]-b[i], step[i]); b[i] += d<0?d+step[i]:d; }
-
-	Mesh<char, 3> nodes; // сетка узлов и tile-ов
-	nodes.init(((b-a)/step).round()+Ind<3>(1), a, b+step);
-	nodes.fill(0);
+	*/
 	
-	for(Ind<3> i; i^=nodes.bbox(); ++i) if(fig.check(nodes.pos2coord(i))) nodes[i] = 1; // отмечаем все узлы попавшие в fig
+	Mesh<char, 3> nodes; // сетка узлов, отвечающих сетке tile-ов (включая правую границу)
+	// nodes.init(((b-a)/step).round()+Ind<3>(1), a, b+step);
+	nodes.init(max_tsz+ind(1));	nodes.fill(0);
+	
+	for(Ind<3> i; i^=nodes.bbox(); ++i) if(fig.check(L.coord(r0cell+(i&tstep)))) nodes[i] = 1; // отмечаем все узлы попавшие в fig
 	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){ // внутренние |=2, внешние |=4, граничные |=6
 		for(Ind<3> d; d^=Ind<3>(2); ++d) nodes[i] |= nodes[i+d]&1?2:4;
 	}
@@ -41,42 +43,41 @@ void MagnData::set_geometry(int lat, Figure fig,
 				if(ind(0)<=j && j<nodes.bbox()) nodes[j] |= 8;
 			}
 	}
-	// проходим по всем tile, считаем число внутренних (для расчета числа атомов), для граничных поверяем все атомы,
+	// проходим по всем tile, считаем число внутренних (для расчета числа атомов), для граничных проверяем все атомы,
 	// если хотя бы один атом внутри - учитываем его, добавлем tile-ы
 	Mesh<int, 3> tiles_pos; tiles_pos.init(nodes.bbox()-ind(1)); tiles_pos.fill(-1); 
-	int last_tile = 0, full_tile_len = lats[lat].sublats.size()*tile_sz.prod(), start_tile = tiles.size();
+	int last_tile = 0, full_tile_len = L.sublats.size()*tile_sz.prod(), start_tile = tiles.size();
 	for(Ind<3> i; i^=nodes.bbox()-ind(1); ++i){
-		if((nodes[i]&10)==0) continue; // 2+8
-		tile_t tile; tile.magn_count = 0;
-		tile.plat = &(lats[lat]);
-		tile.base_r = nodes.pos2coord(i);
-		if(nodes[i]&2){ // внутренний tile
-			tiles_pos[i] = last_tile++;
-			tile.magn_count = tile.plat->tile_sz.prod()*tile.plat->sublats.size();
-			tiles.push_back(tile);
-			continue;
+		if((nodes[i]&10)==0) continue; // 10 это 2+8, т.е. не внутренний и не граничный тайл
+		std::vector<bool> usage;
+		tile_t tile; tile.plat = &L; tile.base_r = r0cell+(i&tstep);
+		if(nodes[i]&2) tile.magn_count = full_tile_len; // внутренний tile
+		else{   // граничный tile
+			tile.magn_count = 0; bool use = false; 
+			usage.resize(full_tile_len, false); 
+			for(uint32_t sl=0; sl<L.sublats.size(); ++sl){ 
+				for(Ind<3> pos; pos^=tile_sz; ++pos) if(fig.check(tile.coord(pos, sl))){
+						usage[tile.plat->pos2idx(pos, sl, 0)] = true;
+						use = true; tile.magn_count++;
+					}
+			}
+			if(!use) continue;
 		}
-		std::vector<bool> usage(full_tile_len, false); bool use = false;
-		for(uint32_t sl=0; sl<lats[lat].sublats.size(); ++sl){ 
-			for(Ind<3> pos; pos^=tile_sz; ++pos) if(fig.check(tile.coord(pos, sl))){
-					usage[tile.plat->pos2idx(pos, sl, 0)] = true;
-					use = true; tile.magn_count++;
-				}
-		}
-		if(use){
-			tiles_pos[i] = last_tile++;
-			tiles.push_back(tile);
-			tiles.back().usage.swap(usage);
-		} 
+		tiles_pos[i] = last_tile++;
+		tiles.push_back(tile);
+		if(nodes[i]&8) tiles.back().usage.swap(usage);
 	}
 	
 	// устанавливаем связи между tile
-	for(Ind<3> i; i^=tiles_pos.bbox()-ind(1); ++i){
+	for(Ind<3> i; i^=tiles_pos.bbox(); ++i){
 		if(tiles_pos[i]==-1) continue;
 		tile_t &tile = tiles[start_tile+tiles_pos[i]];
 		for(Ind<3> d; d^=Ind<3>(3); ++d){
 			Ind<3> j = i+d-ind(1);
-			// где то тут должны быть ПГУ
+			for(int k=0; k<3; k++) if(periodic_bc&(1<<k)){ // ПГУ
+					if(j[k]<0) j[k] += tiles_pos.bbox()[k];
+					if(j[k]>=tiles_pos.bbox()[k]) j[k] -= tiles_pos.bbox()[k];
+				}
 			tile.nb[d[0]+3*d[1]+9*d[2]] = (ind(0)<=j && j<tiles_pos.bbox() && tiles_pos[j]>=0)? 
 										   tiles_pos[j]-tiles_pos[i] : tile_t::tile_off;			   
 		}
@@ -116,7 +117,7 @@ void MagnData::set_interface1(int lat1, int sl_mask1, int lat2, int sl_mask2, fl
 	} // конец внешнего цикла по тайлам
 }
 void MagnData::set_interface2(int lat1, int sl_mask1, int lat2, int sl_mask2, float max_link_len, 
-								  std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func){
+							  std::function<void(Vecf<3>, float&, Vecf<3>&)> app_func){
 	set_interface1(lat1, sl_mask1, lat2, sl_mask2, max_link_len, app_func);
 	set_interface1(lat2, sl_mask2, lat1, sl_mask1, max_link_len, app_func);
 }
@@ -230,6 +231,32 @@ void MagnData::load_data(aiw::IOstream &S, std::function<void(const Vecf<3>&, ch
 				}
 	} // конец цикла по тайлам	
 	if(cursor) S.write(buf, sizeof(Vecf<3>)*cursor);
+}
+//------------------------------------------------------------------------------
+//   dump/load in old (current?) format
+//------------------------------------------------------------------------------		
+void MagnData::dump_head_spins(aiw::IOstream &stream) const {
+    // описание формата
+    uint32_t F = 0x6D77; // F |= 1<<31;  never pack!!!  // F |= (int)Hext_format<<30;
+	stream.write(&F, 4); uint32_t Nm; Nm = magn_count; stream.write(&Nm, 4);
+	for(size_t l=0; l<lats.size(); l++){
+		std::vector<Vecf<3> > coords; get_coords(l, 0xFFFFFFFF, coords);
+		stream.write(coords.data(), coords.size()*12);
+	}
+}
+//------------------------------------------------------------------------------		
+void MagnData::dump_data_spins(aiw::IOstream &stream, std::function<void(const char*, Vecf<3>&)> conv, int stage) const {
+    double t_ = time; stream.write(&t_, sizeof(t_));
+	for(size_t l=0; l<lats.size(); l++){
+		std::vector<Vecf<3> > magns; get_magns(l, 0xFFFFFFFF, magns, conv, stage);
+		stream.write(magns.data(), magns.size()*12);
+	}
+}
+//------------------------------------------------------------------------------		
+void MagnData::load_head_spins(aiw::IOstream &, size_t szT_, size_t Nstages_){
+}
+//------------------------------------------------------------------------------		
+void MagnData::load_data_spins(aiw::IOstream &, std::function<void(const Vecf<3>&, char*)> conv, int stage){
 }
 //------------------------------------------------------------------------------
 //   for vizualization

@@ -80,7 +80,7 @@ namespace aiw{
 			// } else { init(b); for(Ind<D> pos; pos^=b; ++pos) S>(*this)[pos]; }
 			if(format==0){
 				s = S.tell(); int sz2; S>sz2;
-				if(S.tell()-s!=4 || sz2!=-int(sizeof(Vec<D>)*3+4+sizeof(T))){ S.seek(s); return true; }
+				if(S.tell()-s!=4 || sz2!=-int(sizeof(Vec<D>)*3+4+sizeof(T))){ S.seek(s); set_axes(vec(0.), box); return true; }
 				S>bmin_>bmax_>step_>out_value;
 			}
 			set_axes(bmin_, bmax_, logscale_);

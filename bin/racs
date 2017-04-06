@@ -107,7 +107,7 @@ for i in range(1, a_sz):
         action = ['paths']
         if i+1<a_sz: action.append(sys.argv[i+1]) # fname
         break        
-    elif arg in '--pb --pbar --progressbar'.split(): pbar = ProgressBar()
+    elif arg in '--pb --pbar --progressbar'.split(): pbar = ProgressBar(stdout=sys.stderr)
     elif arg in '--csz --calc-size'.split(): csz = True
     elif arg in '--ctr --check-tree'.split(): ctr = True
     elif arg=='--force': force = True

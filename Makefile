@@ -11,7 +11,7 @@ all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f 
 iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{sphere,configfile,segy,geometry}.o); ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{sphere,configfile,segy,geometry,magnets/{data,lattice}}.o); ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
@@ -35,10 +35,10 @@ python/aiwlib/_%.so: swig/%_wrap.o
 #   compile object files
 #-------------------------------------------------------------------------------
 ifndef MODULE
-src/%.o: src/%.cpp include/aiwlib/*;   @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
-$(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -MM $(MODULE))))
+$(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
 	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 #-------------------------------------------------------------------------------
