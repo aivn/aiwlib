@@ -2,9 +2,10 @@
 #ifndef AIW_MESH_HPP
 #define AIW_MESH_HPP
 
-#ifndef SWIG
+// #ifndef SWIG
 #include <utility>
-#endif //SWIG
+// #include <type_traits>
+// #endif //SWIG
 #include "iostream"
 #include "vec"
 #include "binaryio"
@@ -49,27 +50,44 @@ namespace aiw{
 			set_axes(bmin_, bmax_, logscale_);
 		}
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
-		//----------------------------------------------------------------------
-		//???оптимизировать для простых случаев???		
+		//----------------------------------------------------------------------		
 #ifndef SWIG
-		void dump(aiw::IOstream &&S) const {
-			S<head<D<int(sizeof(T))<box;
-			for(Ind<D> pos; pos^=box; ++pos) S.write(&(*this)[pos], sizeof(T));  
+		// format: 0 - старый формат .arr, 1 - старый формат .msh, 2 - новый формат (typeinfo будет подключен со временем и по возможности)
+		void dump(aiw::IOstream &&S, int format=0) const { //???оптимизировать для простых случаев???
+			if(format==0 || format==1) S<head<D<int(sizeof(T))<box;
+			else if(format==2) S<head<((2<<16)|D)<int(sizeof(T))<box<logscale<bmin<bmax<out_value;
+			else WRAISE("Unknown mesh format for dump ", format);
+			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));  
+			if(format==1) S<-int(sizeof(Vec<D>)*3+4+sizeof(T))<bmin<bmax<step<out_value;
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw
-			std::string h; int rD=-1, szT=-1; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
+			std::string h; int rD=-1, szT=-1, format=-1;  size_t s = S.tell(); S>h>rD>szT;
+			if(S.tell()-s!=12+h.size()){ S.seek(s); return false; }
+			format = rD>>16; rD &= 0xFFFF;
 			if(rD!=D || szT!=sizeof(T)){ 
 				S.seek(s); 
-				if(raise_on_error){ WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), b, h); }
+				if(raise_on_error){ WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT, S.name, S.tell(), h); }
 				else return false;
 			}
-			head = h; sz_init(b);
-			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); set_axes(vec(0.), box); }
-			else { init(b); S.read(ptr, sz*sizeof(T)); }
+			Ind<D> box_; Vec<D> bmin_, bmax_, step_; int logscale_ = 0;
+			if(format==0){ S>box_; sz_init(box_); }
+			else if(format==2){ S>box_>logscale_>bmin_>bmax_>out_value; sz_init(box_); }
+			else WRAISE("Unknown mesh format for load ", format, h, rD, szT, S.tell());
+			head = h;
+			// if(std::is_trivially_copyable<T>::value){
+			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+			else { init(box_); S.read(ptr, sz*sizeof(T)); }
+			// } else { init(b); for(Ind<D> pos; pos^=b; ++pos) S>(*this)[pos]; }
+			if(format==0){
+				s = S.tell(); int sz2; S>sz2;
+				if(S.tell()-s!=4 || sz2!=-int(sizeof(Vec<D>)*3+4+sizeof(T))){ S.seek(s); return true; }
+				S>bmin_>bmax_>step_>out_value;
+			}
+			set_axes(bmin_, bmax_, logscale_);
 			return true;
 		}
 #endif //SWIG
-		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
+		void dump(aiw::IOstream &S, int format=0) const { dump(std::move(S), format); }
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
 			return load(std::move(S), use_mmap, raise_on_error); 
 		}
@@ -255,7 +273,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		// operators +, -, *, /, % etc?
 
-		std::string __getstate__() const { 
+		std::string __getstate__() const { // переписать через dump/load?
 			std::stringstream buf;
 			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
 			buf.write((const char*)&box, sizeof(box));          
