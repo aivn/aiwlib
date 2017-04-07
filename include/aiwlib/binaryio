@@ -59,10 +59,16 @@ namespace aiw{
 //#if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
 //#define AIW_BINARY_IO_STD_VECTOR
 	template<typename T> inline IOstream& operator < (aiw::IOstream& S, const std::vector<T>& X){
-		S<uint64_t(X.size()); for(size_t i=0; i<X.size(); i++) S<X[i]; return S;
+		S<uint64_t(X.size());
+		if(__has_trivial_copy(T) && X.size()) S.write(X.data(), sizeof(T)*X.size());
+		else for(size_t i=0; i<X.size(); i++) S<X[i];
+		return S;
 	}		
 	template<typename T> inline IOstream& operator > (aiw::IOstream& S, std::vector<T>& X){
-		uint64_t sz; S>sz; X.resize(sz); for(size_t i=0; i<X.size(); i++) S>X[i]; return S;
+		uint64_t sz; S>sz; X.resize(sz);
+		if(__has_trivial_copy(T) && X.size()) S.read(X.data(), sizeof(T)*X.size());
+		else for(size_t i=0; i<X.size(); i++) S>X[i];
+		return S;
 	}
 	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& X){
 		S<uint64_t(X.size()); uint64_t cursor=0, buf=0;

@@ -4,7 +4,6 @@
 
 // #ifndef SWIG
 #include <utility>
-// #include <type_traits>
 // #endif //SWIG
 #include "iostream"
 #include "vec"
@@ -74,10 +73,10 @@ namespace aiw{
 			else if(format==2){ S>box_>logscale_>bmin_>bmax_>out_value; sz_init(box_); }
 			else WRAISE("Unknown mesh format for load ", format, h, rD, szT, S.tell());
 			head = h;
-			// if(std::is_trivially_copyable<T>::value){
-			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
-			else { init(box_); S.read(ptr, sz*sizeof(T)); }
-			// } else { init(b); for(Ind<D> pos; pos^=b; ++pos) S>(*this)[pos]; }
+			if(__has_trivial_copy(T)){
+				if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+				else { init(box_); S.read(ptr, sz*sizeof(T)); }
+			} else { init(box_); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
 			if(format==0){
 				s = S.tell(); int sz2; S>sz2;
 				if(S.tell()-s!=4 || sz2!=-int(sizeof(Vec<D>)*3+4+sizeof(T))){ S.seek(s); set_axes(vec(0.), box); return true; }
