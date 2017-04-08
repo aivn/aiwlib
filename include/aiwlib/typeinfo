@@ -1,0 +1,146 @@
+// -*- C++ -*-
+#ifndef AIW_TYPEINFO_HPP
+#define AIW_TYPEINFO_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <map>
+#include <vector>
+#include <string>
+#include <iostream>
+#include <typeinfo>
+#include <complex>
+#include "binaryio"
+#include "vec"
+
+
+// перегружают внутри и снаружи оператор obj^TypeInfoObj
+#define TYPEINFO(ARGS...) aiw::TypeInfo operator ^ (aiw::TypeInfoObj& tio) const { return tio(typeid(*this).name(), false, #ARGS, this, ARGS); }
+#define TYPEINFOX(T, ARGS...) inline aiw::TypeInfo operator ^ (const T& X, aiw::TypeInfoObj& tio){ return tio(#T, true, #ARGS, &X, ARGS); }
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct TypeInfo{
+		std::string Tname;  // имя типа RTTI
+		int szT;            // размер типа
+		int pdim;           // позиция для включения новых размерностей (для Vec)
+		
+		TypeInfo(): pdim(0){}
+		TypeInfo(const char* Tname_, int szT_):Tname(Tname_), szT(szT_), pdim(0) {}
+	private:
+		std::vector<int> dim; // размерности массива в обратном порядке
+
+	public:
+		int get_rank() const { return dim.size(); }
+		int get_dim(int i) const { return dim.at(i); }
+		// TypeInfo& add_dim_back(int D){ dim.push_back(D); return *this; }
+		TypeInfo& add_dim(int D){
+			dim.push_back(0);
+			for(size_t i=dim.size()-1; i>pdim; i--) dim[i] = dim[i-1];
+			dim[pdim] = D;
+			return *this;
+		}
+		TypeInfo& add_dim0(int D){ add_dim(D); pdim++; return *this; }
+
+		int type_size() const { int res = szT; for(size_t i=0; i<dim.size(); i++) res *= dim[i]; return res; }
+
+		int dump_size() const { return 12+Tname.size()+4*dim.size(); }
+		void dump(IOstream& S) const { S<Tname<szT<dim; }
+		void load(IOstream& S){ S>Tname>szT>dim; }
+	};
+	inline std::ostream& operator << (std::ostream& S, const TypeInfo &ti){
+		S<<"/* "<<ti.type_size()<<"B */ "<<ti.Tname;
+		for(int i=0; i<ti.get_rank(); i++) S<<"["<<ti.get_dim(i)<<"]";
+		return S;
+	}
+	//--------------------------------------------------------------------------
+	class StructTypeInfo{  // описание структуры
+		struct field_t{			
+			std::string name;  // имя поля
+			int offset;        // смещение в стуктуре 
+			TypeInfo tinfo;    // информация о типе
+			
+			void dump(IOstream& S) const { S<name<offset<tinfo; }
+			void load(IOstream& S){ S>name>offset>tinfo; }
+		};
+		std::vector<field_t> fields; 
+		friend std::ostream& operator << (std::ostream&, const StructTypeInfo&);
+	public:		
+		int szT;            // размер структуры
+		void add_field(const std::string& name, int offset, const TypeInfo &ti){ field_t F; F.tinfo = ti; F.name = name; F.offset = offset; fields.push_back(F); }
+
+		int dump_size() const {
+			int res = 8;
+			for(auto i=fields.begin(); i!=fields.end(); ++i) res += 8+i->name.size()+i->tinfo.dump_size();
+			return res;
+		}
+		void dump(IOstream& S) const { S<szT<fields; }
+		void load(IOstream& S){ S>szT>fields; }
+	};
+	inline std::ostream& operator << (std::ostream& S, const StructTypeInfo &sti){
+		S<<"{\n";
+		for(auto i=sti.fields.begin(); i!=sti.fields.end(); ++i) S<<"\t"<<i->tinfo<<" "<<i->name<<"; // offset="<<i->offset<<"\n";
+		return S<<"}; // "<<sti.szT<<"B\n";		
+	}
+	//--------------------------------------------------------------------------
+	struct TypeInfoObj{
+		TypeInfo root;                                // описание корня
+		std::map<std::string, StructTypeInfo> table;  // таблица зависимых типов ???
+
+		int dump_size() const {
+			int res = 4+root.dump_size();
+			for(auto i=table.begin(); i!=table.end(); ++i) res += 4+i->first.size()+i->second.dump_size();
+			return res;
+		}
+		void dump(IOstream& S) const { S<dump_size()<root<table; }
+		void load(IOstream& S){ int sz; S>sz>root>table; }
+
+	private:
+		void mk_struct(StructTypeInfo&, bool, const char*, const char*){ } // замыкание рекурсии
+		template <typename T, typename ... Args>
+		void mk_struct(StructTypeInfo &sti, bool Xmode, const char* names, const char* start, const T& arg0, const Args& ... args){
+			int i=0; while(names[i] and names[i]!=' ' and names[i]!=',' and names[i]!='\t') i++;
+			sti.add_field(std::string(names+2*Xmode, i), ((const char*)&arg0)-start, arg0^*this);
+			while(names[i] and (names[i]==' ' or names[i]==',' or names[i]=='\t')) i++;
+			mk_struct(sti, Xmode, names+i, start, args...); 
+		}
+	public:
+		template <typename T, typename ... Args>
+		TypeInfo operator ()(const char *Tname, bool Xmode, const char* names, const T* start, const Args& ... args){
+			if(table.find(Tname)==table.end()){ 
+				StructTypeInfo &sti = table[Tname]; sti.szT = sizeof(T);
+				mk_struct(sti, Xmode, names, (const char*)start, args...);
+			}
+			StructTypeInfo &sti = table[Tname];
+			return TypeInfo(Tname, sti.szT);
+		}
+	};
+	inline std::ostream& operator << (std::ostream& S, const TypeInfoObj &tio){
+		S<<"ROOT="<<tio.root<<"\n";
+		for(auto i=tio.table.begin(); i!=tio.table.end(); ++i) S<<"struct "<<i->first<<i->second;
+		return S;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D> TypeInfo operator ^ (T const (&p)[D], TypeInfoObj& tio){ return (p[0]^tio).add_dim(D); } 
+#define ADD_BASE_TYPE(T) inline TypeInfo operator ^ (T, TypeInfoObj&){ return TypeInfo(#T, sizeof(T)); }
+	ADD_BASE_TYPE(bool)
+	ADD_BASE_TYPE(char)
+	ADD_BASE_TYPE(uint8_t)
+	ADD_BASE_TYPE(int8_t)
+	ADD_BASE_TYPE(uint16_t)
+	ADD_BASE_TYPE(int16_t)
+	ADD_BASE_TYPE(uint32_t)
+	ADD_BASE_TYPE(int32_t)
+	ADD_BASE_TYPE(uint64_t)
+	ADD_BASE_TYPE(int64_t)
+	ADD_BASE_TYPE(float)
+	ADD_BASE_TYPE(double)
+	template <typename T> ADD_BASE_TYPE(std::complex<T>)
+#undef ADD_BASE_TYPE
+	template <int D, typename T> inline TypeInfo operator ^ (const Vec<D, T> &X, TypeInfoObj &tio){ return (X[0]^tio).add_dim0(D); }
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_TYPEINFO_HPP

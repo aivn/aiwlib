@@ -102,7 +102,7 @@ namespace aiw{
 // #define AIW_BINARY_IO_STD_MAP
 	template<typename K, typename V> inline IOstream& operator < (IOstream& S, const std::map<K, V>& X){
 		S<uint64_t(X.size());
-		for(auto I=X.begin(); I!=X.end(); ++X) S<I->first<I->second; 
+		for(auto I=X.begin(); I!=X.end(); ++I) S<I->first<I->second; 
 		return S;
 	}		
 	template<typename K, typename V> inline IOstream& operator > (IOstream& S, std::map<K, V>& X){
