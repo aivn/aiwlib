@@ -30,6 +30,7 @@ namespace aiw{
 		
 		TypeInfo(): pdim(0){}
 		TypeInfo(const char* Tname_, int szT_):Tname(Tname_), szT(szT_), pdim(0) {}
+		operator bool (){ return true; }
 	private:
 		std::vector<int> dim; // размерности массива в обратном порядке
 
@@ -141,6 +142,9 @@ namespace aiw{
 	template <typename T> ADD_BASE_TYPE(std::complex<T>)
 #undef ADD_BASE_TYPE
 	template <int D, typename T> inline TypeInfo operator ^ (const Vec<D, T> &X, TypeInfoObj &tio){ return (X[0]^tio).add_dim0(D); }
+	template <typename T> void operator ^ (T, TypeInfoObj&){
+		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, use macros TYPEINFO or TYPEINFOX for your type! ***\033[0m\n");
+	}
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_TYPEINFO_HPP
