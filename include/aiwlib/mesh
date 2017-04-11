@@ -101,6 +101,11 @@ namespace aiw{
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
 			return r;
 		}
+		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
+			Vec<D> r;
+			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
+			return r;
+		}
 		//----------------------------------------------------------------------
 #ifndef SWIG		
 		inline const T& get(const aiw::Ind<D> &pos) const {
