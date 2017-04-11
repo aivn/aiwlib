@@ -64,6 +64,7 @@ use('@logfile', '" ".join(open(path+"logfile").readlines()).strip() if os.path.e
     'выдает содержимое logfile')
 #use( 'priority', 0, 'приоритет запуска' ) #???
 use('on_racs_call_error', 2, 'действия при ошибке в методе _RACS.__call__: 0 --- остановка, 1 --- полный отчет, 2 --- краткий отчет, 3 --- игнорировать') #???
+use('@path_', 'path[len(os.getcwd())+1:] if path.startswith(os.getcwd()+"/") else path', 'путь к расчету от текущей директории')
 #-------------------------------------------------------------------------------
 class _Region:
     def __init__(self, a, b): self.a, self.b = a, b
