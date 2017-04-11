@@ -1,0 +1,44 @@
+// -*- C++ -*-
+#ifndef AIW_ISOLINES_HPP
+#define AIW_ISOLINES_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <list>
+#include <vector>
+#include "vec"
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class IsoLines{
+		std::vector<std::vector<Vecf<2> >*> plines;
+		std::list<std::vector<Vecf<2> > > lines;
+		std::vector<float> levels;
+	public:
+		void init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale=false);
+		
+		int count() const { return plines.size(); }
+		size_t size(int l) const { return plines.size(); }
+		float level(int l) const { return levels.at(l); }
+		aiw::Vecf<2> point(int l, int i) const { return plines.at(l)->at(i); }
+
+#ifndef SWIG
+		template <typename T> void out2dat(T &&S) const {
+			for(size_t l=0; l<plines.size(); ++l){
+				float z = levels.at(l);
+				for(auto i=plines[l]->begin(); i!=plines[l]->end(); ++i) S<<*i<<' '<<z<<'\n';
+				S<<"\n\n";
+			}
+		}
+#endif //SWIG
+		void out2dat(aiw::IOstream &S) const { out2dat(std::move(S)); }
+		void out2dat(std::ostream &S) const { out2dat(std::move(S)); }
+		void out2dat(const char *path) const { out2dat(aiw::File(path, "w")); }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_ISOLINES_HPP
