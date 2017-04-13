@@ -109,7 +109,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 #ifndef SWIG		
 		inline const T& get(const aiw::Ind<D> &pos) const {
-			WASSERT(Ind<D>()<=pos && pos<box, "position out of box", pos, box);
+			WASSERT(Ind<D>()<=pos && pos<box, "position out of box: ", pos, box);
 			return *((const T*)((const char*)ptr+mul*pos));
 		}
 		inline const T& get(const aiw::Vec<D> &r) const {

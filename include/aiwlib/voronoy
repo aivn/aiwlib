@@ -1,0 +1,53 @@
+// -*- C++ -*-
+#ifndef AIW_VORONOY_HPP
+#define AIW_VORONOY_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <vector>
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// Проводит растризацию настроенной сетки dst согласно разбиению Вороного 
+	// на основе набора точек src, в ячейки сетки помещаются номера точек.
+	template <int D, typename T1, typename T2>
+	void voronoy(const std::vector<Vec<D, T1> > &src, aiw::Mesh<T2, D> dst){
+		WEXC(dst.bmin, dst.bmax, dst.bbox());
+		// if(dst.bbox()*dst.bbox()==0) return;
+		T2 v0 = -1; Ind<D> sz = ind(2)<<dst.bbox();
+		for(Ind<D> pos; pos^=sz; ++pos){ // цикл по углам куба
+			Ind<D> angle = pos&(dst.bbox()-ind(1)); // координаты угла
+			T2 &v = dst[angle]; // значение в углу куба
+			if(v==-1){ // значение неопределено, считаем значение
+				Vec<D> r = dst.pos2coord(angle); // координаты в углу
+				double l_min = (src[0]-r).abs(); v = 0;
+				for(size_t i=1; i<src.size(); ++i){
+					double l = (src[i]-r).abs();
+					if(l_min>l){ l_min = l; v = i; }
+				}
+			} // конец расчета значения
+			if(v0==-1) v0 = v; // первый угол
+			if(v0!=v){ v0 = -1; break; } // углы куба разные
+		} // конец цикла по углам куба
+		if(v0!=-1) dst.fill(v0); // углы куба одинаковые
+		else{ // иначе цикл по под-кубам с перекрытием граней
+			Ind<D> a, b, c = (dst.bbox()+ind(1))/2, sz = ind(2)<<dst.bbox();
+			for(Ind<D> pos; pos^=sz; ++pos){
+				// Ind<D> a = c&((pos+ind(1))/2);
+				// Ind<D> b = (a+c)<<dst.bbox();
+				for(int i=0; i<D; i++){
+					a[i] = pos[i]?c[i]:0; b[i] = pos[i]?dst.bbox()[i]:c[i];
+					if(pos[i]==0 && dst.bbox()[i]-b[i]>2) b[i]++; // перекрытие граней при разбиении - попытка оптимизации
+				}
+				WEXC(pos, a, b, c, dst.bbox());
+				if((b-a)*(b-a)) voronoy(src, dst.crop(a, b));
+			}
+		}
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_VORONOY_HPP
