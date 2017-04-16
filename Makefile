@@ -7,7 +7,7 @@ BIN_LIST=racs
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
 iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
@@ -72,11 +72,14 @@ endif
 #-------------------------------------------------------------------------------
 #   utils
 #-------------------------------------------------------------------------------
-bin/arr2seg-Y: src/arr2seg-Y.cpp src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/arr2seg-Y.cpp src/segy.o -lz
+#bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
+bin/arr2seg-Y: src/segy.o
+bin/isolines: src/isolines.o
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh: bin/%: src/bin/%.o; $(CXX) -o $@ $^ -lz
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o src/*.o python/aiwlib/_*.so 
+clean:; rm -rf swig/*.o src/*.o src/bin/*.o python/aiwlib/_*.so 
 cleanall: clean 
 	for i in swig/*.py; do rm -f $$i python/aiwlib/$$(basename $$i){,c}; done 
 	rm -f swig/*_wrap.cxx 

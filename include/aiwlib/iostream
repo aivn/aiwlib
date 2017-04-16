@@ -92,6 +92,7 @@ namespace aiw{
 		std::shared_ptr<FILE> pf;
 	public:
 		File(){}
+		File(FILE *f){ pf.reset(f, [](FILE*){}); }
 #ifndef SWIG
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
 			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);

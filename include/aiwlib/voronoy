@@ -16,8 +16,6 @@ namespace aiw{
 	// на основе набора точек src, в ячейки сетки помещаются номера точек.
 	template <int D, typename T1, typename T2>
 	void voronoy(const std::vector<Vec<D, T1> > &src, aiw::Mesh<T2, D> dst){
-		WEXC(dst.bmin, dst.bmax, dst.bbox());
-		// if(dst.bbox()*dst.bbox()==0) return;
 		T2 v0 = -1; Ind<D> sz = ind(2)<<dst.bbox();
 		for(Ind<D> pos; pos^=sz; ++pos){ // цикл по углам куба
 			Ind<D> angle = pos&(dst.bbox()-ind(1)); // координаты угла
@@ -33,17 +31,14 @@ namespace aiw{
 			if(v0==-1) v0 = v; // первый угол
 			if(v0!=v){ v0 = -1; break; } // углы куба разные
 		} // конец цикла по углам куба
-		if(v0!=-1) dst.fill(v0); // углы куба одинаковые
+		if(v0!=-1) dst.fill(v0);  // углы куба одинаковые
 		else{ // иначе цикл по под-кубам с перекрытием граней
 			Ind<D> a, b, c = (dst.bbox()+ind(1))/2, sz = ind(2)<<dst.bbox();
 			for(Ind<D> pos; pos^=sz; ++pos){
-				// Ind<D> a = c&((pos+ind(1))/2);
-				// Ind<D> b = (a+c)<<dst.bbox();
 				for(int i=0; i<D; i++){
 					a[i] = pos[i]?c[i]:0; b[i] = pos[i]?dst.bbox()[i]:c[i];
 					if(pos[i]==0 && dst.bbox()[i]-b[i]>2) b[i]++; // перекрытие граней при разбиении - попытка оптимизации
 				}
-				WEXC(pos, a, b, c, dst.bbox());
 				if((b-a)*(b-a)) voronoy(src, dst.crop(a, b));
 			}
 		}

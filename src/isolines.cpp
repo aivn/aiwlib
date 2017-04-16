@@ -28,9 +28,9 @@ void aiw::IsoLines::init(const aiw::Mesh<float, 2> &arr, double z0, double dz, b
 			if(logscale && v_min<1e-30) v_min = 1e-30;
 			if(logscale && v_max<1e-30) v_max = 1e-30;
 			if(v_min==v_max) continue;
-			Vec<2> a = arr.cell_angle(ind(x, y), 0), b = arr.cell_angle(ind(x, y), 1); 
-			double cX0 = v10==v00?0.:arr.step[0]/(v10-v00), cX1 = v11==v01?0.:arr.step[0]/(v11-v01);
-			double cY0 = v01==v00?0.:arr.step[1]/(v01-v00), cY1 = v11==v10?0.:arr.step[1]/(v11-v10);
+			Vec<2> a = arr.cell_angle(ind(x, y), 0), b = arr.cell_angle(ind(x, y), 1); Vec<2> dab = b-a;
+			double cX0 = v10==v00?0.:dab[0]/(v10-v00), cX1 = v11==v01?0.:dab[0]/(v11-v01);
+			double cY0 = v01==v00?0.:dab[1]/(v01-v00), cY1 = v11==v10?0.:dab[1]/(v11-v10);
 			int i_min = ::ceil(logscale?log(v_min/z0)*_dz:(v_min-z0)*_dz),
 				i_max = ::floor(logscale?log(v_max/z0)*_dz:(v_max-z0)*_dz); 
 

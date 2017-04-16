@@ -33,7 +33,7 @@ namespace aiw{
 		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
 			for(int i=0; i<D; i++){
-				step[i] = logscale&1<<i? exp(log(bmax[0]/bmin[0])/box[i]) :(bmax[i]-bmin[i])/box[i];
+				step[i] = logscale&1<<i? exp(log(bmax[i]/bmin[i])/box[i]) :(bmax[i]-bmin[i])/box[i];
 				axes[i] = i; rstep[i] = logscale&1<<i? 1./log(step[i]) : 1./step[i];
 			}
 		}

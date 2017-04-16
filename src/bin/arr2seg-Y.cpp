@@ -1,4 +1,4 @@
-#include "../include/aiwlib/segy"
+#include "../../include/aiwlib/segy"
 using namespace aiw;
 
 const char *help = "usage: arr2seg-Y options and input arrfiles...\noptions:\n"

@@ -21,7 +21,7 @@ namespace aiw{
 	inline std::string strip(const std::string &s){
 		int a, b=s.size();
 		for(a=0; a<b; a++) if(s[a]!=' ' and s[a]!='\t' and s[a]!='\r' and s[a]!=' ') break;
-		for(a<b; b--) if(s[b-1]!=' ' and s[b-1]!='\t' and s[b-1]!='\r' and s[b-1]!=' ') break;
+		for(;a<b; b--) if(s[b-1]!=' ' and s[b-1]!='\t' and s[b-1]!='\r' and s[b-1]!=' ') break;
 		return std::string(s.c_str()+a, b-a);
 	}
 	//--------------------------------------------------------------------------
@@ -38,28 +38,29 @@ namespace aiw{
 		return not (ss>>x).fail();
 	}
 	//--------------------------------------------------------------------------
-	template <int D> inline bool convert(const std::vector<std::string> &src, Ind<D> columns, Vec<D> dst){
+	template <int D> inline bool convert(const std::vector<std::string> &src, const Ind<D> &columns, Vec<D> &dst){
 		for(int i=0; i<D; i++) if(not convert(src, columns[i], dst[i])) return false;
 		return true;
 	}
 	//--------------------------------------------------------------------------
 	inline int clustering(std::vector<double> &points, bool logscale, double eps, double &bmin, double &bmax){
-		std::sort(points.begin(), points.end()); 
+		std::sort(points.begin(), points.end());
+
 		std::vector<double> X; int N=0; double S=0., x_max=points[0];
 		for(auto x=points.begin(); x!=points.end(); ++x){
 			if((logscale and *x/x_max-1<eps) or (not logscale and *x-x_max<eps)){ S += logscale? log(*x): *x;	N++; }
-			else{ X.push_back(logscale? exp(S)/N: S/N); S = *x; N = 1; }
+			else{ X.push_back(logscale? exp(S/N): S/N); S = *x; N = 1; }
 			x_max = *x;
 		}
-		X.push_back(logscale? exp(S)/N: S/N);
+		X.push_back(logscale? exp(S/N): S/N);
 
 		if(logscale){
-			double hstep = sqrt(X.size()>1? exp(log(X.last()/X.first())/(X.size()-1)): 2*eps+points.last()/points.first());
-			bmin = X.first()/hstep; bmax = X.last()*hstep;
+			double hstep = sqrt(X.size()>1? exp(log(X.back()/X.front())/(X.size()-1)): 2*eps+points.back()/points.front());
+			bmin = X.front()/hstep; bmax = X.back()*hstep;
 		} else {
-			double hstep = (X.size()>1? (X.last()-X.first())/(X.size()-1): 2*eps+points.last()-points.first())/2;
-			bmin = X.first()-hstep; bmax = X.last()+hstep;
-		}
+			double hstep = (X.size()>1? (X.back()-X.front())/(X.size()-1): 2*eps+points.back()-points.front())/2;
+			bmin = X.front()-hstep; bmax = X.back()+hstep;
+		}		
 		return X.size();
 	}
 	//--------------------------------------------------------------------------
@@ -77,7 +78,7 @@ namespace aiw{
 			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
 			if(s.empty()) continue; else if(s[0]=='#'){ dst.head += s+"\n"; continue; }
 			auto l = split(s); Vec<D> r; T v;
-			if(convert(l, rcols, r) and convert(l, vcol, v)) (*this)[r] = v;
+			if(convert(l, rcols, r) and convert(l, vcol, v)) dst[r] = v;
 		}
 	}
 	//--------------------------------------------------------------------------
@@ -95,7 +96,7 @@ namespace aiw{
 			auto l = split(s); Vec<D> r; T v;
 			if(not convert(l, rcols, r)) continue;
 			Ind<D> I = dst.coord2pos(r);
-			for(int i=0; i<dst.bbox()[vaxe]; i++) if(convert(l, vcols[i], v)){ I[vaxe] = i; (*this)[I] = v; } 
+			for(int i=0; i<dst.bbox()[vaxe]; i++) if(convert(l, vcols[i], v)){ I[vaxe] = i; dst[I] = v; } 
 		}
 	}
 	//--------------------------------------------------------------------------
@@ -126,7 +127,7 @@ namespace aiw{
 		}
 
 		Mesh<T, D> dst; dst.init(bbox, bmin, bmax, logscale); dst.head = head; dst.fill(def_val);
-		for(size_t i=0; i<coords.size(); ++i) dst[points[i]] = data[i];
+		for(size_t i=0; i<coords.size(); ++i) dst[coords[i]] = data[i];
 		return dst;
 	}
 	//--------------------------------------------------------------------------
