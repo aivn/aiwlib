@@ -1,0 +1,122 @@
+// -*- C++ -*-
+#ifndef AIW_CUBE_HPP
+#define AIW_CUBE_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <vector>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	inline uint64_t interleave_bits_any(int D, int32_t x, int R){
+		uint64_t f = 0;
+		for(int r=0; r<R; r++) if(x&(uint64_t(1)<<r)) f |= uint64_t(1)<<r*D;
+		return f;
+	}
+	inline int32_t de_interleave_bits_any(int D, uint64_t f, int R){
+		int32_t x = 0; 
+		for(int r=0; r<R; r++) if(f&(uint64_t(1)<<r*D)) x |= uint64_t(1)<<r;
+		return x;
+	}
+	//--------------------------------------------------------------------------
+	const uint64_t interleave_bits_table[2][6] = {
+		{0x00000000FFFFFFFF, 0x0000FFFF0000FFFF, 0x00FF00FF00FF00FF, 0x0F0F0F0F0F0F0F0F, 0x3333333333333333, 0x5555555555555555}, // 2D
+		{0x00000000001FFFFF, 0xFFFF00000000FFFF, 0x00FF0000FF0000FF, 0xF00F00F00F00F00F, 0x30C30C30C30C30C3, 0x9249249249249249}  // 3D
+		//???  {0x000000000000FFFF, 0x000000FF000000FF,                  0, 0x000F000F000F000F,                  0, 0x1111111111111111} // 4D ???
+	};
+	inline uint64_t interleave_bits(int D, int32_t x, int R){
+		if(D==1) return x;
+		if(D>2) return interleave_bits_any(D, x, R);
+		uint64_t f = x & interleave_bits_table[D-2][0];
+		for(int i=1; i<6; i++) f = (f|(f<<(1<<(5-i+D-2)))) & interleave_bits_table[D-2][i];
+		return f;
+	}
+	inline int32_t de_interleave_bits(int D, uint64_t f, int R){
+		if(D==1) return f;
+		if(D>2) return de_interleave_bits_any(D, f, R);
+		uint64_t x = f & interleave_bits_table[D-2][5];
+		for(int i=1; i<6; i++) x = (x^(x>>(1<<i+D-3))) & interleave_bits_table[D-2][5-i];
+		return x;
+	}
+	//--------------------------------------------------------------------------
+	// возвращает сдвиг к соседу или ноль, параметр nb должен задавать точку в D-мерном кубе 0(-), 1(центр), 2(+) 
+	template <int D> struct ZCubeNb{
+		int64_t minus[D], plus[D];		
+		inline int64_t operator [](const Ind<D> &nb) const {
+			int64_t res = 0;
+			for(int i=0; i<D; ++i){
+				if(nb[i]==1) continue;
+				int64_t d = nb[i]? plus[i]: minus[i];
+				if(!d) return 0;
+				res += d;
+			}
+			return res;
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <typename T, int D> class ZCube{
+		uint64_t N, B, mask[D], imask[D];
+		int R;
+		std::vector<T> data;
+	public:
+		int rank() const { return R; }
+		uint64_t size() const { return N; }
+		aiw::Ind<D> bbox() const { return ind(B); }
+		
+		void init(int R_){
+			R = R_;	N = uint64_t(1)<<(R*D); B = 1<<R; mask[0] = 0;
+			for(int i=0; i<R; i++) mask[0] |= uint64_t(1)<<(i*D);
+			for(int i=1; i<D; i++) mask[i] = mask[i-1]<<1;			
+			for(int i=0; i<D; ++i) imask[i] = ~mask[i];
+			data.resize(N);
+		}
+		ZCube(int R_=0){ init(R_); }
+
+		inline ZCubeNb<D> get_nb(uint64_t offset) const {
+			ZCubeNb<D> res;
+			for(int i=0; i<D; i++){
+				uint64_t c = offset&mask[i]; // смещение по координате i
+				uint64_t m = c-1, p = (c|imask[i])+1;
+				res.plus[i] =  p? (p&mask[i])-c :0;
+				res.minus[i] = m==-1? 0: (m&mask[i])-c;
+				// res.plus[i] = (p&mask[i])-c; if(N<=res.plus[i]) res.plus[i] = 0;
+				// res.minus[i] = (m&mask[i])-c; if(res.minus[i]<=-N) res.minus[i] = 0;
+			}
+			return res;
+		}
+		inline uint64_t pos2offset(const aiw::Ind<D> &pos) const {
+			uint64_t offset = interleave_bits(D, pos[0], R);
+			for(int i=1; i<D; i++) offset |= interleave_bits(D, pos[i], R)<<i; 
+			return offset;
+		}
+		inline aiw::Ind<D> offset2pos(uint64_t offset) const {
+			Ind<D> pos;
+			for(int i=0; i<D; i++) pos[i] = de_interleave_bits(D, offset>>i, R);
+			return pos;
+		}
+		inline aiw::Ind<D> first() const { return Ind<D>(); }
+		inline bool next(aiw::Ind<D> &pos) const {
+			for(int r=0; r<R; ++r)
+				for(int i=0; i<D; ++i)
+					if(pos[i]&(1<<r)) pos[i] -= 1<<r;
+					else{ pos[i] |= 1<<r; return true; } 
+			return false;
+		}
+		inline       T& operator [](uint64_t offset)       { return data[offset]; } 
+		inline const T& operator [](uint64_t offset) const { return data[offset]; } 
+		inline       T& operator [](const Ind<D> &pos)       { return data[pos2offset(pos)]; } 
+		inline const T& operator [](const Ind<D> &pos) const { return data[pos2offset(pos)]; } 
+
+		// convert from/to Mesh???
+		// load/dump ???
+		// axes ???
+		// fill, copy, allocate memory???
+		// binf to Python???
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_CUBE_HPP
