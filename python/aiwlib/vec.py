@@ -222,7 +222,7 @@ class Vec:
     def __call__(self, *args): 
         return Vec(*[self[i] for i in (args[0] if len(args)==1 and (args[0].__class__ in (list, tuple) or 
                                                                     (isinstance(args[0], Vec) and args[0].T=='int')) 
-                                       else agrs)], T=self._T())
+                                       else args)], T=self._T())
     #---------------------------------------------------------------------------
     # operators <<, <<=, >>, >>=
     def __lshift__ (a, b): return Vec(*([min(x,y) for x, y in _conv(a, b)]), T=_decltype(a, b)) 
