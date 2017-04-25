@@ -108,8 +108,8 @@ namespace aiw{
 		}
 		inline       T& operator [](uint64_t offset)       { WASSERT(0<=offset && offset<N, "incorect offset ", offset, N, R, B); return data[offset]; } 
 		inline const T& operator [](uint64_t offset) const { WASSERT(0<=offset && offset<N, "incorect offset ", offset, N, R, B); return data[offset]; } 
-		inline       T& operator [](const Ind<D> &pos)       { return data[pos2offset(pos)]; } 
-		inline const T& operator [](const Ind<D> &pos) const { return data[pos2offset(pos)]; } 
+		inline       T& operator [](const Ind<D> &pos)       { return (*this)[pos2offset(pos)]; } 
+		inline const T& operator [](const Ind<D> &pos) const { return (*this)[pos2offset(pos)]; } 
 
 		// convert from/to Mesh???
 		// load/dump ???
