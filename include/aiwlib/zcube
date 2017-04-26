@@ -111,6 +111,19 @@ namespace aiw{
 		inline       T& operator [](const Ind<D> &pos)       { return (*this)[pos2offset(pos)]; } 
 		inline const T& operator [](const Ind<D> &pos) const { return (*this)[pos2offset(pos)]; } 
 
+#define IS_BOUND(SUFFIX, CODE)											\
+		inline bool is_bound##SUFFIX(uint64_t f, int axes=0xFF) const{	\
+			for(int i=0; i<D; ++i) if(axes&(1<<i)){						\
+				uint64_t m = f&mask[i];									\
+				if(CODE) return true;									\
+			}															\
+			return false;												\
+		}
+		IS_BOUND(, m==0 || m==mask[i])
+		IS_BOUND(_up, m==mask[i])
+		IS_BOUND(_down, m==0)
+#undef IS_BOUND
+		
 		// convert from/to Mesh???
 		// load/dump ???
 		// axes ???
