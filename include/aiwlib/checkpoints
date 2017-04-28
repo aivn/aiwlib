@@ -1,0 +1,42 @@
+// -*- C++ -*-
+#ifndef AIW_CHECKPOINTS_HPP
+#define AIW_CHECKPOINTS_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <map>
+#include "iostream"
+#include "binaryio"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class CheckPoint{
+		File stream;
+		std::map<std::string, uint32_t> table;
+		int rcounter;
+#ifndef SWIG
+		void dump_load_arg(bool wmode){}
+		template <typename T, typename ... Args> void dump_load_arg(bool wmode, T& x, Args ... args){
+			if(wmode) stream<x; else stream>x;
+			dump_load_arg(wmode, args...);
+		}
+#endif //SWIG
+		int frame(const char* fname, int line, const char *argnames);
+	public:
+		void init(const char *path, bool wmode);
+#ifndef SWIG
+		template <typename ... Args> bool operator()(const char* fname, int line, const char *argnames, Args ... args){
+			int wmode = frame(fname, line, argnames);
+			if(wmode){ dump_load_arg(wmode==2, args...); stream.close(); }
+			return wmode;
+		}
+#endif //SWIG
+	};
+	extern CheckPoint& checkpoint;
+#define CHECKPOINT(ARGS...) checkpoint(__FILE__, __LINE__, #ARGS, ARGS)
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_CHECKPOINTS_HPP
