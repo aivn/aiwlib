@@ -51,22 +51,25 @@ class Calc:
                     if not pid: break
                     os.waitpid(-1, 0)
         elif _arg_seqs:
-            _base_args_from_racs = list(_args_from_racs)
+            _base_args_from_racs, t_start, n_start, n_finish = list(_args_from_racs), time.time(), 0, 0
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
-            copies, pids = _racs_params['_copies'], []
-            print 'Start queue for %i items in %i threads, master PID=%i'%(len(queue), copies, os.getpid())
-            if _racs_params['_daemonize']: mixt.mk_daemon() #mixt.set_output()
+            copies, pids, logfile = _racs_params['_copies'], [], '/tmp/racs-%i.log'%os.getpid()
+            print 'Start queue for %i items in %i threads, master PID=%i, logfile="%s"'%(len(queue), copies, os.getpid(), logfile)
+            if _racs_params['_daemonize']: mixt.mk_daemon(); mixt.set_output(logfile)
+            finish_msg = lambda: 'PID=%i finished [%g%%, %s from %s]'%(p, 100.*n_finish/len(queue), mixt.time2string(time.time()-t_start),
+                                                                      mixt.time2string(n_finish*(time.time()-t_start)/len(queue)))
             for q in queue:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]
-                    pids.remove(p); print 'PID=%i finished'%p
+                    pids.remove(p); n_finish += 1; print finish_msg()
                 _args_from_racs = _base_args_from_racs+q #+[('master', os.getpid())]
                 pid = os.fork()
                 if not pid: break
                 pids.append(pid)
-                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i ...'%(pid, os.getpid())
+                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i [%i/%i] ...'%(pid, os.getpid(), n_start, len(queue))
+                n_start += 1
             else:
-                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); print 'PID=%i finished'%p
+                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; print finish_msg()
                 sys.exit()
         elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------
@@ -111,7 +114,7 @@ class Calc:
         'Устанавливает статус расчета, вызывает commit()'
         self.add_state(state, info, host, login); self.commit()
     #---------------------------------------------------------------------------
-    def set_progress(self, progress, runtime=-1, prompt=''):
+    def set_progress(self, progress, prompt='',  runtime=-1):
         '''Устанавливает progress и runtime, выводит при необходимости mixt.ProgressBar. 
         prompt=@clean очищает ProgressBar, @close prompt result закрывает ProgressBar'''
         if not hasattr(self, 'statelist'): self.statelist = []
