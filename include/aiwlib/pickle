@@ -1,0 +1,83 @@
+// -*- C++ -*-
+#ifndef AIW_PICKLE_HPP
+#define AIW_PICKLE_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <string>
+#include <sstream>
+#include <complex>
+#include <type_traits>
+#include "debug"
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct Pickle{
+		std::string postfix, close;
+		std::stringstream buf;
+
+		// основные операторы для вывода объектов
+		Pickle& operator << (const Pickle& other){ buf<<other.buf.str()<<other.close<<postfix; return *this; }
+		Pickle& operator << (bool x){ buf<<"I0"<<int(x)<<'\n'<<postfix; return *this; }
+		Pickle& operator << (int x){ buf<<'I'<<x<<'\n'<<postfix; return *this; }
+		Pickle& operator << (long x){ buf<<'L'<<x<<"L\n"<<postfix; return *this; }
+		Pickle& operator << (double x){ buf<<'F'<<x<<'\n'<<postfix; return *this; }
+		Pickle& operator << (const char* x){
+			buf<<"S'";
+			for(int i=0; x[i]; i++){
+				if(x[i]=='\n') buf<<"\\n";
+				else if(x[i]=='\r') buf<<"\\r";
+				else if(x[i]=='\t') buf<<"\\t";
+				else buf<<x[i];
+			}
+			buf<<"'\n"<<postfix; 
+			return *this;
+		}
+		Pickle& operator << (const std::string& x){ return *this<<x.c_str(); }		
+
+		template <typename T> Pickle& operator << (const std::complex<T> &x){
+			buf<<"c__builtin__\ncomplex\n(F"<<x.real()<<"\nF"<<x.imag()<<"\ntR"<<postfix;
+			return *this;
+		}
+		
+		template <typename T1, typename T2> Pickle& operator ()(const T1& k, const T2& v){ *this<<k<<v; buf<<'s'; return *this; }
+	};
+	//--------------------------------------------------------------------------
+	inline void pickle(Pickle&){}
+	template <typename T, typename ... Args> void pickle(Pickle &P, const T &x, const Args& ... args){ pickle(P<<x, args...); }
+
+	template <typename ... Args> Pickle PickleTuple(const Args& ... args){ Pickle P; P.close = "t"; P.buf<<'('; pickle(P, args...); return P; }
+	template <typename ... Args> Pickle PickleList(const Args& ... args){ Pickle P; P.postfix = "a"; P.buf<<"(l"; pickle(P, args...); return P; }
+	inline Pickle PickleDict(){ Pickle P; P.buf<<"(d"; return P; }
+	inline Pickle PickleClass(const char* module, const char *name, bool dict=true){
+		Pickle P; P.buf<<"(i"<<module<<'\n'<<name<<'\n'; if(dict) P.buf<<"(d";
+		return P;
+	}
+	//--------------------------------------------------------------------------
+	inline std::ostream& operator << (std::ostream& S, const Pickle &P){ return S<<P.buf.str()<<P.close; }
+	//--------------------------------------------------------------------------
+	template <int D, typename T> Pickle& operator << (Pickle &P, const Vec<D, T> &v){
+		P.buf<<"ccopy_reg\n_reconstructor\n(caiwlib.vec\n"; // (i ???			
+		char data[4+sizeof(v)]; data[1] = 1; *(uint16_t*)(data+2) = D;
+		for(int i=0; i<sizeof(v); i++) data[4+i] = ((char*)(&v))[i];
+
+		if(std::is_same<T, int>::value){ P.buf<<"Ind\n"; data[0] = 50; }
+		else if(std::is_same<T, float>::value){ P.buf<<"Vecf\n"; data[0] = 90; }
+		else if(std::is_same<T, double>::value){ P.buf<<"Vec\n"; data[0] = 95; }
+		else if(std::is_same<T, std::complex<float> >::value){ P.buf<<"Vec\n"; data[0] = 90; data[1] = 2; }
+		else if(std::is_same<T, std::complex<double> >::value){ P.buf<<"Vec\n"; data[0] = 95; data[1] = 2; }
+		else WRAISE("unknown Vec type: ", D, sizeof(T));
+
+		const char hex[17] = "0123456789abcdef";
+		P.buf<<"c__builtin__\nobject\nNtRp\nS'";
+		for(int i=0; i<4+sizeof(v); i++) P.buf<<"\\x"<<hex[(data[i]>>4)&0xF]<<hex[data[i]&0xF];
+		P.buf<<"'\nb"<<P.postfix;
+		return P;
+	}
+	//--------------------------------------------------------------------------		
+};
+#endif //AIW_PICKLE_HPP
