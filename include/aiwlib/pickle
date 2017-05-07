@@ -16,28 +16,34 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
+	struct NoneType{};
+	const NoneType None;
+	//--------------------------------------------------------------------------
 	struct Pickle{
 		std::string postfix, close;
 		std::stringstream buf;
 
 		// основные операторы для вывода объектов
 		Pickle& operator << (const Pickle& other){ buf<<other.buf.str()<<other.close<<postfix; return *this; }
+		Pickle& operator << (NoneType){ buf<<'N'<<postfix; return *this; }
 		Pickle& operator << (bool x){ buf<<"I0"<<int(x)<<'\n'<<postfix; return *this; }
 		Pickle& operator << (int x){ buf<<'I'<<x<<'\n'<<postfix; return *this; }
 		Pickle& operator << (long x){ buf<<'L'<<x<<"L\n"<<postfix; return *this; }
 		Pickle& operator << (double x){ buf<<'F'<<x<<'\n'<<postfix; return *this; }
-		Pickle& operator << (const char* x){
+		Pickle& operator << (const std::string& x){ 		
 			buf<<"S'";
+			const char hex[17] = "0123456789abcdef";
 			for(int i=0; x[i]; i++){
-				if(x[i]=='\n') buf<<"\\n";
-				else if(x[i]=='\r') buf<<"\\r";
+				if(32<=x[i] && x[i]<127) buf<<x[i];
 				else if(x[i]=='\t') buf<<"\\t";
-				else buf<<x[i];
+				else if(x[i]=='\n') buf<<"\\n";
+				else if(x[i]=='\r') buf<<"\\r";
+				else buf<<"\\x"<<hex[(x[i]>>4)&0xF]<<hex[x[i]&0xF];
 			}
 			buf<<"'\n"<<postfix; 
 			return *this;
 		}
-		Pickle& operator << (const std::string& x){ return *this<<x.c_str(); }		
+		Pickle& operator << (const char* x){ return *this<<std::string(x); }
 
 		template <typename T> Pickle& operator << (const std::complex<T> &x){
 			buf<<"c__builtin__\ncomplex\n(F"<<x.real()<<"\nF"<<x.imag()<<"\ntR"<<postfix;
@@ -45,16 +51,23 @@ namespace aiw{
 		}
 		
 		template <typename T1, typename T2> Pickle& operator ()(const T1& k, const T2& v){ *this<<k<<v; buf<<'s'; return *this; }
+		template <typename T> void get(const std::string& k, const T& v){  *this(k, v); } // for objconf
+		template <typename T> void set(const std::string& k, T& v){ WRAISE("incorrect call: ", k); } // for objconf
 	};
 	//--------------------------------------------------------------------------
 	inline void pickle(Pickle&){}
 	template <typename T, typename ... Args> void pickle(Pickle &P, const T &x, const Args& ... args){ pickle(P<<x, args...); }
 
-	template <typename ... Args> Pickle PickleTuple(const Args& ... args){ Pickle P; P.close = "t"; P.buf<<'('; pickle(P, args...); return P; }
-	template <typename ... Args> Pickle PickleList(const Args& ... args){ Pickle P; P.postfix = "a"; P.buf<<"(l"; pickle(P, args...); return P; }
-	inline Pickle PickleDict(){ Pickle P; P.buf<<"(d"; return P; }
-	inline Pickle PickleClass(const char* module, const char *name, bool dict=true){
+	template <typename ... Args> Pickle pickle_tuple(const Args& ... args){ Pickle P; P.close = "t"; P.buf<<'('; pickle(P, args...); return P; }
+	template <typename ... Args> Pickle pickle_list(const Args& ... args){ Pickle P; P.postfix = "a"; P.buf<<"(l"; pickle(P, args...); return P; }
+	inline Pickle pickle_dict(){ Pickle P; P.buf<<"(d"; return P; }
+	inline Pickle pickle_class(const char* module, const char *name, bool dict=true){
 		Pickle P; P.buf<<"(i"<<module<<'\n'<<name<<'\n'; if(dict) P.buf<<"(d";
+		return P;
+	}
+	template <typename ... Args> Pickle pickle_set(const Args& ... args){
+		Pickle P; P.postfix = 'a'; P.close = "tR"; P.buf<<"c__builtin__\nset\n((l";
+		pickle(P, args...);
 		return P;
 	}
 	//--------------------------------------------------------------------------
@@ -73,7 +86,7 @@ namespace aiw{
 		else WRAISE("unknown Vec type: ", D, sizeof(T));
 
 		const char hex[17] = "0123456789abcdef";
-		P.buf<<"c__builtin__\nobject\nNtRp\nS'";
+		P.buf<<"c__builtin__\nobject\nNtRp0\nS'";
 		for(int i=0; i<4+sizeof(v); i++) P.buf<<"\\x"<<hex[(data[i]>>4)&0xF]<<hex[data[i]&0xF];
 		P.buf<<"'\nb"<<P.postfix;
 		return P;
