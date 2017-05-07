@@ -96,6 +96,7 @@ class Calc:
     def commit(self): 
         'Сохраняет содержимое расчета в базе' 
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
+        if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
         cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
                      open(self.path+'.RACS', 'w')) 
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 

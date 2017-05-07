@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, sys, time, gzip, mixt, gtable, calc
+import os, sys, time, gzip, mixt, gtable, calc, cPickle
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][+|-]') возвращает кортеж csfh из 4-х значений
@@ -33,6 +33,9 @@ def parse(ev):
     return compile('" ".join(l.strip() for l in os.popen(%r%%self).readlines())'%ev[1:] if ev.startswith('$') and not evex else ev, 
                    ev+'!'*evex if evex else title, 'exec' if evex else 'eval'), sort, fltr, hide
 #-------------------------------------------------------------------------------
+class SelCalc(calc.Calc):
+    def __init__(self, path, D): self.__dict__.update(D); self.__dict__['path'] = path
+#-------------------------------------------------------------------------------
 class Select:
     'Построение выборки по базе RACS'
     _i, autocommit = 0, False # счетчик строки, автоматическое сохранение изменений ???
@@ -49,15 +52,35 @@ class Select:
         old_ = calc._G.get('_'); calc._G['_'] = self
 	#-----------------------------------------------------------------------
         def vizit(dirname, start, part):
-            # if read_cache : READ_CACHE( dirname ) #???
-            LL = filter(os.path.isdir, [os.path.join(dirname, p) for p in os.listdir(dirname)])
+            if dirname[-1]!='/': dirname += '/'
+            LL = filter(os.path.isdir, map(dirname.__add__, os.listdir(dirname)))
             if LL: part /= len(LL)
+            #-------------------------------------------------------------------
+            #   cache work
+            #-------------------------------------------------------------------
+            cache_name = dirname+'.RACS-CACHE'
+            try: cache, cache_mtime = cPickle.load(open(cache_name)), os.path.getmtime(cache_name)
+            except: cache, cache_mtime = {}, 0; print>>sys.stderr, dirname, '--- cache corrupted!'
+            cache_delta = list(set(map(os.path.basename, LL))-set(cache.keys())|set([
+                os.path.basename(p) for p in LL if os.path.getmtime(p)>cache_mtime and os.path.exists(p+'/.RACS')
+                and os.path.getmtime(p+'/.RACS')>cache_mtime])) if cache else map(os.path.basename, LL)
+            cache_refresh = False
+            if cache_delta: part /= 2; cache_part = part/len(cache_delta)
+            for c in sorted(cache_delta):
+                try: cache[c] = cPickle.load(open(dirname+c+'/.RACS')); cache_refresh = True
+                except: pass
+                start += cache_part
+                if self.progressbar: self.progressbar.out(start, 'refresh cache '+dirname+' ')
+            if cache_refresh or not cache:
+                try: cPickle.dump(cache, open(cache_name, 'w')) # after commit ???
+                except: print dirname, '--- cache not dumped!'
+            #-------------------------------------------------------------------
+            #   main cicle
+            #-------------------------------------------------------------------
             for p in sorted(LL):
-                if os.path.exists(os.path.join(p, '.RACS')):
-                    try: R = calc.Calc(path=p) # try?
-                    except Exception, e: 
-                        calc.Calc._except_report_table.append('%s: %s in %s\n'%(e.__class__.__name__, e, p)) 
-                        continue 
+                D = cache.get(os.path.basename(p))
+                if D:
+                    R = SelCalc(p, D)
                     l = [R]; self._L.append(l); Select._i += 1
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
