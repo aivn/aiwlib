@@ -61,9 +61,10 @@ class Select:
             cache_name = dirname+'.RACS-CACHE'
             try: cache, cache_mtime = cPickle.load(open(cache_name)), os.path.getmtime(cache_name)
             except: cache, cache_mtime = {}, 0; print>>sys.stderr, dirname, '--- cache corrupted!'
-            cache_delta = list(set(map(os.path.basename, LL))-set(cache.keys())|set([
-                os.path.basename(p) for p in LL if os.path.getmtime(p)>cache_mtime and os.path.exists(p+'/.RACS')
-                and os.path.getmtime(p+'/.RACS')>cache_mtime])) if cache else map(os.path.basename, LL)
+            CL, KL = set(map(os.path.basename, LL)), set(cache.keys())
+            for c in KL-CL: del cache[c]
+            cache_delta = list(CL-KL|set([os.path.basename(p) for p in LL if os.path.getmtime(p)>cache_mtime and os.path.exists(p+'/.RACS')
+                                          and os.path.getmtime(p+'/.RACS')>cache_mtime])) if cache else map(os.path.basename, LL)
             cache_refresh = False
             if cache_delta: part /= 2; cache_part = part/len(cache_delta)
             for c in sorted(cache_delta):
