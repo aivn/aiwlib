@@ -11,7 +11,8 @@ all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin
 iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+#libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,mixt,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,mixt}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
@@ -32,6 +33,15 @@ python/aiwlib/_%.so: swig/%_wrap.o
 	$(show_target)
 	$(GCC) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
+#   mpiCC
+#-------------------------------------------------------------------------------
+python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
+	$(show_target)
+	$(MPICC) $(MPIOPT) -shared -o $@ $< $(LINKOPT)
+src/$(subst \,,$(shell $(MPICC) $(MPIOPT) -M src/racs.cpp))  
+	$(show_target)
+	$(MPICC) $(MPIOPT) -o $@ -c $< 
+#-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
 ifndef MODULE
@@ -41,12 +51,6 @@ else
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
 	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
-#-------------------------------------------------------------------------------
-#   mpi4py
-#-------------------------------------------------------------------------------
-python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
-	$(show_target)
-	$(MPICC) $(MPIOPT) -shared -o $@ $< $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   Mesh
 #-------------------------------------------------------------------------------

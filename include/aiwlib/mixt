@@ -1,0 +1,19 @@
+// -*- C++ -*-
+#ifndef AIW_MIXT_HPP
+#define AIW_MIXT_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <string>
+#include <map>
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	std::string make_path(const char *repo);
+	std::string format_string(const char *pattern, const std::map<std::string, std::string> &dict);
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_MIXT_HPP

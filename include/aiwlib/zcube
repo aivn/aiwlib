@@ -9,6 +9,7 @@
 
 #include <vector>
 #include "vec"
+#include "mesh"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -123,7 +124,12 @@ namespace aiw{
 		IS_BOUND(_up, m==mask[i])
 		IS_BOUND(_down, m==0)
 #undef IS_BOUND
-		
+
+		operator Mesh<T, D>() const {
+			Mesh<T, D> res; res.init(bbox());
+			for(uint64_t i=0; i<size(); ++i) res[offset2pos(i)] = data[i];
+			return res;
+		}
 		// convert from/to Mesh???
 		// load/dump ???
 		// axes ???
