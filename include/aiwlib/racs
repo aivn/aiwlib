@@ -1,0 +1,84 @@
+// -*- C++ -*-
+#ifndef AIW_RACS_HPP
+#define AIW_RACS_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <map>
+#include <list>
+#include <string>
+#include <memory>
+#include "pickle"
+#include "configfile"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class RacsCalc{
+		struct state_t{
+			std::string state; // started, stopped, finished, killed ...
+			// std::string user;
+			// std::string host;
+			double date;
+			// std::string data;
+		};
+		std::list<state_t> statelist;
+
+		std::map<std::string, std::string> arg_params; // доп. параметры из командной строки, используются для инициализации полей контролируемых объектов
+
+
+		struct base_control_t{
+			virtual void pickle(Pickle&) const = 0;
+			virtual void update(const RacsCalc&) = 0;
+		};
+		template <typename T> struct control_t: public base_control_t{
+			std::string prefix; T* data;
+			void pickle(Pickle &P) const { data->configurate(P, false, prefix.c_str()); }
+			void update(const RacsCalc &calc){ data->configurate(calc, true, prefix.c_str()); }
+		};
+		std::list<std::shared_ptr<base_control_t> > controls;
+
+		struct base_param_t{ virtual void pickle(const std::string&, Pickle&) const = 0;	};
+		template <typename T> struct param_t: public base_param_t{
+			T data;
+			void pickle(const std::string &key, Pickle &P) const { P(key, data); }
+		};
+		std::map<std::string, std::shared_ptr<base_param_t> > params;
+
+		std::string path_; 		
+		std::string repo = "repo";
+		
+		void calc_configure(); // конфигурация расчета когда известен путь
+	public:
+		double progress;
+		double runtime;
+		std::string md5sum;
+		std::list<std::string> args;
+
+		const std::string &path();
+		
+		RacsCalc(int argc, const char **argv);
+
+		void set_state(const std::string& state);
+		template <typename T> RacsCalc& operator()(const char *key, const T &val){ auto p = new param_t<T>; p->data = val; params[key].reset(p); return *this; }
+		
+		template <typename T> void get(const std::string& k, const T& v){ WRAISE("incorrect call: ", k); } // for objconf
+		template <typename T> void set(const std::string& k, T& v){ // for objconf
+			auto I = arg_params.find(k);
+			if(I!=arg_params.end()){ std::stringstream buf(I->second); scanf_obj(buf, v); }
+		} 
+		
+		template <typename T> void control(T &data, const char *prefix=nullptr){
+			auto p = new control_t<T>; p->data = &data; p->prefix = prefix;
+			controls.push_back(p); data.configurate(*this, true, prefix);
+		}
+		
+		void push(); // push parametrs to controls ???
+		void commit(); // const ???
+		// ??? void set_progess();
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_RACS_HPP
