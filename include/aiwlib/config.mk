@@ -7,7 +7,7 @@ CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH)
 LINKOPT:=$(LINKOPT) -lgomp -lz
 SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
 #SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -includeall 
-MPIOPT:=$(MPIOPT) -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/
+MPIOPT:=$(MPIOPT) -Wall -fopenmp -std=c++11 -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/
 
 SWIG:=swig
 GCC:=g++

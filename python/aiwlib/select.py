@@ -81,7 +81,7 @@ class Select:
             for p in sorted(LL):
                 D = cache.get(os.path.basename(p))
                 if D:
-                    R = SelCalc(p, D)
+                    R = SelCalc(p+'/', D)
                     l = [R]; self._L.append(l); Select._i += 1
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:

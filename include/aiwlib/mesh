@@ -96,11 +96,8 @@ namespace aiw{
 			for(int i=0; i<D; i++) p[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
 			return p;
 		}
-		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const {
-			Vec<D> r;
-			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+.5) :bmin[i]+step[i]*(p[i]+.5);
-			return r;
-		}
+		inline double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
+		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
 		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
 			Vec<D> r;
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
@@ -174,7 +171,7 @@ namespace aiw{
 		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)) const {
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
-				if(a[i]<0) a[i] += box[i]; if(b[i]<=0) b[i] += box[i];
+				if(a[i]<0){ a[i] += box[i]; } if(b[i]<=0){ b[i] += box[i]; }
 				A.box[i] = (b[i]-a[i]-1)/d[i]+1;
 				if(logscale&1<<i){ 
 					A.bmin[i] = bmin[i]*pow(step[i], a[i]); A.step[i] = pow(step[i], d[i]); 
