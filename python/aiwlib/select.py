@@ -30,8 +30,9 @@ def parse(ev):
         title, ev = ev.split('=', 1) if mixt.is_name_eq(ev) else (ev, ev)
     if ev[0]!='$' and ev.count('[/')==ev.count('/]'): 
         ev = ev.replace('[/', '(" ".join([l.strip() for l in os.popen("""').replace('/]', '"""%self).readlines()]))')
-    return compile('" ".join(l.strip() for l in os.popen(%r%%self).readlines())'%ev[1:] if ev.startswith('$') and not evex else ev, 
-                   ev+'!'*evex if evex else title, 'exec' if evex else 'eval'), sort, fltr, hide
+    return (ev+'!'*evex if ev.startswith('$') and evex else
+            compile('(" ".join(l.strip() for l in os.popen(%r%%self).readlines()))'%ev[1:] if ev.startswith('$') and not evex else ev, 
+                    ev+'!'*evex if evex else title, 'exec' if evex else 'eval')), sort, fltr, hide
 #-------------------------------------------------------------------------------
 class SelCalc(calc.Calc):
     def __init__(self, path, D): self.__dict__.update(D); self.__dict__['path'] = path

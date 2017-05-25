@@ -176,10 +176,15 @@ class Calc:
     #---------------------------------------------------------------------------
     _except_report_table = []
     def __call__(self, expr):
+        #name = getattr(expr, 'co_filename', expr) 
         try:
             if type(expr) is str: 
                 if expr.startswith('@'): k, v = expr.split('=', 1); self[k] = v
-                elif expr.startswith('$'): return ' '.join(os.popen(expr[1:]%self).readlines()).strip() 
+                elif expr.startswith('$'):
+                    if expr[-1]!='!': return ' '.join(os.popen(expr[1:]%self).readlines()).strip()
+                    else:
+                        expr, G, L = (expr[1:-2], dict(self.__dict__), _G) if expr.endswith('!!') else (expr[1:-1], _G, self)
+                        exec(' '.join(os.popen(expr%self).readlines()).strip(), G, L); return
                 elif expr.endswith('!!'): exec(expr[:-2], dict(self.__dict__), _G)  
                 elif expr.endswith('!'): exec(expr[:-1], _G, self) 
                 else: return eval(expr, _G, self) 
