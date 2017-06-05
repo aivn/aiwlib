@@ -28,6 +28,8 @@ namespace aiw{
 		template <typename T2, typename ... Args>
 		inline void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
+		operator T () = delete;
+
         explicit Vec(T val=0) { for(int i=0; i<D; i++) p[i] = val; }    
 		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v.p[0]; }
 
