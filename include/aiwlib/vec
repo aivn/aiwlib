@@ -28,8 +28,6 @@ namespace aiw{
 		template <typename T2, typename ... Args>
 		inline void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
-		operator T () = delete;
-
         explicit Vec(T val=0) { for(int i=0; i<D; i++) p[i] = val; }    
 		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v.p[0]; }
 
@@ -119,7 +117,8 @@ namespace aiw{
 		inline bool ckinf() const { for(int i=0; i<D; i++) if(isinf(p[i])) return true; return false; }
 
 		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
-		inline operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; }
+		operator T () = delete;
+		// inline operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; } 
 
 		template<typename T2> inline bool contains(const T2& x) const { 
 			for(int i=0; i<D; i++) if(p[i]==x) return true; 

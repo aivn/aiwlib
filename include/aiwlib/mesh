@@ -199,6 +199,7 @@ namespace aiw{
 			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
 			return A;
 		}
+		template <int D2> Mesh<T, D2> slice(Ind<D> pos) const { return slice<T, D2>(pos, 0); }
 		//----------------------------------------------------------------------
 		template<int P> inline const T& periodic_bc(Ind<D> pos) const {
 			for(int i=0; i<D; i++) if(P&(1<<i)){
