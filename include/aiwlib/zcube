@@ -77,7 +77,7 @@ namespace aiw{
 		}
 		ZCube(int R_=0){ init(R_); }
 
-		inline ZCubeNb<D> get_nb(uint64_t offset, int periodic=0xFF) const {
+		inline ZCubeNb<D> get_nb(uint64_t offset, int periodic=0) const {
 			ZCubeNb<D> res;
 			for(int i=0; i<D; i++){
 				uint64_t c = offset&mask[i]; // смещение по координате i
