@@ -77,13 +77,13 @@ namespace aiw{
 		}
 		ZCube(int R_=0){ init(R_); }
 
-		inline ZCubeNb<D> get_nb(uint64_t offset) const {
+		inline ZCubeNb<D> get_nb(uint64_t offset, int periodic=0xFF) const {
 			ZCubeNb<D> res;
 			for(int i=0; i<D; i++){
 				uint64_t c = offset&mask[i]; // смещение по координате i
 				uint64_t m = c-1, p = (c|imask[i])+1;
-				res.plus[i] =  p? (p&mask[i])-c :0;
-				res.minus[i] = m==-1? 0: (m&mask[i])-c;
+				res.plus[i] =  p? (p&mask[i])-c : (periodic&(1<<i)? -int64_t(mask[i]): 0);
+				res.minus[i] = m==-1? (periodic&(1<<i)? mask[i]: 0): (m&mask[i])-c;
 				// res.plus[i] = (p&mask[i])-c; if(N<=res.plus[i]) res.plus[i] = 0;
 				// res.minus[i] = (m&mask[i])-c; if(res.minus[i]<=-N) res.minus[i] = 0;
 			}
