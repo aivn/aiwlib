@@ -29,7 +29,7 @@ else: del sys.argv[sys.argv.index('-racs')]
     
 while L and L[0][0]=='#':
     if L[0].startswith('#:'):
-        if '=' in L[0]: exec(L[0][2:], G)
+        if '=' in L[0]: pass #exec(L[0][2:], G)
         else: H.update(enumerate(L[0][2:].split()))
     del L[0]
     

@@ -2,7 +2,7 @@ PYTHONDIR=/usr/lib/python2.7
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
-BIN_LIST=racs
+BIN_LIST=racs approx isolines
 
 include include/aiwlib/config.mk
 
@@ -12,7 +12,7 @@ iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
 #libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,mixt,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
-libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,mixt}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
@@ -77,9 +77,9 @@ endif
 #   utils
 #-------------------------------------------------------------------------------
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
-bin/arr2seg-Y: src/segy.o
-bin/isolines: src/isolines.o
-bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh: bin/%: src/bin/%.o; $(CXX) -o $@ $^ -lz
+#bin/arr2seg-Y: src/segy.o
+#bin/isolines: src/isolines.o
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh: bin/%: src/bin/%.o libaiw.a; $(CXX) -o $@ $^ -lz
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
