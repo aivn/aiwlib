@@ -89,14 +89,14 @@ $(name).i: $(MAKEFILE_LIST)
 #	@H=$(aiwmake); $(iinclude)
 	@echo "%{ #include <aiwlib/vec> %}" >> $@
 	@echo "%include \"aiwlib/vec\"" >> $@
-ifneq ($(filter Mesh%,$(aiwinst)),)
+#ifneq ($(filter Mesh%,$(aiwinst)),)
 	@echo "%{ #include <aiwlib/mesh> %}" >> $@
 	@echo "%include \"aiwlib/mesh\"" >> $@
-endif
-ifneq ($(filter Sphere%,$(aiwinst)),)
+#endif
+#ifneq ($(filter Sphere%,$(aiwinst)),)
 	@echo "%{ #include <aiwlib/sphere> %}" >> $@
 	@echo "%include \"aiwlib/sphere\"" >> $@
-endif
+#endif
 	@echo "%{" >> $@
 	@for i in $(headers); do echo "#include \"$$i\"" >> $@; done
 	@echo "%}" >> $@	
