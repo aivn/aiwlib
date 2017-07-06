@@ -1,0 +1,46 @@
+// -*- C++ -*-
+#ifndef AIW_ANGEM_HPP
+#define AIW_ANGEM_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// проекция точки r на плоскость заданную точкой p и нормалью n (|n|==1)
+	template <int D, typename T> Vec<D, T> point2plane(const Vec<D, T> &r, const Vec<D, T> &p, const Vec<D, T> &n){	return r-(r-p)*n*n;	}
+	//--------------------------------------------------------------------------
+	// расчет точки пересечения прямой (или луча) проходящей через точку r в направлении g (|g|==1) и плоскости заданной точкой p и нормалью n (|n|==1)
+	template <int D, typename T> bool cross_plane(Vec<D, T> &res, const Vec<D, T> &r, const Vec<D, T> &g,
+												  const Vec<D, T> &p, const Vec<D, T> &n, bool ray=false){
+		double rpn = (r-p)*n;
+		if(ray && rpn*n*g>=0) return false;
+		double ng = n*g; if(fabs(ng)<1e-8) return false;
+		res = r-g*(rpn/ng); return true;
+	}
+	// расчет точки пересечения прямой (или луча) проходящей через точку r в направлении g (|g|==1) и плоскости заданной точкой p и осью координат axe
+	template <int D, typename T> bool cross_plane(Vec<D, T> &res, const Vec<D, T> &r, const Vec<D, T> &g,
+												  const Vec<D, T> &p, int axe, bool ray=false){
+		double rpn = (r[axe]-p[axe]);
+		if(ray && rpn*g[axe]>=0) return false;
+		if(fabs(g[axe])<1e-8) return false;
+		res = r-g*(rpn/g[axe]); return true;
+	}
+	//--------------------------------------------------------------------------
+	// расчет точки пересечения луча выходящего из точки r в направлении g (|g|==1) и параллепипеда заданного точками a, b (a<=r && r<=b)
+	template <int D, typename T> Vec<D, T> shoot_box_out(const Vec<D, T> &r, const Vec<D, T> &g, const Vec<D, T> &a, const Vec<D, T> &b){
+		double len = -1; Vec<D, T> res, tmp;
+		for(int axe=0; axe<D; axe++){
+			if(cross_plane(tmp, r, g, a, axe, true)){ double tmp_l = (r-tmp).abs(); if(len<0 || len>tmp_l){ len = tmp_l; res = tmp; } }
+			if(cross_plane(tmp, r, g, b, axe, true)){ double tmp_l = (r-tmp).abs(); if(len<0 || len>tmp_l){ len = tmp_l; res = tmp; } }
+		}
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	// intriagle
+};
+#endif //AIW_ANGEM_HPP
