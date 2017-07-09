@@ -1,0 +1,43 @@
+// -*- C++ -*-
+#ifndef AIW_INTEPROLATIONS_HPP
+#define AIW_INTEPROLATIONS_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	inline Vec<2> interpolate_line_weights(double x){ return vec(1-x, x); }
+	inline Vec<4> interpolate_cube_weights(double x){
+		double x2 = x*x; double x3 = x2*x;
+		return vec(-.5*(x+x3)+x2, 1-2.5*x2+1.5*x3, .5*x+2*x2-1.5*x3, .5*(x3-x2));
+	}
+	inline Vec<4> interpolate_Bspline_weights(double x){ double _x = 1-x; return vec(_x*_x*_x, 3*x*_x*_x, 3*x*x*_x, x*x*x);	}
+	//--------------------------------------------------------------------------
+	template<typename T, int D, typename C, int DD> T interpolate(const C& arr, const Ind<D> &pos, const Vec<D> &x, const Ind<D> &Itype, const Ind<DD> &point){
+		if(Itype[DD]==0) return interpolate<T>(arr, pos, x, Itype, point|0); // without intepolation
+		if(Itype[DD]==1){ // linear interpolation
+			T y[2]; for(int i=0; i<2; i++) y[i] = interpolate<T>(arr, pos, x, Itype, point|i);
+			return y[0]*(1-x[DD])+y[1]*x[DD];
+		}
+		T y[4]; for(int i=0; i<4; i++) y[i] = interpolate<T>(arr, pos, x, Itype, point|(i-1));
+		Vec<4> w = Itype[DD]==2? interpolate_cube_weights(x[DD]): interpolate_Bspline_weights(x[DD]);
+		// Vec<4> w = interpolate_cube_weights(x[DD]);
+		return y[0]*w[0]+y[1]*w[1]+y[2]*w[2]+y[3]*w[3];
+	}
+	template<typename T, int D, typename C> T interpolate(const C& arr, const Ind<D> &pos, const Vec<D> &x, const Ind<D> &Itype, const Ind<D> &point){
+		return arr[pos+point];  // recursion final
+	}
+	// frontend
+	template<typename C> typename C::cell_type interpolate(const C& arr,            // container
+														   const Ind<C::dim> &pos,  // left cell position
+														   const Vec<C::dim> &x,    // coordinates in cell
+														   const Ind<C::dim> &Itype // type of interpolations by axes 0..3
+														   ){ return interpolate<typename C::cell_type>(arr, pos, x, Itype, Ind<0>()); }
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_INTEPROLATIONS_HPP

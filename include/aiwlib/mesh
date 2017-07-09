@@ -8,6 +8,7 @@
 #include "iostream"
 #include "vec"
 #include "binaryio"
+#include "interpolations"
 
 namespace aiw{
 //------------------------------------------------------------------------------
@@ -20,6 +21,8 @@ namespace aiw{
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
 		template <typename T2, int D2> friend class Mesh;
 	public:
+		typedef T cell_type;
+		static const int dim = D;
 		std::string head;
 		T out_value;
 		aiw::Vec<D> bmin, bmax, step, rstep;
@@ -122,9 +125,22 @@ namespace aiw{
 		inline const T& __getitem__(const aiw::Vec<D> &r) const { return get(r); }
 		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
 		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
-		
-		// (int i, int j, ...) ???
-		
+		//----------------------------------------------------------------------
+		aiw::Ind<D> Itype; // типы интерполяции по осям: 0 --- без интерполяции, 1 --- линейная, 2 --- кубическая, 3 --- B-сплайнами.
+		T operator ()(const aiw::Vec<D> &r) const { // на границах порядок интерполяции уменьшается до линейной
+			Ind<D> pos = coord2pos(r); if(!(Ind<D>()<=pos && pos<box)) return out_value;
+			//	for(int i=0; i<D; i++) pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i]-.5;
+			Vec<D> x; Ind<D> Itype_ = Itype;
+			for(int i=0; i<D; ++i){
+				if(box[i]==1){ Itype_[i] = 0; x[i] = .5; continue; } // невозможна интерполяция по одному значению 
+				x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i]+.5)))*rstep[i] : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
+				if(Itype[i] && x[i]<0 && pos[i]){ x[i] += 1.; pos[i] -= 1; }
+				if(Itype[i]>1 && (box[i]==2 || pos[i]==0 || pos[i]>box[i]-3)) Itype_[i] = 1; // по двум значениям и на границах возможна максимум линейная интерполяция
+				if(pos[i]==box[i]-1 && Itype_[i]==1){ pos[i] -= 1; x[i] += 1.; } // экстраполяция на правой границе в случае линейной интерполяции
+			}
+			return interpolate(*this, pos, x, Itype_);
+		}
+		//----------------------------------------------------------------------
 		inline aiw::Ind<D> inbox(size_t offset) const {
 			Ind<D> pos;
 			for(int i=0; i<D; i++){
