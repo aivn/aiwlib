@@ -107,15 +107,30 @@ namespace aiw{
 			return r;
 		}
 		//----------------------------------------------------------------------
+		int periodic=0;   // битовая маска, задающая периодику по различным осям
+		aiw::Ind<2> bound_min, bound_max;  // битовые маски, задающие обработку границ слева/справа (если нет периодики)
+		                                   // 0   - ничего не делать (при выходе за границу выкидывает исключение)
+		                                   // 1,0 - возвращает out_value
+		                                   // 1,1 - возвращает крайнее значение
 #ifndef SWIG		
-		inline const T& get(const aiw::Ind<D> &pos) const {
-			WASSERT(Ind<D>()<=pos && pos<box, "position out of box: ", pos, box);
+		inline const T& get(aiw::Ind<D> pos) const {
+			for(int i=0; i<D; i++){
+				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
+				if(pos[i]<0){
+					if((bound_min[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box);
+					if((bound_min[1]&(1<<i))==0) return out_value;
+					pos[i] = 0;
+				}
+				else if(pos[i]>=box[i]){
+					if((bound_max[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box);
+					if((bound_max[1]&(1<<i))==0) return out_value;
+					pos[i] = box[i]-1;
+				}
+			}			
 			return *((const T*)((const char*)ptr+mul*pos));
 		}
-		inline const T& get(const aiw::Vec<D> &r) const {
-			Ind<D> pos = coord2pos(r);
-			return Ind<D>()<=pos && pos<box ? *((const T*)((const char*)ptr+mul*pos)) : out_value;
-		}
+		inline const T& get(const aiw::Vec<D> &r) const { return get(coord2pos(r)); }
+
 		inline const T& operator [] (const aiw::Ind<D> &p) const { return     get(p); }
 		inline       T& operator [] (const aiw::Ind<D> &p)       { return (T&)get(p); }
 		inline const T& operator [] (const aiw::Vec<D> &r) const { return     get(r); }
@@ -126,19 +141,14 @@ namespace aiw{
 		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
 		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
-		aiw::Ind<D> Itype; // типы интерполяции по осям: 0 --- без интерполяции, 1 --- линейная, 2 --- кубическая, 3 --- B-сплайнами.
-		T operator ()(const aiw::Vec<D> &r) const { // на границах порядок интерполяции уменьшается до линейной
-			Ind<D> pos = coord2pos(r); if(!(Ind<D>()<=pos && pos<box)) return out_value;
-			//	for(int i=0; i<D; i++) pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i]-.5;
-			Vec<D> x; Ind<D> Itype_ = Itype;
-			for(int i=0; i<D; ++i){
-				if(box[i]==1){ Itype_[i] = 0; x[i] = .5; continue; } // невозможна интерполяция по одному значению 
-				x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i]+.5)))*rstep[i] : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
-				if(Itype[i] && x[i]<0 && pos[i]){ x[i] += 1.; pos[i] -= 1; }
-				if(Itype[i]>1 && (box[i]==2 || pos[i]==0 || pos[i]>box[i]-3)) Itype_[i] = 1; // по двум значениям и на границах возможна максимум линейная интерполяция
-				if(pos[i]==box[i]-1 && Itype_[i]==1){ pos[i] -= 1; x[i] += 1.; } // экстраполяция на правой границе в случае линейной интерполяции
-			}
-			return interpolate(*this, pos, x, Itype_);
+		Ind<3> Itype; // битовые маски, задающие типы интерполяции по осям: 0 --- без интерполяции, 1,0 --- линейная, 1,1,0 --- кубическая, 1,1,1 --- B-сплайнами.
+		T operator ()(const aiw::Vec<D> &r) const { 
+			Ind<D> pos; Vec<D> x;
+			for(int i=0; i<D; ++i) if(Itype[0]&(1<<i)){
+					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
+					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
+				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
+			return interpolate(*this, pos, x, Itype);
 		}
 		//----------------------------------------------------------------------
 		inline aiw::Ind<D> inbox(size_t offset) const {

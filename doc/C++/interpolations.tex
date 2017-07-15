@@ -51,39 +51,64 @@ $$
 \notag
 \end{multline}
 
-Фрагмент кубического $B$-сплайна определяется как
+Фрагмент кубического $B$-сплайна на участке $[x_j,x_{j+1}]$ определяется как
 $$
-\widetilde f(x) = \sum_{i=-1}^3 f_i N_{i,4}(x),\qquad x\in[0,1],
+\widetilde f(x) = \sum_{i=j-1}^{j+2} f_i N_{i,4}(x),\qquad x\in[0,1],
 $$
-где
+где\footnote{почему то во всех источниках выражения для $N_{i,k}$ сдвинуты вперед на единицу, что приводит к ассиметрии. На самом деле центр функции $N_{i,k}$
+  должен совпадать с точкой $x_i$?} на равномерной сетке по $x$, при $x_{i+1}-x_i=1\forall i$
+\begin{multline}
+  N_{i,k}(x) = \frac{\left(x-x_{i-\frac k2}\right)N_{i-\frac12,k-1}(x) + \left(x_{i+\frac k2}-x\right)N_{i+\frac12,k-1}(x)}{k-1}
+  =\\=
+\frac{\chi_{-k}N_{i-\frac12,k-1} - \chi_{k}N_{i+\frac12,k-1}(x)}{k-1},
+\qquad N_{i,1}(x) \equiv \Pi_i = \left\{\begin{array}{ll} 1,& x_{i-\frac12}\le x<x_{i+\frac12},\\ 0, & \rm else, \end{array}\right.
+\notag
+\end{multline}
+где $\chi_k=x-x_{i+\frac k2}$. Тогда, с учетом того что $x-\left(x_{i+\frac k2}+\Delta\right) = \chi_{k+2\Delta}$, получаем 
 $$
-\quad N_{i,k}(x) = \frac{(x-x_i)N_{i,k-1}(x)}{x_{i+k-1}-x_i} + \frac{(x_{i+k}-x)N_{i+1,k-1}(x)}{x_{i+k}-x_{i+1}},
-\quad N_{i,1}(x) \equiv \Pi_i = \left\{{1,\,x_i\le x<x_{i+1},\atop 0,\,\rm else. }\right.
-$$
-Обозначим $\chi_k=x-x_{i+k}$, тогда с учетом того что $x_i-x_j=i-j$
-$$
-N_{i,2}(x) = \chi_0\Pi_i - \chi_2\Pi_{i+1},
+N_{i,2}(x) = \chi_{-2}\Pi_{i-\frac12} - \chi_2\Pi_{i+\frac12},
 $$
 \begin{multline}
-  N_{i,3}(x) = \frac{\chi_0 N_{i,2} -\chi_3 N_{i+1,2}}2
-  =\frac12\bigg\{\chi_0\Big[\chi_0\Pi_i -\chi_2\Pi_{i+1}\Big] -\chi_3\Big[\chi_1\Pi_{i+1} -\chi_3\Pi_{i+2}\Big]\bigg\}
-  =\\=\frac12\bigg\{\chi_0^2 \Pi_i - \Big[\chi_0\chi_2 + \chi_1\chi_3\Big]\Pi_{i+1} +\chi_3^2\Pi_{i+2}\bigg\},
+  N_{i,3}(x) = \frac{\chi_{-3} N_{i-\frac12,2} -\chi_3 N_{i+\frac12,2}}2
+  =\frac12\bigg\{\chi_{-3}\Big[\chi_{-3}\Pi_{i-1} -\chi_1\Pi_{i}\Big] -\chi_3\Big[\chi_{-1}\Pi_{i} -\chi_3\Pi_{i+1}\Big]\bigg\}
+  =\\=\frac12\bigg\{\chi_{-3}^2 \Pi_{i-1} - \Big[\chi_{-3}\chi_1 + \chi_{-1}\chi_3\Big]\Pi_{i} +\chi_3^2\Pi_{i+1}\bigg\},
   \notag
 \end{multline}
 \begin{multline}
-  N_{i,4}(x) = \frac{\chi_0 N_{i,3} -\chi_4 N_{i+1,3}}3 =\frac16\bigg\{\chi_0^3 \Pi_i - \Big[\chi_0^2\chi_2 + \chi_0\chi_1\chi_3\Big]\Pi_{i+1} +\chi_0\chi_3^2\Pi_{i+2}
-  -\\-\chi_1^2\chi_4 \Pi_{i+1} + \Big[\chi_1\chi_3\chi_4 + \chi_2\chi_4^2\Big]\Pi_{i+2} -\chi_4^3\Pi_{i+3}
+  N_{i,4}(x) = \frac{\chi_{-4} N_{i-\frac12,3} -\chi_4 N_{i+\frac12,3}}3 =
+  \frac16\bigg\{\chi_{-4}^3 \Pi_{i-\frac32} - \chi_{-4}\Big[\chi_{-4}\chi_0 + \chi_{-2}\chi_2\Big]\Pi_{i-\frac12} +\chi_{-4}\chi_2^2\Pi_{i+\frac12}
+  -\\-\chi_{-2}^2\chi_4 \Pi_{i-\frac12} + \Big[\chi_{-2}\chi_2 + \chi_{0}\chi_4\Big]\chi_4\Pi_{i+\frac12} -\chi_4^3\Pi_{i+\frac32}
   \bigg\}=\\=
-\frac16\bigg\{\chi_0^3 \Pi_i - \Big[\chi_0^2\chi_2 + \chi_0\chi_1\chi_3 + \chi_1^2\chi_4 \Big]\Pi_{i+1} 
-  +\Big[\chi_1\chi_3\chi_4 + \chi_0\chi_3^2 + \chi_2\chi_4^2\Big]\Pi_{i+2} -\chi_4^3\Pi_{i+3}
-  \bigg\}.  \notag
+\frac16\bigg\{\chi_{-4}^3 \Pi_{i-\frac32} - \Big[ \chi_{-4}^2\chi_{0} + \chi_{-4}\chi_{-2}\chi_2 + \chi_{-2}^2\chi_4\Big]\Pi_{i-\frac12} 
+  +\Big[ \chi_{-4}\chi_2^2 + \chi_{-2}\chi_2\chi_4 + \chi_0\chi_4^2 \Big]\Pi_{i+\frac12} -\chi_4^3\Pi_{i+\frac32}
+  \bigg\}
+  .\notag
 \end{multline}
-%В итоге получаем
-%$$
-%\widetilde f = -\frac16\Big[\chi_0^2\chi_2 + \chi_0\chi_1\chi_3 + \chi_1^2\chi_4 \Big] f_{-1}
-%$$
+В итоге получаем
+$$
+\widetilde f = \frac16\bigg\{ - \chi_2^3 f_{-1} +\Big[ \chi_{-4}\chi_2^2 + \chi_{-2}\chi_2\chi_4 + \chi_0\chi_4^2 \Big]f_0
+-\Big[ \chi_{-2}^2\chi_{2} + \chi_{-2}\chi_{0}\chi_4 + \chi_{0}^2\chi_6 \Big] f_1 +\chi_0^3 f_2 \bigg\},
+$$
+или после преобразований в \verb'maxima':
 
-Че то я туплю. Вот готовый ответ из \verb'http://sernam.ru/book_mm3d.php?id=93', над строчкой <<{\it Из уравнения (5-83) получаем параметрический В-сплайн}>>
+$\chi_{-4}\chi_2^2 + \chi_{-2}\chi_2\chi_4 + \chi_0\chi_4^2\to$
+\begin{verbatim}
+(%i1) expand((x+2)*(x-1)^2 + (x+1)*(x-1)*(x-2)+x*(x-2)^2);
+                                   3      2
+(%o1)                           3 x  - 6 x  + 4
+\end{verbatim}
+
+$ \chi_{-2}^2\chi_{2} + \chi_{-2}\chi_{0}\chi_4 + \chi_{0}^2\chi_6\to$
+\begin{verbatim}
+(%i2) expand((x+1)^2*(x-1)+(x+1)*x*(x-2)+x^2*(x-3));
+                                3      2
+(%o2)                        3 x  - 3 x  - 3 x - 1
+\end{verbatim}
 $$
-\widetilde f = (1-x)^3f_{-1} + 3x(1-x)^2 f_0 + 3x^2(1-x) f_1 + x^3 f_2
+\widetilde f = \frac16\left\{ \Big[-x^3 +3x^2-3x+1 \Big]f_{-1} +  \Big[3x^3-6x^2+4\Big] f_0 + \Big[-3x^3+3x^2+3x+1\Big] f_1 + x^3 f_2 \right\}.
 $$
+
+%Че то я туплю. Вот готовый ответ из \verb'http://sernam.ru/book_mm3d.php?id=93', над строчкой <<{\it Из уравнения (5-83) получаем параметрический В-сплайн}>>
+%$$
+%\widetilde f = (1-x)^3f_{-1} + 3x(1-x)^2 f_0 + 3x^2(1-x) f_1 + x^3 f_2
+%$$
