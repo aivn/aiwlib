@@ -1,0 +1,55 @@
+// -*- C++ -*-
+#ifndef AIW_3DIAG_HPP
+#define AIW_3DIAG_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// M - тридиагональная матрица, сетка размерами 3хN, значения (0,0) и (2,N-1) игнорируются.
+	// R - правая часть, X - результат, это сетки размера N
+	// алгоритм взят из английской вики https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm
+	template <typename T> void shuttle_alg(const Mesh<T, 2> &M, const Mesh<T, 1> &R, Mesh<T, 1> &X){
+		int N = M.bbox()[1];
+		if(M.bbox()[0]!=3 || R.bbox()[0]!=N || X.bbox()[0]!=N) WRAISE("icorrect mesh size", M.bbox(), N, R.bbox(), X.bbox());
+		T C[N], D[N];
+		T g = 1./M[ind(1,0)]; C[0] = M[ind(2,0)]*g; D[0] = R[ind(0)]*g;
+		for(int i=1; i<N; i++){
+			g = 1./(M[ind(1,i)]-M[ind(0,i)]*C[i-1]);
+			C[i] = M[ind(2,i)]*g; D[i] = (R[ind(i)]-M[ind(0,i)]*D[i-1])*g;
+		}
+		X[ind(N-1)] = D[N-1]; 
+		for(int i=N-2; i>=0; i--) X[ind(i)] = D[i]-C[i]*X[ind(i+1)];
+	}
+	//--------------------------------------------------------------------------
+	// M - тридиагональная матрица, сетка размерами 3хN, R - правая часть, X - результат (сетки размера N)
+	// алгоритм взят из Самарский А.А. Введение в теорию разностных схем. М.: Наука, 1971. - 553 с.  http://info.alnam.ru/book_sub.php?id=91
+	// с изменением знаков у c_i и f_i (уравнение M*X=R)
+	template <typename T> void cyclic_shuttle_alg(const Mesh<T, 2> &M, const Mesh<T, 1> &R, Mesh<T, 1> &X){
+		int N = M.bbox()[1];
+		if(M.bbox()[0]!=3 || R.bbox()[0]!=N || X.bbox()[0]!=N) WRAISE("icorrect mesh size", M.bbox(), N, R.bbox(), X.bbox());
+		
+		T alpha[N+1], beta[N+1], gamma[N+1], p[N], q[N], _c = -1./M[ind(1,0)];
+		alpha[1] = M[ind(2,1)]*_c; beta[1] = -R[ind(0)]*_c; gamma[1] = M[ind(0,0)]*_c;
+		for(int i=1; i<N; i++){
+			_c = 1./(-M[ind(1,i)]-M[ind(0,i)]*alpha[i]);
+			alpha[i+1] = M[ind(2,i)]*_c; 
+			beta[i+1] = (-R[ind(i)]+M[ind(0,i)]*beta[i])*_c;
+			gamma[i+1] = M[ind(0,i)]*gamma[i]*_c;
+		}
+		p[N-2] = beta[N-1]; q[N-2] = alpha[N-1]+gamma[N-1];
+		for(int i=N-3; i>=0; i--){
+			p[i] = alpha[i+1]*p[i+1] + beta[i+1];
+			q[i] = alpha[i+1]*q[i+1]+gamma[i+1];
+		}		
+		T XN = (beta[N]+alpha[N]*p[0])/(1-alpha[N]*q[0]-gamma[N]); X[ind(N-1)] = XN;
+		for(int i=0; i<N-1; i++) X[ind(i)] = p[i]+XN*q[i];
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_3DIAG_HPP

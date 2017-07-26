@@ -141,7 +141,7 @@ namespace aiw{
 		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
 		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
-		Ind<3> Itype; // битовые маски, задающие типы интерполяции по осям: 0 --- без интерполяции, 1,0 --- линейная, 1,1,0 --- кубическая, 1,1,1 --- B-сплайнами.
+		aiw::Ind<3> Itype; // битовые маски, задающие типы интерполяции по осям: 0 --- без интерполяции, 1,0 --- линейная, 1,1,0 --- кубическая, 1,1,1 --- B-сплайнами.
 		T operator ()(const aiw::Vec<D> &r) const { 
 			Ind<D> pos; Vec<D> x;
 			for(int i=0; i<D; ++i) if(Itype[0]&(1<<i)){
@@ -276,6 +276,7 @@ namespace aiw{
 				if(b<x){ b = x; pos_b = pos; }
 			} while(next(pos));
 		}
+		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
 		//----------------------------------------------------------------------
 		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		template <typename T2> void fill(const Mesh<T2, D> &M){

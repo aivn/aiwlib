@@ -245,7 +245,7 @@ class _Wrap:
             else:
                 dst = getattr(self._core, attr)                
                 value = dst.__class__(value, D=dst._D(), T=dst._T()) if getattr(dst, '_is_aiwlib_vec', 
-                                                                                False) else dst.__class__(value)
+                                                                                False) else dst.__class__(float(value) if dst.__class__ in (int, long) else value)
         self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)

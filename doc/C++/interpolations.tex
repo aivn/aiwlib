@@ -1,4 +1,5 @@
-\section{Различные варинаты интерполяции --- модуль {\tt inteporlations}}
+\section{Различные варинаты интерполяции --- модуль {\tt inteporlations}}\label{interpolations:sec}
+\subsection{Локальный кубический сплайн}
 Локальный кубический сплайн строится по четырем отсчетам интерполируемой функции $f_{-1,0,1,2}$
 как
 $$
@@ -50,7 +51,12 @@ $$
 +\left(-\frac{x^2}2 + \frac{x^3}2 \right)f_2.
 \notag
 \end{multline}
+Веса при $f_{-1...2}$ рассчитываются при помощи функции \verb'C++' модуля \verb'interpolations'
+\begin{verbatim}
+    inline Vec<4> interpolate_cube_weights(double x);
+\end{verbatim}
 
+\subsection{Кубический $B$--сплайн}
 Фрагмент кубического $B$-сплайна на участке $[x_j,x_{j+1}]$ определяется как
 $$
 \widetilde f(x) = \sum_{i=j-1}^{j+2} f_i N_{i,4}(x),\qquad x\in[0,1],
@@ -107,6 +113,28 @@ $ \chi_{-2}^2\chi_{2} + \chi_{-2}\chi_{0}\chi_4 + \chi_{0}^2\chi_6\to$
 $$
 \widetilde f = \frac16\left\{ \Big[-x^3 +3x^2-3x+1 \Big]f_{-1} +  \Big[3x^3-6x^2+4\Big] f_0 + \Big[-3x^3+3x^2+3x+1\Big] f_1 + x^3 f_2 \right\}.
 $$
+Веса при $f_{-1...2}$ рассчитываются при помощи функции \verb'C++' модуля \verb'interpolations'
+\begin{verbatim}
+    inline Vec<4> interpolate_Bspline_weights(double x);
+\end{verbatim}
+
+
+\subsection{Функции модуля {\sf interpolations}}
+Для проведения интерполяции используется параметризованная функция (frontend)
+\begin{verbatim}
+    template<typename C>
+    typename C::cell_type interpolate(const C& arr,            // контейнер
+                                      const Ind<C::dim> &pos,  // позиция ячейки
+                                      const Vec<C::dim> &x,    // координаты в ячейке
+                                      const Ind<3> &Itype);    // тип интерполяции
+\end{verbatim}
+где \verb'Itype' --- битовые маски. Соответствующие некоторой оси \verb'axe' биты в \verb'Itype' означают:
+\verb'Itype[0]&(1<<axe)==0'~--- интерполяция нулевого порядка (кусочно--постоянная
+в рамках ячейки), \verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==0'~--- линейная интерполяция между центрами ячеек,
+\verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==1', \verb'Itype[2]&(1<<axe)==0'~--- локальный кубический сплайн,
+\verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==1', \verb'Itype[2]&(1<<axe)==1'~--- кубический $B$--сплайн.
+
+
 
 %Че то я туплю. Вот готовый ответ из \verb'http://sernam.ru/book_mm3d.php?id=93', над строчкой <<{\it Из уравнения (5-83) получаем параметрический В-сплайн}>>
 %$$

@@ -1,0 +1,49 @@
+\section{Некоторые элементы аналитической геометрии~--- модуль {\tt angem}}
+\def\r{{\bf r}}
+\def\n{{\bf n}}
+\def\p{{\bf p}}
+\def\g{{\bf g}}
+\def\a{{\bf a}}
+\def\b{{\bf b}}
+
+Модуль \verb'angem' предоставляет несколько функицй из аналитической геометрии.
+
+\begin{verbatim}
+  template <int D, typename T> Vec<D, T>
+  point2plane(const Vec<D, T> &r, const Vec<D, T> &p, const Vec<D, T> &n);
+\end{verbatim}
+проекция точки $\r$ на плоскость проходящую через точку $\p$ с нормалью $\n$, $n=1$, вычисляется как
+$\r-(\r-\p)\cdot \n \cdot \n$.
+
+\begin{verbatim}
+    template <int D, typename T> 
+    bool cross_plane(Vec<D, T> &res, const Vec<D, T> &r, const Vec<D, T> &g,
+                     const Vec<D, T> &p, const Vec<D, T> &n, bool ray=false);
+\end{verbatim}
+расчет точки пересечения прямой (или луча) проходящей через точку $\r$ в направлении $\g$, $g=1$ и плоскости проходящей через точку $\p$ с нормалью $\n$, $n=1$
+вычисляется как
+$$
+{\tt res} = \r - \r\frac{(\r-\p)\cdot\n}{\n\cdot\g}.
+$$
+Функция возвращает \verb'true' если проекция существует~--- если луч перескает плоскость, должно выполняться условие
+$$
+(\r-\p)\cdot\n\cdot\n\cdot\g<0,
+$$
+кроме того для существования проекции необходимо что бы $|\n\cdot\g|>10^{-8}$.
+В случае если проекция сущсетвует, функция возвращает \verb'true', результат записывается в \verb'res'.
+
+Упрощенным (оптимизированным) вариантом этой функции является
+\begin{verbatim}
+    template <int D, typename T> 
+    bool cross_plane(Vec<D, T> &res, const Vec<D, T> &r, const Vec<D, T> &g,
+				     const Vec<D, T> &p, int axe, bool ray=false);
+\end{verbatim}
+где ориентация плоскости задается ортогональной ей осью координат \verb'axe'.
+
+\begin{verbatim}
+    template <int D, typename T> Vec<D, T> 
+    shoot_box_out(const Vec<D, T> &r, const Vec<D, T> &g, 
+                  const Vec<D, T> &a, const Vec<D, T> &b);
+\end{verbatim}
+расчитывает точку пересечения луча выходящего из точки $\r$ в направлении $\g$, $g=1$ и параллепипеда заданного точками $\a$, $\b$, $\a\le\r$, $\r\le\b$.
+

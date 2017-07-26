@@ -15,14 +15,14 @@
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class IsoLines{
-		std::vector<std::vector<Vecf<2> >*> plines;
+		std::vector<std::vector<Vecf<2> >*> plines; 
 		std::list<std::vector<Vecf<2> > > lines;
 		std::vector<float> levels;
 	public:
 		void init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale=false);
 		
 		int count() const { return plines.size(); }
-		size_t size(int l) const { return plines.size(); }
+		size_t size(int l) const { return plines.at(l)->size(); }
 		float level(int l) const { return levels.at(l); }
 		aiw::Vecf<2> point(int l, int i) const { return plines.at(l)->at(i); }
 

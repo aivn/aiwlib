@@ -1,0 +1,71 @@
+\section{Сериализация данных в формате {\tt pickle} языка {\tt Python}~--- модуль {\tt pickle}}
+Модуль \verb'pickle' позволяет выгружать сериализовыванные данные из \verb'C++' в формате \verb'pickle',
+что бывает полезно при подготовке данных  для последующей обработки в \verb'Python'.
+
+Для сериализации предоставляются следующие структуры и функции
+\begin{verbatim}
+    struct NoneType{};
+    const NoneType None;
+
+    struct Pickle{
+        // основные операторы для вывода объектов
+        Pickle& operator << (const Pickle& other);
+        Pickle& operator << (NoneType);
+        Pickle& operator << (bool x);
+        Pickle& operator << (int x);
+        Pickle& operator << (long x);
+        Pickle& operator << (double x);
+        Pickle& operator << (const std::string& x); 		
+        Pickle& operator << (const char* x);
+
+        template <typename T> Pickle& operator << (const std::complex<T> &x);
+		
+        // для сериализации записи в словаре вида k:v
+        template <typename T1, typename T2> 
+        Pickle& operator ()(const T1& k, const T2& v);
+
+        // для модуля objconf 
+        template <typename T> void get(const std::string& k, const T& v);
+        template <typename T> void set(const std::string& k, T& v);
+    };
+
+    template <typename ... Args> Pickle pickle_tuple(const Args& ... args);
+    template <typename ... Args> Pickle pickle_list(const Args& ... args);
+    template <typename ... Args> Pickle pickle_set(const Args& ... args);
+    inline Pickle pickle_dict();
+    inline Pickle pickle_class(const char* module, const char *name, bool dict=true);
+    
+    inline std::ostream& operator << (std::ostream& S, const Pickle &P);
+\end{verbatim}
+Для сериализации рекомендуется использовать функции вида \verb'pickle_'$XXX$.
+
+Сериализованы могут быть любые данные типа \verb'T', для которых перегружена операция
+\begin{verbatim}
+    Pickle& operator << (Pickle &P, const T &x);
+\end{verbatim}
+допускается перегрузка операций для своих типов данных, например код
+\begin{verbatim}
+    struct A{ int x; double y; bool z; };
+    Pickle& operator << (Pickle &P, const A &a){ P<<pickle_tuple(a.x, a.y, a.z); }
+\end{verbatim}
+будет сериализовывать экземпляры структуры \verb'A' как кортежи. 
+
+Сформированный в итоге экземпляр структуры \verb'Pickle' может быть выведен в поток \verb'std::ostream' (при этом обязательно нужно вывести финальный символ <<точка>>)
+и далее загружен в \verb'Python', например код
+\begin{verbatim}
+    std::cout<<pickle_tuple(
+        pickle_list(vec(1.,2,3), ind(2,3), vecf(3,4,5,6)), 
+        std::complex<double>(1,2), 
+        pickle_dict()(ind(1), "qwe"), 
+        None)
+     <<'.';
+\end{verbatim}
+выдаст в итоге сериализованную структуру данных \verb'Python'
+\begin{verbatim}
+    ([Vec(1.0,2.0,3.0), Ind(2,3), Vecf(3.0,4.0,5.0,6.0)], 
+     (1+2j), 
+     {Ind(1): 'qwe'}, 
+     None)
+\end{verbatim}
+
+

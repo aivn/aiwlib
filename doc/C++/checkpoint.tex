@@ -1,0 +1,62 @@
+\section{Контрольные точки для остановки и последующего восстановления расчета --- модуль {\tt checkpoint}}
+Модуль \verb'checkpoint' состоит из файлов \verb'aiwlib/checkpoint' и \verb'src/checkpoint.cpp' и
+предоставляет макрос \verb'CHECKPOINT(ARGS...)', обеспечивающий сохранение в контрольных точках и последующее восстановление расчета.
+Макрос работает через глобальный экземпляр класса \verb'CheckPoint'
+\begin{verbatim}
+    class CheckPoint{
+    public:
+        void init(const char *path, bool wmode);
+    #ifndef SWIG
+        template <typename ... Args> 
+        bool operator()(const char* fname, int line,
+                        const char *argnames, Args& ... args);
+    #endif //SWIG
+    };
+    extern CheckPoint checkpoint;
+    #define CHECKPOINT(ARGS...) aiw::checkpoint(__FILE__, __LINE__, #ARGS, ARGS)
+\end{verbatim}
+Метод \verb'init' задает путь к файлу, содержащему состояние расчета, и режим работы~--- сохранение состояния расчета (аргумент \verb'wmode=true')
+или предварительное восстановление состояния расчета (аргумент \verb'wmode=false').
+Без вызова метода
+\begin{verbatim}
+    checkpoint.init(...)
+\end{verbatim}
+все макросы \verb'CHECKPOINT' всегда возвращают \verb'true'.
+
+В режиме записи состояния расчета, вызовы макросов \verb'CHECKPOINT' всегда возвращают \verb'true',
+при этом каждый вызов приводит к записи аргументов макроса в файл, указанный при вызове метода \verb'checkpoint.init'.
+Запись производится в бинарном формате, для аргументов макроса должны быть перегружены операции
+\begin{verbatim}
+    aiw::IOstream& operator < (aiw::IOstream&, const T&);
+    aiw::IOstream& operator > (aiw::IOstream&, T&);
+\end{verbatim}
+см. раздел \ref{binaryio:sec} (этому требованию удовлевотряют практически все контейнеры \verb'aiwlib', встроенные типы, типы \verb'std::string',
+\verb'std::vector', \verb'std::list' и \verb'std::map').
+
+В режиме восстановления состояния расчета вызовы макроса \verb'CHECKPOINT' возвращают \verb'false' до тех пор, пока очередь не дойдет до последнего вызова
+в режиме записи при предыдущем запуске расчета\footnote{Определение соответствующего вызова производится на основе  имени файла с исходным кодом,
+  номера строки в файле и набора имен аргументов}~--- при этом производится восстановление значения аргументов макроса, макрос возвращает \verb'true',
+а глобальный экземпляр класса \verb'checkpoint' переводится в режим записи и может быть снова использован для сохранения состояния расчета с последующим восстановлением.
+
+Расстановка вызовов макроса \verb'CHECKPOINT' вдоль трассы выполнения программы (в условиях, циклах и т.д.) позволяет при восстановлении расчета пропускать
+уже пройденные ранее участки трассы выполнения. Недостатком такого подхода является некоторое замедление работы~--- при кжадом вызове макроса в режиме записи происходит
+сохранение данных на диск.
+
+Пример использования
+\begin{verbatim}
+    ...
+    int main(int argc, const char **argv){
+        ...
+        checkpoint.init(argv[1], !(argc>2 && std::string(argv[2])=="-load"));
+        aiw::Mesh<float, 3> data; // сетка определяющая состояние расчета 
+        ...
+        for(int i=0; CHECKPOINT(i, data) && i<100; i++){
+            // основной расчетный цикл
+            ...
+        }
+        ...
+    }
+\end{verbatim}
+
+
+

@@ -31,14 +31,14 @@ namespace aiw{
 	};
 	inline uint64_t interleave_bits(int D, int32_t x, int R){
 		if(D==1) return x;
-		if(D>2) return interleave_bits_any(D, x, R);
+		if(D>3) return interleave_bits_any(D, x, R);
 		uint64_t f = x & interleave_bits_table[D-2][0];
 		for(int i=1; i<6; i++) f = (f|(f<<(1<<(5-i+D-2)))) & interleave_bits_table[D-2][i];
 		return f;
 	}
 	inline int32_t de_interleave_bits(int D, uint64_t f, int R){
 		if(D==1) return f;
-		if(D>2) return de_interleave_bits_any(D, f, R);
+		if(D>3) return de_interleave_bits_any(D, f, R);
 		uint64_t x = f & interleave_bits_table[D-2][5];
 		for(int i=1; i<6; i++) x = (x^(x>>(1<<i+D-3))) & interleave_bits_table[D-2][5-i];
 		return x;

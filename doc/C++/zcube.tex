@@ -1,0 +1,108 @@
+\section{Многомерный кубический массив на основе $Z$--кривой Мортона --- модуль {\tt zcube}}\label{zcube:sec}
+Традиционные многомернеы массивы, реализованные в модуле \verb'mesh' (раздел \ref{mesh:sec}),
+не всегда эффективны с точки зрения локальности данных, в этом смысле
+многомерные массивы, основанные на $Z$--кривой МОртона, оказываются предпочтительнее.
+Кроме того, такие массивы оказываются удобнее для проведения ряда операций по 
+рекурсивному разбиению сеток.
+
+Модуль \verb'zcube' предоставляет следующие функции для преобразования смещения от начала массива \verb'f' в позицию ячейки \verb'f'
+для массива размерности \verb'D' и ранга \verb'R' и обратно: 
+\begin{verbatim}
+	inline uint64_t interleave_bits_any(int D, int32_t x, int R);
+	inline int32_t de_interleave_bits_any(int D, uint64_t f, int R);
+	inline uint64_t interleave_bits(int D, int32_t x, int R);
+	inline int32_t de_interleave_bits(int D, uint64_t f, int R);
+\end{verbatim}
+Функции с постфиксом \verb'_any' реализуют преобразование для массива любой размерности на основе \verb'R' смещений, условий и побитовых операций и/или.
+Функции без постфикса \verb'_any' оптимизированы для массивов размерности \verb'D=2,3' и вызывают функции с постфиксом \verb'_any'
+для массивов других размерностей.
+
+Класс \verb'ZCube<T, D>' реализует контейнер с типом ячейки \verb'T' размнерности \verb'D'
+\begin{verbatim}
+    template <typename T, int D> class ZCube{
+    public:
+        int rank() const;         // ранг массива
+        uint64_t size() const;    // число ячекк в массиве
+        aiw::Ind<D> bbox() const; // размеры массива по всем осям
+		
+        void init(int R_); // инициализация массива
+        ZCube(int R_=0);   // конструктор (вызывает метод init)
+
+        // возвращает объект, обспечивающий расчет свдигов к соседям ячейки f
+        inline ZCubeNb<D> get_nb(uint64_t f, int periodic=0) const;
+
+        // преобразование позиции ячекйи в сдвиг и обратно
+        inline uint64_t pos2offset(const aiw::Ind<D> &pos) const;
+        inline aiw::Ind<D> offset2pos(uint64_t f) const;
+
+        // методы для организации обхода массива
+        inline aiw::Ind<D> first() const;
+        inline bool next(aiw::Ind<D> &pos) const;
+
+        // доступ к ячейкам
+        inline       T& operator [](uint64_t f);
+        inline const T& operator [](uint64_t f) const;
+        inline       T& operator [](const Ind<D> &pos);
+        inline const T& operator [](const Ind<D> &pos) const;
+
+        // проверка принадлежности ячейки к границе массива
+        inline bool is_bound(uint64_t f, int axes=0xFF) const;
+        inline bool is_bound_up(uint64_t f, int axes=0xFF) const;
+        inline bool is_bound_down(uint64_t f, int axes=0xFF) const;
+
+        operator Mesh<T, D>() const; // приведение к типу традиционной сетки Mesh<T, D>
+    };
+\end{verbatim}
+Доcтуп к ячейке массива возможен как по $D$--мерной позиции \verb'pos' так и по смещению от начала массива \verb'f',
+оптимизированы методы доступа и обхода по смещению. 
+
+Для обхода массива \verb'zarr' можно использовать либо традиционный цикл
+\begin{verbatim}
+    for(size_t i=0; i<zarr.size(); ++i){ ... zarr[i] ... }
+\end{verbatim}
+либо цикл по позиции, аналогичный циклу для традиционных сеток \verb'Mesh'
+\begin{verbatim}
+    Ind<D> pos=zarr.first();
+    while(zarr.next(pos)){ ... zarr[pos] ... }
+\end{verbatim}
+порядок обхода ячеек у обоих вариантов совпадает, но первый вариант требует меньше (практически не требует) накладных расходов.
+
+Для обхода соседей ячейки со смещением \verb'f' используется метод 
+\begin{verbatim}
+    inline ZCubeNb<D> get_nb(uint64_t f, int periodic=0) const;
+\end{verbatim}
+где битовая маска \verb'periodic' задает периодические граничные условия по нужным осям.
+метод возвращает экземпялр класса
+\begin{verbatim}
+    template <int D> struct ZCubeNb{
+        inline int64_t operator [](const Ind<D> &nb) const;
+    };
+\end{verbatim}
+который в свою очередь позволяет получать смещения к соседям ячейки при помощи перегруженной операции \verb'[]',
+принимающей аргумент \verb'nb' компоненты которого могут содержать числа~0~(сосед слева), 1 (центр) либо 2 (сосед справа),
+фактически \verb'nb' содержит позицию соседа внутри куба размерами \verb'3x3x...', в котором исходная ячейка имеет координаты \verb'(1,1...)'. 
+Перегруженная операция возвращает ненулевое значение если соседняя ячейка находится внутри массива и не является исходной ячейкой. 
+Например, для численной схемы с шаблоном <<крест>>, фрагмент кода с обходом соседей будет иметь вид
+\begin{verbatim}
+    for(size_t f=0; f<zarr.size(); ++f){ // цикл по ячейкам
+        ...
+        auto znb = zarr.get_nb(f);
+        for(int k=0; k<D; k++) // цикл по осям массива
+            Ind<D> nb(1); // центр куба 
+            for(int nb[k]=0; nb[k]<=2; nb[k]+=2){ // левый-правый сосед
+                int64_t df = znb[nb];
+                if(df){ // если соседняя ячейка находится внутри области
+                    ... zarr[f+df] ... // доступ к соседней ячейке
+                }
+            }
+    }
+\end{verbatim}
+Операции с \verb'ZCubeNb' оптимизированы настолько, насколько это возможно, в частности никаких преобразований к позиции ячейки и обратно не производится.
+
+В настоящий момент контейнер  \verb'ZCube' реализован достаиочно примитивно, для хранения данных используется \verb'std::vector<T>'.
+В дальнейшем планируется перейти на управляени памятью через \verb'std::shared_ptr<T>' (аналогично контейнеру  \verb'Mesh'),
+добавить операции \verb'copy', \verb'crop', \verb'slice', \verb'flip' и \verb'transpose', интерполяцию и т.д.~--- в общем провести унифицикацию с \verb'Mesh'
+насколько это возможно.
+
+В настоящий момент контейнер \verb'ZCube' не инстацирйется в \verb'Python'.
+

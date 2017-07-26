@@ -1,0 +1,79 @@
+\section{Загрузка сеток из {.dat}--файлов --- модуль {\tt dat2mesh}}\label{dat2mesh:sec}
+Модуль предназанчен для загрузки сеток \verb'Mesh<T, D>' из \verb'.dat'--файлов,
+содержащих данные в текстовом формате в несколько колонок. Строки, начинающиейся с символа \verb'#' и пустые строки игнорируются.
+
+Возможно два режима работы --- заполнение готовой сетки (с известными размерами, пределами и шагами по осям и т.д. и т.п.) или создание новой
+сетки (при этом шаги и пределы выбираются автоматичски, необходимо лишь указать по каким осям используется логарифмический масштаб).
+
+Для заполнения готовых сеток используются фунцкции 
+\begin{verbatim}
+    template <typename T, int D, typename S> 
+    void dat2Mesh(S&& str, Mesh<T, D> &dst, int vcol=0, Ind<D> rcols=Ind<D>());
+    template <typename T, int D, typename S> 
+    void dat2Mesh(S&& str, Mesh<T, D> &dst, std::vector<int> vcols={}, int vaxe=-1, 
+                  Ind<D> rcols=Ind<D>());
+\end{verbatim}
+и их оболочки для конкретных типов потока ввода--вывода		
+\begin{verbatim}
+    template <typename T, int D> 
+    void dat2Mesh(std::istream& str, aiw::Mesh<T, D> &dst, 
+                  int vcol=0, aiw::Ind<D> rcols=aiw::Ind<D>());
+    template <typename T, int D> 
+    void dat2Mesh(aiw::IOstream& str, aiw::Mesh<T, D> &dst, 
+                  int vcol=0, aiw::Ind<D> rcols=aiw::Ind<D>());
+    template <typename T, int D> 
+    void dat2Mesh(std::istream& str, aiw::Mesh<T, D> &dst, 
+                  std::vector<int> vcols={}, int vaxe=-1, 
+                  aiw::Ind<D> rcols=aiw::Ind<D>());
+    template <typename T, int D> 
+    void dat2Mesh(aiw::IOstream& str, aiw::Mesh<T, D> &dst, 
+                  std::vector<int> vcols={}, int vaxe=-1, 
+                  aiw::Ind<D> rcols=aiw::Ind<D>());
+\end{verbatim}
+Аргумент \verb'vcol' содержит номер столбца файла, в котором лежат значения (либо номера столбцов, если по одной из координат сетки значения записаны в строку,
+в этом случае соответствующая ось сетки задается при помощи аргумента \verb'vaxe').
+Аргумент \verb'rcols' содержит номера столбцов файла, в которых лежат координаты. Допускается индексация столбцов с конца строки с минусом, как в \verb'Python'.
+
+
+Для создания новых сеток используются функции
+\begin{verbatim}
+	template <typename T, int D, typename S> 
+	Mesh<T,D> dat2Mesh(S &&str, T def_val=0.,    // значение по умолчанию
+					   int vcol=0,               // столбец из которого берутся значения
+					   Ind<D> rcols=Ind<D>(),    // соответствие столбцов координатам сетки, 
+					   int logscale=0,           // логарифмический масштаб (битовая маска)
+					   Vec<D> eps=Vec<D>(1e-6)); // ошибка (окно кластеризации) при разборе координат
+	template <typename T, int D, typename S> 
+	Mesh<T,D> dat2Mesh(S &&str, T def_val=0.,     // значение по умолчанию
+					   std::vector<int> vcols={}, // столбцы из которых берутся значения
+					   int vaxe=-1,               // координата сетки по которой значения развернуты в строку
+					   Ind<D> rcols=Ind<D>(),     // соответствие столбцов координатам сетки, 
+					   int logscale=0,            // логарифмический масштаб (битовая маска)
+					   Vec<D> eps=Vec<D>(1e-6));  // ошибка (окно кластеризации) при разборе координат
+\end{verbatim}
+и их оболочки для конкретных типов потока ввода--вывода.
+
+При создании новой сетки необходимо явно указать битовую маску \verb'logscale', задающую логарифмический масштаб по отдельным осям.
+Для вычисления параметров осей (пределов, числа ячеек и шагов) используется алгоритм кластеризации.
+Для каждой оси все отсчеты (координаты) $\{x_i\}$, $i\in[1,N]$ упорядочиваются по возрастанию. Затем отсчеты объединяются в группы,
+расстояние между соседними отсчетами в группе не должно превышать значения аргумента \verb'eps' (для логарифмического масштаба отношение
+соседних отсчетов не должно превышать \verb'1+eps'). Для каждой группы вычисляется
+координата центра группы $X_j$, $j\in[1,M]$, $M\le N$ как среднее арифметическое (для логарифмического масштаба как среднее геометрическое).
+Число ячеек по соотвествующей оси принимается равным $M$, пределы сетки $b_{\min}$  и $b_{\max}$ рассчитываются как  
+$$
+b_{\min} = X_1-\frac\Delta2,
+\qquad b_{\max} = X_M+\frac\Delta2,
+\qquad \Delta = \left\{\begin{array}{rl}
+\displaystyle\frac{X_M-X_1}{M-1}, & M>1,\\[3mm]
+x_N-x_1+2{\tt eps},& M=1,
+\end{array}\right.
+$$
+или для логарифмического масштаба
+$$
+b_{\min} = \frac{X_1}{\sqrt\Delta},
+\qquad b_{\max} = X_M\sqrt\Delta,
+\qquad \Delta = \left\{\begin{array}{rl}
+\displaystyle\exp\frac{\log X_M/X_1}{M-1}, & M>1,\\[3mm]
+\displaystyle\frac{x_N}{x_1}+2{\tt eps},& M=1.
+\end{array}\right.
+$$

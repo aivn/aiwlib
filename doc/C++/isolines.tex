@@ -1,0 +1,32 @@
+\section{Построение линий постоянного уровня для двумерной сетки --- модуль {\tt isolines}}
+Для построения изолиний (линий постоянного уровня) на сеточных функциях $f(x,y)$ \verb'C++' модуль
+\verb'isolines' предоставляет класс
+\begin{verbatim}
+    class IsoLines{
+    public:
+        init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale=false);
+		
+        int count() const; // число изолиний
+        size_t size(int l) const; // число точек в изолинии l
+        float level(int l) const; // значений уровня на изолинии l
+        aiw::Vecf<2> point(int l, int i) const; // координаты узла изолинии l
+
+#ifndef SWIG
+        template <typename T> void out2dat(T &&S) const;
+#endif //SWIG
+        void out2dat(aiw::IOstream &S) const;        
+        void out2dat(std::ostream &S) const;
+        void out2dat(const char *path) const;
+	};
+\end{verbatim}
+Реализация методов класса \verb'IsoLines' находится в файле \verb'src/isolines.cpp'
+
+Метод \verb'init' принимает сетку \verb'arr', опорное значение функции \verb'z0' (которому точно соответствует изолиния),
+шаг изолиний \verb'dz' и флаг \verb'logscale' задающий логарифмический масштаб по $z$ (в этом лучаем параметр \verb'dz' трактуется как
+отношение значения на двух соседних изолиниях, \verb'dz>0'), и строит изолинии.
+
+При построении считается, что функция \verb'arr' билинейно интерполируется внутри ячеек. Каждая изолиния представляет ломанную линию,
+узлы которой попадают на границы ячеек сеточной функции.
+
+Изолинии могут быть прочитаны из экземпляра класса \verb'IsoLines' при помощи методов \verb'count', \verb'size', \verb'level' и \verb'point',
+либо выведены в файловый поток вывода (или файла) при помощи методов \verb'out2dat'.
