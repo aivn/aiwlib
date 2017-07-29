@@ -1,0 +1,27 @@
+\section{Настройка пользовательских классов~--- модуль {\tt objconf}}\label{objconf:sec}
+Модуль \verb'objconf' предоставляет макрос
+\begin{verbatim}
+    #define CONFIGURATE(ARGS...)
+\end{verbatim}
+который при вызове внутри пользовательского класса
+\begin{verbatim}
+    struct A{
+        int x; double y; bool z;
+        CONFIGURATE(x, y, z);
+    };
+\end{verbatim}
+создает в классе метод
+\begin{verbatim}
+    template<typename ConfT>					
+    void configurate(ConfT &conf, bool wmode, const char *prefix="");
+\end{verbatim}
+который в зависимости от значения аргумента \verb'wmode' вызывает методы
+\begin{verbatim}
+    conf.set(prefix+name, parametr); // wmode==true
+    conf.get(prefix+name, parametr); // wmode==false
+\end{verbatim}
+для каждого из полей класса, перечисленных в аргументах макроса \verb'CONFIGURATE'.
+Аргумент \verb'prefix' позволяет добавить префикс к именам всех полей при чтении/записи.
+
+Созданный метод \verb'configurate(...)' может использоваться при чтении/записи конфигурационных файлов (раздел~\ref{configfile:sec}),
+записи состояния объекта в формате \verb'pickle' (раздел~\ref{pickle:sec}) и т.д.

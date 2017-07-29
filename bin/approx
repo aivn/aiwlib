@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-'''usage: approx source.dat X-expression Y-expression function [/Yerr-expressions] [-gplt params] [-noracs] [-prefix preifx] [:var1,var2,...] [key1=var1 [key2=var2]...]
+'''usage: approx source.dat X-expression Y-expression function [/Yerr-expressions] [-cond condition] [-rx min:max] 
+                 [-gplt params] [-noracs] [-prefix preifx] [:var1,var2,...] [key1=var1 [key2=var2]...]
     X,Y-expression --- выражения из переменных, объявленных в загловке source.dat, 
                        перечисленных в виде key=val в аргументах или прочитанных из .RACS
     function ---  функция для аппроксимации, записывается в виде arg1,arg2,...:expressiion 
@@ -21,6 +22,19 @@ if len(sys.argv)<5 or '-h' in sys.argv or '-help' in sys.argv or '--help' in sys
 import numpy as np
 from scipy.optimize import curve_fit
 
+RX = map(float, '-inf inf'.split())
+if '-rx' in sys.argv:
+    RX = sys.argv[sys.argv.index('-rx')+1].split(':')
+    RX[0] = float(RX[0] if RX[0] else '-inf')
+    RX[1] = float(RX[1] if RX[1] else 'inf')
+    del sys.argv[sys.argv.index('-rx'):sys.argv.index('-rx')+2]
+
+cond = None
+if '-cond' in sys.argv:
+    cond = sys.argv[sys.argv.index('-cond')+1]
+    cond = compile(cond, cond, 'eval')
+    del sys.argv[sys.argv.index('-cond'):sys.argv.index('-cond')+2]
+    
 H, G, L = dict(enumerate('xyz')), dict(math.__dict__), open(sys.argv[1]).readlines()
 if not '-noracs' in sys.argv:
     try: G.update(cPickle.load(open(os.path.dirname(sys.argv[1])+'/.RACS')))
@@ -49,10 +63,15 @@ func = eval('lambda X,'+','.join(fargs)+':eval(fcode, G, locals())')
 
 X, Y, YE, Xex, Yex = [], [], [], compile(sys.argv[2], sys.argv[2], 'eval'), compile(sys.argv[3], sys.argv[3], 'eval')
 for l in L:
+    if not l.strip() or l[0]=='#': continue
     try: l = map(float, l.split())
     except: continue
+    
     D = dict((H[k], v) for k, v in enumerate(l))
-    X.append(eval(Xex, G, D))
+    if cond and not eval(cond, G, D): continue
+    xval = eval(Xex, G, D)
+    if xval<RX[0] or RX[1]<xval: continue
+    X.append(xval)
     Y.append(eval(Yex, G, D))
     if YEex: YE.append(eval(YEex, G, D))
 X, Y = np.array(X), np.array(Y) 

@@ -1,0 +1,70 @@
+\section{Чтение и запись конфигурационных файлов~--- модуль {\tt configfile}}\label{configfile:sec}
+Модуль \verb'configfile' состоит из заголовчного файла \verb'configfile' и файла \verb'src/configfile.cpp',
+и предоставляет средства для чтения/записи конфигурационных файлов в текстовом формате
+\begin{verbatim}
+    # комментарий
+    имя_параметра=значение параметра
+\end{verbatim}
+для каждого параметра может использоваться {\bf только одна} строка. 
+
+Модуль определяет функции чтения/записи для различных типов из потоков ввода/вывода \verb'std::iostream'
+\begin{verbatim}
+    template <typename T> void printf_obj(std::ostream &S, const T &X){ S<<X; }
+    template <typename T> void scanf_obj(std::istream &S, T &X){ S>>X; }
+\end{verbatim}
+которые могут быть перегружены специальным образом для отдельных типов
+\begin{verbatim}
+    void printf_obj(std::ostream &S, bool X);
+    void scanf_obj(std::istream &S, bool &X);
+
+    template <typename T> void printf_obj(std::ostream &S, const std::complex<T> &X);
+    template <typename T> void scanf_obj(std::istream &S, std::complex<T> &X);
+
+    void scanf_obj(std::istream &S, std::string &X);
+\end{verbatim}
+для типа \verb'bool' допустимыми являются значения в конфигурацинном файле
+\begin{verbatim}
+  Y y YES Yes yes ON  On  on  TRUE  True  true  V v 1
+  N n NO  No  no  OFF Off off FALSE False false X x 0
+\end{verbatim}
+Для типа \verb'std::complex' используется формат \verb'Python' $x\pm y$\verb'j'.
+
+Для типа \verb'std::string' при чтении из конфигурационного файла используется строка после знака \verb'=' с отброшенными с конца и начала символами
+пробела, \verb'\t' и \verb'\r' (аналог вызывова функции \verb'str.strip()' языка \verb'Python').
+
+Непосредственно для чтения/записи конфигурационного файла используется класс
+\begin{verbatim}
+    class ConfigFile{
+    public:
+        int no_key_act = 2; // 0 - ignore, 1 - warning, 2 - exception
+    #ifndef SWIG
+        // получает значение параметра par с именем key из другого объекта 
+        //        для записи в конфигурационный файл
+        template <typename T> 
+        void get(const std::string &key, const T &par);
+        // устанавливает значение параметра par с именем key в другом объекта 
+        //        на основе конфигурационного файла
+        template <typename T> 
+        void set(const std::string &key, T &par);
+
+        void load(std::istream &&fin);
+        void dump(std::ostream &&fout) const;
+        void load(std::istream &fin);
+        void dump(std::ostream &fout);
+    #endif //SWIG		
+        void load(const char *path);
+        void dump(const char *path) const;
+        void clear();
+    };
+\end{verbatim}
+
+При чтении конфигурациооного файла для экземпляра класса \verb'ConfigFile' вызывается один из методов \verb'load', затем экземпляр класса
+передается первым аргументов в методы \verb'configurate' настраиваемых пользовательских объектов, см. раздел~\ref{objconf:sec}.
+Поле \verb'no_key_act' управляет реакцией на отсутствие какого либо параметра в конфигурационном файле: \verb'0'~--- игнорировать,
+\verb'1'~-- выдать предупреждение, \verb'2'~--- сгенерировать исключение.
+
+При записи конфигурациооного файла экземпляра класса \verb'ConfigFile'
+передается первым аргументов в методы \verb'configurate' настраиваемых пользовательских объектов, см. раздел~\ref{objconf:sec},
+затем для него необходимов вызвать один из методов~\verb'dump'.
+
+

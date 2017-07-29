@@ -1,0 +1,22 @@
+\section{Операции бинарного потокового ввода/вывода --- модуль {\tt binaryio}}\label{binaryio:sec}
+Модуль \verb'binaryio' перегружает операции
+\begin{verbatim}
+   template<typename T> inline IOstream& operator < (IOstream& S, const T& X);
+   template<typename T> inline IOstream& operator > (IOstream& S,       T& X);
+\end{verbatim}
+как операции бинарного ввода/вывода в поток \verb'aiw::IOstream' для большинства актуальных типов \verb'T'.
+Операции перегружены для встроенных типов \verb'int8_t', \verb'uint8_t', \verb'int16_t', \verb'uint16_t', \verb'int32_t', \verb'uint32_t', \verb'int64_t', \verb'uint64_t',
+\verb'char', \verb'bool', \verb'float', \verb'double', типов \verb'std::complex<T>', \verb'std::string',
+\verb'T[D]', \verb'std::vector<T>', \verb'std::list<T>', \verb'std::map<T1,T2>', \verb'aiw::Vec<D,T>',
+и типов для которых определены публичные методы
+\begin{verbatim}
+    void dump(aiw::IOstream &S) const;
+    void load(aiw::IOstream &S);
+\end{verbatim}
+Кроме того модуль предоставляет макрос
+\begin{verbatim}
+#define BINARYIO4POD                                                           \
+    inline void dump(aiw::IOstream &S) const { S.write(this, sizeof(*this)); } \
+    inline void load(aiw::IOstream &S)       { S.read(this, sizeof(*this)); }  
+\end{verbatim}
+вызов которого в \verb'POD'--типе объявляет методы \verb'dump/load' и автоматически перегружает операции \verb'<' и \verb'>'.
