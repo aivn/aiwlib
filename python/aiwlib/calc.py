@@ -57,7 +57,7 @@ class Calc:
             print 'Start queue for %i items in %i threads, master PID=%i, logfile="%s"'%(len(queue), copies, os.getpid(), logfile)
             if _racs_params['_daemonize']: mixt.mk_daemon(); mixt.set_output(logfile)
             finish_msg = lambda: 'PID=%i finished [%g%%, %s from %s]'%(p, 100.*n_finish/len(queue), mixt.time2string(time.time()-t_start),
-                                                                      mixt.time2string(n_finish*(time.time()-t_start)/len(queue)))
+                                                                       mixt.time2string((time.time()-t_start)*len(queue)/n_finish))
             for q in queue:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]

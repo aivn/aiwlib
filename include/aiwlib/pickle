@@ -51,7 +51,7 @@ namespace aiw{
 		}
 		
 		template <typename T1, typename T2> Pickle& operator ()(const T1& k, const T2& v){ *this<<k<<v; buf<<'s'; return *this; }
-		template <typename T> void get(const std::string& k, const T& v){  *this(k, v); } // for objconf
+		template <typename T> void get(const std::string& k, const T& v){  (*this)(k, v); } // for objconf
 		template <typename T> void set(const std::string& k, T& v){ WRAISE("incorrect call: ", k); } // for objconf
 	};
 	//--------------------------------------------------------------------------
@@ -62,7 +62,8 @@ namespace aiw{
 	template <typename ... Args> Pickle pickle_list(const Args& ... args){ Pickle P; P.postfix = "a"; P.buf<<"(l"; pickle(P, args...); return P; }
 	inline Pickle pickle_dict(){ Pickle P; P.buf<<"(d"; return P; }
 	inline Pickle pickle_class(const char* module, const char *name, bool dict=true){
-		Pickle P; P.buf<<"(i"<<module<<'\n'<<name<<'\n'; if(dict) P.buf<<"(d";
+		Pickle P; P.buf<<"(i"<<module<<'\n'<<name<<'\n';
+		if(dict) P.buf<<"(d"; else P.postfix = "b";
 		return P;
 	}
 	template <typename ... Args> Pickle pickle_set(const Args& ... args){

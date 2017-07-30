@@ -31,12 +31,12 @@ namespace aiw{
 
 		struct base_control_t{
 			virtual void pickle(Pickle&) const = 0;
-			virtual void update(const RacsCalc&) = 0;
+			virtual void update(RacsCalc&) = 0;
 		};
 		template <typename T> struct control_t: public base_control_t{
 			std::string prefix; T* data;
 			void pickle(Pickle &P) const { data->configurate(P, false, prefix.c_str()); }
-			void update(const RacsCalc &calc){ data->configurate(calc, true, prefix.c_str()); }
+			void update(RacsCalc &calc){ data->configurate(calc, true, prefix.c_str()); }
 		};
 		std::list<std::shared_ptr<base_control_t> > controls;
 
@@ -56,6 +56,7 @@ namespace aiw{
 		double runtime;
 		std::string md5sum;
 		std::list<std::string> args;
+		bool symlink=true; // создавать символическую ссылку на расчет
 
 		const std::string &path();
 		
@@ -70,14 +71,14 @@ namespace aiw{
 			if(I!=arg_params.end()){ std::stringstream buf(I->second); scanf_obj(buf, v); }
 		} 
 		
-		template <typename T> void control(T &data, const char *prefix=nullptr){
-			auto p = new control_t<T>; p->data = &data; p->prefix = prefix;
-			controls.push_back(p); data.configurate(*this, true, prefix);
+		template <typename T> void control(T &data, const char *prefix=""){
+			control_t<T> *p = new control_t<T>; p->data = &data; p->prefix = prefix;
+			controls.push_back(std::shared_ptr<base_control_t>(p)); data.configurate(*this, true, prefix);
 		}
 		
 		void push(); // push parametrs to controls ???
 		void commit(); // const ???
-		// ??? void set_progess();
+		void set_progess(double progress_);
 	};
 	//--------------------------------------------------------------------------
 };

@@ -12,7 +12,7 @@ iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
 #libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,mixt,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
