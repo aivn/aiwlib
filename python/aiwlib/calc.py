@@ -66,7 +66,7 @@ class Calc:
                 pid = os.fork()
                 if not pid: break
                 pids.append(pid)
-                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i [%i/%i] ...'%(pid, os.getpid(), n_start, len(queue))
+                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i [%i/%i] ...'%(pid, os.getpid(), n_start+1, len(queue))
                 n_start += 1
             else:
                 while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; print finish_msg()
@@ -98,7 +98,8 @@ class Calc:
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
         cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
-                     open(self.path+'.RACS', 'w')) 
+                     open(self.path+'.RACS', 'w'))
+        os.utime(self.path, None) # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
@@ -127,6 +128,7 @@ class Calc:
                 L[L.index("sS'progress'\n")+2] = 'F%g\n'%progress
                 L[L.index("sS'runtime'\n")+5] = 'F%g\n'%runtime
                 open(self.path+'.RACS', 'w').write(''.join(L))
+                os.utime(self.path, None) # for racs cache refresh
                 if _racs_params['_mpi']==2 and mpi_proc_number()==0: 
                     shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
             else: self.commit() #self.md5sources = self.commit() ???
