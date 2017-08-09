@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <vector>
 #include <wait.h>
+#include <utime.h>
 #include "../include/aiwlib/configfile"
 #include "../include/aiwlib/mixt"
 #include "../include/aiwlib/racs"
@@ -201,6 +202,7 @@ void aiw::RacsCalc::commit(){
 	for(auto I=controls.begin(); I!=controls.end(); ++I) (*I)->pickle(P);
 	for(auto I=params.begin(); I!=params.end(); ++I) I->second->pickle(I->first, P);	
 	std::ofstream(path()+".RACS")<<P.buf.str()<<'.';
+	utime(path_.c_str(), nullptr);
 }
 //------------------------------------------------------------------------------
 void aiw::RacsCalc::set_progess(double progress_){

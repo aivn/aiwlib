@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 '''usage: approx source.dat X-expression Y-expression function [/Yerr-expressions] [-cond condition] [-rx min:max] 
-                 [-gplt params] [-noracs] [-prefix preifx] [:var1,var2,...] [key1=var1 [key2=var2]...]
+                 [-P0 init] [-gplt params] [-noracs] [-prefix preifx] [:var1,var2,...] [key1=var1 [key2=var2]...]
     X,Y-expression --- выражения из переменных, объявленных в загловке source.dat, 
                        перечисленных в виде key=val в аргументах или прочитанных из .RACS
     function ---  функция для аппроксимации, записывается в виде arg1,arg2,...:expressiion 
@@ -12,6 +12,7 @@
     :var1,var2,... --- формат вывода (только числа) в несколько колонок разделенных проблелом. По умолчанию вывод имеет вид 
                        arg1=...; ... arg1_err=...; ... prefixL2=...; prefixL1max=...; prefixL1=...;
     -prefix prefix ---- устанавливает префикс названия значений с ошибками (по умолчанию err)
+    -P0 init --- начальные значения подбираемых параметров через запятую
     key=val --- добавляет значение val с именем key для использования во всех выражениях
     -h|-help|--help --- показать эту справку и выйти 
 '''
@@ -37,9 +38,16 @@ if '-cond' in sys.argv:
     
 H, G, L = dict(enumerate('xyz')), dict(math.__dict__), open(sys.argv[1]).readlines()
 if not '-noracs' in sys.argv:
-    try: G.update(cPickle.load(open(os.path.dirname(sys.argv[1])+'/.RACS')))
+    class Racs: pass
+    racs = Racs()
+    try: racs.__dict__.update(cPickle.load(open(os.path.dirname(sys.argv[1])+'/.RACS'))); G['racs'] = racs
     except: pass
 else: del sys.argv[sys.argv.index('-racs')]
+
+P0 = None
+if '-P0' in sys.argv:
+    P0 = eval(sys.argv[sys.argv.index('-P0')+1], G)
+    del sys.argv[sys.argv.index('-P0'):sys.argv.index('-P0')+2]
     
 while L and L[0][0]=='#':
     if L[0].startswith('#:'):
@@ -76,7 +84,7 @@ for l in L:
     if YEex: YE.append(eval(YEex, G, D))
 X, Y = np.array(X), np.array(Y) 
     
-popt, pcov = curve_fit(func, X, Y, sigma=np.array(YE), absolute_sigma=True) if YE else curve_fit(func, X, Y) 
+popt, pcov = curve_fit(func, X, Y, sigma=np.array(YE), absolute_sigma=True, p0=P0) if YE else curve_fit(func, X, Y, p0=P0) 
 F = func(X, *popt)
 E = np.fabs((Y-F)/(Y+F))
 

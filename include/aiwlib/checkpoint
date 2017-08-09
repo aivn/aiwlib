@@ -26,7 +26,7 @@ namespace aiw{
 #endif //SWIG
 		int frame(const char* fname, int line, const char *argnames);
 	public:
-		void init(const char *path, bool wmode);
+		void init(const char *path, int mode=0); // 0 - auto, 1 - read, other - write
 #ifndef SWIG
 		template <typename ... Args> bool operator()(const char* fname, int line, const char *argnames, Args& ... args){
 			if(stream.name.empty()) return true; 

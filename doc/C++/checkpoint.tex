@@ -5,7 +5,7 @@
 \begin{verbatim}
     class CheckPoint{
     public:
-        void init(const char *path, bool wmode);
+        void init(const char *path, int mode=0); // 0 - auto, 1 - read, other - write
     #ifndef SWIG
         template <typename ... Args> 
         bool operator()(const char* fname, int line,
@@ -15,8 +15,11 @@
     extern CheckPoint checkpoint;
     #define CHECKPOINT(ARGS...) aiw::checkpoint(__FILE__, __LINE__, #ARGS, ARGS)
 \end{verbatim}
-Метод \verb'init' задает путь к файлу, содержащему состояние расчета, и режим работы~--- сохранение состояния расчета (аргумент \verb'wmode=true')
-или предварительное восстановление состояния расчета (аргумент \verb'wmode=false').
+Метод \verb'init' задает путь к файлу, содержащему состояние расчета, и режим работы~--- по умолчанию автоматический режим
+(восстановление состояния если файл существует и сохрание состояния если файла нет,
+\verb'mode=0'), предварительное восстановление состояния расчета (\verb'wmode=1') или
+сохранение состояния расчета (\verb'mode!=0,1').
+.
 Без вызова метода
 \begin{verbatim}
     checkpoint.init(...)

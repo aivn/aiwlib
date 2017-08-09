@@ -243,21 +243,19 @@ namespace aiw{
 		//    3 --- не выводить ни номер ячейки ни координату центра ячейки
 		//   +4 --- не выводить пустую строку при изменении номера ячейки, не влияет на режим 0
 #ifndef SWIG				
-		template <typename S> void out2dat(S &&str, aiw::Ind<D> coords=Ind<D>(2), const char* prefix=nullptr, aiw::Ind<D> order=Ind<D>()) const {
+		template <typename S> void out2dat(S &&str, aiw::Ind<D> coords=Ind<D>(2), const char* prefix=nullptr) const { // , aiw::Ind<D> order=Ind<D>() ???
 			Ind<D> B1 = box, B2 = box; int nl_id = -1;
 			for(int i=0; i<D; i++){ 
 				if(coords[i]==4) coords[i] = 0;
 				if(coords[i]==0 && B1[i]) B1[i] = 1; else B2[i] = 1; 
 				if(nl_id==-1 && coords[i]&3 && !(coords[i]&4)) nl_id = i;
 			}
-			if(order!=Ind<D>()) coords = coords(order);
 			// WOUT(box, coords, B1, B2, nl_id);
-			for(Ind<D> pos0; pos0^=B1; ++pos0){
+			for(Ind<D> pos; pos^=B1; ++pos){
 				if(prefix) str<<prefix<<" ";
-				Vec<D> r = pos2coord(pos0); Ind<D> pos = pos0;
-				if(order!=Ind<D>()){ r = r(order); pos = pos0(order); }				
+				Vec<D> r = pos2coord(pos);
 				for(int i=0; i<D; i++) if(coords[i] && (coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
-				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos0+pos2]<<" ";
+				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
 				str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
 			}
 			str.flush();

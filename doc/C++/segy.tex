@@ -1,0 +1,131 @@
+\section{Чтение и запись сейсмических данных в формате {\tt seg-Y} --- модуль {\tt segy}}
+В \verb'C++' модуле \verb'segy' (файлы \verb'include/aiwlib/segy' и \verb'src/segy.cpp')
+определены функции и классы для работы с сейсмическими данными в формате \verb'Seg-Y'.
+
+Метод
+\begin{verbatim}
+    int segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, 
+                      std::vector<Vecf<8> > &heads, size_t count, bool read_data);
+\end{verbatim}
+читает все трассы из входного потока \verb'S' (считается что заголовок файла длиной 3600 байт уже прочитан), записывает их в список трасс \verb'data' и возвращает число
+прочитанных трасс.
+Информация из заголовков трасс записывается в вектор \verb'heads', для каждой трассы сохраняется восемь чисел~---
+координаты источника (\verb'PVx', \verb'PVy', \verb'PVz'), координаты приемника (\verb'PPx', \verb'PPy', \verb'PPz'),
+шаг дискретизациии \verb'dt', число отсчетов в трассе \verb'trace_sz'. Максимальное число трасс для чтения задается параметром \verb'count'
+(-1 без ограничений, до конца файла), если параметр \verb'read_data=false' производится чтение только заголовков трасс.
+
+Методы
+\begin{verbatim}
+#ifndef SWIG
+    Mesh<float, 2> segy_read_geometry(IOstream &&S, bool read_file_head=true, 
+                                      size_t count=-1);
+    Mesh<float, 2> segy_read(IOstream &&S, Mesh<float, 2> &data, 
+                             bool read_file_head=true, size_t count=-1);
+    Mesh<float, 3> segy_read(IOstream &&S, Mesh<float, 3> &data);
+#endif //SWIG 
+    Mesh<float, 2> segy_read_geometry(IOstream &S, bool read_file_head=true, 
+                                      size_t count=-1);
+    Mesh<float, 2> segy_read(IOstream &S, Mesh<float, 2> &data, bool read_file_head=true, 
+                             size_t count=-1);
+    Mesh<float, 3> segy_read(IOstream &S, Mesh<float, 3> &data);
+\end{verbatim}
+возвращают геометрию --- сетку размерами\\ \verb'[8={PVx,PVy,PVz,PPx,PPy,PPz,dt,trace_sz}][Nx][опицонально Ny]'.
+
+Параметр \verb'read_file_head' указывает на необходимость чтения заголовка файла, параметр \verb'count' задает максимальное число трасс для чтения.
+Данные записываются в сетку \verb'data', при этом ось времени в сейсмограммах всегда отвечает оси номер 0, шаги отвечают шагам сеток.
+
+Методы
+\begin{verbatim}
+#ifndef SWIG
+    void segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP);
+    void segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP0, double rotate=0., 
+                    bool write_file_head=true);
+    void segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP0, double rotate=0., 
+                    bool write_file_head=true);
+#endif //SWIG 
+    void segy_write(IOstream &S, const Mesh<float, 1> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP);
+    void segy_write(IOstream &S, const Mesh<float, 2> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP0, double rotate=0., 
+                    bool write_file_head=true);
+    void segy_write(IOstream &S, const Mesh<float, 3> &data, double z_pow, 
+                    Vec<2> PV, Vec<3> PP0, double rotate=0., 
+                    bool write_file_head=true);
+\end{verbatim}
+записывают сейсмические данные из \verb'data' в поток \verb'S'. Параметр \verb'z_pow' задает степень в шкалирующем амплитуду множителе $z^{\tt z\_pow}$,
+параметр \verb'rotate' задает поворот системы координат в плоскости $xy$ относительно точки \verb'PP0'.
+Ось времени в сейсмограммах всегда отвечает оси номер 0, шаги по времени и по латерали отвечают шагам сеток.
+
+Для более низкоуровневой работы предназначены класс заголовка файла и класс заголовка трассы.
+\begin{verbatim}
+    class SegyFileHead{
+		char head[3600];
+    public:
+        double dt;      // шаг по времени, в секундах
+        int trace_sz;   // число отсчетов в трассе
+        int profile_sz; // число трасс в профиле (магнитограмме)
+
+        SegyFileHead();
+
+		// pos --- позиция в байтах
+        void set_int16(int pos, int value);
+        void set_int32(int pos, int value);
+        int get_int16(int pos) const;
+        int get_int32(int pos) const;
+
+        void dump(aiw::IOstream&);
+        void load(aiw::IOstream&);
+    };
+    class SegyTraceHead{
+        char head[240];
+    public:
+        double dt;          // шаг по времени, в секундах
+        int trace_sz;       // число отсчетов в трассе
+        aiw::Vec<3> PV, PP; // координаты ПВ и ПП
+
+        SegyTraceHead();
+
+        // pos --- позиция в байтах
+        void set_int16(int pos, int value);
+        void set_int32(int pos, int value);
+        int get_int16(int pos) const;
+        int get_int32(int pos) const;
+
+        void dump(aiw::IOstream&);
+        bool load(aiw::IOstream&);
+
+        void write(aiw::IOstream &S, float *data); // запись трассы
+        aiw::Mesh<float, 1> read(aiw::IOstream&);  // чтение трассы
+    };
+\end{verbatim}
+\begin{table}
+  \begin{center}
+  \begin{tabular}{|l|c|c|l|}
+    \hline
+    название поля                   & размер & позиция & комментарий \\
+    \hline
+    \verb'SegyFileHead::dt'         & 2B     & 16      & в мкс       \\
+    \verb'SegyFileHead::trace_sz'   & 2B     & 20, 22  &             \\ 
+    \verb'SegyFileHead::profile_sz' & 2B     & 12      &             \\ 
+    \verb'SegyTraceHead::dt'        & 2B     & 116     & в мкс       \\
+    \verb'SegyTraceHead::trace_sz'  & 2B     & 114     &             \\
+    \verb'SegyTraceHead::PV[0]'     & 4B     & 72      &             \\
+    \verb'SegyTraceHead::PV[1]'     & 4B     & 76      &             \\
+    \verb'SegyTraceHead::PP[0]'     & 4B     & 80      &             \\
+    \verb'SegyTraceHead::PP[1]'     & 4B     & 84      &             \\
+    \verb'SegyTraceHead::PP[2]'     & 4B     & 40      & рельеф ПП   \\
+    \hline
+  \end{tabular}
+  \end{center}
+\caption{разумеры и позиции в заголовке стандартных полей формата {\tt seg-Y}}\label{segy:fields:table}
+\end{table}
+Методы \verb'get/set_int16/32(pos, value)' предназначены для чтения/записи данных (чисел) в произвольные места заголовка.
+Поля  \verb'dt', \verb'trace_sz',
+\verb'profile_sz', \verb'PP' и \verb'PV' автоматически записываются/читаются при вызове методов \verb'dump/load' на позиции указанные в таблице~\ref{segy:fields:table}.
+Методы \verb'SegyTraceHead::write/read' записывают/читают трассу вместе с заголовком (вызывают методы \verb'dump/load').
+
+Все числа в с плавающей точкой сохранются в офрмате \verb'IEEE', поэтому в заголовок файла на позицию 24 пишется двухбайтовое число 5 (да, это магия).
+В планах ввести конфретрех из/в формата \verb'IBM', но пока это не сделано. 

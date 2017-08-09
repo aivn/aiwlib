@@ -3,14 +3,15 @@
  * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
  **/
 
+#include <unistd.h>
 #include "../include/aiwlib/checkpoint"
 using namespace aiw;
 
 namespace aiw{ CheckPoint checkpoint; };
 //------------------------------------------------------------------------------
-void aiw::CheckPoint::init(const char *path, bool wmode){
-	if(wmode){ stream.name = path; cursor = table.end(); }
-	else { stream = File(path, "rb"); stream>table;	cursor = table.begin(); }
+void aiw::CheckPoint::init(const char *path, int mode){ // mode==0 - auto, 1 - read, other - write
+	if(mode!=1 || (mode==0 && ::access(path, F_OK|R_OK))){ stream.name = path; cursor = table.end(); } // write
+	else { stream = File(path, "rb"); stream>table;	cursor = table.begin(); }                          // read
 }
 //------------------------------------------------------------------------------
 int aiw::CheckPoint::frame(const char* fname, int line, const char *argnames){ // 0 --- skip frame, 1 --- read frame, 2 --- write frame
