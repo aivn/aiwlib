@@ -13,23 +13,25 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 #ifndef SWIG
 	template <typename S> void format2stream(S &&str, const char *format){
-		for(int i=0; format[i]; ++i)
-			if(format[i]=='%' && format[i+1]){
-				if(format[i+1]!='%') WRAISE("illegal '%' count ", format, i)
-				else{ str.write(format, i); format += i+1; i = 0; }
+		for(int i=0; format[i]; ++i){
+			if(format[i]=='%'){
+				if(format[i+1]=='%'){ str.write(format, i); format += i+1; i = 0; }
+				else WRAISE("illegal '%' count: ", format, format+i)
 			}
+		}
 		str<<format;
 	}
 	template <typename S, typename T, typename ... Args>
 	void format2stream(S &&str, const char *format, T x, Args ... args){
 		for(int i=0; true; ++i){
-			if(format[i]==0) WRAISE("illegal '%' count ", format, i);
-			if(format[i]=='%' && format[i+1]){
-				if(format[i+1]!='%'){
+			if(format[i]==0) WRAISE("illegal '%' count: ", format, i, sizeof...(Args)+1);
+			if(format[i]=='%'){ 
+				if(format[i+1]=='%'){ str.write(format, i); format += i+1; i = 0; }
+				else {
 					if(i) str.write(format, i);
 					str<<x; format2stream(str, format+i+1, args...);
-					break;
-				} else { str.write(format, i); format += i+1; i = 0; }
+					return;
+				}  
 			}
 		}
 	}
