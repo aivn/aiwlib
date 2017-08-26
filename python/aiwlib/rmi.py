@@ -16,12 +16,12 @@ def _pack_error(x): raise PackException("cann't pack object %r"%x)
 #-------------------------------------------------------------------------------
 def _pack_for_send(*data):
     fmt = ''.join([ _pack_format_table.get(type(x), _pack_error)(x) for x in data ])
-    pack_fmt = 'ii%is'%len(fmt)+fmt
+    pack_fmt = '=ii%is'%len(fmt)+fmt
     return struct.pack(pack_fmt, *((struct.calcsize(pack_fmt), len(fmt), fmt)+data))
 def _unpack_body(data):
-    fmt_sz = struct.unpack_from('i', data, 0)[0]
-    fmt = struct.unpack_from('%is'%fmt_sz, data, 4)[0]
-    return struct.unpack_from('%is'%fmt_sz+fmt, data, 4)[1:]
+    fmt_sz = struct.unpack_from('=i', data, 0)[0]
+    fmt = struct.unpack_from('=%is'%fmt_sz, data, 4)[0]
+    return struct.unpack_from('=%is'%fmt_sz+fmt, data, 4)[1:]
 #-------------------------------------------------------------------------------
 class SocketClosed(Exception): pass
 def _send(connect, *data): connect.send(_pack_for_send(*data))

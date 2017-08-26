@@ -1,0 +1,130 @@
+// -*- C++ -*-
+#ifndef AIW_MESHOP_HPP
+#define AIW_MESHOP_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov, KIAM RAS, Moscow.
+ * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ **/
+
+#include <type_traits>
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	//   Base functions and operator
+	//--------------------------------------------------------------------------
+	template <typename R, int D> inline
+	typename std::enable_if<std::is_base_of<BaseMeshOp, R>::value, typename R::cell_type>::type
+	calc_mesh_op(R op, Ind<D> pos){ return op[pos]; }
+
+	template <typename T, int D> inline
+	typename std::enable_if<!std::is_base_of<BaseMeshOp, T>::value, T>::type
+	calc_mesh_op(T val, Ind<D> pos){ return val; }
+	//--------------------------------------------------------------------------
+	template <typename R> inline
+	typename std::enable_if<std::is_base_of<BaseMeshOp, R>::value, typename R::cell_type>::type
+	cell_type_mesh_op(R){ return R::cell_type(); }
+
+	template <typename T> inline
+	typename std::enable_if<!std::is_base_of<BaseMeshOp, T>::value, T>::type
+	cell_type_mesh_op(T){ return T(); }
+	//--------------------------------------------------------------------------
+	template <typename T, int D, typename R> void operator <<= (Mesh<T, D> &m, R r){
+		Ind<D> pos = m.first();
+		do{ m[pos] = calc_mesh_op(r, pos); } while(m.next(pos));
+	}
+	//--------------------------------------------------------------------------
+	//   Filters and fin.diff. operators
+	//--------------------------------------------------------------------------
+	template <typename R, int D> inline decltype(cell_type_mesh_op(R())) laplacian_core(R data, Ind<D> pos){
+		decltype(cell_type_mesh_op(R())) res = calc_mesh_op(data, pos)*-D;
+		for(int i=0; i<D; i++){
+			Ind<D> pos2 = pos; pos2[i]--; res += calc_mesh_op(data, pos2);
+			pos2[i] += 2; res += calc_mesh_op(data, pos2);
+		}
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	//   Frontend
+	//--------------------------------------------------------------------------
+	// макросы для определения типа операнда
+#define ACT cell_type_mesh_op(a)
+#define BCT cell_type_mesh_op(b)
+	// макросы для расчета значения операнда
+#define ARP	calc_mesh_op(a, pos)
+#define BRP	calc_mesh_op(a, pos)
+		//--------------------------------------------------------------------------
+#define UN_MESH_OP(NAME, OP, CELLT, ACTION)								\
+	template <typename T> struct NAME##MeshOp: BaseMeshOp{				\
+		T a; typedef decltype(CELLT) cell_type;							\
+		NAME##MeshOp(){}												\
+		NAME##MeshOp(T a_):a(a_){}										\
+		template <int D> inline											\
+		cell_type operator [](Ind<D> pos) const { return ACTION; }		\
+	};																	\
+	template <typename R>												\
+	typename std::enable_if<std::is_base_of<BaseMeshOp, R>::value,		\
+							NAME##MeshOp<R> >::type						\
+	OP (R x){ return NAME##MeshOp<R>(x); }								
+
+	UN_MESH_OP(Neg, operator -, -ACT, -ARP);
+	//UN_MESH_OP(Linef, linef, ACT, linef(ARP))
+	//UN_MESH_OP(Medianf, Medianf, ACT, median(ARP))
+
+	UN_MESH_OP(Laplacian, Laplacian, ACT, laplacian_core(a, pos));
+	//	UN_MESH_OP(DivFD, div, ACT, div(ARP));
+	//	UN_MESH_OP(GradFD, grad, ACT, grad(ARP));
+	
+#define FUNC_MESH_OP(FUNC) UN_MESH_OP(F##FUNC, FUNC, ::FUNC(ACT), ::FUNC(ARP))
+	FUNC_MESH_OP(abs)
+	FUNC_MESH_OP(acos)
+	FUNC_MESH_OP(asin)
+	FUNC_MESH_OP(atan)
+	FUNC_MESH_OP(ceil)
+	FUNC_MESH_OP(cos)
+	FUNC_MESH_OP(exp)
+	FUNC_MESH_OP(fabs)
+	FUNC_MESH_OP(floor)
+	FUNC_MESH_OP(log)
+	FUNC_MESH_OP(log10)
+	FUNC_MESH_OP(sin)
+	FUNC_MESH_OP(sinh)
+	FUNC_MESH_OP(sqrt)
+	FUNC_MESH_OP(tan)
+	FUNC_MESH_OP(tanh)
+#undef FUNC_MESH_OP
+#undef UN_MESH_OP
+	//--------------------------------------------------------------------------
+#define BIN_MESH_OP(NAME, OP, CELLT, ACTION)							\
+	template <typename T1, typename T2> struct NAME##MeshOp:BaseMeshOp{ \
+		T1 a; T2 b; typedef decltype(CELLT) cell_type;					\
+		NAME##MeshOp(){}												\
+		NAME##MeshOp(T1 a_, T2 b_):a(a_), b(b_){}						\
+		template <int D> inline											\
+		cell_type operator [](Ind<D> pos) const { return ACTION; }		\
+	};																	\
+	template <typename R1, typename R2>									\
+	typename std::enable_if<(std::is_base_of<BaseMeshOp, R1>::value ||	\
+							 std::is_base_of<BaseMeshOp, R2>::value),	\
+							NAME##MeshOp<R1, R2> >::type				\
+	OP (R1 x, R2 y){ return NAME##MeshOp<R1, R2>(x, y); }
+
+	BIN_MESH_OP(Add, operator +, ACT+BCT, ARP+BRP)
+	BIN_MESH_OP(Sub, operator -, ACT-BCT, ARP-BRP)
+	BIN_MESH_OP(Mul, operator *, ACT*BCT, ARP*BRP)
+	BIN_MESH_OP(Div, operator /, ACT/BCT, ARP/BRP)
+	
+	BIN_MESH_OP(Pow, operator ^, ::pow(ACT, BCT),   ::pow(ARP, BRP))
+	BIN_MESH_OP(Fatan2, atan2, ::atan2(ACT, BCT), ::atan2(ARP, BRP))
+	BIN_MESH_OP(Ffmod,  fmod,   ::fmod(ACT, BCT),  ::fmod(ARP, BRP))
+	BIN_MESH_OP(Fpow,   pow,     ::pow(ACT, BCT),   ::pow(ARP, BRP))
+#undef BIN_MESH_OP
+	//--------------------------------------------------------------------------
+#undef ACT
+#undef BCT
+#undef ARP
+#undef BRP
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_MESHOP_HPP

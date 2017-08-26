@@ -12,7 +12,8 @@
 
 namespace aiw{
 //------------------------------------------------------------------------------
-	template <typename T, int D> class Mesh {
+	struct BaseMeshOp{};
+	template <typename T, int D> class Mesh: BaseMeshOp {
 		std::shared_ptr<BaseAlloc> mem;
 		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
 		size_t sz;           // общее число элементов
@@ -26,7 +27,7 @@ namespace aiw{
 		std::string head;
 		T out_value;
 		aiw::Vec<D> bmin, bmax, step, rstep;
-		int logscale; // логарифмический масштаб по осям в виде битовой маски (0 --- нет, 1 --- да).
+		int logscale=0; // логарифмический масштаб по осям в виде битовой маски (0 --- нет, 1 --- да).
 
 		inline      size_t size() const { return sz; }
 		inline aiw::Ind<D> bbox() const { return box; }
@@ -117,12 +118,12 @@ namespace aiw{
 			for(int i=0; i<D; i++){
 				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
 				if(pos[i]<0){
-					if((bound_min[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box);
+					if((bound_min[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box, periodic, bound_min);
 					if((bound_min[1]&(1<<i))==0) return out_value;
 					pos[i] = 0;
 				}
 				else if(pos[i]>=box[i]){
-					if((bound_max[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box);
+					if((bound_max[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box, periodic, bound_max);
 					if((bound_max[1]&(1<<i))==0) return out_value;
 					pos[i] = box[i]-1;
 				}
@@ -189,7 +190,13 @@ namespace aiw{
 		template <typename T2, int D2> void set_axe(int a, const Mesh<T2, D2> &M, int m){
 			mul[a] = M.mul[m]; box[a] = M.box[m]; axes[a] = M.axes[m]; mul[a] = M.mul[m];
 			bmin[a] = M.bmin[m]; bmax[a] = M.bmax[m]; step[a] = M.step[m]; rstep[a] = M.rstep[m];
-			if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
+			// if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
+#define CP_MASK(MASK) if(M.MASK&1<<m) MASK |= 1<<a; else MASK &= ~(1<<a);
+			CP_MASK(logscale); CP_MASK(periodic);
+			for(int i=0; i<3; i++) CP_MASK(Itype[i]);
+			for(int i=0; i<2; i++) CP_MASK(bound_min[i]);
+			for(int i=0; i<2; i++) CP_MASK(bound_max[i]);
+#undef CP_MASK
 		}
 	public:
 		Mesh transpose(int a, int b) const { Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
