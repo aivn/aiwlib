@@ -29,6 +29,12 @@ namespace aiw{
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #endif //MINGW
 	//--------------------------------------------------------------------------
+    template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& n, double phi){ // |n|==1
+		// a*cos(phi) - a%n*sin(phi) + n*(a*n)*(1-cos(phi));
+		double s, c; sincos(phi, &s, &c);
+		return a*c - a%n*s + n*((a*n)*(1-c));
+	}
+	//--------------------------------------------------------------------------
     template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& b){
 		// a*cos(b.abs()) - a%b*sin(b)/b.abs() + b*(a*b)*(1-cos(b))/(b*b);
 		double b2 = b*b;
@@ -44,6 +50,11 @@ namespace aiw{
 		return res;
 	};
 	//--------------------------------------------------------------------------
+	template <typename T> inline aiw::Vec<3, T> arc_rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T> &b){
+		Vec<3, T> res = a%b; T res_abs = res.abs();
+		return res*(asin(res_abs)/res_abs);
+	}
+	//--------------------------------------------------------------------------
 	inline aiw::Vec<3, double> polar(double theta, double phi){
 		double s_th, c_th; sincos(theta, &s_th, &c_th);
 		double s_ph, c_ph; sincos(phi,   &s_ph, &c_ph);
@@ -56,9 +67,9 @@ namespace aiw{
 	template <typename T> inline aiw::Vec<2, T> perp(const aiw::Vec<2, T> &a){ return Vec<2, T>(-a[1], a[0]); } 
 	template <typename T> inline aiw::Vec<3, T> perp(const aiw::Vec<3, T> &a){ 
 		Vec<3, T> a_fabs = a.fabs(); 
-		int i_max = a_fabs[0]>a_fabs[1]?0:1; 
-		if(a_fabs[i_max]<a_fabs[2]) i_max = 2;
-		Vec<3, T> ort; ort[i_max] = 1.; Vec<3, T> p = ort%a;
+		int i_min = a_fabs[0]<a_fabs[1]?0:1; 
+		if(a_fabs[i_min]>a_fabs[2]) i_min = 2;
+		Vec<3, T> ort; ort[i_min] = 1.; Vec<3, T> p = ort%a;
 		return p/p.abs(); 
 	} 
 	//--------------------------------------------------------------------------

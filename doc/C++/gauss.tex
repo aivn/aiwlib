@@ -22,12 +22,18 @@
 #else //MINGW
     inline void sincos(double phi, double *s, double *c);
 #endif //MINGW
+    // оператор поворота вектора a вокруг единичного вектора n на угол phi 
+    template <typename T> inline aiw::Vec<3, T> 
+         rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& n, double phi);
     // оператор поворота вектора a вокруг вектора b
     template <typename T> inline aiw::Vec<3, T> 
          rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& b);
     // оператор поворота вектора a вокруг вектора b в виде ряда длины R
     template <int R, typename T> inline aiw::Vec<3, T> 
          rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T> &b);
+    // выичисление поворота, необходимого для перевода a в b (|a|=|b|=1)
+    template <typename T> inline aiw::Vec<3, T> 
+         arc_rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T> &b);
     // перевод из полярных координат в декартовы
 	inline aiw::Vec<3, double> polar(double theta, double phi);
     // перевод из декартовых координат в полярные, возвращает theta, phi
