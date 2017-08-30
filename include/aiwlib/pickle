@@ -23,6 +23,9 @@ namespace aiw{
 		std::string postfix, close;
 		std::stringstream buf;
 
+		Pickle(){}
+		Pickle(const Pickle& P): postfix(P.postfix), close(P.close), buf(P.buf.str()) {}
+		
 		// основные операторы для вывода объектов
 		Pickle& operator << (const Pickle& other){ buf<<other.buf.str()<<other.close<<postfix; return *this; }
 		Pickle& operator << (NoneType){ buf<<'N'<<postfix; return *this; }
