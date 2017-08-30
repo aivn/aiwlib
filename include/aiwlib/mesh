@@ -11,9 +11,15 @@
 #include "interpolations"
 
 namespace aiw{
-//------------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+#ifndef SWIG
 	struct BaseMeshOp{};
-	template <typename T, int D> class Mesh: BaseMeshOp {
+#endif //SWIG
+	template <typename T, int D> class Mesh
+#ifndef SWIG
+		:BaseMeshOp
+#endif //SWIG
+	{
 		std::shared_ptr<BaseAlloc> mem;
 		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
 		size_t sz;           // общее число элементов

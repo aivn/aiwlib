@@ -167,6 +167,6 @@ mkextras:=$(firstword $(MAKEFILE_LIST)).extras
 $(shell echo '# This file is generated automatically, do not edit it!' > $(mkextras))
 $(shell echo '# The file contains additional dependencies and rules for building your project.' >> $(mkextras))
 $(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects); $$(CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) -lz';done >> $(mkextras)	)
-$(shell for m in $(modules) $(cxxmain); do $(GCC) $(CXXOPT) -M $$m >> $(mkextras); done)
+$(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(GCC) $(CXXOPT) -M $$m; done >> $(mkextras))
 include $(mkextras)
 #-------------------------------------------------------------------------------
