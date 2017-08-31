@@ -6,6 +6,8 @@
   \item\verb'WOUT(expressions...)' --- вывод информации в \verb'std::cout';
   \item\verb'WERR(expressions...)' --- вывод информации в \verb'std::cerr';
   \item\verb'WSTR(S, expressions...)' --- вывод информации в поток \verb'S', являющийся наследником \verb'std::ostream';
+  \item\verb'WCHK(expressions...)' --- проверка реузльтатов вычисления выражений при помощи \verb'isnan' и \verb'isinf',
+    генерация исключения если хотя бы одно из выражений не прошло проверку;
   \item\verb'WEXC(expressions...)' --- вывод информации со стека в \verb'std::cerr' при обработке исключения (потокобезопасный вариант); 
   \item\verb'WEXT(expressions...)' --- вывод информации со стека в \verb'std::cerr' при обработке исключения или ошибке сегментирования
     ({\bf не} потокобезопасный вариант); 
@@ -96,11 +98,11 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 В одной строке может использоваться только один макрос \verb'WEXC'.
 
 \subsection{Режимы работы}
-Макросы \verb'WOUT', \verb'WERR', \verb'WSTR', \verb'WEXC', \verb'WEXT' и \verb'WASSERT' работают только если определен макрос \verb'EBUG'
+Макросы \verb'WOUT', \verb'WERR', \verb'WSTR', \verb'WCHK', \verb'WEXC', \verb'WEXT' и \verb'WASSERT' работают только если определен макрос \verb'EBUG'
 (например при помощи опции компилятора \verb'-DEBUG'). При сборке на основе шаблонного \verb'aiwlib/Makefile'
 макрос \verb'EBUG' по умолчанию отключен, для его подключения необходимо использовать команду
 \begin{verbatim}
-    make -DEBUG ...
+    make ... debug=on ...
 \end{verbatim}
 
 Отличие между вызовом 
@@ -164,6 +166,8 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 \item \verb'<sstream>' --- работа с потоком \verb'std::stringstream' в макросах \verb'WEXC';
 \item \verb'<exception>' --- определение наличия исключительной ситуации в деструкторе объекта \verb'aiw::DebugStackFrame'
   при помощи фунцкии \verb'std::uncaught_exception()'.
+\item \verb'<tuple>' --- контейнер для сбора информации со стека для вывода исключения.
+\item \verb'<math.h>' --- макросы \verb'isnan' и \verb'isinf'.
 \end{itemize}
 
 

@@ -333,6 +333,8 @@ namespace aiw{
 			else{ pos[i] = 0; ++pos[i+1]; }
 		return pos[D-1]<Up[D-1];
 	}
+	template<int D> inline typename std::enable_if<D!=1, bool>::type
+	operator ^= (Ind<D> &pos, Ind<1> Up){ return pos ^= Ind<D>(Up[0]); }
 	template<int D> inline Ind<D> operator % (size_t x, const Ind<D> &p){
 		Ind<D> r;
 		for(int i=0; i<D; i++){ r[i] = x%p[i]; x /= p[i]; }
@@ -352,7 +354,11 @@ namespace aiw{
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
 #endif //AIW_IOSTREAM_HPP
-//---------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
+	//   other functions
+	//--------------------------------------------------------------------------
+	template <int D, typename T> inline bool is_bad_value(const Vec<D, T> &v){ return v.cknan() || v.ckinf(); }
+	//--------------------------------------------------------------------------
 }; // end of namespace aiw
 
 namespace std{
