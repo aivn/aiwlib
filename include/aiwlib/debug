@@ -14,7 +14,7 @@
 #include <sstream>
 #include <exception>
 #include <tuple>
-#include <math.h>
+#include <cmath>
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -30,8 +30,9 @@ namespace aiw{
 		debug_out(out, str+key.next, args...);
 	}
 	//--------------------------------------------------------------------------
-	inline bool is_bad_value(float x){ return !(isnormal(x)); }
-	inline bool is_bad_value(double x){ return !(isnormal(x)); }
+	template <typename T> bool is_bad_value(T){ return false; }
+	inline bool is_bad_value(float x){ return (isnan(x)) || (isinf(x)); }
+	inline bool is_bad_value(double x){ return (isnan(x)) || (isinf(x)); }
 	template <typename T, typename ... Args> bool is_bad_value(T x, Args ... args){ return is_bad_value(x) || is_bad_value(args...); }
 	//--------------------------------------------------------------------------
 	/*
@@ -92,7 +93,7 @@ namespace aiw{
 
 #define WOUT(args...) WSTR(std::cout, args)
 #define WERR(args...) WSTR(std::cerr, args)
-#define WCHK(args...) WASSERT(is_bad_value(args), "some values are bad: ", args) 
+#define WCHK(args...) WASSERT(!is_bad_value(args), "some values are bad: ", args) 
 #define WARNING(msg, args...){ std::cerr<<"\033[1;4m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "<<msg; \
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
 #define WRAISE(msg, args...){ std::stringstream bUfFoRwRaIsE;			\

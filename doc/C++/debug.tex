@@ -95,7 +95,7 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
     WOUT((V<3,int>(a)), a*2);
 \end{verbatim}
 
-В одной строке может использоваться только один макрос \verb'WEXC'.
+В одной строке может использоваться только один макрос \verb'WEXC' (или \verb'WEXT').
 
 \subsection{Режимы работы}
 Макросы \verb'WOUT', \verb'WERR', \verb'WSTR', \verb'WCHK', \verb'WEXC', \verb'WEXT' и \verb'WASSERT' работают только если определен макрос \verb'EBUG'
@@ -155,9 +155,22 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 
 %Про детали работы макроса \verb'WEXC' было сказано выше.
 
+Работа макроса \verb'WCHK' основана на функции \verb'is_bad_value':
+\begin{verbatim}
+  template <typename T> bool is_bad_value(T){ return false; }
+  inline bool is_bad_value(float x){ return (isnan(x)) || (isinf(x)); }
+  inline bool is_bad_value(double x){ return (isnan(x)) || (isinf(x)); }
+  template <typename T, typename ... Args> bool is_bad_value(T x, Args ... args){
+    return is_bad_value(x) || is_bad_value(args...);
+  }
+\end{verbatim}
+которая так же перегружена для векторов из раздела \ref{vec:sec}. Аргументами макроса могут являться выражения любых типов
+(для которых перегружен оператор вывода в \verb'std::ostream'), но если значения этих выражений необходимо проверять~--- необходимо перегузить
+функцию \verb'is_bad_value' для соответствующих типов.
+
 При выводе сообщений от всех макросов метод потока вывода \verb'flush' {\bf не} вызывается. 
 
-\endinput
+%\endinput
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Модуль \verb'debug' подключает и использует следующие стандартные библиотеки:
 \begin{itemize}
@@ -167,7 +180,7 @@ std::ostream& operator << (std::ostream& out, const V<D,T> &v){
 \item \verb'<exception>' --- определение наличия исключительной ситуации в деструкторе объекта \verb'aiw::DebugStackFrame'
   при помощи фунцкии \verb'std::uncaught_exception()'.
 \item \verb'<tuple>' --- контейнер для сбора информации со стека для вывода исключения.
-\item \verb'<math.h>' --- макросы \verb'isnan' и \verb'isinf'.
+\item \verb'<cmath>' --- макросы \verb'isnan' и \verb'isinf'.
 \end{itemize}
 
 
