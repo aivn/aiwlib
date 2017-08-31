@@ -1,4 +1,4 @@
-#include "../include/aiwlib/mesh"
+#include "../../include/aiwlib/mesh"
 using namespace aiw;
 
 const char *help = "usage: arrconv options src.arr dst.arr|dst.dat\noptions:\n"
