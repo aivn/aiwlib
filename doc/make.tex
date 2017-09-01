@@ -1,6 +1,10 @@
 \section{Сборка и установка библиотеки}
-Для сборки библиотеки используется утилита \verb'GNU Make'. Для работы в \verb'C++' сборка не требуется,
-достаточно заголовочных файлов. Для работы в \verb'Python' необходимо собрать
+Для сборки библиотеки используется утилита \verb'GNU Make'.
+Для работы в \verb'C++' достаточно собрать ядро библиотеки командой
+\begin{verbatim}
+    make libaiw.a
+\end{verbatim}
+Для работы в \verb'Python' необходимо собрать
 ряд модулей с применением утилиты \verb'SWIG', что требует вызова команды 
 \begin{verbatim}
     make
@@ -31,10 +35,14 @@
 При этом пользовательский \verb'Makefile' должен иметь вид
 \begin{verbatim}
 name=NAME #имя проекта
-headers=... #список хидеров обратаываемых SWIG-ом
+headers=... #список хидеров обрабатываемых SWIG-ом
 modules=... #список .cpp модулей проекта
 sources=... #другие исходные файлы проекта
 
+include aiwlib/user.mk
+\end{verbatim}
+или
+\begin{verbatim}
 include local-path-to-aiwlib/include/aiwlib/user.mk
 \end{verbatim}
 При этом заголовочные файлы библиотеки всегда включаются как \verb'<aiwlib/...>',

@@ -52,7 +52,7 @@ class Select:
         if self.progressbar: self.progressbar.clean()
         old_ = calc._G.get('_'); calc._G['_'] = self
 	#-----------------------------------------------------------------------
-        def vizit(dirname, start, part):
+        def vizit(dirname, start, part, repo):
             if dirname[-1]!='/': dirname += '/'
             LL = filter(os.path.isdir, map(dirname.__add__, os.listdir(dirname)))
             if LL: part /= len(LL)
@@ -82,20 +82,20 @@ class Select:
             for p in sorted(LL):
                 D = cache.get(os.path.basename(p))
                 if D:
-                    R = SelCalc(p+'/', D)
+                    R = SelCalc(p+'/', D); R._repo = repo
                     l = [R]; self._L.append(l); Select._i += 1
                     # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
                         l.append(R(c))
                         if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
-                elif check_tree: vizit(p, start, part)
+                elif check_tree: vizit(p, start, part, repo)
                 start += part
                 if self.progressbar: self.progressbar.out(start, dirname+' ')
             return start
 	#-----------------------------------------------------------------------
         start, self.fromL = 0., filter(os.path.isdir, fromL)
         calc.Calc._except_report_table.extend(['repository "%s" not found\n'%r for r in fromL if not os.path.isdir(r)])
-        for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL)) 
+        for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL), repository) 
         #repository = os.path.abspath( os.path.expanduser( os.path.expandvars(chain2afuse(repository)) ) )+'/'
         _after_calc(self._L, csfhL); Select._i = 0; self._recalc_ts()
         if old_: calc._G['_'] = old_
@@ -111,7 +111,7 @@ class Select:
     #---------------------------------------------------------------------------
     def astable(self, head=True, tw=None, colored=True): 
         'вернуть выборку в виде таблицы (как список строк)'
-        colors = {'None':'1;33', 'stopped':'1;31', 'killed':'1;7;31', 'started':'1;33'}
+        colors = {'None':'1;33', 'nan':'1;33', 'stopped':'1;31', 'killed':'1;7;31', 'started':'1;33'}
         conv2str = lambda x:'\033[%sm%s\033[m'%(colors[x.strip()], x) if x.strip() in colors else x
         return mixt.table2strlist([None, self.head]*head+[None]+[l[1:] if l else None for l in self._L]+[None], 
                                   max_len=tw, conv2str=(conv2str if colored else str))
@@ -122,10 +122,19 @@ class Select:
         D = reduce(lambda D, C: dict([(k, D.get(k, set())|set([v])) for k, v in C.par_dict().items()
 #                                      if hashable(v) and mixt.compare(k, patt) ]), self.nodes(), {}) if patt else {}
                                       if mixt.compare(k, patt) ]), self.nodes(), {}) if patt else {}
+        H = [ h.strip().split('\n') for h in self.head ]
+        if min(map(len, H))>1: # была проведена кластеризация
+            X = {}; [X.setdefault(h[1], len(X)) for h in H[1:]]
+            HL = [H[0][0]]+[h[0]+str(X[h[1]]) for h in H[1:]]
+        else: HL = [h[0] for h in H]
         R = ['#: %s = %r\n'%(k, list(S)[0]) for k, S in D.items() if len(S)==1] + mixt.table2strlist( 
-            [['#:'+self.head[0]]+self.head[1:]]*bool(head)+[ l[1:] if l else ['']*len(self.head) for l in self._L ],
+            [['#:'+HL[0]]+HL[1:]]*bool(head)+[ l[1:] if l else ['']*len(self.head) for l in self._L ],
             'l'*len(self.head))
         R = [l.lstrip(' ') for l in R]
+        if min(map(len, H))>1:  # была проведена кластеризация
+            p_in = max(i for i, l in enumerate(R) if l and l.startswith('#:')) # последняя строка заголовка
+            if len(X)==len(H)-1: R[p_in+1:p_in+1] = ['#: %s.txt = "%s=%s"\n'%(h[0]+str(X[h[1]]), H[0][1], h[1]) for h in H[1:]]
+            else: R[p_in+1:p_in+1] = ['#: %s.txt = "%s, %s=%s"\n'%(h[0]+str(X[h[1]]), h[0], H[0][1], h[1]) for h in H[1:]]
         if fname: (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
         else: return R 
     def paths(self, fname=''):
@@ -181,6 +190,20 @@ class Select:
         self.runtime = time.time() - starttime
         if self.progressbar : self.progressbar.close( 'get_types_summary ' )
         return D
+    #---------------------------------------------------------------------------
+    def clusteringXY(self):
+        'разворачивает X-колонку горизонтально, кластеризуя значения по X и Y, в итоге получается 2D таблица'
+        X, Y = {}, {}  # значения колонок X, Y в виде {значение: порядковый-номер-от-нуля} и число колонок
+        for l in filter(None, self._L): X.setdefault(l[1], len(X)); Y.setdefault(l[2], len(Y))
+        R = [ [None, None]+['nan']*len(X)*(len(self.head)-2) for i in range(len(Y)) ] # результирующая таблица
+        for y, i in Y.items(): R[i][1] = y
+        for l in filter(None, self._L):
+            ix, iy = X[l[1]], Y[l[2]]
+            for k, v in enumerate(l[3:]): R[iy][2+ix+k*len(X)] = v
+        self.head[1] += '\n'+self.head[0]; del self.head[0]
+        self.head[1:] = [ h+('\n%g'%x if type(x) is float else '\n%s'%x) for h in self.head[1:] for x in
+                          [l[0] for l in sorted(X.items(), key=lambda k:k[1])] ]
+        self._L = R        
     #---------------------------------------------------------------------------
     # ??? что то странное ???
     def __getitem__(self, i): 
