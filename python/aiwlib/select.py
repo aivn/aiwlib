@@ -45,8 +45,16 @@ class Select:
                   progressbar=None,   # экземляр класса ProgressBar
                   c_size=False,       # автоматически определять суммарный размер выборки
                   check_tree=True ):  # опускаться вниз по дереву каталогов
-        self._L, self.c_size, self.c_runtime, self.progressbar = [], c_size, 0, progressbar
+        self._L, self.c_size, self.c_runtime, self.progressbar, self.ring = [], c_size, 0, progressbar, []
         if not fromL: self._L, self.head, self._ev_list = [], [], []; return
+
+        ev_list, ev_ring = filter(lambda e: e[-1]!=':', ev_list), [e[:-1] for e in ev_list if e[-1]==':']
+        if ev_ring:
+            ring_D = {} # { кортеж-значений-параметров: ячейка-в-ring }  и текущая ячейка в ring
+            ring_keys = [(e.split('=', 1)[0] if mixt.is_name_eq(e) else e) for e in ev_ring]
+            ring_expr = [(e.split('=', 1)[1] if mixt.is_name_eq(e) else e) for e in ev_ring]
+            
+            
         fromL, starttime, csfhL = ([fromL] if type(fromL)==str else list(fromL)), time.time(), map(parse, ev_list)
         self.head, self._ev_list = [c[0].co_filename for c in csfhL if not c[3]], [c for c in csfhL if not c[3]]
         if self.progressbar: self.progressbar.clean()
@@ -82,9 +90,9 @@ class Select:
             for p in sorted(LL):
                 D = cache.get(os.path.basename(p))
                 if D:
-                    R = SelCalc(p+'/', D); R._repo = repo
+                    R = SelCalc(p+'/', D); R.__dict__['_repo'] = repo
+                    if ev_ring: self._L = ring_D.setdefault(tuple(map(R, ring_expr)), [])
                     l = [R]; self._L.append(l); Select._i += 1
-                    # R.__dict__['rpath'], R.__dict__['repo'] = R.path[len(repository):], repository # ???
                     for c, s, f, h in csfhL:
                         l.append(R(c))
                         if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
@@ -97,17 +105,42 @@ class Select:
         calc.Calc._except_report_table.extend(['repository "%s" not found\n'%r for r in fromL if not os.path.isdir(r)])
         for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL), repository) 
         #repository = os.path.abspath( os.path.expanduser( os.path.expandvars(chain2afuse(repository)) ) )+'/'
-        _after_calc(self._L, csfhL); Select._i = 0; self._recalc_ts()
+
+        if ev_ring: self.ring_keys = ring_keys
+        else: ring_D = { (): self._L }
+        for rk, L in sorted(ring_D.items()):
+            _after_calc(L, list(csfhL)); Select._i = 0; self._L = L; self._recalc_ts()
+            U = dict(self._L[0][0].__dict__) # определение совпадающих параметров в выборке
+            for l in filter(None, self._L[1:]):
+                for k, v in U.items():
+                    if not k in l[0].__dict__ or l[0][k]!=v: del U[k]
+                if not U: break
+            if ev_ring: U.update(zip(ring_keys, rk))
+            self.upar = SelCalc(None, U) # поддержка в delslice и т.д.?
+            if ev_ring: self.ring.append([self._L, list(self.head), self.upar, self.c_size, self.c_runtime])
+            self.ring_pos = len(self.ring)-1     
+            
         if old_: calc._G['_'] = old_
         else: del calc._G['_']
         if self.progressbar: self.progressbar.close('select ')
 	self.runtime = time.time()-starttime
     #---------------------------------------------------------------------------
-    def __len__(self): return len(self._L)
+    def __len__(self): return len(filter(None, self._L)) #???
     def nodes(self, begin=None, end=None): 'возвращает список расчетов'; return [ l[0] for l in self._L[begin:end] if l ]
     def _recalc_ts(self, calc_size=False): #recalc c_runtime and c_size
         if calc_size or self.c_size: self.c_size = sum([ l[0].get_size() for l in self._L if l ])
         self.c_runtime = sum([ getattr(l[0], 'runtime', 0) for l in self._L if l ])        
+    def click(self):
+        'поворот кольца выборок (если есть)'
+        if self.ring:
+            self.ring[self.ring_pos][:] = self._L, self.head, self.upar, self.c_size, self.c_runtime
+            self.ring_pos = (self.ring_pos+1)%len(self.ring)
+            self._L, self.head, self.upar, self.c_size, self.c_runtime = self.ring[self.ring_pos]
+    def report(self):
+        rt = sum(l[-1] for l in self.ring) if len(self.ring)>1 else self.c_runtime
+        sz = sum(l[-2] for l in self.ring) if len(self.ring)>1 else self.c_size
+        ln = sum(len(filter(None, l[0])) for l in self.ring) if len(self.ring)>1 else len(self)
+        return 'selected %i items [%s]: %s total'%(ln, mixt.time2string(self.runtime), (mixt.size2string(sz)+', ' if sz else '')+mixt.time2string(rt))
     #---------------------------------------------------------------------------
     def astable(self, head=True, tw=None, colored=True): 
         'вернуть выборку в виде таблицы (как список строк)'
@@ -135,7 +168,11 @@ class Select:
             p_in = max(i for i, l in enumerate(R) if l and l.startswith('#:')) # последняя строка заголовка
             if len(X)==len(H)-1: R[p_in+1:p_in+1] = ['#: %s.txt = "%s=%s"\n'%(h[0]+str(X[h[1]]), H[0][1], h[1]) for h in H[1:]]
             else: R[p_in+1:p_in+1] = ['#: %s.txt = "%s, %s=%s"\n'%(h[0]+str(X[h[1]]), h[0], H[0][1], h[1]) for h in H[1:]]
-        if fname: (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
+        if len(self.ring)>1: R[0:0] = [ '#:%s = %r\n'%(k, self.upar.__dict__[k]) for k in self.ring_keys ]
+        if fname:
+            fname %= self.upar; dname = os.path.dirname(fname)
+            if dname and not os.path.exists(dname): os.makedirs(dname)
+            (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
         else: return R 
     def paths(self, fname=''):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'

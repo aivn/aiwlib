@@ -95,9 +95,9 @@ for i in range(1, a_sz):
         break
     elif arg in ('--asd', '--asdata'):
         action = ['asdata']
-        if i+1<a_sz: action.append(string2bool(sys.argv[i+1])) # head on/off
-        if i+2<a_sz: action.append(sys.argv[i+2])              # pattern
-        if i+3<a_sz: action.append(sys.argv[i+3])              # filename
+        action.append(string2bool(sys.argv[i+1]) if i+3<a_sz else True)         # head on/off
+        action.append(sys.argv[i+1+(i+3<a_sz)] if i+2<a_sz else '')             # pattern
+        action.append(sys.argv[i+1+(i+3<a_sz)+(i+2<a_sz)] if i+1<a_sz else '')  # filename
         break
     elif arg in '--co --commit'.split(): action = ['Xcommit']; break
     elif arg in '--rm --remove'.split(): action = ['Xremove']; break
@@ -125,8 +125,9 @@ from aiwlib.select import Select
 S = Select(fromL, ev_list, pbar, csz, ctr)
 if cl: S.clusteringXY()
 report = ''.join(['\033[31m']+aiwlib.calc.Calc._except_report_table+['\033[0m']) if  aiwlib.calc.Calc._except_report_table else ''
-report += 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
-                                        (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
+#report += 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
+#                                              (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
+report += S.report()
 starttime = time.time()
 if action==['Xremove']:
     print report
@@ -137,6 +138,8 @@ elif action==['Xcommit']:
     print report
     if force or raw_input('commit changes (%i items, y/[any input])?'%len(S))=='y': S.Xcommit()
     else: print>>sys.stderr, 'aborted'; sys.exit()
+elif action[0]=='asdata' and len(S.ring)>1:
+    for i in range(len(S.ring)): sys.stdout.write(''.join(S.asdata(*action[1:]))); S.click()
 else:
     sep, end = ('','') if action[0][:2]=='as' else (' ','\n')
     sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
