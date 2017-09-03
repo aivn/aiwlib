@@ -19,6 +19,8 @@
 должен быть целочисленным  (не менее двух). Если серии заданы для нескольких 
 параметров, вычисляются все возможные комбинации значений (декартово произведение).
 
+  tag+ --- добавляет тэг tag
+
   -h|--help --- показать эту справку и выйти
 
 Для всех параметров (кроме серийных) возможно дублирование, актуальным является 
@@ -206,7 +208,8 @@ for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, calc._arg_seqs, calc._arg_order, i = list(sys.argv[1:]), {}, [], 0
 while i<len(calc._cl_args):
     A = calc._cl_args[i]
-    if mixt.is_name_eq(A) and A.split('=', 1)[1][0]=='[' and A[-1]==']':
+    if A.endswith('+'): calc._cl_tags.append(A[:-1]); del calc._cl_args[i]
+    elif mixt.is_name_eq(A) and A.split('=', 1)[1][0]=='[' and A[-1]==']':
         arg, l = A.split('=', 1)
         try: L = eval(l, math.__dict__, dict(calc._args_from_racs))
         except SyntaxError, e:

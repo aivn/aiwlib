@@ -9,7 +9,7 @@ except ImportError, e: pass
 _is_swig_obj = lambda X: "<type 'SwigPyObject'>" in [str(type(X)), str(type(getattr(X, 'this', None)))]
 _rtable, _G, ghelp = [], {}, []
 _ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
-_racs_params, _racs_cl_params, _cl_args, _args_from_racs, _arg_seqs, _arg_order = {}, set(), [], [], {}, []
+_racs_params, _racs_cl_params, _cl_args, _args_from_racs, _arg_seqs, _arg_order, _cl_tags = {}, set(), [], [], {}, [], []
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -25,7 +25,8 @@ class Calc:
     и сохранение/восстановление параметров в файле .RACS'''
     #---------------------------------------------------------------------------
     def __init__(self, **D):
-        self.runtime, self.progress, self.statelist, self.args, self._wraps = chrono.Time(0.), 0., [], list(_cl_args), []
+        #self.runtime, self.progress, self.statelist, self.args, self._wraps = chrono.Time(0.), 0., [], list(_cl_args), []
+        self.runtime, self.progress, self.statelist, self.args, self._wraps, self.tags = chrono.Time(0.), 0., [], list(sys.args), [], set(_cl_tags)
         for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
             elif not k in _racs_params: self.__dict__[k] = v
@@ -189,6 +190,7 @@ class Calc:
                         exec(' '.join(os.popen(expr%self).readlines()).strip(), G, L); return
                 elif expr.endswith('!!'): exec(expr[:-2], dict(self.__dict__), _G)  
                 elif expr.endswith('!'): exec(expr[:-1], _G, self) 
+                elif expr.endswith('+'): self.__dict__.setdefault('tags', set()).add(expr[:-1]) 
                 else: return eval(expr, _G, self) 
             else: return eval(expr, dict(self.__dict__), _G) if expr.co_filename.endswith('!!') else eval(expr, _G, self)
         except Exception, e: 
@@ -211,6 +213,7 @@ class Calc:
     def __getitem__(self, key):
         if key=='self': return self
         if key in self.__dict__: return self.__dict__[key]
+        if key in self.__dict__.get('tags', []): return True
         if key in _G or key in __builtins__: raise KeyError(key)        
         ak = '@'+key; c = key if not key.replace('_','').isalnum() else self.__dict__[ak] if ak in self.__dict__ else _G.get(ak)
 
