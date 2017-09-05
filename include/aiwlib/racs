@@ -21,7 +21,7 @@ namespace aiw{
 			std::string state; // started, stopped, finished, killed ...
 			// std::string user;
 			// std::string host;
-			double date;
+			time_t date;
 			// std::string data;
 		};
 		std::list<state_t> statelist;
@@ -40,30 +40,38 @@ namespace aiw{
 		};
 		std::list<std::shared_ptr<base_control_t> > controls;
 
-		struct base_param_t{ virtual void pickle(const std::string&, Pickle&) const = 0;	};
+		struct base_param_t{ virtual void pickle(const std::string&, Pickle&) const = 0; };
 		template <typename T> struct param_t: public base_param_t{
-			T data;
-			void pickle(const std::string &key, Pickle &P) const { P(key, data); }
+			T *data;
+			void pickle(const std::string &key, Pickle &P) const { P(key, *data); }
 		};
 		std::map<std::string, std::shared_ptr<base_param_t> > params;
 
 		std::string path_; 		
-		std::string repo = "repo";
+		double starttime; // время запуска
 		
 		void calc_configure(); // конфигурация расчета когда известен путь
 	public:
-		double progress;
-		double runtime;
+		std::string repo = "repo";
+
+		double progress = 0.;
+		double runtime = 0.;
 		std::string md5sum;
 		std::list<std::string> args;
-		bool symlink=true; // создавать символическую ссылку на расчет
+		bool symlink = true; // создавать символическую ссылку на расчет
 
 		const std::string &path();
 		
 		RacsCalc(int argc, const char **argv);
-
+		~RacsCalc();
+		
 		void set_state(const std::string& state);
-		template <typename T> RacsCalc& operator()(const char *key, const T &val){ auto p = new param_t<T>; p->data = val; params[key].reset(p); return *this; }
+		template <typename T> RacsCalc& operator()(const char *key, T &val){
+			auto p = new param_t<T>; p->data = &val; params[key].reset(p);
+			auto I = arg_params.find(key);
+			if(I!=arg_params.end()){ std::stringstream buf(I->second); scanf_obj(buf, val); }
+			return *this;
+		}
 		
 		template <typename T> void get(const std::string& k, const T& v){ WRAISE("incorrect call: ", k); } // for objconf
 		template <typename T> void set(const std::string& k, T& v){ // for objconf

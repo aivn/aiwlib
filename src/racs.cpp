@@ -10,6 +10,7 @@
 #include <vector>
 #include <wait.h>
 #include <utime.h>
+#include <ctime>
 #include "../include/aiwlib/configfile"
 #include "../include/aiwlib/mixt"
 #include "../include/aiwlib/racs"
@@ -142,6 +143,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 						for(int i=0; i<int(qpos.size()); i++) buf>>qpos[i];
 						path_ = buf.str().substr(int(buf.tellg())+1, 4095);
 						set_queue_item(qpos, qkeys, qgrid, arg_params);  				  
+						set_state("started");
 						return;
 					}
 				}
@@ -156,18 +158,28 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 					pids.remove(pid);
 				}
 				pid_t pid = fork();
-				if(!pid){ set_queue_item(qpos, qkeys, qgrid, arg_params); return; } // дочерний процесс
+				if(!pid){ set_queue_item(qpos, qkeys, qgrid, arg_params); set_state("started"); return; } // дочерний процесс
 				pids.push_back(pid);
 			} while(next_queue_item(qpos, qgrid));
 			while(pids.size()){ pid_t pid = waitpid(-1, &wstatus, 0); pids.remove(pid); }
 			exit(0);
 		}
 	}
+	set_state("started");
+}
+//------------------------------------------------------------------------------
+aiw::RacsCalc::~RacsCalc(){
+	if(!path_.empty()){
+		// runtime = omp_get_wtime()-starttime;
+		if(std::uncaught_exception()) set_state("stopped");
+		else{ progress = 1.; set_state("finished"); }
+		commit();
+	}
 }
 //------------------------------------------------------------------------------
 const std::string& aiw::RacsCalc::path(){
 	if(path_.empty()){ // создаем уникальную директорию расчета
-		std::string frepo = format_string(repo.c_str(), arg_params);
+		std::string frepo = format_string(repo.c_str(), arg_params); // ???
 		path_ = make_path(frepo.c_str());
 		if(path_.empty()) WRAISE("cann't make unique path for calc: ", repo, frepo);
 		calc_configure();
@@ -180,7 +192,8 @@ void aiw::RacsCalc::calc_configure(){ // конфигурация расчета
 }
 //------------------------------------------------------------------------------
 void aiw::RacsCalc::set_state(const std::string& state){
-	state_t st; st.state = state; st.date = omp_get_wtime();
+	if(state=="started") starttime = omp_get_wtime();
+	state_t st; st.state = state; st.date = std::time(nullptr);
 	statelist.push_back(st);
 }
 //------------------------------------------------------------------------------
@@ -206,7 +219,7 @@ void aiw::RacsCalc::commit(){
 }
 //------------------------------------------------------------------------------
 void aiw::RacsCalc::set_progess(double progress_){
-	progress = progress_;
+	progress = progress_; runtime = omp_get_wtime()-starttime; 
 	commit();
 }
 //------------------------------------------------------------------------------

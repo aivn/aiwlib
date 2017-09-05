@@ -31,8 +31,8 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	template <typename T> bool is_bad_value(T){ return false; }
-	inline bool is_bad_value(float x){ return (isnan(x)) || (isinf(x)); }
-	inline bool is_bad_value(double x){ return (isnan(x)) || (isinf(x)); }
+	inline bool is_bad_value(float  x){ return (std::isnan(x)) || (std::isinf(x)); }
+	inline bool is_bad_value(double x){ return (std::isnan(x)) || (std::isinf(x)); }
 	template <typename T, typename ... Args> bool is_bad_value(T x, Args ... args){ return is_bad_value(x) || is_bad_value(args...); }
 	//--------------------------------------------------------------------------
 	/*
