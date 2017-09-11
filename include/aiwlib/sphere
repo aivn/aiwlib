@@ -3,8 +3,8 @@
 #define AIW_SPHERE_HPP
 
 /**
- * Copyright (C) 2016 Antov V. Ivanov and Sergey Khilkov, KIAM RAS, Moscow.
- * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ * Copyright (C) 2016 Antov V. Ivanov <aiv.racs@gmail.com> and Sergey Khilkov <ezz666@gmail.com> 
+ * Licensed under the Apache License, Version 2.0
  **/
 
 #ifndef SWIG		

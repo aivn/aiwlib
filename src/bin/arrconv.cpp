@@ -1,3 +1,8 @@
+/**
+ * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
 #include "../../include/aiwlib/mesh"
 using namespace aiw;
 

@@ -2,6 +2,11 @@
 #ifndef AIW_IOSTREAM_HPP
 #define AIW_IOSTREAM_HPP
 
+/**
+ * Copyright (C) 2016 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
 #ifndef SWIG
 #include <cstdio>
 #include <string>

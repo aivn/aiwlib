@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 '''Bind Python code to shell.
-Copyright (C) 2010, 2012, 2014, 2016 Anton V. Ivanov, KIAM RAS, Moscow.
-This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991) or later.
+Copyright (C) 2010, 2012, 2014, 2016 Anton V. Ivanov <aiv.racs@gmail.com>
+This code is released under the GPL3 or later.
 '''
 #-------------------------------------------------------------------------------
 import os, sys, fnmatch, atexit, subprocess, re 

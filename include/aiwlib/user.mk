@@ -1,4 +1,6 @@
-#   user modules Makefile
+#    user modules Makefile
+# Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Licensed under the Apache License, Version 2.0
 #-------------------------------------------------------------------------------
 define reset
 name=    # main target and module name

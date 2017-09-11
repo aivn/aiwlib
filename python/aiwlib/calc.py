@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+'''Copyright (C) 2002-2017 Anton V. Ivanov <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
+
 import os, sys, time, cPickle, socket, shutil 
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono

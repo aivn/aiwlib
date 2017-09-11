@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+'''Copyright (C) 2013 Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
 #---------------------------------------------------------------------------------------------------------
 import time as _time
 import sys; sys.modules['racslib.mytime'] = sys.modules[__name__]

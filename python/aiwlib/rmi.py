@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+'''Copyright (C) 2016, 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
 #-------------------------------------------------------------------------------
 from socket import *
 from .mixt import except_report

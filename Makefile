@@ -1,3 +1,6 @@
+# Copyright (C) 2016-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Licensed under the Apache License, Version 2.0
+
 PYTHONDIR=/usr/lib/python2.7
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
@@ -45,8 +48,10 @@ src/$(subst \,,$(shell $(MPICC) $(MPIOPT) -M src/racs.cpp))
 #   compile object files
 #-------------------------------------------------------------------------------
 ifndef MODULE
-src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+#src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+#swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+src/%.o:  src/%.cpp  include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
 	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)

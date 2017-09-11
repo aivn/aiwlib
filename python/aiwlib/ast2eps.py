@@ -5,7 +5,7 @@ Copyright (C) 2002-2013 Anton V. Ivanov, KIAM RAS, Moscow.
 This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991) or later
 '''
 #-----------------------------------------------------------------------------------------------------------
-from expressions import *
+from ast_nodes import *
 
 BaseOp.__eps__ = lambda self: getattr( self, 'p_eps', getattr( self, 'p_txt', self.p_pyt ) )%self._bk('(%s)', _N2E)
 PowOp.__eps__ = lambda self: self.a.__eps__(_N2E(self.b)) if hasattr(self.a, 'f_tex') else '{%s}^{%s}'%self._bk('(%s)', _N2E)

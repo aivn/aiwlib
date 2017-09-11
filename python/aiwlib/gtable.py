@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-'Конфигурация таблицы calc._G'
+''''Конфигурация таблицы calc._G
+
+Copyright (C) 2013 Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
+
 import os, time, fnmatch, math, mixt, chrono
 from calc import _G, ghelp
 def use(key, expr, doc): 'добавляет значение в глобальную таблицу'; _G[key] = expr; ghelp.append('%s : %s'%(key, doc))

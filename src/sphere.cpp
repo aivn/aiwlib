@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2016 Antov V. Ivanov and Sergey Khilkov, KIAM RAS, Moscow.
- * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ * Copyright (C) 2016 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
  **/
 #define INIT_ARR_ZERO  {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}
 #include "../include/aiwlib/sphere"

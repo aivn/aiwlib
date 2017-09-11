@@ -2,6 +2,11 @@
 #ifndef AIW_MPI4PY_HPP
 #define AIW_MPI4PY_HPP
 
+/**
+ * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
 #ifndef SWIG		
 #include <mpi.h>
 #include <string>

@@ -32,7 +32,7 @@ name2tex = lambda n: _c_name( n, lambda x : '\\'+x if x in tex_specials else '{\
 #-----------------------------------------------------------------------------------------------------------
 #   OUT RULES
 #-----------------------------------------------------------------------------------------------------------
-from expressions import *
+from ast_nodes import *
 
 BaseOp.__tex__ = lambda self: getattr( self, 'p_tex', self.p_pyt )%self._bk( '\\left( %s \\right)', _N2T )
 for c, p in [(ModOp,'\\%%'), (EqOp,'='), (NeOp,'\\neq'), (LeOp,'\\leq'), (GeOp,'\\geq'), (OrOp,'\\or'), (AndOp,'\\and')]: c.p_tex = '%s'+p+'%s'

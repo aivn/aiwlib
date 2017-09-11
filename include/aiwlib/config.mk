@@ -1,4 +1,6 @@
 # main options for make
+# Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Licensed under the Apache License, Version 2.0
 #-------------------------------------------------------------------------------
 SHELL=/bin/bash
 PYTHON_H_PATH=/usr/include/python2.7

@@ -1,8 +1,8 @@
 # -*- encoding: utf-8 -*-
-'''SYMBALG expressions
+'''AST parsing
 
-Copyright (C) 2002-2013, 2017 Anton V. Ivanov, KIAM RAS, Moscow.
-This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991) or later
+Copyright (C) 2002-2013, 2017 Anton V. Ivanov <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0
 '''
 #-------------------------------------------------------------------------------
 #   PARSE

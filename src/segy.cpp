@@ -1,8 +1,8 @@
 #include "../include/aiwlib/segy"
 
 /**
- * Copyright (C) 2010-2016 Antov V. Ivanov, KIAM RAS, Moscow.
- * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ * Copyright (C) 2010-2016 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
  **/
 
 using namespace aiw;

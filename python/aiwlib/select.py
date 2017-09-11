@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+'''Copyright (C) 2003-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
 import os, sys, time, gzip, mixt, gtable, calc, cPickle
 #-------------------------------------------------------------------------------
 def parse(ev): 

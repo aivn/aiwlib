@@ -1,6 +1,6 @@
 /**
- * Copyright (C) 2016 Sergey Zhdanov, Antov V. Ivanov, KIAM RAS, Moscow.
- * This code is released under the GPL2 (GNU GENERAL PUBLIC LICENSE Version 2, June 1991)
+ * Copyright (C) 2016 Sergey Zhdanov, Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
  **/
 #include "../include/aiwlib/gauss"
 #include "../include/aiwlib/geometry"
