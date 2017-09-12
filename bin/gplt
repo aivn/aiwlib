@@ -1,0 +1,449 @@
+#!/usr/bin/python -S
+# -*- mode: Python; coding: utf-8 -*-
+#-------------------------------------------------------------------------------
+import os, sys, gzip, glob, atexit, time, math, cPickle 
+from aiwlib.AST import formats
+from aiwlib.AST import *
+import aiwlib.bindopt
+from aiwlib.bindopt import *
+
+
+add_gp_format()
+base = BaseOp
+Parser = BASE
+
+sys.path.append([ i+'/dist-packages' for i in sys.path if 'python' in i ][0]) #for PIL import
+
+#try : from racslib.pickle_db import RACS
+#except ImportError, e : RACS = lambda path : cPickle.load(open( os.path.join( path, '.RACS' ) ))
+RACS = lambda path : cPickle.load(open( os.path.join( path, '.RACS' ) ))
+#    class RACS :
+#        def __init__( self, path ) :
+#            try : self.__dict__.update( cPickle.load(open( os.path.join( path, '.RACS' ) )) )
+#            except : pass
+#        def par_dict(self) : return self.__dict__
+#-------------------------------------------------------------------------------
+#   CONVERT
+#-------------------------------------------------------------------------------
+class var(base) :
+#    Lfrom, Daxes = [], {} #???
+    def __init__( self, name, gp=None ) : self.name, self.gp = name, gp if gp else name
+    def __gp__(self)  : return str(self.gp)
+    def __cpp__(self) : return self.name
+    def __txt__(self) : return getattr(self, 'txt', self.name) #+( '(%s)'%', '.join(map(str,self.args)) if var.show_args else '' )
+    def __pyt__(self) : return self.name #+( '(%s)'%','.join(map(str,self.args)) if  var.show_args else '' )
+    def __tex__(self) : return self.tex if hasattr(self, 'tex') else name2tex(self.name) if self.name.replace('_','').isalnum() else convert_var_name(self.name)
+    def __eps__(self) : return self.eps if hasattr(self, 'eps') else name2eps(self.name) if self.name.replace('_','').isalnum() else convert_var_name(self.name)
+    def __repr__(self) : return 'var( %r, %r )'%( self.name, self.gp )
+    def __float__(self) : return nan
+    def _rec_app( self, D, check_app, check_deep, mk_copy, table ) : r = D.get( self.gp, self ); self.gp = getattr( r, 'gp', r ); return self
+spaceOp['pi'], spaceOp['e'] = var('pi',math.pi), var('e',math.e)
+name2tex = lambda n: formats.name2tex( n[1:-1] if n[0]=='_' and n[-1]=='_' else n )
+#??? name2eps = lambda n : symbalg.parse.name2eps( n[1:-1] if n[0]=='_' and n[-1]=='_' else n )
+class op_rshift(base):
+    def __init__(self, a, b ) : self.a, self.b = a, b
+    def __str__(self) : return '%s=%s'%( self.a, self.b )
+base.__rshift__ = lambda a, b : op_rshift(a,b)
+#-------------------------------------------------------------------------------
+def base_using_call( self, *L ) : var.Lfrom = L; return self  # устанавливает зависимости при обработке Using для файлов с данными
+def base_func_call( self, *L, **D ) : # замена аргументов выражения для преобразования функции
+    self._rec_app( D, lambda x:False, lambda x:isinstance(x,base), False, {} )
+    var.Daxes.update([ ( v.name, k ) for k, v in D.items() if isinstance(v,var) ]) 
+    return self
+#-------------------------------------------------------------------------------
+class get_vars :
+    _D_stack = [{}]
+    def __init__( self, D ) : 
+        self.G = dict([ (i, spaceOp[i]) for i in 'crc_bk fig_bk ang_bk rm_bk exp sin asin cos acos tan atan log log10 tanh sinh cosh pi e fabs sqrt'.split() ])
+        self.D = D; self._D_stack.append(D)
+    def __getitem__( self, k ) : return self.D[k] if k in self.D else self.G[k] if k in self.G else var(k)
+    def __del__(self) : self._D_stack.pop(-1)
+Eval = lambda ev, L={} : eval( parse_bk(ev), {}, get_vars(L) )
+convert_var_name = lambda n : str(Eval( n, get_vars._D_stack[-1] ))
+#def convert_var_name( n ) : print n; return str(eval( parse_bk(n), {}, get_vars({}) ))
+#-------------------------------------------------------------------------------
+#    GNUPLOT
+#-------------------------------------------------------------------------------
+class mydict:
+    _TAG = 0
+    def __init__( self, **kw_args ) : self.__dict__.update(kw_args)
+    def __getitem__( self, key ) : 
+        if key=='<TAG>' : mydict._TAG += 1; return self._TAG #return id(self)
+        k = key.split()[0]; v = self.__dict__.setdefault( k, False if key[-1] in '~|' else None if k=='title' else '' ); empty = not v
+#        if   key.endswith('#') and v : v = key[:-1]+'"%s"'%( v[:-1] if v.endswith('!') else v[:-1]%_last_dict if v.endswith('%') else Eval(v,_last_dict) )
+#        if   key.endswith('#') and v : v = "'%s'"%( v[:-1] if v.endswith('!') else v[:-1]%_last_dict if v.endswith('%') else Eval(v,_last_dict) )
+        if   key.endswith('#') and v : v = key[:-1].split(' ',1)[1]+"'%s'"%ttl( v, _last_dict, False )
+        elif key.endswith('@') : v = key[:-1]+'%r'%v
+        elif key.endswith('=') : v = key[:-1]+'%s'%v
+        elif key.endswith('~') : return 'no'*(not v)+key[:-1]
+        elif key.endswith('|') and v==False : self.__dict__[k] = RadioSelect(*key[:-1].split()[1:]) #return key[:-1].split()[v]
+        return '' if empty else v
+ttl = lambda t, D, tex : t[:-1]%D if t[-1]=='%' else ( '\\verb"%s"'%t[:-1] if t[-1]=='!' else '$%s$'%Eval(t,D) ) if tex else ( t[:-1] if t[-1]=='!' else Eval(t,D) )
+#-------------------------------------------------------------------------------
+class gp_subopt(Parser, mydict):
+    def __init__( self, **kw_args ) : self._patt%self; self.__dict__.update(kw_args)
+    def __call__( self, arglist, name=None, istream=None, mode=-1 ) : 
+        self._patt%self
+        if isinstance( self, axe_label ) : self.__dict__.update( _label_table.setdefault( self._axe, {} ) )
+        elif isinstance( self, axe_tics ) : self.__dict__.update( _tics_table.setdefault( self._axe, {} ) )
+        elif isinstance( self, axe_range ) : self.__dict__.update( _range_table.setdefault( self._axe, {} ) )
+        Parser.__call__( self, arglist, name, istream, mode ); print>>gp, self._patt%self; gp.flush() 
+        if isinstance( self, axe_label ) : _label_table[self._axe].update(self.__dict__)
+        elif isinstance( self, axe_tics ) : _tics_table[self._axe].update(self.__dict__)
+        elif isinstance( self, axe_range ) : _range_table[self._axe].update(self.__dict__)
+    def clean(self) : [ self.__dict__.__delitem__(k) for k in self.__dict__ if k[0]!='_' ]
+#-------------------------------------------------------------------------------
+#class axe_label(gp_subopt): _implicit_opt, _patt = 'title', 'set %(_axe)slabel %(title)r %(offset =)s %(font @)s %(textcolor rgbcolor @)s %(rotate by =)s'
+class axe_label(gp_subopt): _implicit_opt, _patt = 'title', 'set %(_axe)slabel %(title #)s %(offset =)s %(font @)s %(textcolor rgbcolor @)s %(rotate by =)s'
+class axe_range(gp_subopt): _implicit_opt, _patt, _range = '_range', 'set %(_axe)srange [%(_range)s] %(reverse ~)s', '*:*'
+class axe_tics(gp_subopt): _patt = ( 'set %(_axe)stics %(put axis border|)s %(mirror ~)s %(draw in out|)s %(scale =)s %(rotate by =)s '
+                                     ' %(offset =)s %(format @)s %(font @)s %(textcolor rgbcolor @)s' )
+class plot_title(gp_subopt): 'заголовок графика'; _implicit_opt, _patt = 'title', 'set title %(title #)s %(offset =)s %(font @)s %(textcolor rgbcolor @)s'
+class set_arrow(gp_subopt): 'стрелки'; _patt = ( 'set arrow %(<TAG>)s %(from =)s %(to =)s %(rto =)s %(arrowstyle =)s %(head head nohead backhead heads|)s ' 
+                                                 '%(size =)s %(fill nofilled empty filled|)s %(layer back front|)s %(linestyle =)s %(linetype =)s %(linewidth =)s' ) 
+class set_label(gp_subopt): 
+    'метки на графике'; _implicit_opt = 'title' 
+    _patt = ( 'set label %(<TAG>)s %(title #)s %(at =)s %(align left center right|)s %(rotate by =)s ' 
+              '%(font @)s  %(layer back front|)s %(textcolor rgbcolor @)s %(point =)s %(offset =)s' )
+#-------------------------------------------------------------------------------
+class curve(Parser) : 
+    _implicit_opt, _aliases = 'items', { 'with':['style','datastyle'], 'title':['key'] }
+    def __init__( self, L ) : self._L = L; self.__dict__.update([ (i,None) for i in 'linecolor linewidth axes with index offset font textcolor title'.split() ])
+    def __del__(self) : D = dict([ i for i in self.__dict__.items() if not i[1] is None ]); [ T.update(D) for T in self._L ]
+#-------------------------------------------------------------------------------
+aiwlib.bindopt._opt, gp, _label_table, _tics_table, _range_table, _last_dict = '-', os.popen( 'gnuplot', 'w' ), {}, {}, {}, {}
+aiwlib.bindopt._is_name = lambda a : a and ( a=='2d' or a=='3d' or a[0].isalpha() and a.replace('_','').isalnum() )
+print>>gp,'set colors classic\nset style data lines\nset grid front\nset ticslevel 0\nNone=""'
+_opt_symbol, _opt_list = '#', 'linecolor linewidth axes with title'.split()
+
+_colors = [ l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l ]
+
+def _parse_opt(fname): 
+    'разбирает дополнительные опции из имени файла в формате [!<]fname@[linecolor][,linewidth][,axes][,datastyle][,title] и возвращает пару (fname,opt_dict)'
+    if fname[0] in '<!' or not '@' in fname : return []
+    fname, opt = fname.split('@',1); optD, optL = {}, opt.split(',')
+    while optL: 
+        x = optL.pop(0)
+        if x.startswith('#') or x in _colors or x.endswith('variable') or x.startswith('palette'): optD['linecolor'] = x 
+        elif x.isdigit(): optD['linewidth'] = x
+        elif x in ('x1y1', 'x1y2', 'x2y1', 'x2y2'): optD['axes'] = x
+        elif not x.startswith('='): optD['with'] = x
+        else: optD['title'] = ','.join([x[1:]]+optL); del optL[:]
+    return optD.items()
+#_parse_opt = lambda f : filter( lambda i : i[1], zip( 'linecolor linewidth axes with title'.split(), f.split('@',1)[1].split(':',5) )) if '@' in f else [] 
+
+#_parse_opt = lambda f : filter( lambda i : i[1], zip( , f.split('@',1)[1].split(':',5) )) if '@' in f else [] 
+#linecolor: variable, #... or other or lXXX
+#linewidth: N
+#axes: x1y1, x1y2, x2y1, x2y2
+#with: other?
+#title: -title or columnhead
+_get_size = lambda s : ( float(s.split(',')[0].split()[-1]), float(s.split(',')[1]) ) if ',' in s else (1,1) 
+#-------------------------------------------------------------------------------
+class gplt(Parser) : 
+    def help( self, team='' ) : 
+        'выводит справку gnuplot-a по теме team.subteam.subsubteam...' 
+        print ''.join([ l.replace('Press return for more: ','') for l in os.popen( 'echo help %s | gnuplot 2>&1'%team.replace('.',' ') ).readlines() ])
+    def size( self, size ) : 'устанавливает размер графика'; print>>gp, 'set size', size
+    def datastyle( self, style ) : 'задает стиль линий'; print>>gp, 'set style data', style
+    def nokey(self) : 
+        'отключает ключи кривых, сбрасывает все ключи уже заданных кривых и обнуляет ключ в Skel'; print>>gp, 'unset key'; self.Skel.title = ''
+        for c in self._curves : c['title'] = ''
+    def setkey( self, options ) : 'настраивает ключи линий'; print>>gp, 'set key', options
+    def raw( self, line ) : 'непосредственный ввод строки в gnuplot'; print>>gp, line
+    def samples( self, arg ) : 'устанавливает samples'; print>>gp, 'set samples', arg
+    def isosamples( self, arg ) : 'устанавливает isosamples'; print>>gp, 'set isosamples', arg
+    def logscale( self, arg ) : 'устанавливает режим logscale'; print>>gp, 'set logscale', arg
+    def nologscale( self, axes ) : 'отменяет режим logscale для осей axes'; print>>gp, 'unset logscale', axes
+    def clear_axes_labels(self) : 'сбрасывает все настройки меток к осям'; print>>gp, '\n'.join([ 'unset %slabel'%a for a in _label_table ]); _label_table.clear()
+    def clear_axes_tics(self) : 'сбрасывает все настройки числовых меток к осям'; print>>gp, '\n'.join([ 'unset %stics'%a for a in _tics_table ]); _tics_table.clear()
+    def border( self, border='' ) : 'устанавливает вид границ'; print>>gp, 'set border', border
+    def pm3d( set, pm3d='' ) : 'настраивает режим pm3d'; print>>gp, 'set pm3d', pm3d
+    def curves( self, splice ) : 
+        'настраивает уже заданные кривые, splice=min:max|c1[,c2[,...]], отрицательные значения соответствуют отсчету с конца списка кривых' 
+        return curve( eval('self._curves[%s]'%splice) if ':' in splice else [ self._curves[int(i)] for i in splice.split(',') ])
+    def Using( self, using_list ) : 
+        '''задает набор using-ов для файлов, которые могут содержать имена столбцов, параметры из заголовков файлов и параметры из <srcdir>/.RACS.
+        Могут использоваться скобки вида (%, %), <%, %>, {%, %}, [%, %], |% %|, степени ** и ^, оператор деления // (преобразуется в прямую дробь в LaTeX). 
+        По умолчанию выражение зависит от первого (первых двух) столбцов, можно задавать зависимость от произвольного выражения (двух выражений) 
+        как EXPR(ARGEXPR[, AE2]). 
+        -Дополнительные опции задаются как fname@[linecolor][,linewidth][,axes][,datastyle][,title], последовательность 
+        опций (кроме title) не имеет значения, опция title всегда идет последней и начинается со знака '='. Цвета линий задаются по именам, 
+        либо как #RRGGBB (например #FF0000 - красный), толщина линии обозначается целым числом. Оси могут принимать значения x{12}y{12}.
+        Дополнительные опции перекрывают соответствующие опции в Skel.'''
+        self._using[:], self._all = [ dict( self.Skel.__dict__.items()+[( 'Using', u.split('@')[0] )] + _parse_opt(u) ) for u in using_list.split() ], ''
+    def function(self, func): 
+        '''добавляет функцию func для отрисовки. 
+        Могут использоваться любые переменные, но их значения должны быть определены либо в заголовке последнего построенного файла, либо в файле <srcdir>/.RACS, 
+        либо в виде (func)(myvarx=x[, myvary=y]). Могут использоваться скобки вида (%, %), <%, %>, {%, %}, [%, %], |% %|, степени ** и ^, оператор деления // 
+        (преобразуется в прямую дробь в LaTeX). Если функция заканчивается на символ '!', преобразование функции и аргументов к формату вывода не производится.
+        -Дополнительные опции задаются как fname@[linecolor][,linewidth][,axes][,datastyle][,title], последовательность 
+        опций (кроме title) не имеет значения, опция title всегда идет последней и начинается со знака '='. Цвета линий задаются по именам, 
+        либо как #RRGGBB (например #FF0000 - красный), толщина линии обозначается целым числом. Оси могут принимать значения x{12}y{12}. 
+        Дополнительные опции перекрывают соответствующие опции в Skel.'''
+        if self._plotted : del self._curves[:]; self._plotted=False
+        self._curves.append( dict( self.Skel.__dict__.items()+[( 'function', func.split('@')[0] ),( 'header', _last_dict if self.use_last_dict else {} )] 
+                                   + _parse_opt(func) ) )
+    def add( self, fname ) : 
+        '''добавляет семейство кривых для отрисовки (для каждого файла отвечающего bash-шаблону fname все кривые из опции Using). 
+        В качестве файлов можно указывать команды sh (отмечаются при помощи ! или < вначале), выдающие содержимое файла через stdout, например '!seq 10'
+        Команда sh начинающаяся с < предварительно запускается (для чтения заголовка) и передается в gnuplot без изменений. Команда sh начинающаяся с ! 
+        запускается однократно, ее вывод сохраняется во временный файл который передается в gnuplot. 
+        Допускается вставка изображений в виде imagename.{png,gif,jpg,jpeg}[@x_min:x_max[,y_min:y_max[,axes]]]
+        -Дополнительные опции задаются как fname@[linecolor][,linewidth][,axes][,datastyle][,title], последовательность 
+        опций (кроме title) не имеет значения, опция title всегда идет последней и начинается со знака '='. Цвета линий задаются по именам, 
+        либо как #RRGGBB (например #FF0000 - красный), толщина линии обозначается целым числом. Оси могут принимать значения x{12}y{12}.
+        Дополнительные опции перекрывают соответствующие опции в Using.'''
+        if self._plotted: del self._curves[:]; self._plotted = False
+        all_args = [int(a) if a.isdigit() else a for a in self._all.split(',') if a and a[0]!='-'] 
+        all_ignore = [int(i) if i.isdigit() else i for i in [ a[1:] if a[0]=='-' else a for a in self._all.split(',') if a ]]
+        opts, lc = [ self.Skel.__dict__.items() + u.items() + ( _parse_opt(fname) if fname[0]!='!' else [] ) for u in self._using ], len(self._curves) 
+#        for f in [fname[1:]] if fname[0]=='!' else sorted(glob.glob( fname.split('@')[0] )) :            
+        for f in [fname] if fname[0] in '!<' else sorted(glob.glob( fname.split('@')[0] )) :            
+            g = '!zcat '+f if f[0]!='!' and f.endswith('.gz') else f            
+            if g[0]=='!' and f not in self._filters : os.system( g[1:]+' > '+self._filters.setdefault(f, '/tmp/gplt-%s-%s.dat'%( os.getpid(), len(self._filters) )) )
+            if any(map( f.lower().endswith, ('.png', '.gif', '.jpg', '.jpeg') )): 
+                img_type = f.split('.')[-1].lower(); img_type = 'jpeg' if img_type=='jpg' else img_type 
+                exec 'from PIL.%sImagePlugin import %sImageFile as ImageFile'%((img_type.capitalize(),)*2); sz = ImageFile(f).size
+                img_opts = dict( filter( lambda i : i[1], zip(( 'x_range', 'y_range', 'axes' ), fname.split('@',1)[1].split(',')) ) if '@' in fname else [] ) 
+                self._curves.append({ 'axes':'x1y1', 'title':None, 'fname':f, 'img_size':sz, 'img_type':img_type }); self._curves[-1].update(img_opts)
+                continue
+            if f not in self._headers:     #<<< begin read header                
+                G, H = dict(math.__dict__), { 0:'x', 1:'y', 2:'z' }
+                D = dict([ (k,var(k,'($%i)'%i)) for k, i in [('x',1),('y',2),('z',3)]+[('C%i'%j,j) for j in range(256)] ])
+                try:
+                    if not f[0] in '!<': D.update(RACS( self.srcdir if self.srcdir.startswith('/') else os.path.dirname(f)+'/'+self.srcdir )) #.par_dict())
+                except: pass
+                fin = open( self._filters.get(f,f) ) if f[0]!='<' else os.popen(f[1:]); s = fin.readline()
+                while s and ( s.startswith('#') or not s.strip() ):
+                    if s.startswith('#:') :
+                        if '=' in s: exec( s[2:].strip(), G, D )
+                        else: 
+                            l = s[2:].split(); H.update([ ( i, l[i] ) for i in range(len(l)) ]) 
+                            D.update([ ( k, var( k, '($%i)'%(i+1) ) ) for i, k in H.items() ]) 
+                    s = fin.readline() 
+                H = dict([ ( k, D[v] ) for k, v in H.items() ]); self._headers[f] = (H, D) #<<< end read header                
+            if self._all: 
+                fin = open( self._filters.get(f,f) ) if f[0]!='<' else os.popen(f[1:]); s = fin.readline()
+                while s and ( s.startswith('#') or not s.strip() ): s = fin.readline()
+                c_num = len(s.split()); H, D = self._headers[f] 
+                i_name = lambda i, H=H, type=type, str=str: H[i].name if i in H else i if type(i) is str else 'C%i'%(i+1) 
+                opts = [ self.Skel.__dict__.items() + [('Using', i_name(a)+'(%s)'%','.join([i_name(i) for i in all_args])*bool(all_args))] + 
+                        ( _parse_opt(fname) if fname[0]!='!' else [] ) for a in  range(c_num) if a not in all_ignore and i_name(a) not in all_ignore ]
+            if self.use_last_dict: _last_dict.clear(); _last_dict.update([ (k, v) for k, v in self._headers[f][1].items() if not isinstance(v, var) ])
+            self._curves += [ dict( u+[ ('fname', f), ('data', repr( self._filters.get(f,f) )) ] ) for u in opts ]
+        if lc==len(self._curves): print 'add: file %r not found'%fname
+    def stdin(self) :
+        'читает данные для построения со стандартного ввода'
+        f = open( self._filters.setdefault('!stdin', '/tmp/gplt-%s-%s.dat'%( os.getpid(), len(self._filters) )), 'w' )
+        for l in sys.stdin.readlines() : f.write(l)
+#        f.writelines(sys.stdin.readlines()); 
+        f.close(); self.add('!stdin') 
+    def hidden3d(self)  : 'включает 3d и hidden3d режимы'; print>>gp, 'set hidden3d';   self._3d = True
+    def nohidden3d(self) : 'включает 3d и выключает hidden3d режим'; print>>gp, 'unset hidden3d'; self._3d = True
+    def _2d( self, mode=True ) : 'выключает 3d режим'; self._3d = False
+    def plot(self) : 
+        'отрисовывает график, если заданы кривые (вызывается автоматически)'
+        if not self._curves : return
+        tex = self._format in ('tex',)
+        for c in self._curves : # SYMBALG
+            if 'function' in c and c['function'][-1]=='!' : 
+                c['data'] = c['function'][:-1]; c['args'] = ['x']+['y']*self._3d+[ '\\verb"%(data)s"'%c if tex else c['data'] ]
+            elif 'function' in c : 
+                base.__call__, var.Daxes = base_func_call, {}; ex, base.format = Eval(c['function']), 'gp' 
+                if self.parametric : c['data'], c['args'] = ', '.join(map(str, Eval( c['function'], c.get('header', {}) ) )), ex
+                else : c['data'], c['args'] = str(Eval( c['function'], c.get('header', {}) )), [ var(var.Daxes.get(i,i)) for i in 'xy'[:1+self._3d] ]+[ex] 
+            elif 'Using' in c and c['Using'][-1]=='!' : 
+                c['using'], c['args'] = c['Using'][:-1], ['','',''] #???
+#                c['args'] = [ var.Lfrom[0] if len(var.Lfrom)>0 else H[0] ]+[ var.Lfrom[1] if len(var.Lfrom)>1 else H[1] ]*self._3d+[ex] 
+#                c['using'], c['Uargs'] = ( '(%s):(%s)'+':(%s)'*self._3d )%tuple(c['args']), c['args'][:-1] 
+            elif 'Using' in c :
+                base.__call__, var.Lfrom = base_using_call, []; H, D = self._headers[c['fname']]
+                ex, base.format = eval( parse_bk(c['Using']), {}, get_vars(D) ), 'gp'
+                c['args'] = [ var.Lfrom[0] if len(var.Lfrom)>0 else H[0] ]+[ var.Lfrom[1] if len(var.Lfrom)>1 else H[1] ]*self._3d+[ex] 
+                c['using'], c['Uargs'] = ( '(%s):(%s)'+':(%s)'*self._3d )%tuple(c['args']), c['args'][:-1] 
+            elif 'img_size' in c : 
+                axe = c['axes']; rx, ry = _range_table.get( axe[:2].replace('1',''), {} ), _range_table.get( axe[2:].replace('1',''), {} )
+                rx, ry = [ list(reversed(r.get('_range',':').split(':'))) if r.get('reverse') else r.get('_range',':').split(':') for r in (rx,ry) ]
+                ox, oX = [ float(r1 if r1 else r2) for r1, r2 in zip( c.get('x_range',':').split(':'), (rx[0],rx[1]) ) ]
+                oy, oY = [ float(r1 if r1 else r2) for r1, r2 in zip( c.get('y_range',':').split(':'), (ry[0],ry[1]) ) ]
+                sz = c['img_size']; dx = (oX-ox)/(sz[0]+1); dy = (oY-oy)/(sz[1]+1)
+                c['data'] = '%r binary filetype=%s origin=(%s,%s) dx=%s dy=%s  with rgbimage'%( c['fname'], c['img_type'], ox+dx, oy+dy, dx, dy )
+            elif 'fname' in c : H = self._headers[c['fname']][0]; c['args'] = [H[0]]+[H[1]]*self._3d+[H[1+self._3d]]; c['Uargs'] = c['args'][:-1]
+        self._plotted, base.format, axes = True, self._format, {}
+        sf, sa = [ len(set([ str(c[k]) for c in self._curves if k in c and c['title'] is None ]))>1 for k in ('fname','Uargs') ]
+        su = len(set([ str(c['args'][-1]) if c.get('title') is None else c.get('title') for c in self._curves if 'args' in c ]))>1
+        for c in self._curves : # prepare curves
+            axes.setdefault( c['axes'] if c['axes'] else 'x1y1', [] ).append(c); c['old_title'], ex, args, tu = c['title'], c.get('args',[''])[-1], '', '' 
+            if 'function' in c and c['title'] is None and su : 
+                c['title'] = ( '\\verb"%s"'%c['function'][:-1] if c['function'][-1]=='!' else '$%s$'%ex ) if tex else str(ex)
+            elif 'fname' in c and c['title'] is None and ( sf or su or sa ) : 
+                if sa and not isinstance( ex, var ) : ex, args = rm_bk(ex), crc_bk( ', '.join(map( str, c['Uargs'] )) )
+#                if sa or su : tu = ( '$%s%s$' if tex else '%s%s' )%( ex, args )
+                if sa or su : 
+                    if self.autoconv_title_to_tex or not tex : tu = ( '$%s%s$' if tex else '%s%s' )%( ex, args )
+                    else : 
+                        base.format, bf = 'cpp', base.format 
+                        tu = reduce( lambda S, k : S.replace(k,'\\'+k), '_^$', ' {\\tt %s%s}'%( ex, args ) ) 
+                        base.format = bf
+                c['title'] = ': '.join( [ '\\verb"%s"'%c['fname'] if tex else c['fname'] ]*sf + [tu]*bool(tu) )
+            elif c['title']: c['title'] = ttl( c['title'], self._headers[c['fname']][1] if 'fname' in c else _last_dict, tex )
+#                t, D = c['title'], ( self._headers[c['fname']][1] if 'fname' in c else _last_dict )
+#                if tex : c['title'] = '\\verb"%s"'%t[:-1] if t[-1]=='!' else t[:-1]%D if t[-1]=='%' else '$%s$'%Eval(t,D)
+#                else : c['title'] = t[:-1] if t[-1]=='!' else t[:-1]%D if t[-1]=='%' else Eval(t,D)
+#            elif 'fname' in c and not c['title'] is None and c['title'].startswith('@') : 
+#                c['title'] = ( '$%s$' if tex else '%s' )%eval( parse_bk(c['title'][1:]), {}, get_vars( self._headers[c['fname']][1] ) )
+            c['title'] = '\'%(title)s\' %(offset =)s %(font @)s %(textcolor rgbcolor @)s'%mydict(**c)
+        if not self._3d and sf : # prepare axes in 2D case, show files only for pair axes, only for different files
+            L1, L2 = axes.get('x1y1',[])+axes.get('x1y2',[]),  axes.get('x2y1',[])+axes.get('x2y2',[])
+            sf_x = L1 and L2 and set([ c['fname'] for c in L1 if 'fname' in c ])!=set([ c['fname'] for c in L2  if 'fname' in c ])
+            L1, L2 = axes.get('x1y1',[])+axes.get('x2y1',[]),  axes.get('x1y2',[])+axes.get('x2y2',[])
+            sf_y = L1 and L2 and set([ c['fname'] for c in L1 if 'fname' in c ])!=set([ c['fname'] for c in L2  if 'fname' in c ])
+        else : sf_x, sf_y = False, False
+        for a in 'x y x2 y2 cb'.split()+['z']*self._3d : #axe labels
+            L = sum([ v for k, v in axes.items() if ( a+'1' if a in 'xy' else a ) in k or a=='z' ],[])
+            if _label_table.get( a, {} ).get('title') is None and L : 
+                a_num = 1+self._3d if a[0]=='c' else 'xyz'.index(a[0]); sf, D = ( sf_x, sf_y, False )[a_num], {} 
+                L = [ ( c['args'][a_num], c.get('fname') if sf else '' ) for c in L if 'args' in c ] 
+                L = [ ( '$%s$'%e, '\\verb"%s"'%f if f else '' ) if tex else ( str(e), f ) for e, f in L ]
+                for e, f in L : lf = D.setdefault( e, (len(D),[]) )[1]; lf.append(f) if f and f not in lf else None
+                t1 = ', '.join([ e+( '[%s]'%', '.join(lf[1]) if lf[1] else '' ) for  e, lf in sorted( D.items(), key=lambda x:x[1][0] ) ]); D.clear()
+                for e, f in L : le = D.setdefault( f, (len(D),[]) )[1]; le.append(f) if e not in le else None
+                t2 = ', '.join( D.get( None, [] )+[ f+'(%s)'%', '.join(le[1]) for  f, le in sorted( D.items(), key=lambda x:x[1][0] ) if f ])
+#                print>>gp, axe_label._patt%mydict(**dict( _label_table.get(a,{}).items() + ( 'title', t1 if len(t1)<t2 else t2 )  )) 
+                print>>gp, 'set %slabel \'%s\''%( a, t1 if len(t1)<t2 else t2 )
+            elif L and _label_table[a]['title'] : print>>gp, 'set %slabel'%a, "'%s'"%ttl( _label_table[a]['title'], _last_dict, tex )
+#            elif L and _label_table[a]['title'].startswith('@') : 
+#                print>>gp, 'set %slabel'%a, ( '\'$%s$\'' if tex else '\'%s\'' )%eval( parse_bk(_label_table[a]['title'][1:]), {}, get_vars({}) )
+            
+        print>>gp, 'unset' if len(self._curves)==1 else 'set', 'key\n', 'set' if self.parametric else 'unset', 'parametric\nset size', self.size #<<< some settings
+        axesL = set(sum([ [ a[:2], a[2:] ] for a in axes.keys() ], []))
+        if self._3d : print>>gp, '\n'.join([ 'set %stics'%a for a in 'x y z cb'.split() if a not in _tics_table ])
+        else : print>>gp, '\n'.join([ 'un'*( not (a+'1')[:2] in axesL )+'set %stics'%a for a in 'x y x2 y2 cb'.split() if a not in _tics_table ])        
+
+        print>>gp, 's'*self._3d+'plot', ', '.join([ 
+                '%(data)s %(index =)s %(using =)s %(smooth =)s %(axes =)s %(title =)s %(with =)s %(linewidth =)s %(linecolor rgbcolor @)s'%mydict(**c) 
+                for c in self._curves ]) 
+        gp.flush(); #print self._curves
+        for c in self._curves : c['title'] = c['old_title']
+    def to( self, fname, termopt=None, preview=False, showcmd='', margins='10', usepackage='', head='', clear=True ) :
+        '''сохраянет график в файл fname, тип терминала определяется автоматически по расширению
+        -.pdf --- epslatex + обработка pdflatex 
+        -.eps --- postscript eps enhanced + конвертация .eps в .pdf 
+        -.Pdf --- epslatex  + конвертация .eps в .pdf 
+        -Остальные типы терминалов совпадают с раширением (в т.ч. tex). Дополнительные настройки терминала передаются через termopt, preview позволяет 
+        предварительно отредактировать график, showcmd задает команду для просмотра результата, остальные опции настраивают создание .pdf через pdflatex
+        clear управляет удалением временных файлов, margins определяет поля при обрезании pdfcrop-ом, usepackage задает список дополнительных пакетов 
+        в виде package:opt1:opt2... через пробел, head задает дополнительный заголовок после \\begin{document}'''        
+        print fname, termopt, preview, showcmd, margins, usepackage, head, clear
+        toTeX, term, self._format, fn = { 'pdf':(1,'epslatex','tex',fname[:-3]+'eps'), 'eps':(0,'postscript eps enhanced','eps',fname), 
+                                          'Pdf':(0,'epslatex','tex',fname[:-3]+'eps'), 'tex':(0,'latex','tex',fname[:-3]+'tex') 
+                                          }.get( fname.split('.')[-1], ( 0, fname.split('.')[-1], 'txt', fname ) ); term += ' '+termopt if termopt else ''
+        if termopt is None and self._format in ('tex','eps') : term += ' color solid' #; print term
+        if self.linewidth2out : self._curves[:] = [ dict( c.items()+[( 'linewidth', self.linewidth2out )]*( c.get('linewidth') is None ) ) for c in self._curves ]
+        if preview : self.plot(); self.multiplot(False); raw_input('gplt: press ENTER to continue')
+        print>>gp, 'set term %s\nset out %r'%( term, fn ) 
+        if preview : print>>gp, 'replot'
+        else : self.plot(); self.multiplot(False) 
+        print>>gp, 'set out\n!epstopdf %r'%fn if fn.endswith('.eps') else 'set out'; gp.flush() 
+        if toTeX :
+            sz = _get_size( self._total_size if self._multiplot else self.size ) 
+            upL = '\n'.join([ r'\usepackage%s{%s}'%( ''.join([ '[%s]'%o for o in p.split(':')[1:] ]), p.split(':')[0] ) for p in usepackage.split() ])
+            ftex = open( 'gplt-%s.tex'%os.getpid(), 'w' ); fn, ft =  fn[:-4], ftex.name[:-4]
+            print>>ftex, r'''\documentclass{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[russian]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{epsfig}
+%(upL)s
+\pagestyle{empty}
+\begin{document}
+%(head)s
+\input{%(fn)s}
+\end{document}'''%locals()
+            ftex.close(); 
+            print>>gp, '!pdflatex %(ft)s.tex | grep \!; pdfcrop -m %(margins)r %(ft)s.pdf %(fn)s.pdf > /dev/null'%locals()
+            if clear : print>>gp, '!rm %(fn)s.eps %(fn)s.tex %(ft)s.tex %(ft)s.pdf %(ft)s.log %(ft)s.aux'%locals() 
+            gp.flush()            
+        if showcmd : print>>gp, '!'+showcmd, fname; gp.flush()
+        fg = fname.rsplit('.',1)[0]+'.gplt'
+        if loglist[0].startswith("'++'") and loglist[0].strip().endswith( repr(fg) ) : del loglist[0]
+        print>>open(fg,'w'), '#!%s ++ \n'%sys.argv[0], '\n'.join( loglist[:-1] if loglist[-1]=='-to' else loglist ), \
+            '\n-to -fname=%(fname)r -termopt=%(termopt)r -preview=%(preview)s -showcmd=%(showcmd)r -margins=%(margins)r -head=%(head)r -usepackage=%(usepackage)r -clear=%(clear)s'%locals()
+        os.chmod( fg, 0755 ); print>>gp, 'set term wxt'
+    def origin( self, origin ) : 
+        'включает режим multiplot, отрисовывает (если есть) предыдущий график и задает координаты правого нижнего угла следующего графика'
+        if not self._multiplot : print>>gp, 'set multiplot'; self._multiplot = True
+        self.plot(); print>>gp, 'set origin', origin
+    def multiplot( self, set=True ) :
+        'управляет режимом multiplot' 
+        if self._multiplot!=set : 
+            if set : self._total_size = self.size; print>>gp, 'set size', self.size #???
+            else : self.size = self._total_size
+            print>>gp, 'un'*(not set)+'set multiplot'; gp.flush(); self._multiplot=set
+    #def table(self) : 'просмотр списка заданных кривых'; pass
+    #def movie( self, pause, files ) : pass #aka animate
+    def __del__(self) : 
+        if self._curves and not self._plotted : 
+            self.plot() 
+            try:
+                try: raw_input('gplt: press ENTER or Ctrl-C for close')        
+                except EOFError, e : print>>gp, 'pause -1'; gp.flush(); print '\rgplt: press Ctrl-C for close         '; os.wait()
+            except KeyboardInterrupt, e : pass
+        for f in self._filters.values() : os.remove(f)
+    def all(self, args): 
+        '''устанавливает режим отрисовки всех столбцов зависящих от X[,Y][,-ignore_column1][...] 
+        игнорируемые столбцы начинаются со знака '-'. Допускает обращение как по номерам так и по названиям столбцов, 
+        при этом названия ОБЯЗАТЕЛЬНО должны присутствовать в заголовке .dat-файла''' 
+        self._all = args
+    def sphere(self, R): 
+        'добавляет на график сферу радиуса R в параметрических координатах u=theta [0:pi], v=phi [0:2*pi]'
+        self.parametric = self._3d = True 
+        self(['urange', '0:pi', 'vrange', '0:2*pi', 'raw', 'set isosamples 10,28', 'raw', 'set view equal', 'raw', 'set border 4095'])        
+        self.function('%s*sin(u)*cos(v),%s*sin(u)*sin(v),%s*cos(u)@='%(R, R, R))
+    def cb_paletter(self, pal):
+        '''устанавливает палитру для стиля pm3d, допускается использование сокращенного имени палитры. 
+        Доступны палитры aivlib: [inv-]grey, black-red, green-blue, neg-pos{1,2}, positive, [inv-]rainbow, color, cyclic'''
+        pal_dict = { 'grey': '0 0 0 0, 1 1 1 1', 
+                     'inv-grey': '0 1 1 1, 1 0 0 0',
+                     'black-red': '0 0 0 0, 1 1 1 1, 2 1 0 0', 
+                     'green-blue': '0 0 1 0, 1 1 1 1, 2 0 0 1', 
+                     'neg-pos1': '0 0 0 0, 1 1 0 0, 3 1 1 0, 4 1 1 1, 5 1 0 1, 6 0 0 1, 7 0 1 1, 8 0 1 0',
+                     'neg-pos2': '0 0 0 0, 1 1 1 0, 3 1 0 0, 4 1 1 1, 5 0 1 0, 6 0 1 1, 7 0 0 1, 8 1 0 1',
+                     'positive': '0 1 1 1, 1 1 0 0, 3 1 1 0, 4 0 1 0, 5 0 1 1, 6 0 0 1, 7 1 0 1, 8 0 0 0',
+                     'rainbow':  '0 0 0 0, 1 1 0 0, 3 1 1 0, 4 0 1 0, 5 0 1 1, 6 0 0 1, 7 1 0 1, 8 1 1 1',
+                     'fv': '0 1 0 0, 1 1 .5 0, 2 1 1 0, 3 0 1 0, 4 0 1 1, 5 0 0 1, 6 1 0 1',
+                     'color': '0 1 0 0, 2 1 1 0, 3 0 1 0, 4 0 1 1, 5 0 0 1, 6 1 0 1',
+                     'inv-rainbow': '0 1 1 1, 1 1 0 1, 2 0 0 1, 3 0 1 1, 4 0 1 0, 5 1 1 0, 7 1 0 0, 8 0 0 0',
+                     'cyclic': '0 0 0 0, 1 1 0 0, 3 1 1 0, 4 0 1 0, 5 0 1 1, 6 0 0 1, 7 1 0 1, 8 1 1 1, 9 0 0 0' }
+        try: print>>gp, 'set palette defined (%s)'%pal_dict[aiwlib.bindopt._recognize_option(pal, pal_dict.keys(), use_abbrv=True)]
+        except ParseError, e: print e
+    def append_pid_to_file(self, path): 'дописывает PID в файл path'; open(path, 'a').write(' %s'%os.getpid())
+#-------------------------------------------------------------------------------
+try:
+    Skel=Parser( color='', linewidth=None, axes='', index='', offset='', font='', textcolor='', title=None, smooth='',
+                     __doc__='прототип для всех новых кривых', _aliases={ 'with':['datastyle'], 'title':['key'] } )
+    Skel.__dict__['with'] = None #'line'
+    gplt( Skel=Skel,
+          _curves=[], _using=[{}], _filters={}, _headers={}, srcdir='./', _plotted=False, _3d=False, parametric=False, _format='txt',  _multiplot=False,
+          size='1,1', _total_size='1,1', title=plot_title(), _implicit_opt='add', autoconv_title_to_tex=True, linewidth2out=3, use_last_dict=True, use_last_args=True,
+          _aliases={ 'xlabel':['lbx'], 'ylabel':['lby'], 'zlabel':['lbz'], 'nohidden3d':['3d'], '_2d':['2d'], 
+                 'xrange':['rx'], 'yrange':['ry'], 'zrange':['rz'], 'logscale':['ln'] },
+          arrow=set_arrow(), label=set_label(), _all='',
+          
+          **dict([ ( '%slabel'%i, axe_label( _axe=i, __doc__='подпись к оси '+i  ) ) for i in 'x y z x2 y2 cb'.split() ]+
+                 [ ( '%srange'%i, axe_range( _axe=i, __doc__='пределы по оси '+i ) ) for i in 'x y z x2 y2 cb t u v'.split() ]+
+                 [ ( '%stics'%i,  axe_tics( _axe=i, __doc__='числовые метки по оси '+i ) ) for i in 'x y z x2 y2 cb'.split() ])
+          )( sys.argv[1:] if len(sys.argv)>1 else ['--'] )
+except ParseError, e :
+    print e
+    sys.stderr.write( '>>> %s <<< %s\nParseError:%s\n'%(aiwlib.bindopt._exception_arglist[0],
+                                                                           ' '.join(map(repr, aiwlib.bindopt._exception_arglist[1:])), e ) ) 
+except : raise
+
+# 
+#-------------------------------------------------------------------------------
+#os.system('cat '+gp.name)
+
+# not title???
