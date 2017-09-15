@@ -1,5 +1,10 @@
 #!/usr/bin/python -S
 # -*- mode: Python; coding: utf-8 -*-
+'''Plotting pictures with gnuplot.
+
+Copyright (C) 2002-2017 Anton V. Ivanov <aiv.racs@gmail.com>
+This code is released under the GPL3 or later
+'''
 #-------------------------------------------------------------------------------
 import os, sys, gzip, glob, atexit, time, math, cPickle 
 from aiwlib.AST import formats
@@ -335,7 +340,6 @@ class gplt(Parser) :
         предварительно отредактировать график, showcmd задает команду для просмотра результата, остальные опции настраивают создание .pdf через pdflatex
         clear управляет удалением временных файлов, margins определяет поля при обрезании pdfcrop-ом, usepackage задает список дополнительных пакетов 
         в виде package:opt1:opt2... через пробел, head задает дополнительный заголовок после \\begin{document}'''        
-        print fname, termopt, preview, showcmd, margins, usepackage, head, clear
         toTeX, term, self._format, fn = { 'pdf':(1,'epslatex','tex',fname[:-3]+'eps'), 'eps':(0,'postscript eps enhanced','eps',fname), 
                                           'Pdf':(0,'epslatex','tex',fname[:-3]+'eps'), 'tex':(0,'latex','tex',fname[:-3]+'tex') 
                                           }.get( fname.split('.')[-1], ( 0, fname.split('.')[-1], 'txt', fname ) ); term += ' '+termopt if termopt else ''

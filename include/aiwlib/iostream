@@ -26,10 +26,10 @@ namespace aiw{
 		}
 		str<<format;
 	}
-	template <typename S, typename T, typename ... Args>
+	template <typename S, typename T, typename ... Args> 
 	void format2stream(S &&str, const char *format, T x, Args ... args){
 		for(int i=0; true; ++i){
-			if(format[i]==0) WRAISE("illegal '%' count: ", format, i, sizeof...(Args)+1);
+			if(format[i]==0) WRAISE("illegal '%' count: ", format, i, sizeof...(Args)+1, str.str(), x);
 			if(format[i]=='%'){ 
 				if(format[i+1]=='%'){ str.write(format, i); format += i+1; i = 0; }
 				else {
@@ -40,6 +40,12 @@ namespace aiw{
 			}
 		}
 	}
+	template <typename T> struct format2stream_fill_t{ const T& data; int width; char key; };
+	template <typename S, typename T> inline S&& operator << (S&& str, const format2stream_fill_t<T> &f){
+		str.width(f.width); str.fill(f.key); str<<f.data;
+		return str;
+	}
+	template <typename T> format2stream_fill_t<T> fill(const T& x, int w, char k='0'){ return format2stream_fill_t<T>{x, w, k}; }
 #endif //SWIG
 	//--------------------------------------------------------------------------
 	struct IOstream{

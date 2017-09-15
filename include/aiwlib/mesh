@@ -230,6 +230,8 @@ namespace aiw{
 			return A;
 		}
 		//----------------------------------------------------------------------
+		//  Mesh scale(aiw::Ind<D> new_sz, bool antialiasing=false) const {}
+		//----------------------------------------------------------------------
 		template <class T2, int D2> Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
 			if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 			int n = 0; Mesh<T2, D2> A;
@@ -286,13 +288,14 @@ namespace aiw{
 			out2dat(std::move(str), coords, prefix); 
 		}
 		//----------------------------------------------------------------------
-		void min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
-			Ind<D> pos = first(); pos_a = pos_b = pos; a = b = (*this)[pos];
+		bool min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
+			Ind<D> pos = first(); pos_a = pos_b = pos; bool is_ok = false;
 			do {
-				const T& x = (*this)[pos];
-				if(a>x){ a = x; pos_a = pos; }
-				if(b<x){ b = x; pos_b = pos; }
+				const T& x = (*this)[pos]; if(is_bad_value(x)) continue;
+				if(!is_ok || a>x){ a = x; pos_a = pos; }
+				if(!is_ok || b<x){ b = x; pos_b = pos; }
 			} while(next(pos));
+			return is_ok;
 		}
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
 		//----------------------------------------------------------------------
