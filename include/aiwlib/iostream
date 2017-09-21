@@ -119,8 +119,8 @@ namespace aiw{
 		void close(){ pf.reset(); } 
 		long tell() const { return ftell(pf.get()); }
 		void seek(long offset, int whence=0){ fseek(pf.get(), offset, whence); }
-		size_t read(void* buf, size_t size){ return ::fread(buf, size, 1, pf.get()); }
-		size_t write(const void* buf, size_t size){ return ::fwrite(buf, size, 1, pf.get()); }
+		size_t read(void* buf, size_t size){ return ::fread(buf, 1, size, pf.get()); }
+		size_t write(const void* buf, size_t size){ return ::fwrite(buf, 1, size, pf.get()); }
 		void flush(){ fflush(pf.get()); }
 		bool eof() const { return feof(pf.get()); }
 #ifndef MINGW
