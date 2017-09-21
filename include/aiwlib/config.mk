@@ -6,7 +6,7 @@ SHELL=/bin/bash
 PYTHON_H_PATH=/usr/include/python2.7
 
 CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH)
-LINKOPT:=$(LINKOPT) -lgomp -lz
+LINKOPT:=$(LINKOPT) -lgomp -lz -lpng
 SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
 #SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -includeall 
 MPIOPT:=$(MPIOPT) -Wall -fopenmp -std=c++11 -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/

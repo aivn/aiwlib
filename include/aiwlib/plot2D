@@ -42,15 +42,19 @@ namespace aiw{
 		int len_pal = 0;
 		float min = 0, mul = 1.;
 		aiw::Ind<3> nan_color = ind(127, 127, 127); // grey
-		bool cyclic_pal = false;
-		// logscale ???
+		bool cyclic = false;
+		bool logscale = false;
+		bool modulus = false;
+		bool invert = false;
 		
 		void init(float const *pal_, float min_, float max_);
 		// void init(const char *pal_, float min_, float max_); for Python?
 		inline aiw::Ind<3> operator ()(float f) const {
-			f = (f-min)*mul;
+			if(invert) f = -f;
+			if(modulus) f = fabs(f);
+			f = logscale? log(f/min)*mul :(f-min)*mul;
 			if(std::isnan(f)) return nan_color;
-			if(!cyclic_pal){
+			if(!cyclic){
 				if(f<0.) f = 0.;
 				else if(f>1.) f = 1.;
 			}
@@ -75,8 +79,8 @@ namespace aiw{
 		ImagePIL(aiw::Ind<2> size_);
 
 		aiw::Ind<2> size;
-		inline void set(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
-			char* ptr = im->image[pos[1]] + pos[0]*im->pixelsize;
+		inline void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			char* ptr = im->image[size[1]-pos[1]-1] + pos[0]*im->pixelsize;
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
    };	
@@ -97,17 +101,22 @@ namespace aiw{
 		~ImagePNG();
 
 		aiw::Ind<2> size;
-		void set(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
-			png_byte *ptr = rows[pos[1]] + 3*pos[0];
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			png_byte *ptr = rows[size[1]-pos[1]-1] + 3*pos[0];
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
     };
 #endif // AIW_NO_PNG
 	//--------------------------------------------------------------------------
+	template <typename P> void plot_paletter(float const *pal, P& image, bool orient, int max_rgb=255){
+		float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
+		for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
+	}
+	//--------------------------------------------------------------------------
 	template <typename T, typename P> void plot2D(const aiw::Mesh<T, 2> &f, const CalcColor &color, P& image){
-		Vec<2> step = (f.bmax-f.bmin)/image.size; Vec<2> bmin = f.min + .5*step;
-		if(f.bbox()==image.size) for(Ind<2> pos; pos^=image.size; ++pos) image.set(pos, color(f[pos])); 
-		else for(Ind<2> pos; pos^=image.size; ++pos) image.set(pos, color(f(bmin+(pos&step))));
+		Vec<2> step = (f.bmax-f.bmin)/image.size; Vec<2> bmin = f.bmin + .5*step;
+		if(f.bbox()==image.size) for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f[pos])); 
+		else for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, typename P> void plot2D(const aiw::Sphere<T>  &f, const CalcColor &color, P& image, double phi0=0.){ //, bool interp=false){
@@ -120,8 +129,8 @@ namespace aiw{
 			for(; x<sqrt(y_max*y_max-y*y)*alpha; x++){
 				double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
 				Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
-				// image.set(ind(x_max+x, y_max+y), interp? f(coord): f[coord]);
-				image.set(ind(x_max+x, y_max+y), f[coord]);
+				// image.set_pixel(ind(x_max+x, y_max+y), color(interp? f(coord): f[coord]));
+				image.set_pixel(ind(x_max+x, y_max+y), color(f[coord]));
 			}
             for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 		}	

@@ -10,18 +10,19 @@ BIN_LIST=racs approx isolines
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
-iostream swig mpi4py: %: python/aiwlib/%.py python/aiwlib/_%.so;
+all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
 #libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,mixt,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
 swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
 swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
+swig/plot2D.py swig/plot2D_wrap.cxx: include/aiwlib/plot2D
 
 python/aiwlib/%.py: swig/%.py
 	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@

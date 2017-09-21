@@ -12,8 +12,9 @@ using namespace aiw;
 void aiw::CalcColor::init(float const *pal_, float min_, float max_){
 	pal = pal_;
 	for(len_pal=0; pal[len_pal]>=0.; ++len_pal){}
-	len_pal /= 3; len_pal--; // ???	              
-	min = min_; mul = 1./(max_-min_);
+	len_pal /= 3; len_pal--; // ???
+	if(logscale && min_<=0) min_ = 1e-16;
+	min = min_; mul = logscale? 1./log(max_/min_) : 1./(max_-min_);
 }
 //------------------------------------------------------------------------------
 #ifndef AIW_NO_PIL
@@ -26,11 +27,13 @@ void aiw::ImagePIL::construct(PyObject* p){
 	size = ind(im->xsize, im->ysize); pil_ptr = p;
 }
 aiw::ImagePIL::ImagePIL(PyObject* p){ construct(p); }	
+
 aiw::ImagePIL::ImagePIL(Ind<2> size_){
-	construct(PyObject_CallMethodObjArgs(PyImport_ImportModule("PIL.Image"), 
+	construct(PyObject_CallMethodObjArgs(PyImport_ImportModule("PIL.Image"),   // return zero pointer ???
 										 PyString_FromString("new"), PyString_FromString("RGB"), 
-										 PyTuple_Pack(2, PyInt_FromLong(size_[0]), PyInt_FromLong(size_[1])), NULL)); 
+										 PyTuple_Pack(2, PyInt_FromLong(size_[0]), PyInt_FromLong(size_[1])), NULL)); 										 
 }
+
 #endif // AIW_NO_PIL
 //------------------------------------------------------------------------------
 #ifndef AIW_NO_PNG
