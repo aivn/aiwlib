@@ -29,7 +29,7 @@ class Calc:
     #---------------------------------------------------------------------------
     def __init__(self, **D):
         #self.runtime, self.progress, self.statelist, self.args, self._wraps = chrono.Time(0.), 0., [], list(_cl_args), []
-        self.runtime, self.progress, self.statelist, self.args, self._wraps, self.tags = chrono.Time(0.), 0., [], list(sys.args), [], set(_cl_tags)
+        self.runtime, self.progress, self.statelist, self.args, self._wraps, self.tags = chrono.Time(0.), 0., [], list(sys.argv), [], set(_cl_tags)
         for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
             elif not k in _racs_params: self.__dict__[k] = v
@@ -57,23 +57,30 @@ class Calc:
         elif _arg_seqs:
             _base_args_from_racs, t_start, n_start, n_finish = list(_args_from_racs), time.time(), 0, 0
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
-            copies, pids, logfile = _racs_params['_copies'], [], '/tmp/racs-%i.log'%os.getpid()
+            if _racs_params['_daemonize']: mixt.mk_daemon()
+            copies, pids, logfile = _racs_params['_copies'], [], '/tmp/racs-started-%i'%os.getpid()
             print 'Start queue for %i items in %i threads, master PID=%i, logfile="%s"'%(len(queue), copies, os.getpid(), logfile)
-            if _racs_params['_daemonize']: mixt.mk_daemon(); mixt.set_output(logfile)
-            finish_msg = lambda: 'PID=%i finished [%g%%, %s from %s]'%(p, 100.*n_finish/len(queue), mixt.time2string(time.time()-t_start),
-                                                                       mixt.time2string((time.time()-t_start)*len(queue)/n_finish))
+            streams, OUT = [sys.stdout, open(logfile, 'w')], lambda msg: [(s.write(msg+'\n'), s.flush()) for s in streams]
+            if _racs_params['_daemonize']: mixt.set_output(logfile+'.log')
+            OUT('# %s@%s:%s repo=%r tasks=%i threads=%i\n# '%(mixt.get_login(), socket.gethostname(), os.getcwd(),
+                                                              _racs_params['_repo'], len(queue), copies)+' '.join(sys.argv))            
+            for a in _arg_order: OUT('#   %s: %s'%(a, _arg_seqs[a]))
+            finish_msg = lambda: OUT('%s -%i %g%% %s %s'%(chrono.Date(), p, 100.*n_finish/len(queue), mixt.time2string(time.time()-t_start),
+                                                          mixt.time2string((time.time()-t_start)*len(queue)/n_finish)))
             for q in queue:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]
-                    pids.remove(p); n_finish += 1; print finish_msg()
+                    pids.remove(p); n_finish += 1; finish_msg()
                 _args_from_racs = _base_args_from_racs+q #+[('master', os.getpid())]
                 pid = os.fork()
                 if not pid: break
                 pids.append(pid)
-                print ' '.join('%s=%r'%i for i in q), 'started with PID=%i, PPID=%i [%i/%i] ...'%(pid, os.getpid(), n_start+1, len(queue))
                 n_start += 1
+                OUT('%s +%i %g%% %s'%(chrono.Date(), pid, 100.*n_start/len(queue), ' '.join('%s=%r'%i for i in q[1:])))
             else:
-                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; print finish_msg()
+                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; finish_msg()
+                if _racs_params['_daemonize']: streams[0].close(); os.rename(streams[1].name+'.log', '/tmp/racs-finished-%i.log'%os.getpid())
+                streams[1].close(); os.rename(streams[1].name, '/tmp/racs-finished-%i'%os.getpid())
                 sys.exit()
         elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------

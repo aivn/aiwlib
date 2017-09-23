@@ -1,8 +1,9 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #-----------------------------------------------------------------------------
-'''racs директория-расчета (показывает содержимое файла .RACS) либо
-racs список-репозиториев/ список-выражений действие
+'''racs директория-расчета (показывает содержимое файла .RACS) 
+либо racs -q (выводит информацию о текущих пакетных запусках)
+либо racs список-репозиториев/ список-выражений действие (строит выборку)
 
 Репозитории должны заканчиваться на символ '/'.
 
@@ -89,6 +90,23 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     sys.exit()
 
 from aiwlib.mixt import *
+
+# печатать имя файла. Проблемы с выводом дочерних процессов в логфайл
+if len(sys.argv)==2 and sys.argv[1]=='-q':
+    for f in ['/tmp/'+i for i in os.listdir('/tmp') if i.startswith('racs-started-') and i[-4:]!='.log']:
+        print ''
+        PID, L, D, S, C, H = f.split('-')[-1], open(f).readlines(), {}, '', '', []; L[0] = L[0][:-1]+' PID=%s\n'%PID
+        for l in L:
+            if l[0]=='#': print l,; continue
+            l = l.split(); k = l[1][1:]
+            if not H: H, C = ['date', 'PID', 'started']+[a.split('=', 1)[0] for a in l[3:]], l[0]
+            if l[1][0]=='+': l[1] = k; D[k] = l[:3]+[a.split('=', 1)[1] for a in l[3:]]
+            else: del D[k]; l[1] = C; S = '\nfinished %s\nstarted  %s\ncompleted %s (%s from %s)'%tuple(l)
+        sys.stdout.writelines(table2strlist([None, H, None]+sorted(D.values())+[None]))
+        print 'changed  '+date2string(os.path.getmtime(f)), S, f
+        if PID not in os.listdir('/proc'): print '\033[31mprocess was killed!\033[0m'
+    sys.exit()
+        
 import aiwlib.gtable, aiwlib.calc
 
 if '--ghelp' in sys.argv: print '\n'.join(aiwlib.calc.ghelp); sys.exit()
