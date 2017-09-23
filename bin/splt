@@ -1,0 +1,163 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+import sys
+from aiwlib.vec import *
+from aiwlib.iostream import *
+from aiwlib.Surface import *
+import os.path
+path_to_AV = "../../AbstractViewer"
+try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
+except: launcher_dir = os.path.dirname(sys.argv[0])
+sys.path.append( os.path.join(launcher_dir,path_to_AV) )
+
+from UniversalViewer import *
+
+forward_methods = ["next", "jump", "get_time",
+        "get_frame", "get_item", "get_cbrange", "autoscalecb", 
+        "set_cbrange","set_frame","rangemove","extendrange", "get_appends_len",
+        "get_cb_auto", "set_cb_auto","set_cbrange__","set_tubes", "add_tubes", "remove_tubes"]
+params_dump_dict = { "ax":"ax", "get_pal":"set_pal",
+        "get_pos":"set_pos", "get_view":"set_view",
+        "get_scale":"set_scale", "get_cbrange":"set_cbrange__",
+        "get_xrange":"set_xrange__", "get_yrange":"set_yrange__",
+        "get_zrange":"set_zrange__", "title_template":"title_template",
+        "get_wire":"set_wire","bb_auto":"bb_auto", "get_cb_auto":"set_cb_auto", "item":"item", "orts":"orts"}
+colorkeys = [ ("autoscalecb()","a"), ("autoscalecb()","a",["Shift"]),
+        ("set_item((get_item()+1)%get_appends_len())",">",["Shift"]),
+        ("set_item((get_item()+get_appends_len() -1)%get_appends_len())","<",["Shift"]) ]
+class FrontViewer(UniversalViewer):
+    def __init__(self, argv):
+        UniversalViewer.__init__(self,argv)
+        self._sprs = [self.spr, ShaderProg()]
+        self._cur_spr = 0
+        self.instancebuffer=FrameBuffer(self.get_height(), self.get_width(),int(GL.GL_RGBA32I))
+        for method in forward_methods:
+            #print method, get_arglist(getattr(Surf,method), False)
+            setattr(self.__class__, method, ext_generator(method, *get_arglist(getattr(Surf,method), True)))
+    def switch_spr(self, i):
+        "Переключает шейдерную программу, служебная функция"
+        self.spr = self._sprs[i]
+        self._cur_spr = i
+        if i ==1: self.ax = False
+        else: self.ax = True
+    def set_item(self, item):
+        "Устанавливает данные для отображения цветом. Можно использовать названия или цифры."
+        #old_orts_item = self.get_orts() | self.get_item()
+        #orts_item = self.get_orts()|item
+        #self.saved_params[old_orts_item] = self.dump_params(**params_dump_dict)
+        self.Surf.set_item(item)
+        self.autoscalecb()
+        #if orts_item in self.saved_params:
+        #    self.load_params(**self.saved_params[orts_item])
+        #else: self.autoscalecb()
+
+    def get_orts(self):
+        "Возвращает текущее оси (в номерах)"
+        ind = self.Surf.get_orts()
+        return (ind[0], ind[1],ind[2])
+    def set_orts(self, i,j,k):
+        "Устанавливает данные для отображения по осям. Можно использовать названия или цифры."
+        #old_orts_item = self.get_orts()|self.get_item()
+        #orts_item = orts|self.get_item()
+        self.Surf.set_orts(ind(i,j,k))
+        #self.saved_params[old_orts_item] = self.dump_params(**params_dump_dict)
+        #if orts_item in self.saved_params:
+        #    self.load_params(**self.saved_params[orts_item])
+        #else:
+        self.autoscale()
+    def using(self, o1, o2, o3, item):
+        """Устанавливает данные для отображения, оси и цвет. Можно использовать названия или цифры"""
+        #cl = self.Surf.Surf.get_cell_appends_len()
+        #print cl, o1-cl, o2-cl,o3-cl
+        self.set_orts( o1, o2, o3 )
+        self.set_item(item)
+    def execute(self, string, **kwargs):
+        """выполняет функции в переменных вьюера, служебная функциия"""
+        #kwargs["__builtins__"]=__builtins__
+        td = dict(self.Surf.app_names)
+        td.update(kwargs)
+        kwargs = td
+        kwargs.update(globals())
+        if isinstance(string, str): exec(string,kwargs,self)
+        else: exec(func2string(string), kwargs, self)
+        glutPostRedisplay()
+    def evaluate(self, string, **kwargs):
+        "вычисляет выражение в переменных вьюера, служебная функциия"
+        #kwargs["__builtins__"]=__builtins__
+        kwargs.update(globals())
+        kwargs.update(self.Surf.app_names)
+        if isinstance(string, str): return eval(string,kwargs,self)
+        else: return eval(func2string(string), kwargs, self)
+    def switch_buffer(self,name, save = True,SD = params_dump_dict):
+        '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
+        под текущим именем, SaveDict — словарь созраняемых параметров'''
+        UniversalViewer.switch_buffer(self,name,save, SD)
+        glutPostRedisplay()
+    def get_item_name(self):
+        "Возвращает название оси данных по её номеру"
+        return self.Surf.items_to_names[self["item"]]
+    def get_orts_names(self):
+        "Возвращает названия всех осей данных в порядке следования их номеров"
+        return map(lambda x: self.Surf.items_to_names[ x], self.get_orts())
+    def get_instance(self,x,y):
+        "Возвращает номер треугольника под курсором"
+        width,height = self.get_width(), self.get_height()
+        localwire = self.V.get_wire()
+        self.V.set_wire(False)
+        localax = self.ax
+        self.ax=False
+        if width != self.instancebuffer.width() or height != self.instancebuffer.height():
+            self.instancebuffer.resize(width,height)
+        self.switch_spr(1)
+        self.instancebuffer.bind_draw()
+        self.display()
+        checkOpenGLerror()
+        self.instancebuffer.bind_read()
+        checkOpenGLerror()
+        buffer = GL.glReadPixels(x,height-y, 1, 1, GL.GL_RGBA_INTEGER, GL.GL_INT)
+        mypixel = buffer[0][0]
+        instanceID = mypixel[0]+128+ (mypixel[1]+128<<8)+(mypixel[2]+128<<16) if mypixel[3]==127 else -1##mypixel#int(mypixel[0])+((int(mypixel[1]))<<8) + ((int(mypixel[2]))<<16)
+        self.instancebuffer.relax()
+        del buffer
+        self.switch_spr(0)
+        self.ax=localax
+        self.V.set_wire(localwire)
+        #print instanceID,
+        return self.Surf.get_cell_tbID(instanceID)
+
+#setattr(UniversalViewer,"set_item", set_item)
+#setattr(UniversalViewer,"set_orts", set_orts)
+#setattr(UniversalViewer,"using", using)
+#setattr(UniversalViewer,"execute", execute)
+uv = FrontViewer(sys.argv)
+uv.shader_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+uv.switch_spr(1)
+uv.shader_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["vertex_index.shader","fragment_index.shader"])) )
+uv.switch_spr(0)
+
+inp = File(sys.argv[1],"r")
+surf = Surf(inp)
+#uv.saved_params = {}
+uv.plot(surf)
+#uv.switch_buffer = switch_buffer
+uv.namespace = dict()
+uv.namespace.update(uv.__dict__)
+uv.namespace.update(UniversalViewer.__dict__)
+uv.namespace.update(FrontViewer.__dict__)
+trans_vars = {}
+for k in uv.namespace:
+    if k.startswith("get_"):
+        trans_vars[k[4:]] = None
+uv.namespace.update(trans_vars)
+namespace = dict(uv.namespace)
+namespace.update(uv.Surf.app_names)
+uv.rl_reader.set_completer(namespace)
+for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
+    uv.set_key(*km)
+uv.set_key("print get_instance(x,y)","g")
+uv.title_template = "FrontViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} item={item_name} orts:{orts_names[0]}:{orts_names[1]}:{orts_names[2]} frame={frame}"
+uv.image_name_template = "FR{frame}-SC{scale}.png"
+uv.autoscale()
+uv.autoscalecb()
+uv()
+

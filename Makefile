@@ -10,7 +10,7 @@ BIN_LIST=racs approx isolines
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
 iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
@@ -85,7 +85,11 @@ endif
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
 #bin/arr2seg-Y: src/segy.o
 #bin/isolines: src/isolines.o
-bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh: bin/%: src/bin/%.o libaiw.a; $(CXX) -o $@ $^ -lz
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice: bin/%: src/bin/%.o libaiw.a; $(CXX) -o $@ $^ -lz
+#-------------------------------------------------------------------------------
+#   viewers
+#-------------------------------------------------------------------------------
+include include/aiwlib/splt.mk
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
