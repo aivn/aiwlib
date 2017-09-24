@@ -5,7 +5,7 @@ from aiwlib.vec import *
 from aiwlib.iostream import *
 from aiwlib.Surface import *
 import os.path
-path_to_AV = "../../AbstractViewer"
+path_to_AV = "../AbstractViewer"
 try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
 except: launcher_dir = os.path.dirname(sys.argv[0])
 sys.path.append( os.path.join(launcher_dir,path_to_AV) )
@@ -130,9 +130,9 @@ class FrontViewer(UniversalViewer):
 #setattr(UniversalViewer,"using", using)
 #setattr(UniversalViewer,"execute", execute)
 uv = FrontViewer(sys.argv)
-uv.shader_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
 uv.switch_spr(1)
-uv.shader_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["vertex_index.shader","fragment_index.shader"])) )
+uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["vertex_index.shader","fragment_index.shader"])) )
 uv.switch_spr(0)
 
 inp = File(sys.argv[1],"r")

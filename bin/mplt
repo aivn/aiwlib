@@ -1,0 +1,304 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+import sys
+from aiwlib.vec import *
+from aiwlib.iostream import *
+#from mview import *
+from aiwlib.MagnPoints import *
+import os.path
+
+path_to_AV = "../AbstractViewer"
+fragment_shader = '''
+#version 330 core
+flat in vec3 nrml;
+in float gl_ClipDistance[6];
+out vec4 FragColor;
+uniform mat4 MVP, itMVP;
+uniform vec3 vmin, vmax;
+uniform vec2 viewport;
+uniform float radius, scale;
+uniform sampler1D pal;
+const float lighting=0.75;
+void main() {
+    // Вроде и без этого должно раьотать, но как-то на amd не очень
+    //for(int i=0; i<6; i++){
+    //    if (gl_ClipDistance[i]<=0) discard;
+    //}
+    const float camera_light = 0.95;
+    const float vertical_light = 1.0;
+    vec2 shift = gl_PointCoord.xy -vec2(0.5,0.5);
+    float d = dot(shift,shift);
+    if (d>= 0.25) discard;
+    float dz = sqrt(1. - 4.*d);
+    int tex_length = textureSize(pal,0);
+    shift.y *= -1; // это не очень сильное колдунство, координаты по y повернуты вниз
+    float col = ((dot(vec3(shift,dz*0.5), nrml)+.5)*(tex_length - 1.0)+0.5)/tex_length;
+    gl_FragColor =texture(pal, col)*(1. - lighting*camera_light*(1.-dz));
+    gl_FragDepth =gl_FragCoord.z-radius*dz/distance(vmax,vmin);
+}
+'''
+vertex_shader = '''
+#version 330 core
+in vec3 coord, normal;
+out float gl_ClipDistance[6];
+flat out vec3 nrml;
+uniform mat4 MVP, itMVP;
+uniform vec3 vmin, vmax;
+uniform vec2 viewport;
+uniform float radius, scale;
+const float lighting=0.75;
+void main() {
+    float l = min(viewport.x, viewport.y);
+    vec4 res = MVP*(vec4(coord,1.0));
+    for(int i =0; i<3; i++){
+        gl_ClipDistance[i]=coord[i]- vmin[i];
+        gl_ClipDistance[i+3]=vmax[i] -coord[i];
+    }
+    nrml = (MVP*vec4(normal,0.)).xyz*scale;
+    //Viewport tansformation
+    nrml *= vec3(viewport/l,1.);
+
+    vec3 center = (vmin +vmax)*0.5;
+    res.z = ((MVP*vec4(center ,1.)).z-res.z)*scale/distance(vmax,vmin)*2;// in [-1:1]
+    gl_PointSize = radius*l/scale;
+    gl_Position = res;
+}
+'''
+index_fragment_shader='''
+#version 330 core
+flat in ivec3 intcolor;
+//flat in int r;
+in float gl_ClipDistance[6];
+out ivec4 FragColor;
+//out int FragColor;
+uniform mat4 MVP, itMVP;
+uniform vec3 vmin, vmax;
+uniform vec2 viewport;
+uniform float radius, scale;
+const float lighting=0.75;
+void main() {
+    // Вроде и без этого должно раьотать, но как-то на amd не очень
+    //for(int i=0; i<6; i++){
+    //    if (gl_ClipDistance[i]<=0) discard;
+    //}
+    const float camera_light = 0.95;
+    const float vertical_light = 1.0;
+    vec2 shift = gl_PointCoord.xy -vec2(0.5,0.5);
+    float d = dot(shift,shift);
+    if (d>= 0.25) discard;
+    float dz = sqrt(1. - 4.*d/256.);
+    FragColor = ivec4(intcolor,127);
+    //FragColor = r;
+    gl_FragDepth =gl_FragCoord.z-radius*dz/distance(vmax,vmin);
+}
+'''
+index_vertex_shader='''
+#version 330 core
+in vec3 coord;
+out float gl_ClipDistance[6];
+flat out ivec3 intcolor;
+//flat out int r;
+uniform mat4 MVP, itMVP;
+uniform vec3 vmin, vmax;
+uniform vec2 viewport;
+uniform float radius, scale;
+const float lighting=0.75;
+void main() {
+    float l = min(viewport.x, viewport.y);
+    vec4 res = MVP*(vec4(coord,1.0));
+    for(int i =0; i<3; i++){
+        gl_ClipDistance[i]=coord[i]- vmin[i];
+        gl_ClipDistance[i+3]=vmax[i] -coord[i];
+    }
+	//int r = gl_InstanceID;
+    int r = (gl_VertexID & 255)-128;
+    int g = ((gl_VertexID >> 8 ) & 255)-128;
+    int b = ((gl_VertexID >> 16) & 65535)-128;
+    //int a = 128;
+    intcolor = ivec3(r,g,b);
+    vec3 center = (vmin +vmax)*0.5;
+    res.z = ((MVP*vec4(center ,1.)).z -res.z)*scale/distance(vmax,vmin)*2;// in [-1:1]
+    gl_PointSize = radius*l/scale;
+    gl_Position = res;
+}
+'''
+try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
+except: launcher_dir = os.path.dirname(sys.argv[0])
+sys.path.append(os.path.join(launcher_dir,path_to_AV))
+
+from UniversalViewer import *
+forward_methods = ["next", "jump", "get_time","select_all","select_lattice","set_select","get_radius", "set_radius",
+        "get_frame", "set_frame",# "get_item", "get_cbrange",
+        #"set_cbrange", "rangemove", "extendrange", "get_appends_len",
+        #"get_cb_auto", "set_cb_auto","set_cbrange__","set_tubes", "add_tubes", "remove_tubes"
+        ]
+params_dump_dict = { "ax":"ax", "get_pal":"set_pal",
+        "get_pos":"set_pos", "get_view":"set_view",
+        "get_scale":"set_scale", #"get_cbrange":"set_cbrange__",
+        "get_xrange":"set_xrange__", "get_yrange":"set_yrange__",
+        "get_zrange":"set_zrange__", "title_template":"title_template",
+        "get_wire":"set_wire","bb_auto":"bb_auto"#, "get_cb_auto":"set_cb_auto", "item":"item", "orts":"orts"
+        }
+class MagViewer(UniversalViewer):
+    def __init__(self, argv):
+        UniversalViewer.__init__(self,argv)
+        from OpenGL import GL
+        self.instancebuffer= FrameBuffer(self.get_width(), self.get_height(), int(GL.GL_RGBA32I))
+        GL.glEnable(GL.GL_PROGRAM_POINT_SIZE);
+        self._sprs = [self.spr, ShaderProg(), ShaderProg()]
+        self._cur_spr = 0
+        self.add_pal("mag", [0.,0.,1.,1.,0.,0.])
+        self.palettes["mag"].nearest()
+        self.set_pal("mag")
+        for method in forward_methods:
+            #print method, get_arglist(getattr(MagPoints,method), False)
+            setattr(self.__class__, method, ext_generator(method, *get_arglist(getattr(MagPoints,method), True)))
+    def switch_spr(self, i):
+        "Переключает шейдерную программу, служебная функция"
+        self.spr = self._sprs[i]
+        self._cur_spr = i
+        if i ==1: self.ax = False
+        else: self.ax = True
+    #def set_item(self, item):
+    #    #old_orts_item = self.get_orts() | self.get_item()
+    #    #orts_item = self.get_orts()|item
+    #    #self.saved_params[old_orts_item] = self.dump_params(**params_dump_dict)
+    #    self.Surf.set_item(item)
+    #    self.autoscalecb()
+    #    #if orts_item in self.saved_params:
+    #    #    self.load_params(**self.saved_params[orts_item])
+    #    #else: self.autoscalecb()
+
+    #def get_orts(self):
+    #    ind = self.Surf.get_orts()
+    #    return (ind[0], ind[1],ind[2])
+    #def set_orts(self, i,j,k):
+    #    #old_orts_item = self.get_orts()|self.get_item()
+    #    #orts_item = orts|self.get_item()
+    #    self.Surf.set_orts(Indx(i,j,k))
+    #    #self.saved_params[old_orts_item] = self.dump_params(**params_dump_dict)
+    #    #if orts_item in self.saved_params:
+    #    #    self.load_params(**self.saved_params[orts_item])
+    #    #else:
+    #    self.autoscale()
+    #def using(self, o1, o2, o3, item):
+    #    #cl = self.Surf.Surf.get_cell_appends_len()
+    #    #print cl, o1-cl, o2-cl,o3-cl
+    #    self.set_orts( o1, o2, o3 )
+    #    self.set_item(item)
+    def execute(self, string, **kwargs):
+        "выполняет функции в переменных вьюера, служебная функциия"
+        #kwargs["__builtins__"]=__builtins__
+        #td = dict(self.Surf.app_names)
+        #td.update(kwargs)
+        #kwargs = td
+        kwargs.update(globals())
+        if isinstance(string, str): exec(string,kwargs,self)
+        else: exec(func2string(string), kwargs, self)
+        glutPostRedisplay()
+    def evaluate(self, string, **kwargs):
+        "вычисляет выражение в переменных вьюера, служебная функциия"
+        #kwargs["__builtins__"]=__builtins__
+        kwargs.update(globals())
+        #kwargs.update(self.Surf.app_names)
+        if isinstance(string, str): return eval(string,kwargs,self)
+        else: return eval(func2string(string), kwargs, self)
+    def switch_buffer(self,name, save = True,SD = params_dump_dict):
+        '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
+        под текущим именем, SaveDict — словарь созраняемых параметров'''
+        UniversalViewer.switch_buffer(self,name,save, SD)
+        glutPostRedisplay()
+    #def get_item_name(self):
+    #    return self.Surf.items_to_names[self["item"]]
+    #def get_orts_names(self):
+    #    return map(lambda x: self.Surf.items_to_names[ x], self.get_orts())
+    def get_instance(self,x,y):
+        "Возвращает номер шарика, на который указывает мышь"
+        #from OpenGL import GL
+        #GL.glDrawBuffer(GL.GL_BACK)
+        width,height = self.get_width(), self.get_height()
+        myax = self.ax
+        if width != self.instancebuffer.width() or height != self.instancebuffer.height():
+            self.instancebuffer.resize(width,height)
+        self.switch_spr(2)
+        self.ax=False
+        self.instancebuffer.bind_draw()
+        self.display()
+        checkOpenGLerror()
+        self.instancebuffer.bind_read()
+        checkOpenGLerror()
+        #GL.glReadBuffer(GL.GL_BACK)
+        #buffer = ( GL.GLfloat * 3 )(0)
+        #glutPostRedisplay()
+        buffer = GL.glReadPixels(x,height-y, 1, 1, GL.GL_RGBA_INTEGER, GL.GL_INT)
+        #time.sleep(0.5)
+        #print buffer
+        mypixel = buffer[0][0]
+        #print mypixel[0]+128+ (mypixel[1]+128<<8)+(mypixel[2]+128<<16) if mypixel[3]==127 else -1
+        #instanceID = int(mypixel[0]*256) + (int(mypixel[1]*256)<<8) + (int(mypixel[2]*256)<<16)
+        instanceID = mypixel[0]+128+ (mypixel[1]+128<<8)+(mypixel[2]+128<<16) if mypixel[3]==127 else -1##mypixel#int(mypixel[0])+((int(mypixel[1]))<<8) + ((int(mypixel[2]))<<16)
+        #print (buffer[0]),(buffer[1]), ( buffer[2] )
+        self.instancebuffer.relax()
+        del buffer
+        self.switch_spr(0)
+        self.ax=myax
+        #GL.glDrawBuffer(GL.GL_BACK)
+        return instanceID
+    def _display(self):
+        "Заготовка для glut display, служебная функция"
+        if self.bb_auto:
+            self.autoscale()
+        self.V.display()
+        self.Surf.display(self.V, self.spr, self.tex)
+        if self.ax:
+            self.switch_spr(1)
+            self.V.axis_switch()
+            GL.glDepthFunc(GL.GL_GREATER)
+            self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            GL.glDepthFunc(GL.GL_LEQUAL)
+            self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            self.V.axis_switch()
+            self.switch_spr(0)
+
+uv = MagViewer(sys.argv)
+inp = File(sys.argv[1],"r")
+surf = MagPoints(inp)
+
+#setattr(UniversalViewer,"set_item", set_item)
+#setattr(UniversalViewer,"set_orts", set_orts)
+#setattr(UniversalViewer,"using", using)
+#setattr(UniversalViewer,"execute", execute)
+uv.shader_load( vertex_shader, fragment_shader )
+uv.switch_spr(1)
+#uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x) , ["AbstractViewer/v.shader","AbstractViewer/f.shader"]) )
+uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+#uv.shader_load(*map(lambda x: os.path.join(launcher_dir, x) , ["AbstractViewer/vertex_index.shader","AbstractViewer/fragment_index.shader"]) )
+uv.switch_spr(2)
+uv.shader_load(index_vertex_shader,index_fragment_shader )
+uv.switch_spr(0)
+#uv.saved_params = {}
+uv.plot(surf)
+#uv.switch_buffer = switch_buffer
+uv.namespace = dict()
+uv.namespace.update(uv.__dict__)
+uv.namespace.update(UniversalViewer.__dict__)
+uv.namespace.update(MagViewer.__dict__)
+trans_vars = {}
+for k in uv.namespace:
+    if k.startswith("get_"):
+        trans_vars[k[4:]] = None
+uv.namespace.update(trans_vars)
+namespace = dict(uv.namespace)
+#namespace.update(uv.Surf.app_names)
+uv.rl_reader.set_completer(namespace)
+for km in DefaultKeyMapping:
+    uv.set_key(*km)
+uv.set_key("print get_instance(x,y)","g")
+uv.title_template = "MagViewer scale={scale} frame={frame} time={time}"
+uv.image_name_template = "FR{frame}-SC{scale}.png"
+#print dir(uv)
+#print uv.Surf.current_frame, dir(uv)
+uv.autoscale()
+#uv.autoscalecb()
+uv()
+
