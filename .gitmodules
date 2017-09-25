@@ -1,0 +1,3 @@
+[submodule "AbstractViewer"]
+	path = AbstractViewer
+	url = ../../ezz/AbstractViewer
