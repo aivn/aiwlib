@@ -91,7 +91,6 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
 
 from aiwlib.mixt import *
 
-# печатать имя файла. Проблемы с выводом дочерних процессов в логфайл
 if len(sys.argv)==2 and sys.argv[1]=='-q':
     for f in ['/tmp/'+i for i in os.listdir('/tmp') if i.startswith('racs-started-') and i[-4:]!='.log']:
         print ''
@@ -100,7 +99,13 @@ if len(sys.argv)==2 and sys.argv[1]=='-q':
             if l[0]=='#': print l,; continue
             l = l.split(); k = l[1][1:]
             if not H: H, C = ['date', 'PID', 'started']+[a.split('=', 1)[0] for a in l[3:]], l[0]
-            if l[1][0]=='+': l[1] = k; D[k] = l[:3]+[a.split('=', 1)[1] for a in l[3:]]
+            if l[1][0]=='+':
+                l[1] = k
+                if k in D:
+                    rt = string2date(l[0])-string2date(C)
+                    S = '\nfinished %s\nstarted  %s\ncompleted %s (%s from %s)'%(
+                        l[0], C, D[k][2], time2string(rt), time2string(rt/float(D[k][2][:-1])*100) if float(D[k][2][:-1]) else '???')
+                D[k] = l[:3]+[a.split('=', 1)[1] for a in l[3:]]
             else: del D[k]; l[1] = C; S = '\nfinished %s\nstarted  %s\ncompleted %s (%s from %s)'%tuple(l)
         sys.stdout.writelines(table2strlist([None, H, None]+sorted(D.values())+[None]))
         print 'changed  '+date2string(os.path.getmtime(f)), S, f

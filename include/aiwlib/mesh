@@ -67,7 +67,7 @@ namespace aiw{
 		//----------------------------------------------------------------------		
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
-			int h_sz = head.size()+5+D*16+sizeof(T); if((4+h_sz)%64) h_sz += 64-(4+h_sz)%64;			
+			int h_sz = head.size()+5+D*16+sizeof(T); if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
 			char h[h_sz] = {0}; memcpy(h, head.c_str(), head.size()); memcpy(h+h_sz-4-D*16-sizeof(T), &out_value, sizeof(T));
 			memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
 			S<h_sz; S.write(h, h_sz); S<D<int(sizeof(T))<box;

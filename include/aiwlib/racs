@@ -51,6 +51,13 @@ namespace aiw{
 		double starttime; // время запуска
 		
 		void calc_configure(); // конфигурация расчета когда известен путь
+
+		void out_preambule(std::ostream **logs, const char *logdir, int argc, const char **argv, int copies,
+						   const std::vector<std::string> &qkeys, const std::vector<std::vector<double> > &qgrid);
+		void out_start_task(std::ostream **logs, int PID, double sprogress, const std::vector<int> &qpos,
+							const std::vector<std::string> &qkeys, const std::vector<std::vector<double> > &qgrid);
+		void out_finish_task(std::ostream **logs, int PID, double sprogress);
+		void out_close_log(std::ostream **logs, const char *logdir);
 	public:
 		std::string repo = "repo";
 

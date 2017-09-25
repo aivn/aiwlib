@@ -68,3 +68,14 @@ std::string aiw::format_string(const char *pattern, const std::map<std::string, 
 	return buf.str();
 }
 //------------------------------------------------------------------------------
+std::string aiw::time2string(double t){
+	char buf[64];
+	snprintf(buf, 63, "%i:%02i:%06.3f", int(t/3600), int(t/60)%60, t-int(t/60)*60);
+	return buf;
+}
+std::string aiw::date2string(time_t d){
+	char buf[64];
+	::strftime(buf, 63, "%Y.%m.%d-%X", ::localtime(&d));
+	return buf;
+}
+//------------------------------------------------------------------------------

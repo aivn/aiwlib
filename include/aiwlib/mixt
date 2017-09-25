@@ -14,6 +14,8 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	std::string make_path(const char *repo);
 	std::string format_string(const char *pattern, const std::map<std::string, std::string> &dict);
+	std::string time2string(double t);
+	std::string date2string(time_t d);
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_MIXT_HPP
