@@ -128,7 +128,12 @@ class Surf:
         "Отображает данные, служебная функция"
         if self.cb_auto:
             self.autoscalecb()
-        spr.render(self.Surf, V, tex)
+        #spr.render(self.Surf, V, tex)
+        spr.start()
+        tex.use_texture(spr, "pal")
+        V.plot(spr)
+        self.Surf.plot(spr)
+        spr.stop()
 
 def ext_generator(name,*args):
     "Создает внешние методы на основе текущего класса, такое наследование"

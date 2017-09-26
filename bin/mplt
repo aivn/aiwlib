@@ -110,7 +110,7 @@ void main() {
         gl_ClipDistance[i]=coord[i]- vmin[i];
         gl_ClipDistance[i+3]=vmax[i] -coord[i];
     }
-	//int r = gl_InstanceID;
+    //int r = gl_InstanceID;
     int r = (gl_VertexID & 255)-128;
     int g = ((gl_VertexID >> 8 ) & 255)-128;
     int b = ((gl_VertexID >> 16) & 65535)-128;
@@ -254,9 +254,19 @@ class MagViewer(UniversalViewer):
             self.switch_spr(1)
             self.V.axis_switch()
             GL.glDepthFunc(GL.GL_GREATER)
-            self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            #self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            self.spr.start()
+            self.palettes["rgb"].use_texture(self.spr,"pal")
+            self.V.plot(self.spr)
+            self.Axis.plot(self.spr)
+            self.spr.stop()
             GL.glDepthFunc(GL.GL_LEQUAL)
-            self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            self.spr.start()
+            self.palettes["rgb"].use_texture(self.spr,"pal")
+            self.V.plot(self.spr)
+            self.Axis.plot(self.spr)
+            self.spr.stop()
+            #self.spr.render(self.Axis, self.V, self.palettes["rgb"])
             self.V.axis_switch()
             self.switch_spr(0)
 

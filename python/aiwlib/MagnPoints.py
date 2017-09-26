@@ -84,7 +84,13 @@ class MagPoints:
         return bbmin, bbmax
     def display(self,V,spr,tex):
         "Рисует картинку по данным, служебная функция"
-        spr.render(self.MView, V, tex)
+        #spr.render(self.MView, V, tex)
+        spr.start()
+        V.plot(spr)
+        tex.use_texture(spr, "pal")
+        self.MView.plot(spr)
+        spr.stop()
+        #spr.render(self.MView, V, tex)
     def get_radius(self):
         "Возвращает радиус атома при отображении"
         return self.MView.radius

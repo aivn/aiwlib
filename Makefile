@@ -10,7 +10,7 @@ BIN_LIST=racs approx isolines
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt mplt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt fplt mplt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
 iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
@@ -89,11 +89,13 @@ bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice: bin/%: src/bin
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------
-VIEWERS:=splt	mplt
+VIEWERS:=splt mplt fplt
 headers_splt = AbstractViewer/plottable.hpp include/aiwlib/fv_interface.hpp
 objects_splt =
 headers_mplt = AbstractViewer/plottable.hpp include/aiwlib/mview_format.hpp
 objects_mplt = src/mview_format.o
+headers_fplt = AbstractViewer/plottable.hpp
+objects_fplt =
 include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets
