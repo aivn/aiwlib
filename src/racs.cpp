@@ -11,6 +11,7 @@
 #include <wait.h>
 #include <utime.h>
 #include <ctime>
+#include <fstream>
 #include "../include/aiwlib/configfile"
 #include "../include/aiwlib/mixt"
 #include "../include/aiwlib/racs"
@@ -117,22 +118,26 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 	} else { // есть пакетный запуск
 		std::vector<std::string> qkeys(qparams.size());          // имена праметров
 		std::vector<std::vector<double> > qgrid(qparams.size()); // сетка значений параметров
-		{ int i=0; for(auto I=qparams.begin(); I!=qparams.end(); ++I){ qkeys[i] = I->first; qgrid[i++].swap(I->second); } }
+		int len_queue=1, n_start=0, n_finish=0; 
+		{ int i=0; for(auto I=qparams.begin(); I!=qparams.end(); ++I){ len_queue *= I->second.size(); qkeys[i] = I->first; qgrid[i++].swap(I->second); } }
 		std::vector<int> qpos(qparams.size(), 0);  // позиция в сетке значений для пакетного запуска
 		if(use_mpi){
 			MPI_Init(&argc, (char***)&argv);
 			int procID = mpi_proc_number(), proc_count = mpi_proc_count();
 			if(procID==0){ // головной процесс
+				std::ostream *logs[2]; out_preambule(logs, "", argc, argv, proc_count-1, qkeys, qgrid);
 				schecker = clean_path = false;
-				do{ // цикл по заданиям
+				do { // цикл по заданиям
 					aiw_mpi_msg_t msg; mpi_recv(msg, -1); // получаем запрос на задание, но на самом деле нам интересен только процесс от которого он пришел
 					std::stringstream sbuf; for(size_t i=0; i<qpos.size(); ++i) sbuf<<qpos[i]<<' ';
 					set_queue_item(qpos, qkeys, qgrid, arg_params); 				  
 					path_ = ""; sbuf<<path(); mpi_send(sbuf.str(), msg.source); // формируем задание и отправляем его вычислителю
-				}while(next_queue_item(qpos, qgrid)); // конец цикла по заданиям
+					out_start_task(logs, msg.source, double(++n_start)/len_queue, qpos, qkeys, qgrid);
+				} while(next_queue_item(qpos, qgrid)); // конец цикла по заданиям
 				for(int i=1; i<proc_count; i++) mpi_send("bye", i); // рассылаем сообщение о завершении работы
+				out_close_log(logs, "");
 			} else { // вычислитель
-				char hostname[4096]; ::gethostname(hostname, 4095);
+				char hostname[256]; ::gethostname(hostname, 255); 
 				while(1){
 					mpi_send(hostname, 0); // посылаем запрос на задание
 					aiw_mpi_msg_t msg; mpi_recv(msg, 0); // получаем задание
@@ -150,19 +155,20 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 			}
 			MPI_Finalize();
 			exit(0);
-		} else {
+		} else { // not MPI
+			std::ostream *logs[2]; out_preambule(logs, "/tmp/", argc, argv, copies,  qkeys, qgrid);
 			std::list<pid_t> pids; int wstatus;
 			do{
 				if(int(pids.size())==copies){
 					pid_t pid = waitpid(-1, &wstatus, 0);
-					pids.remove(pid);
+					pids.remove(pid); out_finish_task(logs, pid, double(++n_finish)/len_queue);
 				}
 				pid_t pid = fork();
 				if(!pid){ set_queue_item(qpos, qkeys, qgrid, arg_params); set_state("started"); return; } // дочерний процесс
-				pids.push_back(pid);
+				pids.push_back(pid); out_start_task(logs, pid, double(++n_start)/len_queue, qpos,  qkeys, qgrid);
 			} while(next_queue_item(qpos, qgrid));
-			while(pids.size()){ pid_t pid = waitpid(-1, &wstatus, 0); pids.remove(pid); }
-			exit(0);
+			while(pids.size()){ pid_t pid = waitpid(-1, &wstatus, 0); pids.remove(pid); out_finish_task(logs, pid, double(++n_finish)/len_queue); }
+			out_close_log(logs, "/tmp/"); exit(0);
 		}
 	}
 	set_state("started");
@@ -206,7 +212,7 @@ void aiw::RacsCalc::commit(){
 	P("progress", progress)("runtime", pickle_class("aiwlib.chrono", "Time", false)<<runtime)("md5sum", md5sum);	
 	{ Pickle L = pickle_list(); for(auto I=args.begin(); I!=args.end(); ++I) L<<*I; P("args", L); }	
 	{ Pickle L = pickle_list();
-		char hostname[4096]; ::gethostname(hostname, 4095);
+		char hostname[256]; ::gethostname(hostname, 255);
 		for(auto I=statelist.begin(); I!=statelist.end(); ++I){
 			L<<pickle_tuple(I->state, getenv("USER"), hostname,	pickle_class("aiwlib.chrono", "Date", false)<<I->date, getpid());
 		}
@@ -221,5 +227,49 @@ void aiw::RacsCalc::commit(){
 void aiw::RacsCalc::set_progess(double progress_){
 	progress = progress_; runtime = omp_get_wtime()-starttime; 
 	commit();
+}
+//------------------------------------------------------------------------------
+void aiw::RacsCalc::out_preambule(std::ostream **logs, const char *logdir, int argc, const char **argv, int copies,
+								  const std::vector<std::string> &qkeys, const std::vector<std::vector<double> > &qgrid){
+	int len_queue = 1; for(auto I=qgrid.begin(); I!=qgrid.end(); ++I) len_queue *= I->size();
+	char hostname[256], logfile[256]; ::gethostname(hostname, 255); snprintf(logfile, 255, "%sracs-started-%i", logdir, getpid());
+	logs[0] = &std::cout; logs[1] = new	std::ofstream(logfile);
+	printf("Start queue for %i items in %i threads, master PID=%i, logfile=\"%s\"", len_queue, copies, getpid(), logfile);
+	for(int k=0; k<2; k++){
+		(*logs[k])<<"# "<<getenv("USER")<<'@'<<hostname<<':'<<get_current_dir_name()<<" repo="<<repo
+				  <<" tasks="<<len_queue<<" threads="<<copies<<"\n#";
+		for(int i=0; i<argc; i++){ (*logs[k])<<' '<<argv[i]; } (*logs[k])<<'\n';
+		for(size_t i=0; i<qkeys.size(); i++){
+			(*logs[k])<<"#   "<<qkeys[i]<<": ["<<qgrid[i][0];
+			for(size_t j=0; j<qgrid[i].size(); ++j) (*logs[k])<<", "<<qgrid[i][j];
+			(*logs[k])<<"]\n";
+		}
+		logs[k]->flush();
+	}
+}
+//------------------------------------------------------------------------------
+void aiw::RacsCalc::out_start_task(std::ostream **logs, int PID, double sprogress, const std::vector<int> &qpos,
+								   const std::vector<std::string> &qkeys, const std::vector<std::vector<double> > &qgrid){
+	for(int k=0; k<2; k++){
+		*logs[k]<<date2string(time(nullptr))<<" +"<<PID<<' '<<sprogress*100<<'%';
+		for(size_t i=0; i<qpos.size(); ++i) *logs[k]<<' '<<qkeys[i]<<'='<<qgrid[i][qpos[i]];
+		*logs[k]<<'\n'; logs[k]->flush();
+	}
+}
+//------------------------------------------------------------------------------
+void aiw::RacsCalc::out_finish_task(std::ostream **logs, int PID, double sprogress){
+	double rt = omp_get_wtime()-starttime;
+	for(int k=0; k<2; k++){
+		*logs[k]<<date2string(time(nullptr))<<" -"<<PID<<' '<<sprogress*100<<"% "<<time2string(rt)<<" "<<time2string(rt/sprogress)<<'\n';
+		logs[k]->flush();
+	}
+}
+//------------------------------------------------------------------------------
+void aiw::RacsCalc::out_close_log(std::ostream **logs, const char *logdir){
+	delete logs[1];
+	char logfile1[256], logfile2[256]; int pid =  getpid();
+	snprintf(logfile1, 255, "%sracs-started-%i", logdir, pid);
+	snprintf(logfile2, 255, "%sracs-finished-%i", logdir, pid);
+	rename(logfile1, logfile2);
 }
 //------------------------------------------------------------------------------
