@@ -117,7 +117,9 @@ public:
 
     // добавляет обменную связь между моментами i и j
     // возвращает номер новой связи
-    int add_exch_link(int i, int j, double J){ exch_links.emplace_back(); return exch_links.size()-1; }
+    int add_exch_link(int i, int j, double J){ exch_links.emplace_back(); exch_links.back().i=i; exch_links.back().j=j;
+        exch_links.back().J=J;
+        return exch_links.size()-1; }
 
     // возвращает число обменных связей
     uint64_t exch_links_size() const { return exch_links.size(); }

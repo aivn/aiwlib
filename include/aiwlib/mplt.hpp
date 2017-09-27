@@ -14,8 +14,8 @@ class  MViewInterface: public Plottable, public MViewFormat{
     public:
         float radius;
         MViewInterface(): Plottable(), radius(1.){ 
-	        VAO.add_buffer();
-	        VAO.add_buffer();
+            VAO.add_buffer();
+            VAO.add_buffer();
         }
         bool load(aiw::File & S){
             if (S.tell()==0){
