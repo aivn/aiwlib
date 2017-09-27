@@ -1,0 +1,248 @@
+#!/usr/bin/python
+# -*- mode: Python; coding: utf-8 -*-
+'''usage: uplt files...
+
+Copyright (C) 2017  Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0'''
+
+import os, sys, PIL.Image, PIL.ImageTk, tkSimpleDialog
+from aiwlib.tkWidgets import *
+from aiwlib.iostream import *
+#from aiwlib.binheads import *
+#from aiwlib.vec import *
+from aiwlib.MeshF2 import *
+from aiwlib.MeshF3 import *
+from aiwlib.SphereF import *
+from aiwlib.plot2D import *
+
+
+def replot(*args, **kw_args): replot_frame() 
+#-------------------------------------------------------------------------------
+#  main widgets
+#-------------------------------------------------------------------------------
+panel_sz = 211
+#wroot = Tk(); panel, canvas = Frame(wroot, bg='red', width=panel_sz), Plot2D(wroot, width=600, background='white')
+wroot = Tk(); panel, canvas = Frame(wroot, width=panel_sz), Plot2D(wroot, width=900, background='white')
+preview = Plot2D(panel, width=panel_sz, height=panel_sz, background='white'); preview.pack(side=BOTTOM) # on panel
+panel.grid(row=0, column=0, sticky=NS)
+canvas.grid(row=0, column=1, sticky=NSEW)
+wroot.columnconfigure(1, weight=1)
+wroot.rowconfigure(0, weight=1)
+#def hline(): Label(panel, text='-'*53).pack(side=TOP, anchor=W)
+#v_pals, v_axes, v_slices = map(TkVar, (1,1,1))
+#-------------------------------------------------------------------------------
+#  function
+#-------------------------------------------------------------------------------
+frame = Frame(panel); frame.pack(side=TOP, anchor=W); Label(frame, text='FUNC').grid(row=0, column=0)
+Label(frame, text='min:').grid(row=1, column=0); f_min = aiwEntry(frame, 0., replot, grid={'row':1, 'column':1}, width=12)
+Label(frame, text='max:').grid(row=2, column=0); f_max = aiwEntry(frame, 0., replot, grid={'row':2, 'column':1}, width=12)
+f_autoscale = aiwCheck(frame, 'autoscale', True, command=replot, grid={'row':0, 'column':1, 'sticky':W})
+f_logscale = aiwCheck(frame, 'logscale', command=replot, grid={'row':0, 'column':2, 'sticky':W})
+f_modulus = aiwCheck(frame, 'modulus', command=replot, grid={'row':1, 'column':2, 'sticky':W})
+f_invert = aiwCheck(frame, 'invert', command=replot, grid={'row':2, 'column':2, 'sticky':W})
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W); Label(frame, text='paletter').pack(side=LEFT)
+f_pal = TkVar('rainbow'); OptionMenu(frame, f_pal, *Plot2D.paletters.keys()).pack(side=RIGHT)
+f_pal.trace('w', replot)
+
+#f_cyclic = aiwCheck(frame, 'cyclic', command=replot, grid={'row':3, 'column':2, 'sticky':W})
+#-------------------------------------------------------------------------------
+#Label(panel, text='-----------------------------------------------------\naxes:').pack(side=TOP, anchor=W)
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+x_min, y_min = [aiwEntry(frame, 0., replot, 'XY'[i], grid={'row':i, 'column':0}, width=12) for i in (0, 1)]
+x_max, y_max = [aiwEntry(frame, 1., replot, grid={'row':i, 'column':1}, width=12) for i in (0, 1)]
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+x_step, y_step = [aiwEntry(frame, 1., label='XY'[i]+' step', grid={'row':i, 'column':0}, width=15, state='readonly') for i in (0, 1)]
+x_flip, y_flip = [aiwCheck(frame, 'flip', command=replot, grid={'row':i, 'column':1}) for i in (0,1)]
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+edit_axes, crop_axes = [aiwCheck(frame, ['edit', 'crop'][i]+' axes', command=replot, grid={'row':0, 'column':i}) for i in (0,1)]
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+x_crop_min, y_crop_min = [aiwEntry(frame, 0, replot, 'XY'[i]+' crop', grid={'row':i, 'column':0}, width=7) for i in (0, 1)]
+x_crop_step, y_crop_step = [aiwEntry(frame, 1, replot, ':', grid={'row':i, 'column':1}, width=3) for i in (0, 1)]
+x_crop_max, y_crop_max = [aiwEntry(frame, 0, replot, ':', grid={'row':i, 'column':2}, width=7) for i in (0, 1)]
+
+frames = map(Frame, [panel]*2); x_interp, y_interp = map(TkVar, ['const']*2)
+x_interp.trace('w', replot)
+y_interp.trace('w', replot)
+for f in frames: f.pack(side=TOP, anchor=W) 
+for i in (0,1):
+    Label(frames[i], text='XY'[i]+' interp:').pack(side=LEFT)
+    OptionMenu(frames[i], (x_interp, y_interp)[i], *'const linear cubic betas'.split()).pack(side=LEFT)
+x_periodic, y_periodic = [aiwCheck(frames[i], 'periodic', command=replot, pack={'side':'top'}) for i in (0,1)]
+x_logscale, y_logscale = [aiwCheck(frames[i], 'logscale', command=replot, pack={'side':'bottom'}) for i in (0,1)]
+
+def replot_x_axe(*args):
+    if x_axe.get()==y_axe.get(): y_axe.set('X' if x_axe.get()=='Y' else 'Y')
+    else: replot()
+def replot_y_axe(*args):
+    if x_axe.get()==y_axe.get(): x_axe.set('X' if y_axe.get()=='Y' else 'Y')
+    else: replot()
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+x_axe, y_axe = map(TkVar, 'XY'); x_axe.trace('w', replot_x_axe); y_axe.trace('w', replot_y_axe)
+for i in (0,1): Label(frame, text='XY'[i]+' axe:').pack(side=LEFT); OptionMenu(frame, (x_axe, y_axe)[i], *'XYZ').pack(side=LEFT)
+slice_pos = aiwScale(panel, 'slice position', command=replot, length=panel_sz, showvalue=YES,
+                     orient='horizontal', to=0, relief=RAISED, pack={'side':TOP, 'anchor':W}) 
+
+#frame.forget()
+#-------------------------------------------------------------------------------
+# add <- ->, as tkWidget class
+if len(sys.argv)==1: print __doc__; sys.exit()
+#def load_arrays(f): print 'load %r'%f; return File(f, 'r'), read_stream(f)
+def load_arrays(f):
+    print 'load %r ...'%f,; sys.stdout.flush()
+    fin, L = File(f, 'r'), []
+    while 1:
+        msh2, msh3, sph = MeshF2(), MeshF3(), SphereF()
+        if msh2.load(fin, 0, False): L.append(msh2)
+        elif msh3.load(fin, 0, False): L.append(msh3)
+        elif sph.load(fin, 0, False): L.append(sph)
+        else:
+            print '%s frames [OK]'%len(L) if L else '[\033[31mFAILED\033[0m]'
+            return (f, L) if L else None
+data, converts = filter(None, map(load_arrays, sys.argv[1:])), []
+if not data: print 'not correct files'; sys.exit()
+fr_num, file_num = [aiwScale(panel, ('frame', 'file')[i]+' number', command=replot, length=panel_sz, showvalue=YES,
+                             orient='horizontal', relief=RAISED, to=(len(data[0][1])-1, len(data)-1)[i], pack={'side':TOP, 'anchor':W}) for i in (0,1)]
+#-------------------------------------------------------------------------------
+#   view conf
+#-------------------------------------------------------------------------------
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+font = aiwEntry(frame, 'FreeMono 14', replot, 'font', width=22, pack={'side':LEFT})
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+tic_len, tic_width, border, pal_xsz = [aiwEntry(frame, v, replot, label=l, width=w, pack={'side':LEFT}) for v, l, w in
+                                       [(10, 'tic sz', 2), (1, '', 1), (1, '   border', 1), (30, '   pal.sz', 2)]]
+
+x_label, y_label, z_label = [aiwEntry(panel, '', replot, label='XYZ'[i]+' label', width=20, pack={'anchor':'e'}) for i in (0,1,2)]
+title = aiwEntry(panel, '', replot, label='title', width=22, pack={'anchor':'e'})
+# def get_x_label ...
+#-------------------------------------------------------------------------------
+frame = Frame(panel); frame.pack(side=BOTTOM, anchor=W) 
+Button(frame, text='save', command=canvas.save_image).pack(side=LEFT)
+#-------------------------------------------------------------------------------
+def replot_frame(csz=None):
+    for f in f_min, f_max: f.state(1+f_autoscale.get())
+    for f in x_crop_min, x_crop_max, y_crop_min, y_crop_max: f.state(2-crop_axes.get())
+    
+    max_fr_num = len(data[file_num.get()][1])-1
+    fr_num.config(to=max_fr_num)
+    if fr_num.get()>=max_fr_num: fr_num.set(max_fr_num)
+    fin, mshL = data[file_num.get()]
+    #wroot.title('uplt: %r[%i]'%(fin.name, fr_num))
+    #msh = mshL[fr_num.get()].load(fin); rz = msh.min_max()
+    wroot.title('uplt: %r[%i]'%(fin, fr_num))
+    msh = msh0 = mshL[fr_num.get()]; # converts
+    if msh0.dim==2:
+        slice_pos.config(to=0)
+        if x_axe.get()=='Y' and y_axe.get()=='X': msh0 = msh = msh0.transpose(0, 1)
+    elif msh0.dim==3:
+        spos, slet = ind(-1,-1,-1), x_axe.get()+y_axe.get(); saxe = 'X' in slet
+        if saxe: saxe = 1+('Y' in slet)
+        slice_pos.config(to=msh0.bbox()[saxe]-1); spos[saxe] = slice_pos.get()
+        msh0 = msh = msh0.slice2(spos)
+        
+    if crop_axes.get(): msh = msh.crop(ind(x_crop_min,y_crop_min), ind(x_crop_max,y_crop_max), ind(x_crop_step,y_crop_step))
+    else: x_crop_min.set(0); y_crop_min.set(0); x_crop_max.set(msh.bbox()[0]); y_crop_max.set(msh.bbox()[1])
+    rz = msh.min_max()
+    if f_autoscale.get():
+        if f_invert.get(): rz = -rz[1], -rz[0]
+        if f_modulus.get(): rz = map(abs, rz)
+        f_min.set(rz[0]); f_max.set(rz[1])
+    if f_logscale.get() and f_min.get()<=0.: f_min.set(1e-16)
+    color, color2 = CalcColor(), CalcColor()
+    for  p in 'logscale modulus invert'.split():
+        setattr(color, p, eval('f_'+p).get()); setattr(color2, p, eval('f_'+p).get()) 
+    color.init(Plot2D.paletters[f_pal.get()], rz[0], rz[1])
+    color2.init(Plot2D.paletters[f_pal.get()], f_min.get(), f_max.get())
+    
+    msh0.bound_min = msh0.bound_max = msh.bound_min = msh.bound_max = ind(3,3)
+    msh0.Itype[0] = msh.Itype[0] = (x_interp.get()!='const')|(y_interp.get()!='const')*2
+    msh0.Itype[1] = msh.Itype[1] = (x_interp.get() in ['cubic', 'betas'])|(y_interp.get() in ['cubic', 'betas'])*2
+    msh0.Itype[2] = msh.Itype[2] = (x_interp.get()=='betas')|(y_interp.get()=='betas')*2
+    if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
+    if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
+    
+    if(edit_axes.get()):
+        msh.set_axes(vec(x_min.get(), y_min.get()), vec(x_max.get(), y_max.get()), x_logscale.get()|2*y_logscale.get())
+    else:
+        x_min.set(msh.bmin[0]); x_max.set(msh.bmax[0]); x_logscale.set(msh.logscale&1)
+        y_min.set(msh.bmin[1]); y_max.set(msh.bmax[1]); y_logscale.set(msh.logscale&2)
+    x_step.set(msh.step[0]); y_step.set(msh.step[1])
+
+    preview.delete('all')
+    preview.add_pict('test', (0,0), (panel_sz, panel_sz), msh0, color, 1)
+    preview.create_text(3,3, text='Y', fill='grey', anchor=NW)
+    preview.create_text(panel_sz-3,panel_sz-3, text='X', fill='grey', anchor=SE)
+    preview.create_text(3,panel_sz-3, text='(%g,%g)'%tuple(msh.bmin), fill='grey', anchor=SW)
+    preview.create_text(panel_sz-3,3, text='(%g,%g)'%tuple(msh.bmax), fill='grey', anchor=NE)
+    if msh.logscale&1: preview.create_text(panel_sz/2,panel_sz-3, text='logscale', fill='grey', anchor=S)
+    if msh.logscale&2: preview.create_text(3,panel_sz/2, text='logscale', fill='grey', anchor=W)
+    preview.create_rectangle((x_crop_min.get()*panel_sz/msh0.bbox()[0], (msh0.bbox()[1]-y_crop_min.get())*panel_sz/msh0.bbox()[1]),
+                             (x_crop_max.get()*panel_sz/msh0.bbox()[0], (msh0.bbox()[1]-y_crop_max.get())*panel_sz/msh0.bbox()[1]),  outline='gray', tag='select')
+    
+    tfont = font.get().split(); tfont[1] = int(tfont[1])
+    sz, pw, th, xh = csz if csz else canvas.wsize(), pal_xsz.get(), 2*tfont[1], 2*tfont[1]+5
+    canvas.delete('all')
+
+    pw = int(canvas.plot_pal(tag='pal', palname=f_pal.get(), orient=1, xyN=(sz[0], th, sz[1]-th-xh), side=1, pal_sz=pal_xsz.get(),
+                             limits=(f_min.get(), f_max.get()), logscale=f_logscale.get(), font=tfont,
+                             tic_sz=(tic_len.get(), tic_width.get()), border=border.get())*1.1)
+    pw = max(pw, len(x_label.get())*tfont[1])
+    yw = canvas.add_tics(tag='Y', orient=1, xyN=(0,th, sz[1]-th-xh), side=0, limits=(msh.bmin[1], msh.bmax[1]),
+                         logscale=y_logscale.get(), font=tfont, tic_sz=(tic_len.get(), tic_width.get()))
+
+    canvas.add_tics(tag='X', orient=0, xyN=(yw, sz[1]-xh, sz[0]-yw-pw), side=0, limits=(msh.bmin[0], msh.bmax[0]),
+                    logscale=x_logscale.get(), font=tfont, tic_sz=(tic_len.get(), tic_width.get()))
+    canvas.add_pict('img', (yw,th),  (sz[0]-pw,sz[1]-xh), msh, color2, border=border.get())
+    canvas._XY0, canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
+    
+    canvas.create_text((yw+sz[0]-pw)/2, th, text=title.get(), anchor='s', font=tfont)
+    canvas.create_text(sz[0], sz[1], text=x_label.get(), anchor='se', font=tfont)
+    canvas.create_text(0, th, text=y_label.get(), anchor='sw', font=tfont)
+    canvas.create_text(sz[0], th, text=z_label.get(), anchor='se', font=tfont)
+
+    canvas.mouse_clear(); preview.mouse_clear()
+    preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)
+    canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
+    canvas.mouse_select((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
+    #canvas.mouse_left((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), pal_left)
+#-------------------------------------------------------------------------------
+def move_select(self, x, y): self.delete('select'); self.create_rectangle(self._left_press, (x,y), outline='gray', tag='select')
+def final_select_image(self, x, y):
+    self.delete('select')
+    if [x,y]==self._left_press: crop_axes.set(0); replot(); return    
+    old0 = [x_crop_min.get(), y_crop_min.get()]; bbox = [x_crop_max.get()-old0[0], y_crop_max.get()-old0[1]]
+    sel0, sel1 = self.sel_xy2coord(*self._left_press), self.sel_xy2coord(x, y) 
+    if sel0[0]>sel1[0]: sel0[0], sel1[0] = sel1[0], sel0[0]
+    if sel0[1]>sel1[1]: sel0[1], sel1[1] = sel1[1], sel0[1]
+    x_crop_min.set(old0[0]+int(sel0[0]*bbox[0])); x_crop_max.set(old0[0]+int(sel1[0]*bbox[0])+1)
+    y_crop_min.set(old0[1]+int(sel0[1]*bbox[1])); y_crop_max.set(old0[1]+int(sel1[1]*bbox[1])+1)
+    crop_axes.set(1); replot()
+def final_select_preview(self, x, y):
+    self.delete('select')
+    if [x,y]==self._left_press: crop_axes.set(0); replot(); return
+    bbox = data[file_num.get()][1][fr_num.get()].bbox()
+    sel0, sel1 = self.sel_xy2coord(*self._left_press), self.sel_xy2coord(x, y) 
+    if sel0[0]>sel1[0]: sel0[0], sel1[0] = sel1[0], sel0[0]
+    if sel0[1]>sel1[1]: sel0[1], sel1[1] = sel1[1], sel0[1]
+    x_crop_min.set(int(sel0[0]*bbox[0])); x_crop_max.set(int(sel1[0]*bbox[0])+1)
+    y_crop_min.set(int(sel0[1]*bbox[1])); y_crop_max.set(int(sel1[1]*bbox[1])+1)
+    crop_axes.set(1); replot()
+#def preview_left(self, x, y): crop_axes.set(0); replot()
+def final_select_pal(self, x, y):
+    self.delete('select')
+    A, B = [self.picts['pal'][i][1] for i in (0,1)]
+    a, b, V = self._left_press[1], y, (f_min.get(), f_max.get())
+    if a==b: f_autoscale.set(1); replot(); return
+    a, b = [V[0]**(1+(log(V[1])/log(V[0])-1)*(B-x)/(B-A)) if f_logscale.get() else V[0]+(V[1]-V[0])*(B-x)/(B-A) for x in a, b]
+    if a>b: a, b = b, a
+    f_autoscale.set(0); f_min.set(a); f_max.set(b); replot()
+#def pal_left(self, x, y): f_autoscale.set(1); replot(); print 'pal left'
+#-------------------------------------------------------------------------------
+wroot.title('uplt')
+canvas.bind('<Configure>', lambda e: replot_frame((e.width, e.height)))
+wroot.mainloop()
+#-------------------------------------------------------------------------------

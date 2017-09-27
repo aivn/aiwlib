@@ -13,6 +13,7 @@
 #include "vec"
 #include "iostream"
 #include "binaryio"
+#include "gauss"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -138,12 +139,16 @@ namespace aiw{
 		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[sph_cellInd(r, R)]; }
 		inline const T& operator [] (size_t i) const { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
 		inline       T& operator [] (size_t i)       { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
+		inline const T& operator [] (const aiw::Vec<2> &r) const { return (*this)[polar(r[0], r[1])]; } // phi, theta
+		inline       T& operator [] (const aiw::Vec<2> &r)       { return (*this)[polar(r[0], r[1])]; } // phi, theta
 #endif //SWIG
 
 		T&   __getitem__(const aiw::Vec<3> &r){ return (*this)[r]; }
 		void __setitem__(const aiw::Vec<3> &r, const T &val ){ (*this)[r] = val; }
 		T&   __getitem__(size_t I){ return (*this)[I]; }
 		void __setitem__(size_t I, const T &val){ (*this)[I] = val; }
+		T&   __getitem__(const aiw::Vec<2> &r){ return (*this)[r]; }
+		void __setitem__(const aiw::Vec<2> &r, const T &val ){ (*this)[r] = val; }
 
 		std::string __getstate__() const { 
 			std::stringstream buf;
@@ -163,27 +168,34 @@ namespace aiw{
 			S<head<int(0)<int(sizeof(T))<R;
 			S.write(this->ptr, sizeof(T)*sz);
 		}
-		void load(aiw::IOstream &&S, int use_mmap=0){ // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int D, szT; size_t s = S.tell(); S>h>D>szT;
 			if(D!=0 || szT!=sizeof(T)){ 
 				S.seek(s); 
-				WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h); 
+				if(raise_on_error) WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h);
+				return false;
 			}
 			head = h; S>R; sz = sph_cells_num(R);
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
 			else{ mem.reset(new MemAlloc<T>(sz)); ptr = (T*)(mem->get_addr());  S.read(ptr, sizeof(T)*sz); }
+			return true;
 		}
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
-		void load(aiw::IOstream &S, int use_mmap=0){ load(std::move(S), use_mmap); } // 0 - not use, 1 - readonly, 2 - rw
+		void load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ load(std::move(S), use_mmap, raise_on_error); } // 0 - not use, 1 - readonly, 2 - rw
 
-		void min_max(T &a, T &b, size_t &pos_a, size_t &pos_b) const {
-			if(sz){ pos_a = pos_b = 0; a = b = ptr[0]; } else pos_a = pos_b = -1;
-			for(size_t i=1; i<sz; ++i){
-				if(a>ptr[i]){ a = ptr[i]; pos_a = i; }
-				if(b<ptr[i]){ b = ptr[i]; pos_b = i; }
+		bool min_max(T &a, T &b, size_t &pos_a, size_t &pos_b) const {
+			bool is_ok = false;
+			for(size_t i=0; i<sz; ++i){
+				if(is_bad_value(ptr[i])) continue;
+				if(!is_ok || a>ptr[i]){ a = ptr[i]; pos_a = i; }
+				if(!is_ok || b<ptr[i]){ b = ptr[i]; pos_b = i; }
+				is_ok = true;
 			}
+			return is_ok;
 		}
+		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; size_t pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
+
 		void fill(const T &x){ for(size_t i=0; i<sz; ++i) ptr[i] = x; }
 		// template <typename T2> void fill(const Sphere<T2> &sph);
 		// void fill(const Sphere &sph);

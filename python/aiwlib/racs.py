@@ -230,8 +230,10 @@ while i<len(calc._cl_args):
                     break
             else: raise Exception('incorrect sequence expression '+A)
         calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
+        calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
     elif mixt.is_name_eq(A): 
         k, v = A.split('=', 1)
+        if k in calc._arg_seqs: del calc._arg_seqs[k]; calc._arg_order.remove(k)
         if v.startswith('@'): v = eval(v[1:], math.__dict__, dict(calc._args_from_racs))
         calc._args_from_racs.append((k, v)); del calc._cl_args[i]
     elif A.startswith('-') and A!='-':

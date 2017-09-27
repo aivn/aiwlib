@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include <list>
 #include <wait.h>
 #include <utime.h>
 #include <ctime>
@@ -83,6 +84,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 	bool clean_path = true, use_mpi = false, schecker=true;
 	int copies = 1;
 	std::map<std::string, std::vector<double> > qparams;
+	std::list<std::string> qparams_order;
 	for(int i=0; i<argc; i++) args.push_back(argv[i]);
 	for(int i=1; i<argc; i++){
 		std::string a = argv[i];
@@ -97,7 +99,8 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		if(eq_pos<a.size()){
 			std::string key = a.substr(0, eq_pos), val = a.substr(eq_pos+1, a.size());
 			if(val.front()=='[' and val.back()==']'){ // подготовка очереди
-				std::vector<double> &L = qparams[key];
+				std::vector<double> &L = qparams[key]; qparams_order.push_back(key);
+				if(arg_params.find(key)!=arg_params.end()) arg_params.erase(key);
 				std::stringstream buf(val.substr(1, val.size()-2));
 				size_t dd = val.find("..");
 				if(dd<val.size()){
@@ -109,7 +112,11 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
                     if(t=='^'){ double d = exp(log(c/a)/(b-1)); for(int j=0; j<int(b); j++){ L.push_back(a); a *= d; } }
 					if(L.empty()) WRAISE("incorrect step or limits in expression: ", a, key, val, a, b, c, t);
 				} else do { double x; buf>>x; L.push_back(x); } while(buf.get()==','); //???
-			} else arg_params[key] = val;
+			} else{
+				arg_params[key] = val;
+				if(qparams.find(key)!=qparams.end()) qparams.erase(key);
+				auto I=qparams_order.begin(); while(I!=qparams_order.end()) if(*I==key) qparams_order.erase(I++); else ++I;
+			}
 		}
 	}
 	if(qparams.empty()){ // нет пакетного запуска
@@ -119,7 +126,11 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		std::vector<std::string> qkeys(qparams.size());          // имена праметров
 		std::vector<std::vector<double> > qgrid(qparams.size()); // сетка значений параметров
 		int len_queue=1, n_start=0, n_finish=0; 
-		{ int i=0; for(auto I=qparams.begin(); I!=qparams.end(); ++I){ len_queue *= I->second.size(); qkeys[i] = I->first; qgrid[i++].swap(I->second); } }
+		{ int i=0; for(auto K=qparams_order.begin(); K!=qparams_order.end(); ++K){
+				auto I = qparams.find(*K); len_queue *= I->second.size();
+				qkeys[i] = I->first; qgrid[i++].swap(I->second);
+			}
+		}
 		std::vector<int> qpos(qparams.size(), 0);  // позиция в сетке значений для пакетного запуска
 		if(use_mpi){
 			MPI_Init(&argc, (char***)&argv);

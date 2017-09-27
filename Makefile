@@ -10,7 +10,8 @@ BIN_LIST=racs approx isolines
 include include/aiwlib/config.mk
 
 #-------------------------------------------------------------------------------
-all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt mplt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+#all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt mplt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
 iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------

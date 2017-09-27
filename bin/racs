@@ -92,7 +92,7 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
 from aiwlib.mixt import *
 
 if len(sys.argv)==2 and sys.argv[1]=='-q':
-    for f in ['/tmp/'+i for i in os.listdir('/tmp') if i.startswith('racs-started-') and i[-4:]!='.log']:
+    for f in sum([[d+i for i in os.listdir(d) if i.startswith('racs-started-') and i[-4:]!='.log'] for d in ('/tmp/', './')], []):
         print ''
         PID, L, D, S, C, H = f.split('-')[-1], open(f).readlines(), {}, '', '', []; L[0] = L[0][:-1]+' PID=%s\n'%PID
         for l in L:

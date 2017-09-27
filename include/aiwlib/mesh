@@ -230,7 +230,7 @@ namespace aiw{
 					A.rstep[i] = exp(log(A.bmax[0]/A.bmin[0])/A.box[i]);
 				} else {
 					A.bmin[i] = bmin[i]+step[i]*a[i]; A.step[i] *= d[i]; 
-					A.bmax[i] = A.bmin[i]+A.step[i]*b[i]; A.rstep[i] /= d[i];
+					A.bmax[i] = A.bmin[i]+A.step[i]*A.box[i]; A.rstep[i] /= d[i];
 				}
 			}
 			A.mul = mul&d; A.ptr = (char*)ptr + mul*a;
@@ -239,16 +239,16 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//  Mesh scale(aiw::Ind<D> new_sz, bool antialiasing=false) const {}
 		//----------------------------------------------------------------------
-		template <class T2, int D2> Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
+		template <class T2, int D2> aiw::Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
 			if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 			int n = 0; Mesh<T2, D2> A;
 			for(int i=0; i<D; i++)
 				if(pos[i]==-1){  
 					if(n>=D2) WRAISE("too many -1 values in pos", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
-					A.set_axe(n, *this, i); n++;
+					A.set_axe(n, *this, i); pos[i] = 0; n++;
 				} else if(pos[i]<0 || box[i]<=pos[i])
 					WRAISE("pos out of range", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
-			if(n<D2) WRAISE("too small -1 values in pos", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+			if(n!=D2) WRAISE("too small -1 values in pos", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
 			return A;
 		}
@@ -296,13 +296,15 @@ namespace aiw{
 		}
 		//----------------------------------------------------------------------
 		bool min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
-			Ind<D> pos = first(); pos_a = pos_b = pos; bool is_ok = false;
-			do {
+			bool is_ok = false;
+			// Ind<D> pos = first(); bool is_ok = false;
+			// do {
+			for(Ind<D> pos; pos^=box; ++pos){
 				const T& x = (*this)[pos]; if(is_bad_value(x)) continue;
 				if(!is_ok || a>x){ a = x; pos_a = pos; }
 				if(!is_ok || b<x){ b = x; pos_b = pos; }
 				is_ok = true; 
-			} while(next(pos));
+			} // while(next(pos));
 			return is_ok;
 		}
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }

@@ -119,21 +119,26 @@ namespace aiw{
 		else for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, typename P> void plot2D(const aiw::Sphere<T>  &f, const CalcColor &color, P& image, double phi0=0.){ //, bool interp=false){
-		int x_max = image.size[0]/2, y_max = image.size[1]/2, x; 
-		double h = 1./y_max, hx = 2./x_max; double alpha = x_max*h;
-
-		for(int y=-y_max; y<y_max; y++){
-            for(x=-x_max; x<=-sqrt(y_max*y_max-y*y)*alpha; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
-			double Y = y*h, a1 = sqrt(1.-Y*Y), b1 = M_PI/(2.*a1), z1 = 2*(asin(Y)+Y*a1)/M_PI, c1 = sqrt(1-z1*z1);  
-			for(; x<sqrt(y_max*y_max-y*y)*alpha; x++){
-				double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
-				Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
-				// image.set_pixel(ind(x_max+x, y_max+y), color(interp? f(coord): f[coord]));
-				image.set_pixel(ind(x_max+x, y_max+y), color(f[coord]));
+	template <typename T, typename P> void plot2D(const aiw::Sphere<T>  &f, const CalcColor &color, P& image, bool mollweide=true, double phi0=0.){ 
+		if(mollweide){
+			int x_max = image.size[0]/2, y_max = image.size[1]/2, x; 
+			double h = 1./y_max, hx = 2./x_max; double alpha = x_max*h;
+			
+			for(int y=-y_max; y<y_max; y++){
+				for(x=-x_max; x<=-sqrt(y_max*y_max-y*y)*alpha; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
+				double Y = y*h, a1 = sqrt(1.-Y*Y), b1 = M_PI/(2.*a1), z1 = 2*(asin(Y)+Y*a1)/M_PI, c1 = sqrt(1-z1*z1);  
+				for(; x<sqrt(y_max*y_max-y*y)*alpha; x++){
+					double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
+					Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
+					// image.set_pixel(ind(x_max+x, y_max+y), color(interp? f(coord): f[coord]));
+					image.set_pixel(ind(x_max+x, y_max+y), color(f[coord]));
+				}
+				for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 			}
-            for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
-		}	
+		} else {
+			Vec<2> step = vec(2*M_PI, M_PI)/image.size; Vec<2> bmin = vec(-M_PI, 0) + .5*step;
+			for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f[bmin+(pos&step)]));
+		}
 	}
 	//--------------------------------------------------------------------------
 };
