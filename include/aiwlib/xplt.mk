@@ -1,6 +1,6 @@
 GL_LINKOPT=-lglut -lGL -lGLU -lGLEW
-$(VIEWERS):%:  $(shell echo python/aiwlib/{_%.so,%.py}) $(shell echo AbstractViewer/{_viewer.so,viewer.py}) iostream swig AV;
-AbstractViewer/%: AV
+$(VIEWERS):%: AV  $(shell echo python/aiwlib/{_%.so,%.py}) $(shell echo AbstractViewer/{_viewer.so,viewer.py}) iostream swig;
+AbstractViewer/%.o: AV
 AV:
 	$(MAKE) -C AbstractViewer
 define swig_template=
