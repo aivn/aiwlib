@@ -131,13 +131,13 @@ namespace aiw{
 					double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
 					Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
 					// image.set_pixel(ind(x_max+x, y_max+y), color(interp? f(coord): f[coord]));
-					image.set_pixel(ind(x_max+x, y_max+y), color(f[coord]));
+					image.set_pixel(ind(x_max+x, y_max+y), color(f(coord)));
 				}
 				for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 			}
 		} else {
 			Vec<2> step = vec(2*M_PI, M_PI)/image.size; Vec<2> bmin = vec(-M_PI, 0) + .5*step;
-			for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f[bmin+(pos&step)]));
+			for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
 		}
 	}
 	//--------------------------------------------------------------------------

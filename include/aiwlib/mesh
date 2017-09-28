@@ -170,6 +170,9 @@ namespace aiw{
 			return interpolate(*this, pos, x, Itype);
 		}
 		//----------------------------------------------------------------------
+		inline aiw::Ind<D> first() const { return Ind<D>(); }
+		inline bool next(aiw::Ind<D> &pos) const { ++pos; return pos^=box; }
+		/*
 		inline aiw::Ind<D> inbox(size_t offset) const {
 			Ind<D> pos;
 			for(int i=0; i<D; i++){
@@ -178,7 +181,7 @@ namespace aiw{
 				offset /= box[a];
 			}
 			return pos;
-		}
+			}
 		inline aiw::Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
 		inline bool next(aiw::Ind<D> &pos) const {
 			for(int i=0; i<D; i++){
@@ -192,7 +195,7 @@ namespace aiw{
 				}
 			}				
 			return false;
-		}
+			}*/
 		//----------------------------------------------------------------------
 		Mesh copy() const { Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
 		Mesh flip(int a, bool axe=true) const {
@@ -223,6 +226,7 @@ namespace aiw{
 			Mesh A(*this); 
 			for(int i=0; i<D; i++){
 				if(a[i]<0){ a[i] += box[i]; } if(b[i]<=0){ b[i] += box[i]; }
+				WASSERT(0<=a[i] && a[i]<box[i] && 0<=b[i] && b[i]<box[i] && a[i]<b[i], "oops...", i, a, b, box);
 				A.box[i] = (b[i]-a[i]-1)/d[i]+1;
 				if(logscale&1<<i){ 
 					A.bmin[i] = bmin[i]*pow(step[i], a[i]); A.step[i] = pow(step[i], d[i]); 
@@ -296,15 +300,13 @@ namespace aiw{
 		}
 		//----------------------------------------------------------------------
 		bool min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
-			bool is_ok = false;
-			// Ind<D> pos = first(); bool is_ok = false;
-			// do {
-			for(Ind<D> pos; pos^=box; ++pos){
+			Ind<D> pos = first(); bool is_ok = false;
+			do {
 				const T& x = (*this)[pos]; if(is_bad_value(x)) continue;
 				if(!is_ok || a>x){ a = x; pos_a = pos; }
 				if(!is_ok || b<x){ b = x; pos_b = pos; }
 				is_ok = true; 
-			} // while(next(pos));
+			} while(next(pos));
 			return is_ok;
 		}
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }

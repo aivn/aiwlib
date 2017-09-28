@@ -3,7 +3,7 @@
 #define AIW_SPHERE_HPP
 
 /**
- * Copyright (C) 2016 Antov V. Ivanov <aiv.racs@gmail.com> and Sergey Khilkov <ezz666@gmail.com> 
+ * Copyright (C) 2016, 2017 Antov V. Ivanov <aiv.racs@gmail.com> and Sergey Khilkov <ezz666@gmail.com> 
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -16,6 +16,8 @@
 #include "gauss"
 
 namespace aiw{
+	//--------------------------------------------------------------------------
+	Vec<3> barecentr(const Vec<3> &n, const Vec<3> tr[3]);
 	//--------------------------------------------------------------------------
 	//   инициализация
 	//--------------------------------------------------------------------------
@@ -133,14 +135,14 @@ namespace aiw{
 		}
 		Sphere(int R_=-1): ptr(nullptr), R(-1), sz(0){ init(R_); }
 		Sphere copy() const { Sphere res(R); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
-
+		
 #ifndef SWIG
 		inline const T& operator [] (const aiw::Vec<3> &r) const { return ptr[sph_cellInd(r, R)]; }
 		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[sph_cellInd(r, R)]; }
 		inline const T& operator [] (size_t i) const { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
 		inline       T& operator [] (size_t i)       { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
-		inline const T& operator [] (const aiw::Vec<2> &r) const { return (*this)[polar(r[0], r[1])]; } // phi, theta
-		inline       T& operator [] (const aiw::Vec<2> &r)       { return (*this)[polar(r[0], r[1])]; } // phi, theta
+		inline const T& operator [] (const aiw::Vec<2> &r) const { return (*this)[polar(r[1], r[0])]; } // phi, theta
+		inline       T& operator [] (const aiw::Vec<2> &r)       { return (*this)[polar(r[1], r[0])]; } // phi, theta
 #endif //SWIG
 
 		T&   __getitem__(const aiw::Vec<3> &r){ return (*this)[r]; }
@@ -150,6 +152,20 @@ namespace aiw{
 		T&   __getitem__(const aiw::Vec<2> &r){ return (*this)[r]; }
 		void __setitem__(const aiw::Vec<2> &r, const T &val ){ (*this)[r] = val; }
 
+		bool interp=false;
+		T operator()(const aiw::Vec<3> &r) const {
+			if(!interp) return (*this)[r];
+			size_t cid = sph_cellInd(r, R); Vec<3, T> v; Vec<3> n[3];
+			const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R);
+			for(int i=0; i<3; i++){
+				n[i] = sph_vert(vid[i], R); // вершина (узел) сетки
+				const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
+				v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
+			}
+			return v*barecentr(r, n);
+		}
+		T operator()(const aiw::Vec<2> &r) const { return (*this)(polar(r[1], r[0])); }
+		
 		std::string __getstate__() const { 
 			std::stringstream buf;
 			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
@@ -169,7 +185,7 @@ namespace aiw{
 			S.write(this->ptr, sizeof(T)*sz);
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // 0 - not use, 1 - readonly, 2 - rw
-			std::string h; int D, szT; size_t s = S.tell(); S>h>D>szT;
+			std::string h; int D=-1, szT=-1; size_t s = S.tell(); S>h>D>szT;
 			if(D!=0 || szT!=sizeof(T)){ 
 				S.seek(s); 
 				if(raise_on_error) WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h);
@@ -177,12 +193,12 @@ namespace aiw{
 			}
 			head = h; S>R; sz = sph_cells_num(R);
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
-			else{ mem.reset(new MemAlloc<T>(sz)); ptr = (T*)(mem->get_addr());  S.read(ptr, sizeof(T)*sz); }
+			else{ mem.reset(new MemAlloc<T>(sz)); ptr = (T*)(mem->get_addr()); S.read(ptr, sizeof(T)*sz); }
 			return true;
 		}
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
-		void load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ load(std::move(S), use_mmap, raise_on_error); } // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); } // 0 - not use, 1 - readonly, 2 - rw
 
 		bool min_max(T &a, T &b, size_t &pos_a, size_t &pos_b) const {
 			bool is_ok = false;

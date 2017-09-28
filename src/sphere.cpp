@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2016 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 #define INIT_ARR_ZERO  {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}
@@ -18,6 +18,12 @@ static Vec<3>* vertex = nullptr;           // координаты вершин
 static Ind3* cell_neighbours[MAX_RANK] = INIT_ARR_ZERO;  // индексы соседних ячеек (для ячейки)
 static Ind6* vertex_cells[MAX_RANK] = INIT_ARR_ZERO;     // индексы ячеек (для вершины)
 static Vec<3>* normals[MAX_RANK] = INIT_ARR_ZERO;          // нормали (хранятся тройками?)
+//------------------------------------------------------------------------------
+Vec<3> aiw::barecentr(const Vec<3> &n, const Vec<3> tr[3]){
+    Vec<3> l;
+    for (int i=0; i<3; i++) l[i] = (n%tr[(i+1)%3])*tr[(i+2)%3];
+    return l/(l[0]+l[1]+l[2]);
+}
 //------------------------------------------------------------------------------
 template<int N,typename T> inline Vec<N,T> shift( const Vec<N,T>& r, int i ) {
 	Vec<N,T> result;
