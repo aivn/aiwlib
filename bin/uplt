@@ -5,7 +5,7 @@
 Copyright (C) 2017  Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
-import os, sys, PIL.Image, PIL.ImageTk, tkSimpleDialog
+import os, sys, math, PIL.Image, PIL.ImageTk, tkSimpleDialog
 from aiwlib.tkWidgets import *
 from aiwlib.iostream import *
 #from aiwlib.binheads import *
@@ -13,6 +13,7 @@ from aiwlib.iostream import *
 from aiwlib.MeshF2 import *
 from aiwlib.MeshF3 import *
 from aiwlib.SphereF import *
+from aiwlib.SphereD import *
 from aiwlib.plot2D import *
 
 
@@ -30,6 +31,20 @@ wroot.columnconfigure(1, weight=1)
 wroot.rowconfigure(0, weight=1)
 #def hline(): Label(panel, text='-'*53).pack(side=TOP, anchor=W)
 #v_pals, v_axes, v_slices = map(TkVar, (1,1,1))
+#-------------------------------------------------------------------------------
+#  save and animate
+#-------------------------------------------------------------------------------
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+Button(frame, text='save', command=canvas.save_image).pack(side=LEFT)
+animate_save, animate_type = aiwCheck(frame, 'animate', False, pack={'side':LEFT}), TkVar('frame')
+OptionMenu(frame, animate_type, 'frame', 'slice', 'file').pack(side=RIGHT)
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W) 
+#def animate_run(*args):
+#    #sc = (fr_num if animate_type.get()=='frame' else file_num if animate_type.get()=='file' else slice_pos)
+#    #if sc.get()<(min(sc.cget('to'), animate_max.get()) if animate_max.get() else sc.cget('to')): wroot.after_idle(replot)
+animate, animate_counter = aiwCheck(frame, 'run animate', False, command=replot, pack={'side':LEFT}), 0
+animate_min, animate_step, animate_max = [aiwEntry(frame, (0,1,0)[i], pack={'side':LEFT}, width=[4,3,5][i]) for i in (0,1,2)]
 #-------------------------------------------------------------------------------
 #  function
 #-------------------------------------------------------------------------------
@@ -98,12 +113,15 @@ def load_arrays(f):
     print 'load %r ...'%f,; sys.stdout.flush()
     fin, L = File(f, 'r'), []
     while 1:
-        msh2, msh3, sph = MeshF2(), MeshF3(), SphereF()
+        msh2, msh3, sphF, sphD = MeshF2(), MeshF3(), SphereF(), SphereD()
         if msh2.load(fin, 0, False): L.append(msh2)
         elif msh3.load(fin, 0, False): L.append(msh3)
-        elif sph.load(fin, 0, False):
-            L.append(sph)
-            if sph_max_rank()<sph.rank(): sph_init_table(sph.rank())
+        elif sphF.load(fin, 0, False):
+            L.append(sphF)
+            if sph_max_rank()<sphF.rank(): sph_init_table(sphF.rank())
+        elif sphD.load(fin, 0, False):
+            L.append(sphD)
+            if sph_max_rank()<sphD.rank(): sph_init_table(sphD.rank())
         else:
             print '%s frames [OK]'%len(L) if L else '[\033[31mFAILED\033[0m]'
             return (f, L) if L else None
@@ -125,9 +143,9 @@ x_label, y_label, z_label = [aiwEntry(panel, '', replot, label='XYZ'[i]+' label'
 title = aiwEntry(panel, '', replot, label='title', width=22, pack={'anchor':'e'})
 # def get_x_label ...
 #-------------------------------------------------------------------------------
-frame = Frame(panel); frame.pack(side=BOTTOM, anchor=W) 
-Button(frame, text='save', command=canvas.save_image).pack(side=LEFT)
-#-------------------------------------------------------------------------------
+class NameSpace:
+    def __init__(self, **kw_args): self.__dict__.update(kw_args)
+    def __getitem__(self, key): return eval(key, math.__dict__, self.__dict__)
 def replot_frame(csz=None):
     for f in f_min, f_max: f.state(1+f_autoscale.get())
     for f in x_crop_min, x_crop_max, y_crop_min, y_crop_max: f.state(2-crop_axes.get())
@@ -140,7 +158,7 @@ def replot_frame(csz=None):
     #msh = mshL[fr_num.get()].load(fin); rz = msh.min_max()
     wroot.title('uplt: %r[%i]'%(fin, fr_num))
     msh = msh0 = mshL[fr_num.get()]; sph = False # converts
-    if msh.__class__ is SphereF: sph, msh.bmin, msh.bmax, msh.interp = True, [-180., 0.], [180., 180.], sph_interp.get()
+    if msh.__class__ in (SphereF, SphereD): sph, msh.bmin, msh.bmax, msh.interp = True, [-180., 0.], [180., 180.], sph_interp.get()
     elif msh0.dim==2:
         slice_pos.config(to=0)
         if x_axe.get()=='Y' and y_axe.get()=='X': msh0 = msh = msh0.transpose(0, 1)
@@ -209,11 +227,13 @@ def replot_frame(csz=None):
                     (lambda im: plot2D(msh, color2, im, mollweide.get(), phi0.get()*pi/180)) if sph else (lambda im: plot2D(msh, color2, im)),
                     border=border.get())
     canvas._XY0, canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
+
+    ns = NameSpace(slice=slice_pos.get(), X=x_axe.get(), Y=y_axe.get(), fname=fin, frame=fr_num.get())
     
-    canvas.create_text((yw+sz[0]-pw)/2, th, text=title.get(), anchor='s', font=tfont)
-    canvas.create_text(sz[0], sz[1], text=x_label.get(), anchor='se', font=tfont)
-    canvas.create_text(0, th, text=y_label.get(), anchor='sw', font=tfont)
-    canvas.create_text(sz[0], th, text=z_label.get(), anchor='se', font=tfont)
+    canvas.create_text((yw+sz[0]-pw)/2, th, text=title.get()%ns, anchor='s', font=tfont)
+    canvas.create_text(sz[0], sz[1], text=x_label.get()%ns, anchor='se', font=tfont)
+    canvas.create_text(0, th, text=y_label.get()%ns, anchor='sw', font=tfont)
+    canvas.create_text(sz[0], th, text=z_label.get()%ns, anchor='se', font=tfont)
 
     canvas.mouse_clear(); preview.mouse_clear()
     if not sph:
@@ -221,6 +241,25 @@ def replot_frame(csz=None):
         canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
         canvas.mouse_select((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
         #canvas.mouse_left((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), pal_left)
+
+    if animate.get():
+        global animate_counter
+        sc = (fr_num if animate_type.get()=='frame' else file_num if animate_type.get()=='file' else slice_pos)
+        if animate_save.get():
+            if not animate_counter: os.system('rm %s*'%tmpdir)
+            canvas.postscript(file=tmpdir+'%06i.ps'%animate_counter)
+            #os.system('convert %s/%06i.ps %s/%06i.png'%(tmpdir, animate_counter, tmpdir, animate_counter))
+            os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile=%s/%06i.png %s/%06i.ps'%(tmpdir, animate_counter, tmpdir, animate_counter))
+
+            animate_counter += 1
+        sc.set(sc.get()+animate_step.get())
+        if sc.get()<(min(sc.cget('to'), animate_max.get()) if animate_max.get() else sc.cget('to')): wroot.after_idle(replot)
+        else:
+            animate_counter = 0; animate.set(False); sc.set(animate_min.get())
+            if animate_save.get():
+                dstfile = asksaveasfilename(defaultextension='.avi', filetypes=['AVI {.avi}', 'MPEG {.mpeg}'])
+                if dstfile: os.system('ffmpeg -i %s/%%06d.png -q 1 -y '%tmpdir+dstfile)
+
 #-------------------------------------------------------------------------------
 def move_select(self, x, y): self.delete('select'); self.create_rectangle(self._left_press, (x,y), outline='gray', tag='select')
 def final_select_image(self, x, y):
@@ -256,5 +295,7 @@ def final_select_pal(self, x, y):
 #-------------------------------------------------------------------------------
 wroot.title('uplt')
 canvas.bind('<Configure>', lambda e: replot_frame((e.width, e.height)))
-wroot.mainloop()
+tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(tmpdir); print 'temporary path', tmpdir
+try: wroot.mainloop()
+finally: os.system('rm -rf '+tmpdir)
 #-------------------------------------------------------------------------------

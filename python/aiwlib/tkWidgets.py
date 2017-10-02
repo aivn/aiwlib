@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0'''
 from Tkinter import *
 from tkFileDialog import *
 from math import *
-import os, sys, PIL.Image, PIL.ImageTk, aiwlib.plot2D
+import os, sys, time, PIL.Image, PIL.ImageTk, aiwlib.plot2D
 from aiwlib.plot2D import *
 #-------------------------------------------------------------------------------
 TkVar = lambda x: {bool: BooleanVar, int: IntVar, str: StringVar, float: DoubleVar}[type(x)](value=x)
@@ -86,6 +86,7 @@ class aiwScale(VarWidget):
         for kv in filter(lambda i: type(i[1]) is dict, kw_args.items()): getattr(self.scale, kv[0])(**kv[1])
     def config(self, **kw_args): self.scale.config(**kw_args)
     def state(self, state): self.scale.config(state=['disabled', 'normal', 'readonly'][state])
+    def cget(self, *args, **kw_args): return self.scale.cget(*args, **kw_args)
 #-------------------------------------------------------------------------------
 class aiwEntry(VarWidget):
     'поле Entry и ассоциированная с ним переменная, опицонально метка слева'
@@ -206,12 +207,18 @@ class Plot2D(Canvas):
         self._add_tics(tag, orient, xyt0, xyt1, tics, stics, font, tic_sz)
         return max_tic_sz+tic_sz[0]+pal_sz
     def save_image(self, *args):
-        'запрашивает имя файла и сохраныет изображение в форматах .ps или .pdf'
-        fname = asksaveasfilename(defaultextension='.pdf', filetypes=['PDF {.pdf}', 'PostScript {.ps}'])
+        'запрашивает имя файла и сохраняет изображение в форматах .ps, .pdf или .png'
+        fname = asksaveasfilename(defaultextension='.pdf', filetypes=['PDF {.pdf}', 'PostScript {.ps}', 'PNG {.png}'])
         if not fname: return
-        psname = fname.rsplit('.', 1)[0]+'.ps'
-        self.postscript(file=psname)
-        if fname.endswith('.pdf'): os.system('epstopdf "%s" && rm "%s"'%(psname, psname))
+        tmp = '/tmp/%s'%os.getpid()        
+        if fname.endswith('.ps'): self.postscript(file=fname); return
+        self.postscript(file=tmp+'.ps')
+        if fname.endswith('.pdf'): os.system('epstopdf %s.ps && mv %s.pdf "%s"'%(tmp, tmp, fname))
+        elif fname.endswith('.png'):
+            #os.system('convert -alpha off -density 600 %s.ps %s.png && convert -geometry %sx%s %s.png "%s" && rm %s.png'%(
+            #    (tmp, tmp)+self.wsize()+(tmp, fname, tmp)))
+            os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s.ps'%(fname, tmp))
+        os.remove(tmp+'.ps')
     def mouse_move(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'move', action))
     def mouse_left(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'left', action))
     def mouse_right(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'right', action))

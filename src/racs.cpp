@@ -89,6 +89,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 	for(int i=1; i<argc; i++){
 		std::string a = argv[i];
 		if(a=="-h" || a=="--help"){ std::cout<<racs_help; exit(0); }
+		if(a.back()=='+'){ a.resize(a.size()-1); tags.push_back(a); continue; }
 		if(parse_opt(a, "-r=", repo) || parse_opt(a, "--repo=", repo) || parse_opt(a, "path=", path_) ||
 		   parse_opt(a, "-p", clean_path) || parse_opt(a, "--clean-path", clean_path) ||
 		   parse_opt(a, "-s", this->symlink) || parse_opt(a, "--symlink", this->symlink) ||
@@ -222,6 +223,7 @@ void aiw::RacsCalc::commit(){
 	Pickle P = pickle_dict();	
 	P("progress", progress)("runtime", pickle_class("aiwlib.chrono", "Time", false)<<runtime)("md5sum", md5sum);	
 	{ Pickle L = pickle_list(); for(auto I=args.begin(); I!=args.end(); ++I) L<<*I; P("args", L); }	
+	{ Pickle L = pickle_set();  for(auto I=tags.begin(); I!=tags.end(); ++I) L<<*I; P("tags", L); }	
 	{ Pickle L = pickle_list();
 		char hostname[256]; ::gethostname(hostname, 255);
 		for(auto I=statelist.begin(); I!=statelist.end(); ++I){

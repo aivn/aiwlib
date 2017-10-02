@@ -136,7 +136,7 @@ namespace aiw{
 				for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 			}
 		} else {
-			Vec<2> step = vec(2*M_PI, M_PI)/image.size; Vec<2> bmin = vec(-M_PI, 0) + .5*step;
+			Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(-M_PI, M_PI) + .5*step;
 			for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
 		}
 	}
