@@ -5,7 +5,7 @@ PYTHONDIR=/usr/lib/python2.7
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
-BIN_LIST=racs approx isolines gplt uplt splt mplt
+BIN_LIST=racs approx isolines gplt uplt splt mplt fplt
 
 include include/aiwlib/config.mk
 
