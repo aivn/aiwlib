@@ -18,6 +18,11 @@ $(foreach VIEW,$(VIEWERS),swig/$(VIEW).i):swig/%.i : include/aiwlib/xplt.mk
 	@echo '%include "../include/aiwlib/mesh"' >> $@
 	@echo '%{ #include "../include/aiwlib/sphere" %}' >> $@
 	@echo '%include "../include/aiwlib/sphere"' >> $@
+	@$(foreach i,$(filter Mesh%,$(aiwinst_$(shell basename $@ .i))), \
+	echo '%template($(word 1,$(subst -, ,$i))) aiw::Mesh<$(word 2,$(subst -, ,$i)),$(word 3,$(subst -, ,$i))>;' >> $@;)
+	@$(foreach i,$(filter Sphere%,$(aiwinst_$(shell basename $@ .i))), \
+	echo '%template($(word 1,$(subst -, ,$i))) aiw::Sphere<$(word 2,$(subst -, ,$i))>;' >> $@;)
+	@$(foreach i,$(aiwinst_$(shell basename $@ .i)), echo '%pythoncode %{$(word 1,$(subst -, ,$i)).__setstate__ = _setstate %}' >> $@;)
 	@echo "%{" >> $@
 	@for i in $(headers_$(shell basename $@ .i)) "include/aiwlib/$(shell basename $@ .i).hpp"; do echo "#include \"../$$i\"" >> $@; done
 	@echo "%}" >> $@	

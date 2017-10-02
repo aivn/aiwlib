@@ -97,6 +97,9 @@ headers_mplt = AbstractViewer/plottable.hpp include/aiwlib/mview_format.hpp
 objects_mplt = src/mview_format.o
 headers_fplt = AbstractViewer/plottable.hpp
 objects_fplt =
+aiwinst_splt =
+aiwinst_mplt =
+aiwinst_fplt = MeshF3-float-3
 include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets

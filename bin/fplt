@@ -1,0 +1,200 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+import sys
+from aiwlib.iostream import *
+from aiwlib.Volume import *
+import os.path
+path_to_AV = "../AbstractViewer"
+try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
+except: launcher_dir = os.path.dirname(sys.argv[0])
+sys.path.append( os.path.join(launcher_dir,path_to_AV) )
+
+fragment_shader = '''
+#version 330 core
+in float gl_ClipDistance[6];
+in vec3 pos;
+out vec4 FragColor;
+uniform mat4 MVP, Model;
+uniform vec3 vmin, vmax, rstep, minmaxmul;
+uniform vec2 viewport;
+uniform float scale,raystep,density,brightness, opacity;
+uniform ivec3 size;
+uniform sampler1D pal;
+uniform sampler3D data;
+//const float lighting=0.75;
+float get(vec3 coord){
+    return (texture(data, ((coord-vmin)*rstep+vec3(0.5))/textureSize(data, 0)).r-minmaxmul.x)*minmaxmul.z;
+}
+bool notcliped(vec3 coord){
+    return coord[0]>=vmin[0] && coord[0]<=vmax[0] &&
+         coord[1]>=vmin[1] && coord[1]<=vmax[1]&&
+         coord[2]>=vmin[2] && coord[2]<=vmax[2];
+}
+void main() {
+    //for(int i=0; i<6; i++){
+    //    if (gl_ClipDistance[i]<=0) discard;
+    //}
+    //const float camera_light = 0.95;
+    //const float vertical_light = 1.0;
+    int tex_length = textureSize(pal,0);
+    //vec3 eyeRay = (vec4(0,0,-1,0.0)*itMVP).xyz;
+    vec3 eyeRay = -(vec4(0,0,1,0.0)*Model).xyz;
+    vec4 sum = vec4(0);
+    if(!notcliped(pos+ eyeRay*raystep)) discard;
+    for(vec3 raypos=pos; notcliped(raypos); raypos+= eyeRay*raystep){
+        float f = (get(raypos)*(tex_length - 1.0)+0.5)/tex_length;
+        vec4 col = texture(pal, (f*(tex_length - 1.0)+0.5)/tex_length);
+        col.w = (f>1.||f<0.)? 0:1.0;
+        float w = col.w*density*(1.0 - sum.w);
+        col.w = 1;
+        sum += col*w;
+        if (sum.w >= opacity){
+            sum -= col*(sum.w-opacity);
+            break;
+        }
+    }
+    if( sum.w == 0){
+        sum = vec4(1.,1.,1.,1.);
+    }
+    gl_FragColor = vec4(sum.xyz*brightness,sum.w);
+    gl_FragDepth =gl_FragCoord.z;
+}
+'''
+vertex_shader = '''
+#version 330 core
+in vec3 coord;
+out float gl_ClipDistance[6];
+out vec3 pos;
+uniform mat4 MVP;
+uniform vec3 vmin, vmax, step, minmaxmul;
+uniform vec2 viewport;
+uniform float raystep, scale;
+uniform ivec3 size;
+void main() {
+    pos = coord;
+    float l = min(viewport.x, viewport.y);
+    vec4 res = MVP*(vec4(coord,1.0));
+    for(int i =0; i<3; i++){
+        gl_ClipDistance[i]=coord[i]- vmin[i];
+        gl_ClipDistance[i+3]=vmax[i] -coord[i];
+    }
+    //nrml = (MVP*vec4(normal,0.)).xyz*scale;
+    //Viewport tansformation
+    //nrml *= vec3(viewport/l,1.);
+
+    vec3 center = (vmin +vmax)*0.5;
+    res.z = ((MVP*vec4(center ,1.)).z-res.z)*scale/distance(vmax,vmin)*2;// in [-1:1]
+    gl_Position = res;
+}
+'''
+from UniversalViewer import *
+
+forward_methods = ["next", "jump",
+        "get_frame", "get_cbrange", "autoscalecb", 
+        "set_cbrange","set_frame","rangemove","extendrange",
+        "get_cb_auto", "set_cb_auto", "set_cbrange__",
+        "get_density","set_density","get_raystep","set_raystep",
+        "get_brightness", "set_brightness","get_opacity", "set_opacity"]
+params_dump_dict = { "ax":"ax", "get_pal":"set_pal", "get_brightness":"set_brightness",
+        "get_pos":"set_pos", "get_view":"set_view","get_density":"set_density",
+        "get_scale":"set_scale", "get_cbrange":"set_cbrange__","get_raystep":"set_raystep",
+        "get_xrange":"set_xrange__", "get_yrange":"set_yrange__",
+        "get_zrange":"set_zrange__", "title_template":"title_template",
+        "get_wire":"set_wire","bb_auto":"bb_auto", "get_cb_auto":"set_cb_auto",
+        "get_opacity":"set_opacity"}
+colorkeys = [ ("autoscalecb()","a"), ("autoscalecb()","a",["Shift"])]
+class VolumeViewer(UniversalViewer):
+    def __init__(self, argv):
+        UniversalViewer.__init__(self,argv)
+        self._sprs = [self.spr,ShaderProg()]
+        self._cur_spr = 0
+        #self.instancebuffer=FrameBuffer(self.get_height(), self.get_width(),int(GL.GL_RGBA32I))
+        for method in forward_methods:
+            #print method, get_arglist(getattr(Surf,method), False)
+            setattr(self.__class__, method, ext_generator(method, *get_arglist(getattr(Volume,method), True)))
+    def switch_spr(self, i):
+        "Переключает шейдерную программу, служебная функция"
+        self.spr = self._sprs[i]
+        self._cur_spr = i
+        if i ==1: self.ax = False
+        else: self.ax = True
+
+    def execute(self, string, **kwargs):
+        """выполняет функции в переменных вьюера, служебная функциия"""
+        #kwargs["__builtins__"]=__builtins__
+        kwargs.update(globals())
+        if isinstance(string, str): exec(string,kwargs,self)
+        else: exec(func2string(string), kwargs, self)
+        glutPostRedisplay()
+    def evaluate(self, string, **kwargs):
+        "вычисляет выражение в переменных вьюера, служебная функциия"
+        #kwargs["__builtins__"]=__builtins__
+        kwargs.update(globals())
+        if isinstance(string, str): return eval(string,kwargs,self)
+        else: return eval(func2string(string), kwargs, self)
+    def switch_buffer(self,name, save = True,SD = params_dump_dict):
+        '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
+        под текущим именем, SaveDict — словарь созраняемых параметров'''
+        UniversalViewer.switch_buffer(self,name,save, SD)
+        glutPostRedisplay()
+    def _display(self):
+        "Заготовка для glut display, служебная функция"
+        if self.bb_auto:
+            self.autoscale()
+        self.V.display()
+        self.Surf.display(self.V, self.spr, self.tex)
+        if self.ax:
+            self.switch_spr(1)
+            self.V.axis_switch()
+            GL.glDepthFunc(GL.GL_GREATER)
+            #self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            self.spr.start()
+            self.palettes["rgb"].use_texture(self.spr,"pal")
+            self.V.plot(self.spr)
+            self.Axis.plot(self.spr)
+            self.spr.stop()
+            GL.glDepthFunc(GL.GL_LEQUAL)
+            self.spr.start()
+            self.palettes["rgb"].use_texture(self.spr,"pal")
+            self.V.plot(self.spr)
+            self.Axis.plot(self.spr)
+            self.spr.stop()
+            #self.spr.render(self.Axis, self.V, self.palettes["rgb"])
+            self.V.axis_switch()
+            self.switch_spr(0)
+
+#setattr(UniversalViewer,"set_item", set_item)
+#setattr(UniversalViewer,"set_orts", set_orts)
+#setattr(UniversalViewer,"using", using)
+#setattr(UniversalViewer,"execute", execute)
+uv = VolumeViewer(sys.argv)
+uv.shader_load(vertex_shader, fragment_shader)
+uv.switch_spr(1)
+uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+uv.switch_spr(0)
+
+inp = File(sys.argv[1],"r")
+surf = Volume(inp)
+#uv.saved_params = {}
+uv.plot(surf)
+#uv.switch_buffer = switch_buffer
+uv.namespace = dict()
+uv.namespace.update(uv.__dict__)
+uv.namespace.update(UniversalViewer.__dict__)
+uv.namespace.update(VolumeViewer.__dict__)
+trans_vars = {}
+for k in uv.namespace:
+    if k.startswith("get_"):
+        trans_vars[k[4:]] = None
+uv.namespace.update(trans_vars)
+namespace = dict(uv.namespace)
+uv.rl_reader.set_completer(namespace)
+for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
+    uv.set_key(*km)
+#uv.set_key("print get_instance(x,y)","g")
+uv.title_template = "VolumeViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} frame={frame}"
+uv.image_name_template = "FR{frame}-SC{scale}.png"
+uv.autoscale()
+uv.autoscalecb()
+uv()
+
