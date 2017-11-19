@@ -24,7 +24,7 @@ namespace aiw{
 		srand(t.tv_usec);
 	}
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
-	template <int D, class T> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
+	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
 #else //MINGW
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #endif //MINGW

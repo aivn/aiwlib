@@ -79,8 +79,10 @@ for l in L:
     if cond and not eval(cond, G, D): continue
     xval = eval(Xex, G, D)
     if xval<RX[0] or RX[1]<xval: continue
+    yval = eval(Yex, G, D)
+    if str(xval)=='nan' or str(yval)=='nan': continue
     X.append(xval)
-    Y.append(eval(Yex, G, D))
+    Y.append(yval)
     if YEex: YE.append(eval(YEex, G, D))
 X, Y = np.array(X), np.array(Y) 
     

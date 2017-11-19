@@ -17,7 +17,8 @@ from aiwlib.SphereD import *
 from aiwlib.plot2D import *
 
 
-def replot(*args, **kw_args): replot_frame() 
+def replot(*args, **kw_args): wroot.focus_set(); replot_frame() 
+#def on_left(e): print e.__dict__, repr(wroot.focus_displayof())
 #-------------------------------------------------------------------------------
 #  main widgets
 #-------------------------------------------------------------------------------
@@ -143,6 +144,11 @@ x_label, y_label, z_label = [aiwEntry(panel, '', replot, label='XYZ'[i]+' label'
 title = aiwEntry(panel, '', replot, label='title', width=22, pack={'anchor':'e'})
 # def get_x_label ...
 #-------------------------------------------------------------------------------
+def scale_limits(mul):
+    ab = [float(x.get())*mul for x in (f_min, f_max)]; sign = [-1 if x<0 else 1 for x in ab]
+    let = ['%e'%x for x in map(abs, ab)]; ab = [s*float(('10' if x[0]>'5' else x[0])+'e'+x.split('e')[1]) for x, s in zip(let, sign)]
+    f_autoscale.set(0); f_min.set(ab[0]); f_max.set(ab[1])
+    replot_frame()    
 class NameSpace:
     def __init__(self, **kw_args): self.__dict__.update(kw_args)
     def __getitem__(self, key): return eval(key, math.__dict__, self.__dict__)
@@ -167,12 +173,14 @@ def replot_frame(csz=None):
         if saxe: saxe = 1+('Y' in slet)
         slice_pos.config(to=msh0.bbox()[saxe]-1); spos[saxe] = slice_pos.get()
         msh0 = msh = msh0.slice2(spos)
+        if x_axe.get()>y_axe.get(): msh0 = msh = msh0.transpose(0, 1)
     else: raise Exception()
 
     if not sph:
         if crop_axes.get(): msh = msh.crop(ind(x_crop_min,y_crop_min), ind(x_crop_max,y_crop_max), ind(x_crop_step,y_crop_step))
         else: x_crop_min.set(0); y_crop_min.set(0); x_crop_max.set(msh.bbox()[0]); y_crop_max.set(msh.bbox()[1])
     rz = msh.min_max()
+    if rz[0]==rz[1]: rz[0] -= .5; rz[1] += .5
     if f_autoscale.get():
         if f_invert.get(): rz = -rz[1], -rz[0]
         if f_modulus.get(): rz = map(abs, rz)
@@ -294,6 +302,10 @@ def final_select_pal(self, x, y):
 #def pal_left(self, x, y): f_autoscale.set(1); replot(); print 'pal left'
 #-------------------------------------------------------------------------------
 wroot.title('uplt')
+wroot.bind('<plus>', lambda e: scale_limits(2.5))
+wroot.bind('<minus>', lambda e: scale_limits(.5))
+wroot.bind('<equal>', lambda e: scale_limits(2.5))
+#wroot.bind('<Left>', on_left)
 canvas.bind('<Configure>', lambda e: replot_frame((e.width, e.height)))
 tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(tmpdir); print 'temporary path', tmpdir
 try: wroot.mainloop()

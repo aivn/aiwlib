@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <map>
 #include <sstream>
-#include "../../../include/aiwlib/fv_interface.hpp"
+#include "../../include/aiwlib/fv_interface.hpp"
 using namespace aiw;
 
 void help(){

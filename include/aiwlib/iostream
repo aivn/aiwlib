@@ -29,7 +29,7 @@ namespace aiw{
 	template <typename S, typename T, typename ... Args> 
 	void format2stream(S &&str, const char *format, T x, Args ... args){
 		for(int i=0; true; ++i){
-			if(format[i]==0) WRAISE("illegal '%' count: ", format, i, sizeof...(Args)+1, str.str(), x);
+			if(format[i]==0) WRAISE("illegal '%' count: ", format, i, sizeof...(Args)+1, x);
 			if(format[i]=='%'){ 
 				if(format[i+1]=='%'){ str.write(format, i); format += i+1; i = 0; }
 				else {

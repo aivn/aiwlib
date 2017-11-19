@@ -1,8 +1,8 @@
 #ifndef FV_INTERFACE2
 #define FV_INTERFACE2
 
-#include <aiwlib/vec>
-#include <aiwlib/iostream>
+#include "vec"
+#include "iostream"
 #include <vector>
 #include <fstream>
 #include <iostream>
