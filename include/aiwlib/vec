@@ -358,6 +358,8 @@ namespace aiw{
 	//   other functions
 	//--------------------------------------------------------------------------
 	template <int D, typename T> inline bool is_bad_value(const Vec<D, T> &v){ return v.cknan() || v.ckinf(); }
+	template <int D, typename T> inline T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return sqrt(s); }
+	inline double fabsV(double x){ return ::fabs(x); } 
 	//--------------------------------------------------------------------------
 }; // end of namespace aiw
 

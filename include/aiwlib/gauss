@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <stdlib.h>
 #include <math.h>
+#include <omp.h>
 #endif //SWIG		
 #include "vec"
 
@@ -25,6 +26,17 @@ namespace aiw{
 	}
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
+
+	template <int D> inline void rand_init(unsigned int (&seed)[D]){
+		rand_init();
+		for(int i=0; i<D; i++) seed[i] = rand();
+	}
+	template <int D> inline double rand_gauss(unsigned int (&seed)[D]){
+		int thID = omp_get_thread_num();
+		return sqrt(-2.*log(rand_alpha*(rand_r(seed+thID)+1.)))*cos(rand_alpha2PI*rand_r(seed+thID));
+	}
+	template <int D, int DS, class T=double> inline Vec<D, T> rand_gaussV(unsigned int (&seed)[DS]){
+		Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(seed); return v; }
 #else //MINGW
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #endif //MINGW
@@ -74,8 +86,11 @@ namespace aiw{
 	} 
 	//--------------------------------------------------------------------------
 #ifndef MINGW
-	template <typename T> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, double g){
-		return rotate(a, rotate(perp(a), a*(rand_alpha2PI*random()/a.abs()))*(g*rand_gauss())); 
+	template <typename T> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, T g){
+		return rotate(a, rotate(perp(a), a*T(rand_alpha2PI*random()/a.abs()))*T(g*rand_gauss())); 
+	}
+	template <typename T, int D> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, T g, unsigned int (&seed)[D]){
+		return rotate(a, rotate(perp(a), a*T(rand_alpha2PI*rand_r(seed+omp_get_thread_num())/a.abs()))*T(g*rand_gauss(seed))); 
 	}
 #endif //MINGW
 	//--------------------------------------------------------------------------
