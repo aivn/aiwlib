@@ -368,6 +368,23 @@ namespace aiw{
 		Mesh(aiw::Ind<D> bbox_, T f){ init(bbox_); fill(f); }
 		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0){ init(bbox_, bmin_, bmax_, logscale_); }
 		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0){ init(bbox_, bmin_, bmax_, logscale_); fill(f); }		
+		//----------------------------------------------------------------------
+#ifndef SWIG		
+		struct iterator{
+			Mesh<T, D> *data = nullptr;
+			Ind<D> pos;
+
+			T& operator * (){ return (*data)[pos]; }
+			const T& operator * () const { return (*data)[pos]; }
+			iterator & operator ++ (){ ++pos^=data->bbox(); return *this; } // data->next() ???
+
+			bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
+			bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
+		};
+		iterator begin() { iterator I; I.data = this; return I; }
+		iterator end() { iterator I; I.data = this; I.pos[D-1] = bbox()[D-1]; return I; }
+#endif //SWIG
+
 	};
 	//--------------------------------------------------------------------------
 	template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }

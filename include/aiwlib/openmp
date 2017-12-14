@@ -1,0 +1,45 @@
+// -*- C++ -*-
+#ifndef AIW_OPENMP_HPP
+#define AIW_OPENMP_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <omp.h>
+#include "mesh"
+#include "sphere"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename C> class OMPContainer{
+	protected:
+		C *pdata[1024]; int Nth;
+	public:
+		OMPContainer(C &src){
+			Nth = omp_get_max_threads();
+			pdata[0] = &src;
+			for(int i=1; i<Nth; i++){ pdata[i] = new C; *(pdata[i]) = src.copy(); }
+		}
+		~OMPContainer(){ for(int i=1; i<Nth; i++) delete pdata[i]; }
+
+		template <typename I> decltype((**pdata)[I()]) operator [](I i){ return (*(pdata[omp_get_thread_num()]))[i]; }
+
+		void sum(){
+			if(Nth>1){
+				typename C::iterator I[Nth]; for(int i=0; i<Nth; ++i) I[i] = pdata[i]->begin();
+				for(; I[0]!=pdata[0]->end(); ++(I[0])) for(int i=1; i<Nth; ++i){ *(I[0]) += *(I[i]); ++(I[i]); }
+			}
+		}
+		void prod(){
+			if(Nth>1){
+				typename C::iterator I[Nth]; for(int i=0; i<Nth; ++i) I[i] = pdata[i]->begin();
+				for(; I[0]!=pdata[0]->end(); ++(I[0])) for(int i=1; i<Nth; ++i){ *(I[0]) *= *(I[i]); ++(I[i]); }
+			}
+		}
+	};
+#define OMP_CONTAINER(X) aiw::OMPContainer<decltype(X)> X(this->X);
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_OPENMP_HPP

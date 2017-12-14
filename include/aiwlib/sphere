@@ -135,7 +135,10 @@ namespace aiw{
 		}
 		Sphere(int R_=-1): ptr(nullptr), R(-1), sz(0){ init(R_); }
 		Sphere copy() const { Sphere res(R); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
-		
+
+		typedef T* iterator;
+		T* begin(){ return ptr; }
+		T* end(){ return ptr+sz; }
 #ifndef SWIG
 		inline const T& operator [] (const aiw::Vec<3> &r) const { return ptr[sph_cellInd(r, R)]; }
 		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[sph_cellInd(r, R)]; }
