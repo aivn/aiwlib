@@ -95,7 +95,7 @@ namespace aiw{
 		
 		void push(); // push parametrs to controls ???
 		void commit(); // const ???
-		void set_progess(double progress_);
+		void set_progress(double progress_);
 	};
 	//--------------------------------------------------------------------------
 };

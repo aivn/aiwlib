@@ -237,7 +237,7 @@ void aiw::RacsCalc::commit(){
 	utime(path_.c_str(), nullptr);
 }
 //------------------------------------------------------------------------------
-void aiw::RacsCalc::set_progess(double progress_){
+void aiw::RacsCalc::set_progress(double progress_){
 	progress = progress_; runtime = omp_get_wtime()-starttime; 
 	commit();
 }

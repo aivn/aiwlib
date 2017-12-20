@@ -40,7 +40,7 @@ namespace aiw{
 		if(D==1) return f;
 		if(D>3) return de_interleave_bits_any(D, f, R);
 		uint64_t x = f & interleave_bits_table[D-2][5];
-		for(int i=1; i<6; i++) x = (x^(x>>(1<<i+D-3))) & interleave_bits_table[D-2][5-i];
+		for(int i=1; i<6; i++) x = (x^(x>>(1<<(i+D-3)))) & interleave_bits_table[D-2][5-i];
 		return x;
 	}
 	//--------------------------------------------------------------------------
@@ -76,7 +76,7 @@ namespace aiw{
 			for(int i=0; i<D; ++i) imask[i] = ~mask[i];
 			// data.resize(N);
 			if(data) free(data);
-			posix_memalign((void**)&data, 64, sizeof(T)*N);
+			if(posix_memalign((void**)&data, 64, sizeof(T)*N)) WRAISE("posix_memalign filed", sizeof(T), D, R, N, sizeof(T)*N);
 		}
 		ZCube(int R_=0){ init(R_); }
 		~ZCube(){ if(data) free(data); }
@@ -87,7 +87,7 @@ namespace aiw{
 				uint64_t c = offset&mask[i]; // смещение по координате i
 				uint64_t m = c-1, p = (c|imask[i])+1;
 				res.plus[i] =  p? (p&mask[i])-c : (periodic&(1<<i)? -int64_t(mask[i]): 0);
-				res.minus[i] = m==-1? (periodic&(1<<i)? mask[i]: 0): (m&mask[i])-c;
+				res.minus[i] = m==uint64_t(-1)? (periodic&(1<<i)? mask[i]: 0): (m&mask[i])-c;
 				// res.plus[i] = (p&mask[i])-c; if(N<=res.plus[i]) res.plus[i] = 0;
 				// res.minus[i] = (m&mask[i])-c; if(res.minus[i]<=-N) res.minus[i] = 0;
 			}

@@ -80,7 +80,7 @@ namespace aiw{
 	template <int D, typename T> Pickle& operator << (Pickle &P, const Vec<D, T> &v){
 		P.buf<<"ccopy_reg\n_reconstructor\n(caiwlib.vec\n"; // (i ???			
 		char data[4+sizeof(v)]; data[1] = 1; *(uint16_t*)(data+2) = D;
-		for(int i=0; i<sizeof(v); i++) data[4+i] = ((char*)(&v))[i];
+		for(size_t i=0; i<sizeof(v); i++) data[4+i] = ((char*)(&v))[i];
 
 		if(std::is_same<T, int>::value){ P.buf<<"Ind\n"; data[0] = 50; }
 		else if(std::is_same<T, float>::value){ P.buf<<"Vecf\n"; data[0] = 90; }
@@ -91,7 +91,7 @@ namespace aiw{
 
 		const char hex[17] = "0123456789abcdef";
 		P.buf<<"c__builtin__\nobject\nNtRp0\nS'";
-		for(int i=0; i<4+sizeof(v); i++) P.buf<<"\\x"<<hex[(data[i]>>4)&0xF]<<hex[data[i]&0xF];
+		for(size_t i=0; i<4+sizeof(v); i++) P.buf<<"\\x"<<hex[(data[i]>>4)&0xF]<<hex[data[i]&0xF];
 		P.buf<<"'\nb"<<P.postfix;
 		return P;
 	}

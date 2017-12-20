@@ -124,6 +124,9 @@ namespace aiw{
 			for(int i=0; i<D; i++) if(p[i]==x) return true; 
 			return false;
 		}
+
+		T* begin(){ return p; }
+		T* end(){ return p+D; }
 	}; // end of class Vec
 	template <typename T, typename ... Args>
 	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
