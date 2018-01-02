@@ -124,6 +124,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		if(!path_.empty() && clean_path && system(("rm -rf "+path_+"/*").c_str()));
 		if(!path_.empty()) calc_configure();
 	} else { // есть пакетный запуск
+		starttime = omp_get_wtime();
 		std::vector<std::string> qkeys(qparams.size());          // имена праметров
 		std::vector<std::vector<double> > qgrid(qparams.size()); // сетка значений параметров
 		int len_queue=1, n_start=0, n_finish=0; 
@@ -247,14 +248,14 @@ void aiw::RacsCalc::out_preambule(std::ostream **logs, const char *logdir, int a
 	int len_queue = 1; for(auto I=qgrid.begin(); I!=qgrid.end(); ++I) len_queue *= I->size();
 	char hostname[256], logfile[256]; ::gethostname(hostname, 255); snprintf(logfile, 255, "%sracs-started-%i", logdir, getpid());
 	logs[0] = &std::cout; logs[1] = new	std::ofstream(logfile);
-	printf("Start queue for %i items in %i threads, master PID=%i, logfile=\"%s\"", len_queue, copies, getpid(), logfile);
+	printf("Start queue for %i items in %i threads, master PID=%i, logfile=\"%s\"\n", len_queue, copies, getpid(), logfile);
 	for(int k=0; k<2; k++){
 		(*logs[k])<<"# "<<getenv("USER")<<'@'<<hostname<<':'<<get_current_dir_name()<<" repo="<<repo
 				  <<" tasks="<<len_queue<<" threads="<<copies<<"\n#";
 		for(int i=0; i<argc; i++){ (*logs[k])<<' '<<argv[i]; } (*logs[k])<<'\n';
 		for(size_t i=0; i<qkeys.size(); i++){
 			(*logs[k])<<"#   "<<qkeys[i]<<": ["<<qgrid[i][0];
-			for(size_t j=0; j<qgrid[i].size(); ++j) (*logs[k])<<", "<<qgrid[i][j];
+			for(size_t j=1; j<qgrid[i].size(); ++j) (*logs[k])<<", "<<qgrid[i][j];
 			(*logs[k])<<"]\n";
 		}
 		logs[k]->flush();
@@ -264,7 +265,7 @@ void aiw::RacsCalc::out_preambule(std::ostream **logs, const char *logdir, int a
 void aiw::RacsCalc::out_start_task(std::ostream **logs, int PID, double sprogress, const std::vector<int> &qpos,
 								   const std::vector<std::string> &qkeys, const std::vector<std::vector<double> > &qgrid){
 	for(int k=0; k<2; k++){
-		*logs[k]<<date2string(time(nullptr))<<" +"<<PID<<' '<<sprogress*100<<'%';
+		*logs[k]<<date2string(std::time(nullptr))<<" +"<<PID<<' '<<sprogress*100<<'%';
 		for(size_t i=0; i<qpos.size(); ++i) *logs[k]<<' '<<qkeys[i]<<'='<<qgrid[i][qpos[i]];
 		*logs[k]<<'\n'; logs[k]->flush();
 	}
@@ -273,7 +274,7 @@ void aiw::RacsCalc::out_start_task(std::ostream **logs, int PID, double sprogres
 void aiw::RacsCalc::out_finish_task(std::ostream **logs, int PID, double sprogress){
 	double rt = omp_get_wtime()-starttime;
 	for(int k=0; k<2; k++){
-		*logs[k]<<date2string(time(nullptr))<<" -"<<PID<<' '<<sprogress*100<<"% "<<time2string(rt)<<" "<<time2string(rt/sprogress)<<'\n';
+		*logs[k]<<date2string(std::time(nullptr))<<" -"<<PID<<' '<<sprogress*100<<"% "<<time2string(rt)<<" "<<time2string(rt/sprogress)<<'\n';
 		logs[k]->flush();
 	}
 }

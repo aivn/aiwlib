@@ -18,9 +18,8 @@ namespace aiw{
 		C *pdata[1024]; int Nth;
 	public:
 		OMPContainer(C &src){
-			Nth = omp_get_max_threads();
-			pdata[0] = &src;
-			for(int i=1; i<Nth; i++){ pdata[i] = new C; *(pdata[i]) = src.copy(); }
+			Nth = omp_get_max_threads(); if(Nth>=1024) WRAISE("too many threads", Nth);
+			pdata[0] = &src; for(int i=1; i<Nth; i++){ pdata[i] = new C; *(pdata[i]) = src.copy(); }
 		}
 		~OMPContainer(){ for(int i=1; i<Nth; i++) delete pdata[i]; }
 
@@ -40,6 +39,31 @@ namespace aiw{
 		}
 	};
 #define OMP_CONTAINER(X) aiw::OMPContainer<decltype(X)> X(this->X);
+	//--------------------------------------------------------------------------
+	template <typename T> class OMPReduce{
+	protected:
+		T *pdata[1024]; int Nth;
+	public:
+		OMPReduce(T &src){
+			Nth = omp_get_max_threads(); if(Nth>=1024) WRAISE("too many threads", Nth);
+			WOUT(Nth);
+			pdata[0] = &src;
+			for(int i=1; i<Nth; i++){
+				if(posix_memalign((void**)(pdata+i), 64, sizeof(T))) WRAISE("posix_memalign failed", sizeof(T), i);
+				*(pdata[i]) = src;
+			}
+		}
+		~OMPReduce(){ for(int i=1; i<Nth; i++) free(pdata[i]); }
+
+		operator T& (){ return *(pdata[omp_get_thread_num()]); }
+		// T& operator ()(){ return *(pdata[omp_get_thread_num()]); } // ???
+		T* operator -> () { return pdata[omp_get_thread_num()]; }
+		template <typename I> decltype(T()[I()]) operator [](I i) { return (*pdata[omp_get_thread_num()])[i]; }
+		template <typename ... Args> auto operator () (Args ... args) -> decltype(T()(args...)) { return (*pdata[omp_get_thread_num()])(args...); }
+		
+		template <typename F> void final(F f){ for(int i=1; i<Nth; ++i) f(*(pdata[0]), *(pdata[i])); }
+	};
+#define OMP_REDUCE(X) aiw::OMPReduce<decltype(X)> X(this->X);
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_OPENMP_HPP

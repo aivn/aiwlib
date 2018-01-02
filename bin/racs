@@ -73,6 +73,8 @@ import os, sys, cPickle, pprint
 
 if len(sys.argv)==1 or '--help' in sys.argv: print __doc__; sys.exit()
 
+if os.path.islink(sys.argv[0]): sys.path.append(os.readlink(sys.argv[0]).rsplit('/', 2)[0]+'/python')
+
 if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     sys.path.append('')
     if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  

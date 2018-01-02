@@ -79,7 +79,7 @@ _$(name).so: $(name)_wrap.o $(all_objects)
 #   compile object files
 #-------------------------------------------------------------------------------
 ifneq ($(headers),)
-$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(GCC) $(CXXOPT) -M $(headers))))
+$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $(headers))))
 endif
 %.o:; $(CXX) -I$(aiwlib_include) -o $@ -c $<
 #-------------------------------------------------------------------------------
@@ -170,7 +170,7 @@ endif
 mkextras:=$(firstword $(MAKEFILE_LIST)).extras
 $(shell echo '# This file is generated automatically, do not edit it!' > $(mkextras))
 $(shell echo '# The file contains additional dependencies and rules for building your project.' >> $(mkextras))
-$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects); $$(CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) -lz';done >> $(mkextras)	)
-$(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(GCC) $(CXXOPT) -M $$m; done >> $(mkextras))
+$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects) $(libaiw_a); $$(CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) -lz';done >> $(mkextras)	)
+$(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $$m; done >> $(mkextras))
 include $(mkextras)
 #-------------------------------------------------------------------------------

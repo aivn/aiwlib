@@ -76,7 +76,7 @@ namespace aiw{
 			for(int i=0; i<D; ++i) imask[i] = ~mask[i];
 			// data.resize(N);
 			if(data) free(data);
-			if(posix_memalign((void**)&data, 64, sizeof(T)*N)) WRAISE("posix_memalign filed", sizeof(T), D, R, N, sizeof(T)*N);
+			if(posix_memalign((void**)&data, 64, sizeof(T)*N)) WRAISE("posix_memalign failed", sizeof(T), D, R, N, sizeof(T)*N);
 		}
 		ZCube(int R_=0){ init(R_); }
 		~ZCube(){ if(data) free(data); }
