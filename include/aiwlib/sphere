@@ -158,13 +158,18 @@ namespace aiw{
 		bool interp=false;
 		T operator()(const aiw::Vec<3> &r) const {
 			if(!interp) return (*this)[r];
-			size_t cid = sph_cellInd(r, R); Vec<3, T> v; Vec<3> n[3];
+			size_t cid = sph_cellInd(r, R); Vec<3, T> v;
+			Vec<3> n[3], cXn[3], c = sph_cell(cid, R);
 			const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R);
+			for(int i=0; i<3; i++){ n[i] = sph_vert(vid[i], R); cXn[i] = c%n[i]; }
+			int tr; for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
+			if(tr==3) WRAISE("oops...", r, cid, vid, n, cXn, c);
 			for(int i=0; i<3; i++){
-				n[i] = sph_vert(vid[i], R); // вершина (узел) сетки
+				if(i==tr) continue;
 				const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
 				v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
 			}
+			v[tr] = ptr[cid]; n[tr] = c;
 			return v*barecentr(r, n);
 		}
 		T operator()(const aiw::Vec<2> &r) const { return (*this)(polar(r[1], r[0])); }
