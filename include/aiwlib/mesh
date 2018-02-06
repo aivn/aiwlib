@@ -114,11 +114,8 @@ namespace aiw{
 			return load(std::move(S), use_mmap, raise_on_error); 
 		}
 		//----------------------------------------------------------------------		
-		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const {
-			Ind<D> p;
-			for(int i=0; i<D; i++) p[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
-			return p;
-		}
+		inline int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
+		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
 		inline double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
 		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
 		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {

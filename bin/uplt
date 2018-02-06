@@ -145,8 +145,12 @@ title = aiwEntry(panel, '', replot, label='title', width=22, pack={'anchor':'e'}
 # def get_x_label ...
 #-------------------------------------------------------------------------------
 def scale_limits(mul):
-    ab = [float(x.get())*mul for x in (f_min, f_max)]; sign = [-1 if x<0 else 1 for x in ab]
-    let = ['%e'%x for x in map(abs, ab)]; ab = [s*float(('10' if x[0]>'5' else x[0])+'e'+x.split('e')[1]) for x, s in zip(let, sign)]
+    if mul==0: lim = max(abs(float(x.get())) for x in (f_min, f_max)); ab = [-lim, lim]
+    elif mul==-1: ab = [f_min.get(), 0]
+    elif mul==1: ab = [0, f_max.get()]
+    else:
+        ab = [float(x.get())*mul for x in (f_min, f_max)]; sign = [-1 if x<0 else 1 for x in ab]
+        let = ['%e'%x for x in map(abs, ab)]; ab = [s*float(('10' if x[0]>'5' else x[0])+'e'+x.split('e')[1]) for x, s in zip(let, sign)]
     f_autoscale.set(0); f_min.set(ab[0]); f_max.set(ab[1])
     replot_frame()    
 class NameSpace:
@@ -305,6 +309,11 @@ wroot.title('uplt')
 wroot.bind('<plus>', lambda e: scale_limits(2.5))
 wroot.bind('<minus>', lambda e: scale_limits(.5))
 wroot.bind('<equal>', lambda e: scale_limits(2.5))
+wroot.bind('[', lambda e: scale_limits(-1))
+wroot.bind(']', lambda e: scale_limits(1))
+wroot.bind('\\', lambda e: scale_limits(0))
+
+
 #wroot.bind('<Left>', on_left)
 canvas.bind('<Configure>', lambda e: replot_frame((e.width, e.height)))
 tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(tmpdir); print 'temporary path', tmpdir
