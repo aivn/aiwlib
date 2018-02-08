@@ -14,44 +14,34 @@
 #include "vec"
 #include "binaryio"
 #include "interpolations"
+#include "base_mesh"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 #ifndef SWIG
 	struct BaseMeshOp{};
 #endif //SWIG
-	template <typename T, int D> class Mesh
+	template <typename T, int D> class Mesh: public aiw::BaseMesh<D>
 #ifndef SWIG
-		:BaseMeshOp
+		, BaseMeshOp
 #endif //SWIG
 	{
+	protected:
 		std::shared_ptr<BaseAlloc> mem;
 		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
-		size_t sz;           // общее число элементов
-		Ind<D> box;          // размеры сетки в ячейках
-		Ind<D> axes;         // порядок следования осей
+		Ind<D> axes;         // порядок следования осей ???
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
 		template <typename T2, int D2> friend class Mesh;
+		UsingBaseMeshAttributes;
 	public:
+		
 		typedef T cell_type;
-		static const int dim = D;
-		std::string head;
+		// static const int dim = D;
 		T out_value;
-		aiw::Vec<D> bmin, bmax, step, rstep;
-		int logscale=0; // логарифмический масштаб по осям в виде битовой маски (0 --- нет, 1 --- да).
 
-		inline      size_t size() const { return sz; }
-		inline aiw::Ind<D> bbox() const { return box; }
 		size_t mem_size() const { return mem->get_size(); }
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
-		//----------------------------------------------------------------------
-		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
-			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
-			for(int i=0; i<D; i++){
-				step[i] = logscale&1<<i? exp(log(bmax[i]/bmin[i])/box[i]) :(bmax[i]-bmin[i])/box[i];
-				axes[i] = i; rstep[i] = logscale&1<<i? 1./log(step[i]) : 1./step[i];
-			}
-		}
+
 	protected:
 		size_t sz_init(const aiw::Ind<D> &box_){ // box and mul init, not allocate memory 		  
 			box = box_; box.prod(sz); mul[0] = sizeof(T); 
@@ -61,7 +51,7 @@ namespace aiw{
 	public:
 		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
 			mem.reset(new MemAlloc<T>(sz_init(box_))); ptr = mem->get_addr(); 
-			set_axes(bmin_, bmax_, logscale_);
+			this->set_axes(bmin_, bmax_, logscale_);
 		}
 		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
 		//----------------------------------------------------------------------		
@@ -89,7 +79,7 @@ namespace aiw{
 			} else { init(box_); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
 			size_t true_read_sz = 12+h.size()+D*4+sz*szT, real_read_sz = S.tell()-s;
 			if(!use_mmap && true_read_sz!=real_read_sz){ S.seek(s); WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT,
-																		   S.name, head, bbox(), true_read_sz, real_read_sz); }
+																		   S.name, head, box, true_read_sz, real_read_sz); }
 			
 			Vec<D> bmin_, bmax_=box_, step_; int logscale_=0; s = S.tell(); int sz2=0; S>sz2;
 			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))) S>bmin_>bmax_>step_>out_value; // old aivlib mesh format (deprecated)
@@ -105,7 +95,7 @@ namespace aiw{
 					}
 				}
 			}
-			set_axes(bmin_, bmax_, logscale_);
+			this->set_axes(bmin_, bmax_, logscale_);
 			return true;
 		}
 #endif //SWIG
@@ -114,39 +104,13 @@ namespace aiw{
 			return load(std::move(S), use_mmap, raise_on_error); 
 		}
 		//----------------------------------------------------------------------		
-		inline int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
-		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
-		inline double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
-		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
-		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
-			Vec<D> r;
-			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
-			return r;
-		}
-		//----------------------------------------------------------------------
-		int periodic=0;   // битовая маска, задающая периодику по различным осям
-		aiw::Ind<2> bound_min, bound_max;  // битовые маски, задающие обработку границ слева/справа (если нет периодики)
-		                                   // 0   - ничего не делать (при выходе за границу выкидывает исключение)
-		                                   // 1,0 - возвращает out_value
-		                                   // 1,1 - возвращает крайнее значение
 #ifndef SWIG		
 		inline const T& get(aiw::Ind<D> pos) const {
-			for(int i=0; i<D; i++){
-				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
-				if(pos[i]<0){
-					if((bound_min[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box, periodic, bound_min);
-					if((bound_min[1]&(1<<i))==0) return out_value;
-					pos[i] = 0;
-				}
-				else if(pos[i]>=box[i]){
-					if((bound_max[0]&(1<<i))==0) WRAISE("position out of box: ", pos, box, periodic, bound_max);
-					if((bound_max[1]&(1<<i))==0) return out_value;
-					pos[i] = box[i]-1;
-				}
-			}			
+			WCHK(pos); // ???
+			if(this->check_out_pos(pos)) return out_value;
 			return *((const T*)((const char*)ptr+mul*pos));
 		}
-		inline const T& get(const aiw::Vec<D> &r) const { return get(coord2pos(r)); }
+		inline const T& get(const aiw::Vec<D> &r) const { return get(this->coord2pos(r)); }
 
 		inline const T& operator [] (const aiw::Ind<D> &p) const { return     get(p); }
 		inline       T& operator [] (const aiw::Ind<D> &p)       { return (T&)get(p); }
@@ -158,14 +122,13 @@ namespace aiw{
 		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
 		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
-		aiw::Ind<3> Itype; // битовые маски, задающие типы интерполяции по осям: 0 --- без интерполяции, 1,0 --- линейная, 1,1,0 --- кубическая, 1,1,1 --- B-сплайнами.
-		T operator ()(const aiw::Vec<D> &r) const { 
+		T operator ()(const aiw::Vec<D> &r) const { // ???
 			Ind<D> pos; Vec<D> x;
-			for(int i=0; i<D; ++i) if(Itype[0]&(1<<i)){
+			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
 					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
 					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
 				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
-			return interpolate(*this, pos, x, Itype);
+			return interpolate(*this, pos, x, interp);
 		}
 		//----------------------------------------------------------------------
 		inline aiw::Ind<D> first() const { return Ind<D>(); }
@@ -206,16 +169,13 @@ namespace aiw{
 			return A;
 		}
 	private:
-		template <typename T2, int D2> void set_axe(int a, const Mesh<T2, D2> &M, int m){
+		template <typename T2, int D2> void set_axe(int a, const Mesh<T2, D2> &M, int m){ // ???
 			mul[a] = M.mul[m]; box[a] = M.box[m]; axes[a] = M.axes[m]; mul[a] = M.mul[m];
 			bmin[a] = M.bmin[m]; bmax[a] = M.bmax[m]; step[a] = M.step[m]; rstep[a] = M.rstep[m];
-			// if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
-#define CP_MASK(MASK) if(M.MASK&1<<m) MASK |= 1<<a; else MASK &= ~(1<<a);
-			CP_MASK(logscale); CP_MASK(periodic);
-			for(int i=0; i<3; i++) CP_MASK(Itype[i]);
-			for(int i=0; i<2; i++) CP_MASK(bound_min[i]);
-			for(int i=0; i<2; i++) CP_MASK(bound_max[i]);
-#undef CP_MASK
+			if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
+			if(M.periodic&1<<m) periodic |= 1<<a; else periodic &= ~(1<<a);
+			interp &= ~(0xF<<(4*(D-a-1))); interp |= M.interp&(0xF<<(4*(D-m-1)));
+			bounds &= ~(0xF<<(4*(D-a-1))); bounds |= M.bounds&(0xF<<(4*(D-m-1)));
 		}
 	public:
 		Mesh transpose(int a, int b) const { Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
@@ -282,7 +242,7 @@ namespace aiw{
 			// WOUT(box, coords, B1, B2, nl_id);
 			for(Ind<D> pos; pos^=B1; ++pos){
 				if(prefix) str<<prefix<<" ";
-				Vec<D> r = pos2coord(pos);
+				Vec<D> r = this->pos2coord(pos);
 				for(int i=0; i<D; i++) if(coords[i] && (coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
 				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
 				str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
@@ -378,8 +338,8 @@ namespace aiw{
 			bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
 			bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
 		};
-		iterator begin() { iterator I; I.data = this; return I; }
-		iterator end() { iterator I; I.data = this; I.pos[D-1] = bbox()[D-1]; return I; }
+		iterator begin() const { iterator I; I.data = this; return I; }
+		iterator end() const { iterator I; I.data = this; I.pos[D-1] = box[D-1]; return I; }
 #endif //SWIG
 
 	};

@@ -2,12 +2,14 @@
 # Licensed under the Apache License, Version 2.0
 
 $(MESH_NAME): python/aiwlib/$(MESH_NAME).py python/aiwlib/_$(MESH_NAME).so iostream swig; 
-swig/$(MESH_NAME).py swig/$(MESH_NAME)_wrap.cxx: include/aiwlib/mesh
+swig/$(MESH_NAME).py swig/$(MESH_NAME)_wrap.cxx: include/aiwlib/base_mesh include/aiwlib/mesh
 swig/$(MESH_NAME).i: include/aiwlib/mesh.mk
 	$(imodule)
 	@echo '%{#include "../include/aiwlib/mesh"%}' >> $@
 	@echo '%include "../include/aiwlib/vec"' >> $@
+	@echo '%include "../include/aiwlib/base_mesh"' >> $@
 	@echo '%include "../include/aiwlib/mesh"' >> $@
+	@echo '%template(Base$(MESH_NAME)) aiw::BaseMesh<$(MESH_DIM)>;' >> $@
 	@echo '%template($(MESH_NAME)) aiw::Mesh<$(MESH_TYPE), $(MESH_DIM)>;' >> $@
 	@for D in `seq 1 $$(($(MESH_DIM)-1))`; do echo "%inline %{inline aiw::Mesh<$(MESH_TYPE), $$D> "\
 	"$(MESH_NAME)_slice$$D(const aiw::Mesh<$(MESH_TYPE), $(MESH_DIM)> &M, aiw::Ind<$(MESH_DIM)> pos, size_t offset){"\

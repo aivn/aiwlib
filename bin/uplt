@@ -83,10 +83,11 @@ x_crop_max, y_crop_max = [aiwEntry(frame, 0, replot, ':', grid={'row':i, 'column
 frames = map(Frame, [panel]*2); x_interp, y_interp = map(TkVar, ['const']*2)
 x_interp.trace('w', replot)
 y_interp.trace('w', replot)
-for f in frames: f.pack(side=TOP, anchor=W) 
+for f in frames: f.pack(side=TOP, anchor=W)
+itypes = 'const linear cubic betas'.split()
 for i in (0,1):
     Label(frames[i], text='XY'[i]+' interp:').pack(side=LEFT)
-    OptionMenu(frames[i], (x_interp, y_interp)[i], *'const linear cubic betas'.split()).pack(side=LEFT)
+    OptionMenu(frames[i], (x_interp, y_interp)[i], *itypes).pack(side=LEFT)
 x_periodic, y_periodic = [aiwCheck(frames[i], 'periodic', command=replot, pack={'side':'top'}) for i in (0,1)]
 x_logscale, y_logscale = [aiwCheck(frames[i], 'logscale', command=replot, pack={'side':'bottom'}) for i in (0,1)]
 
@@ -197,10 +198,8 @@ def replot_frame(csz=None):
     color2.init(Plot2D.paletters[f_pal.get()], f_min.get(), f_max.get())
 
     if not sph:
-        msh0.bound_min = msh0.bound_max = msh.bound_min = msh.bound_max = ind(3,3)
-        msh0.Itype[0] = msh.Itype[0] = (x_interp.get()!='const')|(y_interp.get()!='const')*2
-        msh0.Itype[1] = msh.Itype[1] = (x_interp.get() in ['cubic', 'betas'])|(y_interp.get() in ['cubic', 'betas'])*2
-        msh0.Itype[2] = msh.Itype[2] = (x_interp.get()=='betas')|(y_interp.get()=='betas')*2
+        msh0.bounds = msh.bounds = 0xFFFF
+        msh0.interp = msh.interp = (itypes.index(x_interp.get())<<4)+itypes.index(y_interp.get())
         if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
         if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
     

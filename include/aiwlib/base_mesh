@@ -1,0 +1,107 @@
+// -*- C++ -*-
+#ifndef AIW_BASE_MESH_HPP
+#define AIW_BASE_MESH_HPP
+
+/**
+ * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <string>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int D> class BaseMesh{
+	protected:
+		size_t sz;  // общее число элементов
+		Ind<D> box; // размеры сетки в ячейках
+	public:
+		static const int dim = D;
+		std::string head;
+		aiw::Vec<D> bmin, bmax, step, rstep;
+		int logscale=0;     // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
+		int periodic=0;     // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
+		unsigned long interp=0;  // интерполяция по различным осям в формате 0x..., оси следуют в порядке 0x0123..., 4 бита на ось,
+		                         //   0 - нет интерполяции, 1 - линейная, 2 - кубическая, 3 - B-сплайнами
+		unsigned long bounds=0;  /* границы в формате 0x..., оси следуют в порядке 0x0123..., 4 бита на ось:
+									значение | левая граница  | правая граница
+									------------------------------------------
+									0        | исключение     | исключение
+									1        | out_value      | исключение
+									2        | крайняя ячейка | исключение
+									3        | крайняя ячейка | исключение     
+									4        | исключение     | out_value
+									5        | out_value      | out_value
+									6        | крайняя ячейка | out_value
+									7        | крайняя ячейка | out_value
+									8        | исключение     | крайняя ячейка 
+									9        | out_value      | крайняя ячейка 
+									A        | крайняя ячейка | крайняя ячейка 
+									B        | крайняя ячейка | крайняя ячейка 
+									C        | исключение     | крайняя ячейка 
+									D        | out_value      | крайняя ячейка 
+									E        | крайняя ячейка | крайняя ячейка 
+									F        | крайняя ячейка | крайняя ячейка 
+								 */   
+	protected:
+		inline bool check_out_pos(Ind<D>& pos) const { // ==> false --- OK, true --- out_value
+			bool out_value = false;
+			for(int i=0; i<D; i++){
+				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
+				if(pos[i]<0){
+					int mask = bounds&(3<<(4*(D-i-1)));
+					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
+					else{ if(mask==1) out_value = true;	else pos[i] = 0; }
+				} else if(pos[i]>=box[i]){
+					int mask = bounds&(3<<(4*(D-i-1)+2));
+					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
+					else{ if(mask==1) out_value = true;	else pos[i] = box[i]-1; }
+				}
+			}
+			return out_value;
+		}
+		
+	public:		
+		inline      size_t size() const { return sz; }
+		inline aiw::Ind<D> bbox() const { return box; }
+
+		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
+			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
+			for(int i=0; i<D; i++){
+				step[i] = logscale&1<<i? exp(log(bmax[i]/bmin[i])/box[i]) :(bmax[i]-bmin[i])/box[i];
+				// axes[i] = i; ???
+				rstep[i] = logscale&1<<i? 1./log(step[i]) : 1./step[i];
+			}
+		}
+
+		inline int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
+		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
+		inline double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
+		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
+		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
+			Vec<D> r;
+			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
+			return r;
+		}
+		void set_interp(int axe, int itype){ interp &= ~(0xF<<(4*(D-axe-1))); interp |= (itype&0xF)<<(4*(D-axe-1)); }
+		void set_bounds(int axe, int min_, int max_){ bounds &= ~(0xF<<(4*(D-axe-1))); bounds |= ((min_|(max_<<2))&0xF)<<(4*(D-axe-1)); }
+	};
+	//--------------------------------------------------------------------------
+#define UsingBaseMeshAttributes					\
+protected:  									\
+	using BaseMesh<D>::sz;						\
+	using BaseMesh<D>::box;						\
+public:											\
+	using BaseMesh<D>::head;					\
+	using BaseMesh<D>::bmin;					\
+	using BaseMesh<D>::bmax;					\
+	using BaseMesh<D>::step;					\
+	using BaseMesh<D>::rstep;					\
+	using BaseMesh<D>::logscale;				\
+	using BaseMesh<D>::periodic;				\
+	using BaseMesh<D>::interp;					\
+	using BaseMesh<D>::bounds;
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_BASE_MESH_HPP
