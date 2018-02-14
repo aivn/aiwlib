@@ -182,6 +182,8 @@ def replot_frame(csz=None):
     else: raise Exception()
 
     if not sph:
+        if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
+        if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
         if crop_axes.get(): msh = msh.crop(ind(x_crop_min,y_crop_min), ind(x_crop_max,y_crop_max), ind(x_crop_step,y_crop_step))
         else: x_crop_min.set(0); y_crop_min.set(0); x_crop_max.set(msh.bbox()[0]); y_crop_max.set(msh.bbox()[1])
     rz = msh.min_max()
@@ -200,8 +202,8 @@ def replot_frame(csz=None):
     if not sph:
         msh0.bounds = msh.bounds = 0xFFFF
         msh0.interp = msh.interp = (itypes.index(x_interp.get())<<4)+itypes.index(y_interp.get())
-        if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
-        if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
+        #if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
+        #if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
     
         if(edit_axes.get()):
             msh.set_axes(vec(x_min.get(), y_min.get()), vec(x_max.get(), y_max.get()), x_logscale.get()|2*y_logscale.get())
