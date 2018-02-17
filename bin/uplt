@@ -5,7 +5,7 @@
 Copyright (C) 2017  Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
-import os, sys, math, PIL.Image, PIL.ImageTk, tkSimpleDialog
+import os, sys, math, PIL.Image, PIL.ImageTk, tkSimpleDialog, cPickle
 from aiwlib.tkWidgets import *
 from aiwlib.iostream import *
 #from aiwlib.binheads import *
@@ -155,7 +155,10 @@ def scale_limits(mul):
     f_autoscale.set(0); f_min.set(ab[0]); f_max.set(ab[1])
     replot_frame()    
 class NameSpace:
-    def __init__(self, **kw_args): self.__dict__.update(kw_args)
+    def __init__(self, **kw_args):
+        try: self.__dict__.update(cPickle.load(open(os.path.dirname(kw_args['fname'])+'/.RACS')))
+        except: pass
+        self.__dict__.update(kw_args)
     def __getitem__(self, key): return eval(key, math.__dict__, self.__dict__)
 def replot_frame(csz=None):
     for f in f_min, f_max: f.state(1+f_autoscale.get())
