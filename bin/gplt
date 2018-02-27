@@ -14,6 +14,7 @@ from aiwlib.bindopt import *
 
 
 add_gp_format()
+add_tex_format()
 base = BaseOp
 Parser = BASE
 
@@ -283,7 +284,7 @@ class gplt(Parser) :
             if 'function' in c and c['title'] is None and su : 
                 c['title'] = ( '\\verb"%s"'%c['function'][:-1] if c['function'][-1]=='!' else '$%s$'%ex ) if tex else str(ex)
             elif 'fname' in c and c['title'] is None and ( sf or su or sa ) : 
-                if sa and not isinstance( ex, var ) : ex, args = rm_bk(ex), crc_bk( ', '.join(map( str, c['Uargs'] )) )
+                if sa and not isinstance( ex, var ) : ex, args = spaceOp['rm_bk'](ex), spaceOp['crc_bk']( ', '.join(map( str, c['Uargs'] )) )
 #                if sa or su : tu = ( '$%s%s$' if tex else '%s%s' )%( ex, args )
                 if sa or su : 
                     if self.autoconv_title_to_tex or not tex : tu = ( '$%s%s$' if tex else '%s%s' )%( ex, args )
