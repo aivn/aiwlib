@@ -12,8 +12,11 @@ from aiwlib.iostream import *
 #from aiwlib.vec import *
 from aiwlib.MeshF2 import *
 from aiwlib.MeshF3 import *
+from aiwlib.MeshUS2 import *
+from aiwlib.MeshUS3 import *
 from aiwlib.SphereF import *
 from aiwlib.SphereD import *
+from aiwlib.SphereUS import *
 from aiwlib.plot2D import *
 
 
@@ -125,8 +128,15 @@ def load_arrays(f):
             L.append(sphD)
             if sph_max_rank()<sphD.rank(): sph_init_table(sphD.rank())
         else:
-            print '%s frames [OK]'%len(L) if L else '[\033[31mFAILED\033[0m]'
-            return (f, L) if L else None
+            msh2, msh3, sphUS = MeshUS2(), MeshUS3(), SphereUS()
+            if msh2.load(fin, 0, False): L.append(msh2)
+            elif msh3.load(fin, 0, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
+            elif sphUS.load(fin, 0, False):
+                L.append(sphUS)
+                if sph_max_rank()<sphUS.rank(): sph_init_table(sphUS.rank())
+            else:
+                print '%s frames [OK]'%len(L) if L else '[\033[31mFAILED\033[0m]'
+                return (f, L) if L else None
 data, converts = filter(None, map(load_arrays, sys.argv[1:])), []
 if not data: print 'not correct files'; sys.exit()
 fr_num, file_num = [aiwScale(panel, ('frame', 'file')[i]+' number', command=replot, length=panel_sz, showvalue=YES,
@@ -172,7 +182,7 @@ def replot_frame(csz=None):
     #msh = mshL[fr_num.get()].load(fin); rz = msh.min_max()
     wroot.title('uplt: %r[%i]'%(fin, fr_num))
     msh = msh0 = mshL[fr_num.get()]; sph = False # converts
-    if msh.__class__ in (SphereF, SphereD): sph, msh.bmin, msh.bmax, msh.interp = True, [-180., 0.], [180., 180.], sph_interp.get()
+    if msh.__class__ in (SphereF, SphereD, SphereUS): sph, msh.bmin, msh.bmax, msh.interp = True, [-180., 0.], [180., 180.], sph_interp.get()
     elif msh0.dim==2:
         slice_pos.config(to=0)
         if x_axe.get()=='Y' and y_axe.get()=='X': msh0 = msh = msh0.transpose(0, 1)
@@ -201,7 +211,9 @@ def replot_frame(csz=None):
         setattr(color, p, eval('f_'+p).get()); setattr(color2, p, eval('f_'+p).get()) 
     color.init(Plot2D.paletters[f_pal.get()], rz[0], rz[1])
     color2.init(Plot2D.paletters[f_pal.get()], f_min.get(), f_max.get())
-
+    color.magn = color2.magn = msh.sizeof_cell_type==2 
+    if color.magn: sph_init_table(5)
+    
     if not sph:
         msh0.bounds = msh.bounds = 0xFFFF
         msh0.interp = msh.interp = (itypes.index(x_interp.get())<<4)+itypes.index(y_interp.get())
@@ -225,14 +237,16 @@ def replot_frame(csz=None):
         if msh.logscale&2: preview.create_text(3,panel_sz/2, text='logscale', fill='grey', anchor=W)
         preview.create_rectangle((x_crop_min.get()*panel_sz/msh0.bbox()[0], (msh0.bbox()[1]-y_crop_min.get())*panel_sz/msh0.bbox()[1]),
                                  (x_crop_max.get()*panel_sz/msh0.bbox()[0], (msh0.bbox()[1]-y_crop_max.get())*panel_sz/msh0.bbox()[1]),  outline='gray', tag='select')
-    
+
     tfont = font.get().split(); tfont[1] = int(tfont[1])
     sz, pw, th, xh = csz if csz else canvas.wsize(), pal_xsz.get(), 2*tfont[1], 2*tfont[1]+5
     canvas.delete('all')
 
-    pw = int(canvas.plot_pal(tag='pal', palname=f_pal.get(), orient=1, xyN=(sz[0], th, sz[1]-th-xh), side=1, pal_sz=pal_xsz.get(),
+    if color.magn: msh0.interp = msh.interp = 0; pw = 0
+    
+    pw = int(canvas.plot_pal(tag='pal', palname=f_pal.get(), orient=1, xyN=(sz[0], th, sz[1]-th-xh), side=1, pal_sz=pw,
                              limits=(f_min.get(), f_max.get()), logscale=f_logscale.get(), font=tfont,
-                             tic_sz=(tic_len.get(), tic_width.get()), border=border.get())*1.1)
+                             tic_sz=(tic_len.get(), tic_width.get()), border=border.get())*1.1) if pw else 0
     pw = max(pw, len(x_label.get())*tfont[1])
     yw = canvas.add_tics(tag='Y', orient=1, xyN=(0,th, sz[1]-th-xh), side=0, limits=(msh.bmin[1], msh.bmax[1]),
                          logscale=y_logscale.get(), font=tfont, tic_sz=(tic_len.get(), tic_width.get()))

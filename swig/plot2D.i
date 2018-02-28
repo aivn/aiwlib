@@ -14,6 +14,8 @@
 %template(plot2D) aiw::plot2D<float, aiw::ImagePNG>;
 %template(plot2D) aiw::plot2D<double, aiw::ImagePIL>;
 %template(plot2D) aiw::plot2D<double, aiw::ImagePNG>;
+%template(plot2D) aiw::plot2D<uint16_t, aiw::ImagePIL>;
+%template(plot2D) aiw::plot2D<uint16_t, aiw::ImagePNG>;
 %template(plot_paletter) aiw::plot_paletter<aiw::ImagePIL>;
 %template(plot_paletter) aiw::plot_paletter<aiw::ImagePNG>;
 

@@ -38,7 +38,8 @@ namespace aiw{
 		typedef T cell_type;
 		// static const int dim = D;
 		T out_value;
-
+		static const int sizeof_cell_type = sizeof(T);
+		
 		size_t mem_size() const { return mem->get_size(); }
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
 

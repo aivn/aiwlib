@@ -119,6 +119,7 @@ namespace aiw{
 		T *ptr;           
 		int R; size_t sz;
 	public:
+		static const int sizeof_cell_type = sizeof(T);
 		std::string head;
 
 		size_t size() const { return sz; }

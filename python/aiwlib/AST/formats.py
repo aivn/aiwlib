@@ -5,10 +5,14 @@ Copyright (C) 2002-2013, 2017 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 '''
 from nodes import *
+from nodes import _N2P
 #-------------------------------------------------------------------------------
 #   gnuplot
 #-------------------------------------------------------------------------------
-def add_gp_format(): BaseOp.__gp__ = BaseOp.__pyt__    
+def add_gp_format():
+    BaseOp.__gp__ = BaseOp.__pyt__
+    FloordivOp.__gp__ = lambda self: '%s/%s'%self._bk('(%s)', _N2P)
+    spaceOp['fabs'].__gp__ = lambda self: 'abs(%s)'%self.a
 #-------------------------------------------------------------------------------
 #   LaTeX
 #-------------------------------------------------------------------------------

@@ -72,3 +72,18 @@ class Var(BaseOp):
     def __repr__(self): return 'Var(%r)'%self.name
     def __call__(self, *args, **kw_args): return Var(kw_args.get(self.name,self.name))
 #-------------------------------------------------------------------------------
+#   REDUCE
+#-------------------------------------------------------------------------------
+def ast_clone(expr, func=None, cond=lambda x: True):
+    'возвращает копию выражения expr, узлы и листья удовлетворяющие условию cond обрабатываются функцией func'
+    if func and cond(expr): return func(expr)
+    if isinstance(expr, UnaryOp): return expr.__class__(ast_clone(expr.a, func, cond))
+    if isinstance(expr, BinaryOp): return expr.__class__(ast_clone(expr.a, func, cond), ast_clone(expr.b, func, cond))
+    return expr
+#-------------------------------------------------------------------------------
+def ast_foreach(func, expr):
+    'применяет функциею func ко всем узлам и листьям выражения expr'
+    if isinstance(expr, UnaryOp): ast_foreach(func, expr.a))
+    if isinstance(expr, BinaryOp): ast_foreach(func, expr.a); ast_foreach(func, expr.b)
+    func(expr)
+#-------------------------------------------------------------------------------

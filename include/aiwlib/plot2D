@@ -46,10 +46,23 @@ namespace aiw{
 		bool logscale = false;
 		bool modulus = false;
 		bool invert = false;
+		bool magn = false;
 		
 		void init(float const *pal_, float min_, float max_);
 		// void init(const char *pal_, float min_, float max_); for Python?
 		inline aiw::Ind<3> operator ()(float f) const {
+			if(magn){
+				if(!(0<=f && f<sph_cells_num(5))) return nan_color;				
+				const Vec<3> &n = sph_cell(f, 5);
+				float phi = -2*atan2f(n[1], n[0])/M_PI+2;
+				Ind<3> c; // 1,0,0, 1,.5,0,   1,1,0, 0,1,0,   0,1,1, 0,0,1,   1,0,1,
+				if(phi<1){         c[0] = max_rgb;  c[1] = phi*max_rgb;         } // (1,0,0) ==> (1,1,0) красный ==> желтый
+				else if(phi<2.0){  c[1] = max_rgb;  c[0] = (2-phi)*max_rgb; } // (1,1,0) ==> (0,1,0) желтый ==> зеленый
+				else if(phi<3.0){  c[1] = (3-phi)*max_rgb;  c[2] = (phi-2)*max_rgb; } // (0,1,0) ==> (0,0,1) зеленый ==> синий
+				else{  c[2] = (4-phi)*max_rgb;  c[0] = (phi-3)*max_rgb; } // (0,0,1) ==> (1,0,0) синий ==> красный
+				if(n[2]<0) c *= sqrt(1+n[2]); else c += (ind(max_rgb)-c)*n[2]*n[2]*n[2];
+				return c; //>>ind(0)<<ind(max_rgb);
+			}
 			if(invert) f = -f;
 			if(modulus) f = fabs(f);
 			f = logscale? log(f/min)*mul :(f-min)*mul;
