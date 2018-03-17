@@ -67,11 +67,11 @@ int aiw::sph_max_rank(){  // максимальный инициализиров
 	return current_rank; // Потенциальный race
 }
 //------------------------------------------------------------------------------
-uint64_t aiw::sph_cells_num(int rank){
+size_t aiw::sph_cells_num(int rank){
 	if (rank>=0 && rank<30) return 60l<<2*rank;//30 не влезает в uint64_t
 	else return 0;
 }
-uint64_t aiw::sph_vertex_num(int rank){
+size_t aiw::sph_vertex_num(int rank){
 	if (rank>=0 && rank<30) return (30l<<2*rank) +2l;//30 не влезает в uint64_t
 	else return 0;
 }
@@ -363,7 +363,7 @@ void aiw::sph_init_table(int rank){
 	//  WOUT(2);
 }
 //------------------------------------------------------------------------------
-uint64_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только для существующего ранга
+size_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только для существующего ранга
 	double max_a = 0., a ; uint64_t id=-1;
 	for( int i=60; i<72; i ++ ){
 		//      WOUT(i, r, cell_centers );
@@ -385,38 +385,38 @@ uint64_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только �
 	return id;
 }
 //------------------------------------------------------------------------------
-const Vec<3>& aiw::sph_cell(uint64_t ID, int rank){ // центр ячейки
+const Vec<3>& aiw::sph_cell(size_t ID, int rank){ // центр ячейки
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_centers[rank][ID];
 }
 //------------------------------------------------------------------------------
-double aiw::sph_cell_area(uint64_t ID, int rank){ // площадь ячейки
+double aiw::sph_cell_area(size_t ID, int rank){ // площадь ячейки
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_areas[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind3& aiw::sph_cell_vert(uint64_t ID, int rank){ // индексы вершин ячейки
+const Ind3& aiw::sph_cell_vert(size_t ID, int rank){ // индексы вершин ячейки
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind3& aiw::sph_cell_cell(uint64_t ID, int rank){ // близжайшие соседи ячейки
+const Ind3& aiw::sph_cell_cell(size_t ID, int rank){ // близжайшие соседи ячейки
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_neighbours[rank][ID];
 }
 // const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 //------------------------------------------------------------------------------
-const Vec<3>& aiw::sph_vert(uint64_t ID, int rank){ // вершина (узел) сетки
+const Vec<3>& aiw::sph_vert(size_t ID, int rank){ // вершина (узел) сетки
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex[ID];
 }
 //------------------------------------------------------------------------------
 static const Ind3 ind3_zero;
-const Ind3& aiw::sph_vert_vert(uint64_t ID, int rank){ // индексы вершин вершины
+const Ind3& aiw::sph_vert_vert(size_t ID, int rank){ // индексы вершин вершины
 	return ind3_zero;// ЗАГЛУШКА
 }
 //------------------------------------------------------------------------------
-const Ind6& aiw::sph_vert_cell(uint64_t ID, int rank){ // ячейки, к которым относится вершина
+const Ind6& aiw::sph_vert_cell(size_t ID, int rank){ // ячейки, к которым относится вершина
 	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex_cells[rank][ID];
 }

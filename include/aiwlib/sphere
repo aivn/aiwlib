@@ -27,18 +27,18 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//   доступ к произвольному рангу, C-style
 	//--------------------------------------------------------------------------
-	uint64_t sph_cellInd(const aiw::Vec<3> &r, int rank); // индекс ячейки
-	const aiw::Vec<3>& sph_cell(uint64_t ID, int rank); // центр ячейки
-	double sph_cell_area(uint64_t ID, int rank); // площадь ячейки
-	const aiw::Vec<3, uint64_t>& sph_cell_vert(uint64_t ID, int rank); // индексы вершин ячейки
-	const aiw::Vec<3, uint64_t>& sph_cell_cell(uint64_t ID, int rank); // близжайшие соседи ячейки
-	uint64_t sph_cells_num(int rank);
-	uint64_t sph_vertex_num(int rank);
+	size_t sph_cellInd(const aiw::Vec<3> &r, int rank); // индекс ячейки
+	const aiw::Vec<3>& sph_cell(size_t ID, int rank); // центр ячейки
+	double sph_cell_area(size_t ID, int rank); // площадь ячейки
+	const aiw::Vec<3, uint64_t>& sph_cell_vert(size_t ID, int rank); // индексы вершин ячейки
+	const aiw::Vec<3, uint64_t>& sph_cell_cell(size_t ID, int rank); // близжайшие соседи ячейки
+	size_t sph_cells_num(int rank);
+	size_t sph_vertex_num(int rank);
 	// const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 
-	const aiw::Vec<3>& sph_vert(uint64_t ID, int rank); // вершина (узел) сетки
-	const aiw::Vec<3, uint64_t>& sph_vert_vert(uint64_t ID, int rank); // индексы вершин вершины
-	const aiw::Vec<6, uint64_t>& sph_vert_cell(uint64_t ID, int rank); // ячейки, к которым относится вершина
+	const aiw::Vec<3>& sph_vert(size_t ID, int rank); // вершина (узел) сетки
+	const aiw::Vec<3, uint64_t>& sph_vert_vert(size_t ID, int rank); // индексы вершин вершины
+	const aiw::Vec<6, uint64_t>& sph_vert_cell(size_t ID, int rank); // ячейки, к которым относится вершина
 	// const aiw::Vec<6, uint64_t>& sph_vert_edge(uint64_t ID, int rank); // близжайшие ребра вершины
 
 	// const aiw::Vec<2, uint64_t>& sph_edge_cell(uint64_t ID, int rank); // близжайшие ячейки ребра

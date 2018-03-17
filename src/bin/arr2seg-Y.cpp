@@ -57,6 +57,7 @@ int main(int argc, const char ** argv){
 				else arr = arr.transpose(swaps[sw][0], swaps[sw][1]);
 			}
 			if(use_step) arr.step = step(0,1);
+			WOUT(arr.bbox(), arr.bmin, arr.bmax, arr.step);
 			segy_write(File(dst.c_str(), "wb"), arr, z_pow, PV(0,1), (use_PP0?PP0:arr.bmin|0.));
 		} else {
 			Mesh<float, 3> arr; arr.load(File(src.c_str(), "rb")); 
@@ -65,6 +66,7 @@ int main(int argc, const char ** argv){
 				else arr = arr.transpose(swaps[sw][0], swaps[sw][1]);
 			}
 			if(use_step) arr.step = step;
+			WOUT(arr.bbox(), arr.bmin, arr.bmax, arr.step);
 			segy_write(File(dst.c_str(), "wb"), arr, z_pow, PV(0,1), (use_PP0?PP0:arr.bmin));
 		}
 		std::cout<<src<<" ===> "<<dst<<" [OK]\n";

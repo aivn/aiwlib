@@ -83,7 +83,7 @@ def ast_clone(expr, func=None, cond=lambda x: True):
 #-------------------------------------------------------------------------------
 def ast_foreach(func, expr):
     'применяет функциею func ко всем узлам и листьям выражения expr'
-    if isinstance(expr, UnaryOp): ast_foreach(func, expr.a))
+    if isinstance(expr, UnaryOp): ast_foreach(func, expr.a)
     if isinstance(expr, BinaryOp): ast_foreach(func, expr.a); ast_foreach(func, expr.b)
     func(expr)
 #-------------------------------------------------------------------------------

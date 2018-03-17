@@ -119,7 +119,8 @@ class curve(Parser) :
 #-------------------------------------------------------------------------------
 aiwlib.bindopt._opt, gp, _label_table, _tics_table, _range_table, _last_dict = '-', os.popen( 'gnuplot', 'w' ), {}, {}, {}, {}
 aiwlib.bindopt._is_name = lambda a : a and ( a=='2d' or a=='3d' or a[0].isalpha() and a.replace('_','').isalnum() )
-print>>gp,'set colors classic\nset style data lines\nset grid front\nset ticslevel 0\nNone=""'
+#print>>gp,'set colors classic\nset style data lines\nset grid front\nset ticslevel 0\nNone=""'
+print>>gp,'set style data lines\nset grid front\nset ticslevel 0\nNone=""'
 _opt_symbol, _opt_list = '#', 'linecolor linewidth axes with title'.split()
 
 _colors = [ l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l ]
@@ -376,7 +377,7 @@ class gplt(Parser) :
         if loglist[0].startswith("'++'") and loglist[0].strip().endswith( repr(fg) ) : del loglist[0]
         print>>open(fg,'w'), '#!%s ++ \n'%sys.argv[0], '\n'.join( loglist[:-1] if loglist[-1]=='-to' else loglist ), \
             '\n-to -fname=%(fname)r -termopt=%(termopt)r -preview=%(preview)s -showcmd=%(showcmd)r -margins=%(margins)r -head=%(head)r -usepackage=%(usepackage)r -clear=%(clear)s'%locals()
-        os.chmod( fg, 0755 ); print>>gp, 'set term wxt'
+        os.chmod( fg, 0755 ); print>>gp, 'set term qt'
     def origin( self, origin ) : 
         'включает режим multiplot, отрисовывает (если есть) предыдущий график и задает координаты правого нижнего угла следующего графика'
         if not self._multiplot : print>>gp, 'set multiplot'; self._multiplot = True

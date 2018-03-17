@@ -212,7 +212,7 @@ def replot_frame(csz=None):
     color.init(Plot2D.paletters[f_pal.get()], rz[0], rz[1])
     color2.init(Plot2D.paletters[f_pal.get()], f_min.get(), f_max.get())
     color.magn = color2.magn = msh.sizeof_cell_type==2 
-    if color.magn: sph_init_table(5)
+    if color.magn: magn_pal_init()
     
     if not sph:
         msh0.bounds = msh.bounds = 0xFFFF
@@ -246,7 +246,7 @@ def replot_frame(csz=None):
     
     pw = int(canvas.plot_pal(tag='pal', palname=f_pal.get(), orient=1, xyN=(sz[0], th, sz[1]-th-xh), side=1, pal_sz=pw,
                              limits=(f_min.get(), f_max.get()), logscale=f_logscale.get(), font=tfont,
-                             tic_sz=(tic_len.get(), tic_width.get()), border=border.get())*1.1) if pw else 0
+                             tic_sz=(tic_len.get(), tic_width.get()), border=border.get())*1.1) if pw else 10
     pw = max(pw, len(x_label.get())*tfont[1])
     yw = canvas.add_tics(tag='Y', orient=1, xyN=(0,th, sz[1]-th-xh), side=0, limits=(msh.bmin[1], msh.bmax[1]),
                          logscale=y_logscale.get(), font=tfont, tic_sz=(tic_len.get(), tic_width.get()))
