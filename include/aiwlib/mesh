@@ -50,11 +50,12 @@ namespace aiw{
 			return sz;
 		}
 	public:
-		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
-			mem.reset(new MemAlloc<T>(sz_init(box_))); ptr = mem->get_addr(); 
-			this->set_axes(bmin_, bmax_, logscale_);
+		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0, int align=0){
+			if(align) mem.reset(new MemAlignAlloc(sz_init(box_), sizeof(T), align));
+			else mem.reset(new MemAlloc<T>(sz_init(box_)));
+			ptr = mem->get_addr(); this->set_axes(bmin_, bmax_, logscale_);
 		}
-		void init(const aiw::Ind<D> &box_){ init(box_, Vec<D>(), box_); }
+		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D>(), box_, 0, align); }
 		//----------------------------------------------------------------------		
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
@@ -65,7 +66,7 @@ namespace aiw{
 			S<h_sz; S.write(h, h_sz); S<D<int(sizeof(T))<box;
 			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));  
 		}
-		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int rD=-1, szT=-1;  size_t s = S.tell(); S>h>rD>szT;
 			if(S.tell()-s!=12+h.size()){ S.seek(s); return false; }
 			if(rD!=D || szT!=sizeof(T)){ 
@@ -76,8 +77,8 @@ namespace aiw{
 			head = h.c_str(); Ind<D> box_; S>box_;  
 			if(__has_trivial_copy(T)){
 				if(use_mmap){ sz_init(box_); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
-				else { init(box_); S.read(ptr, sz*sizeof(T)); }
-			} else { init(box_); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
+				else { init(box_, align); S.read(ptr, sz*sizeof(T)); }
+			} else { init(box_, align); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
 			size_t true_read_sz = 12+h.size()+D*4+sz*szT, real_read_sz = S.tell()-s;
 			if(!use_mmap && true_read_sz!=real_read_sz){ S.seek(s); WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT,
 																		   S.name, head, box, true_read_sz, real_read_sz); }
@@ -159,7 +160,7 @@ namespace aiw{
 			return false;
 			}*/
 		//----------------------------------------------------------------------
-		Mesh copy() const { Mesh A; A.init(box); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
+		Mesh copy(int align=0) const { Mesh A; A.init(box, align); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
 		Mesh flip(int a, bool axe=true) const {
 			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = (void*)&((*this)[I]); A.mul[a] = -mul[a];
 			if(axe){
@@ -322,10 +323,10 @@ namespace aiw{
 		size_t __sizeof__() const { return sizeof(Mesh) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
 		//----------------------------------------------------------------------
 		Mesh(){}
-		Mesh(aiw::Ind<D> bbox_){ init(bbox_); }
-		Mesh(aiw::Ind<D> bbox_, T f){ init(bbox_); fill(f); }
-		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0){ init(bbox_, bmin_, bmax_, logscale_); }
-		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0){ init(bbox_, bmin_, bmax_, logscale_); fill(f); }		
+		Mesh(aiw::Ind<D> bbox_, int align=0){ init(bbox_, align); }
+		Mesh(aiw::Ind<D> bbox_, T f, int align=0){ init(bbox_, align); fill(f); }
+		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); }
+		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); fill(f); }		
 		//----------------------------------------------------------------------
 #ifndef SWIG		
 		struct iterator{

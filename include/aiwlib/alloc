@@ -21,8 +21,8 @@ namespace aiw{
 //---------------------------------------------------------------------------------------------
 	class BaseAlloc{
 	protected:
-		void *ptr;
-		size_t size;
+		void *ptr = nullptr;
+		size_t size = 0;
 	public:
 		void* get_addr(){ return ptr; }
 		size_t get_size() const { return size; }
@@ -38,6 +38,16 @@ namespace aiw{
 		}
 		~MemAlloc(){ delete [] (T*)ptr; }
 		size_t get_sizeof()  const { return sizeof(T); }				
+	};
+//---------------------------------------------------------------------------------------------	
+	struct MemAlignAlloc: public BaseAlloc{
+		size_t sizeT;
+		MemAlignAlloc(size_t sz, size_t szT, int align){
+			size = sz; sizeT = szT;
+			if(posix_memalign(&ptr, align, sizeT*size)) WRAISE("posix_memalign failed", size, sizeT, sizeT*size, align);
+		}
+		~MemAlignAlloc(){ if(ptr) free(ptr); }
+		size_t get_sizeof()  const { return sizeT; }				
 	};
 //---------------------------------------------------------------------------------------------	
 #ifndef MINGW

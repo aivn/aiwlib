@@ -105,6 +105,7 @@ class Vec:
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
             elif args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
+#            elif type(args[0]) is str: args = eval(args[0]) #???
             else: args = args*kw_args.get('D', 1)
         elif len(args)==0: args = (0.,)*kw_args.get('D', 0)
         self.D, self.T = kw_args.get('D', len(args)), kw_args.get('T', 'double') # разные типы args?
