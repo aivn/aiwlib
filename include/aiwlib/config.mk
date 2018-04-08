@@ -1,25 +1,85 @@
-# main options for make
-# Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# main options for aiwlib make
+# Copyright (C) 2017-2018 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
+#
+# Edit this part of the file manually to configure the make
+# Отредактируйте эту часть файла вручную для настройки сборки
 #-------------------------------------------------------------------------------
-SHELL=/bin/bash
-PYTHON_H_PATH=/usr/include/python2.7
-
-CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -O3 -fPIC -g -I$(PYTHON_H_PATH)
-LINKOPT:=$(LINKOPT) -lgomp -lz -lpng
-SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
-#SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -includeall 
-MPIOPT:=$(MPIOPT) -Wall -fopenmp -std=c++11 -O3 -fPIC -g -I$(PYTHON_H_PATH) -I/usr/lib/openmpi/include/
-
+# paths and utlities for install/links-install targets
+# пути и утилиты для установки
+PYTHONDIR=/usr/lib/python2.7
+LIBDIR=/usr/lib
+INCLUDEDIR=/usr/include
+BINDIR=/usr/bin
+BIN_LIST=racs approx isolines gplt uplt splt mplt fplt
+#-------------------------------------------------------------------------------
+# comment out lines for refusing to use the unwanted modules
+# закомментируйте строки для отказа от использования лишних модулей 
+zlib=on
+swig=on
+png=on
+pil=on
+bin=on
+ezz=on
+# uncomment one of these lines for PERMANENTLY use (or discarding) MPI
+# раскомментируйте одну из этих строк для ПОСТОЯННОГО использования (или отказа от) MPI
+# mpi=on
+# mpi=off
+#-------------------------------------------------------------------------------
+# main settings
+# основные параметры
+CXX:=g++
+MPICXX:=mpiCC
 SWIG:=swig
-GCC:=g++
-MPICC:=mpiCC
+
+PYTHON_H_PATH:=/usr/include/python2.7
+override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -O3 -fPIC -g 
+override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
+#  -I/usr/lib/openmpi/include/
+override LINKOPT:=$(LINKOPT) -lgomp 
+override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
 #-------------------------------------------------------------------------------
-#GCC:=i586-mingw32msvc-g++
+#CXX:=i586-mingw32msvc-g++
 #CXXOPT:= -O3 -DMINGW -g 
 #SWIGOPT:=-DMINGW
-#LDOPT:=-L ~/.wine/drive_c/Python26/libs/ -lpython26
-#PYTHON_H_PATH=/home/aiv/.wine/drive_c/Python26/include/
+#LINKOPT:=-L ~/.wine/drive_c/Python26/libs/ -lpython26
+#PYTHON_H_PATH=~/.wine/drive_c/Python26/include/
+#-------------------------------------------------------------------------------
+# End of the part for editing, please DO NOT CHANGE the rest of the file!
+# Конец части для редактирования, пожалуйста НЕ МЕНЯЙТЕ остальную часть файла!
+#-------------------------------------------------------------------------------
+SHELL=/bin/bash
+
+ifeq (on,$(zlib)) 
+override LINKOPT:=$(LINKOPT) -lz
+else
+override CXXOPT:=$(CXXOPT) -DAIW_NO_ZLIB
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_ZLIB
+endif
+
+ifeq (on,$(swig))
+override CXXOPT:=$(CXXOPT) -I$(PYTHON_H_PATH)
+override MPICXXOPT:=$(MPICXXOPT) -I$(PYTHON_H_PATH)
+ifneq (on,$(pil))
+override CXXOPT:=$(CXXOPT) -DAIW_NO_PIL
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PIL
+endif
+else
+override CXXOPT:=$(CXXOPT) -DAIW_NO_PIL
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PIL
+endif
+
+ifeq (on,$(png))
+override LINKOPT:=$(LINKOPT) -lpng
+else
+override CXXOPT:=$(CXXOPT) -DAIW_NO_PNG
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PNG
+endif
+
+ifeq (on,$(debug)) 
+CXXOPT:=$(CXXOPT) -DEBUG
+MPICXXOPT:=$(MPICXXOPT) -DEBUG
+endif
 #-------------------------------------------------------------------------------
 define show_target
 @echo
@@ -28,15 +88,48 @@ define show_target
 @echo ALL: $(filter-out /usr/%,$^)
 endef
 #-------------------------------------------------------------------------------
-ifeq (on,$(debug)) 
-CXXOPT:=$(CXXOPT) -DEBUG
-endif
-#-------------------------------------------------------------------------------
-define CXX
+ifeq (on,$(mpi))
+define RUN_CXX
 
 $(show_target)
-$(GCC) $(CXXOPT)
+$(MPICXX) $(MPICXXOPT)
 endef
+else
+define RUN_CXX
+
+$(show_target)
+$(CXX) $(CXXOPT)
+endef
+endif
+#-------------------------------------------------------------------------------
+ifeq (off,$(mpi))
+override CXXOPT:=$(CXXOPT) -DAIW_NO_MPI
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_MPI
+define RUN_MPICXX
+
+$(show_target)
+$(CXX) $(CXXOPT)
+endef
+endif
+#-------------------------------------------------------------------------------
+ifeq '$(mpi)' ''
+ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
+define RUN_MPICXX
+
+$(show_target)
+$(MPICXX) $(MPICXXOPT)
+endef
+else
+override CXXOPT:=$(CXXOPT) -DAIW_NO_MPI
+override SWIGOPT:=$(SWIGOPT) -DAIW_NO_MPI
+define RUN_MPICXX
+
+$(show_target)
+@echo -e "\033[31;1;5mCompiler \"$(MPICXX)\" is not available, MPI DISABLED! Using $(CXX) -DAIW_NO_MPI...\033[0m"
+$(CXX) $(CXXOPT)
+endef
+endif
+endif
 #-------------------------------------------------------------------------------
 .SUFFIXES :
 #-------------------------------------------------------------------------------

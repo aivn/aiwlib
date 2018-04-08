@@ -1,27 +1,46 @@
-# Copyright (C) 2016-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2016-2018 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
-
-PYTHONDIR=/usr/lib/python2.7
-LIBDIR=/usr/lib
-INCLUDEDIR=/usr/include
-BINDIR=/usr/bin
-BIN_LIST=racs approx isolines gplt uplt splt mplt fplt
+#
+# Usage:
+#    make [CXX=<custom compiler>] [MPICXX=<custom MPI compiler>] 
+# or edit file 'include/aiwlib/config.mk' for select custom compilers permanently;
+#
+#    make [zlib=off] [swig=off] [png=off] [pil=off] [bin=off] 
+# or edit file 'include/aiwlib/config.mk' for change main target 'all' and list of aiwlib C++-core modules.  
+#
+# See include/aiwlib/config.mk and doc/aiwlib.pdf for details.
 
 include include/aiwlib/config.mk
-
 #-------------------------------------------------------------------------------
-#all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 splt mplt fplt $(shell echo bin/{arr2seg-Y,arrconv,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
-all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice}) $(shell if [ -f TARGETS ]; then cat TARGETS; fi) libaiw.a;
+ifeq (on,$(swig)) 
+all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 MeshUS2-uint16_t-2 MeshUS3-uint16_t-3 SphereD-double SphereF-float SphereUS-uint16_t $(shell if [ -f TARGETS ]; then cat TARGETS; fi)
+endif
+
+ifneq (off,$(mpi)) 
+ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
+all: mpi4py
+endif
+endif
+
+ifeq (on,$(bin)) 
+all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice})
+endif
+
+ifeq (on,$(ezz))
+all: mplt fplt splt
+endif
+
+all: libaiw.a;
+
 iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-#libaiw.a: $(shell echo src/{sphere,configfile,segy,isolines,checkpoint,geometry,mixt,magnets/{data,lattice}}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D}.o); rm -f libaiw.a; ar -csr libaiw.a   $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------
 swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
-swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream
+swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream include/aiwlib/gzstream 
 swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
 swig/plot2D.py swig/plot2D_wrap.cxx: include/aiwlib/plot2D
 
@@ -36,16 +55,17 @@ swig/%.py swig/%_wrap.cxx: swig/%.i
 #-------------------------------------------------------------------------------
 python/aiwlib/_%.so: swig/%_wrap.o libaiw.a
 	$(show_target)
-	$(GCC) -shared -o $@ $^ $(LINKOPT)
+	$(CXX) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   mpiCC
 #-------------------------------------------------------------------------------
 python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
 	$(show_target)
-	$(MPICC) $(MPIOPT) -shared -o $@ $< $(LINKOPT)
-src/$(subst \,,$(shell $(MPICC) $(MPIOPT) -M src/racs.cpp))  
-	$(show_target)
-	$(MPICC) $(MPIOPT) -o $@ -c $< 
+	$(MPICXX) $(MPICXXOPT) -shared -o $@ $< $(LINKOPT)
+
+src/racs.cpp: include/aiwlib/mpi4py
+src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
+	$(RUN_MPICXX) -o $@ -c $< 
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
@@ -55,8 +75,8 @@ ifndef MODULE
 src/%.o:  src/%.cpp  include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
-$(strip $(dir $(MODULE))$(subst \,,$(shell $(GCC) $(CXXOPT) -M $(MODULE))))
-	$(CXX) -o $(basename $(MODULE)).o -c $(MODULE)
+$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
+	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 #-------------------------------------------------------------------------------
 #   Mesh
@@ -86,7 +106,7 @@ endif
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
 #bin/arr2seg-Y: src/segy.o
 #bin/isolines: src/isolines.o
-bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice: bin/%: src/bin/%.o libaiw.a; $(CXX) -o $@ $^ -lz
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------

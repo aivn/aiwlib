@@ -7,6 +7,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifndef AIW_NO_MPI
+
 #ifndef SWIG		
 #include <mpi.h>
 #include <string>
@@ -47,4 +49,5 @@ namespace aiw{
 	}
 //------------------------------------------------------------------------------
 }
+#endif //AIW_NO_MPI
 #endif //AIW_MPI4PY_HPP

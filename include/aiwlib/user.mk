@@ -25,12 +25,13 @@ ifeq ($(wildcard $(aiwlib)libaiw.a),)
 libaiw_a:=-laiw
 else
 libaiw_a:=$(aiwlib)libaiw.a
+libaiw_a_file:=$(aiwlib)libaiw.a
 endif
 #ifeq ($(wildcard $(aiwlib)python/,)
 #aiwlib:=
 #endif
 include $(aiwlib_include)/aiwlib/config.mk
-all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(notdir $(basename $m)).o: /usr/%,$(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
+all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(notdir $(basename $m)).o: /usr/%,$(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
 sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
 all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 #-------------------------------------------------------------------------------
@@ -42,8 +43,6 @@ $(name): _$(name).so $(name).py;
 #-------------------------------------------------------------------------------
 aiwmake:=$(sort $(aiwmake))
 aiwinst:=$(sort $(aiwinst))
-#LINKOPT:=$(LINKOPT) -lpng -lz 
-#AIVLIB=aivlib.
 #-------------------------------------------------------------------------------
 $(name)-sets :
 	@echo headers=\"$(headers)\" --- user\'s headers for SWIG \(with extentions\)
@@ -74,14 +73,14 @@ $(name).py $(name)_wrap.cxx: $(name).i $(headers)
 #-------------------------------------------------------------------------------
 _$(name).so: $(name)_wrap.o $(all_objects)
 	$(show_target)
-	$(GCC) -shared -o $@ $^ $(LINKOPT) $(libaiw_a) -lz
+	$(CXX) -shared -o $@ $^ $(LINKOPT) $(libaiw_a) $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
 ifneq ($(headers),)
-$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $(headers))))
+$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers))))
 endif
-%.o:; $(CXX) -I$(aiwlib_include) -o $@ -c $<
+%.o:; $(RUN_CXX) -I$(aiwlib_include) -o $@ -c $<
 #-------------------------------------------------------------------------------
 #   .i file
 #-------------------------------------------------------------------------------
@@ -170,7 +169,7 @@ endif
 mkextras:=$(firstword $(MAKEFILE_LIST)).extras
 $(shell echo '# This file is generated automatically, do not edit it!' > $(mkextras))
 $(shell echo '# The file contains additional dependencies and rules for building your project.' >> $(mkextras))
-$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects) $(libaiw_a); $$(CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) -lz';done >> $(mkextras)	)
-$(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(GCC) -I$(aiwlib_include) $(CXXOPT) -M $$m; done >> $(mkextras))
+$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects) $(libaiw_a_file); $$(RUN_CXX) -o $$@ $$^ $(LINKOPT) $(libaiw_a) $(LINKOPT)';done >> $(mkextras))
+$(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $$m; done >> $(mkextras))
 include $(mkextras)
 #-------------------------------------------------------------------------------

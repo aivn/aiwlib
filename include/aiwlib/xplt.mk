@@ -34,6 +34,6 @@ $(foreach VIEW,$(VIEWERS),swig/$(VIEW).i):swig/%.i : include/aiwlib/xplt.mk
 define so_template=
 python/aiwlib/_$(1).so:  $$(objects_$(1)) swig/$(1)_wrap.o $(shell echo AbstractViewer/{plottable,shaderprog,viewer_template}.o) libaiw.a
 	$$(show_target)
-	$(GCC) -shared -o $$@ $$^ $(LINKOPT) $(GL_LINKOPT)
+	$(CXX) -shared -o $$@ $$^ $(LINKOPT) $(GL_LINKOPT)
 endef
 $(foreach VIEW,$(VIEWERS),$(eval $(call so_template,$(VIEW))))
