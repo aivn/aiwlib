@@ -57,7 +57,7 @@ namespace aiw{
 		template <int I> void out_node(counter_t<I>, std::ostream& out, const char* str){
 			SplitArgForOut key(str);
 			out.write(str, key.end); out<<"="<<std::get<sizeof...(Args)-I>(data)<<", ";
-			out_node(counter_t<I-1>(), out, str+key.next, data);
+			out_node(counter_t<I-1>(), out, str+key.next);
 		}
 		void out_msg(std::ostream &out){
 			out<<"#"<<std::get<0>(data)<<" "<<std::get<1>(data)<<"()"<<std::get<2>(data)<<": ";

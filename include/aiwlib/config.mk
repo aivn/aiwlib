@@ -77,8 +77,8 @@ override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PNG
 endif
 
 ifeq (on,$(debug)) 
-CXXOPT:=$(CXXOPT) -DEBUG
-MPICXXOPT:=$(MPICXXOPT) -DEBUG
+override CXXOPT:=$(CXXOPT) -DEBUG
+override MPICXXOPT:=$(MPICXXOPT) -DEBUG
 endif
 #-------------------------------------------------------------------------------
 define show_target
