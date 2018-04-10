@@ -108,7 +108,7 @@ namespace aiw{
 		//----------------------------------------------------------------------		
 #ifndef SWIG		
 		inline const T& get(aiw::Ind<D> pos) const {
-			WCHK(pos); // ???
+			// WEXC(pos); // ???
 			if(this->check_out_pos(pos)) return out_value;
 			return *((const T*)((const char*)ptr+mul*pos));
 		}
