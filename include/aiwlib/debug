@@ -97,11 +97,12 @@ namespace aiw{
 #define WCHK(args...) WASSERT(!is_bad_value(args), "some values are bad: ", args) 
 #define WARNING(msg, args...){ std::cerr<<"\033[1;4m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "<<msg; \
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
-#define WRAISE(msg, args...) { std::stringstream bUfFoRwRaIsE;			\
+extern char bUfFoRwRaIsE0[4096];
+#define WRAISE(msg, args...) { std::stringstream	bUfFoRwRaIsE;		\
 		bUfFoRwRaIsE<<"\033[31m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "<<msg; \
 		if(errno) bUfFoRwRaIsE<<" [\033[31;1;5m"<<strerror(errno)<<"\033[0m] ";	\
 		aiw::debug_out(bUfFoRwRaIsE, #args, args); bUfFoRwRaIsE<<"\n";	\
-		std::cerr<<bUfFoRwRaIsE.str(); throw bUfFoRwRaIsE.str().c_str(); \
+		std::cerr<<bUfFoRwRaIsE.str(); strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; \
 	}	
 //------------------------------------------------------------------------------
 #endif //SWIG		

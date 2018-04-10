@@ -9,6 +9,8 @@
 #include <execinfo.h>
 #include "../include/aiwlib/debug"
 using namespace aiw;
+
+char bUfFoRwRaIsE0[4096];
 //------------------------------------------------------------------------------
 SplitArgForOut::SplitArgForOut(const char *str){
 	const char *br = "()[]{}"; int brc[3] = {0, 0, 0};
