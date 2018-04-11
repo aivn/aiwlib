@@ -126,16 +126,16 @@ namespace aiw{
 		size_t __len__(){ return sz; } 
 		int rank() const { return R; }
 
-		void init(int R_){		 
+		void init(int R_, int align=0){		 
 			R = R_; 
 			if(R>=0){
 				sz = sph_cells_num(R);
 				sph_init_table(R_);
-				mem.reset(new MemAlloc<T>(sz)); ptr = (T*)(mem->get_addr());	
+				ptr = init_mem_ptr<T>(mem, sz, align);
 			} else { ptr = nullptr; sz = 0; mem.reset(); }
 		}
-		Sphere(int R_=-1): ptr(nullptr), R(-1), sz(0){ init(R_); }
-		Sphere copy() const { Sphere res(R); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
+		Sphere(int R_=-1, int align=0): ptr(nullptr), R(-1), sz(0){ init(R_); }
+		Sphere copy(int align=0) const { Sphere res(R, align); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
 
 		typedef T* iterator;
 		T* begin(){ return ptr; }
@@ -193,7 +193,7 @@ namespace aiw{
 			S<head<int(0)<int(sizeof(T))<R;
 			S.write(this->ptr, sizeof(T)*sz);
 		}
-		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true){ // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int D=-1, szT=-1; size_t s = S.tell(); S>h>D>szT;
 			if(D!=0 || szT!=sizeof(T)){ 
 				S.seek(s); 
@@ -202,12 +202,14 @@ namespace aiw{
 			}
 			head = h; S>R; sz = sph_cells_num(R);
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
-			else{ mem.reset(new MemAlloc<T>(sz)); ptr = (T*)(mem->get_addr()); S.read(ptr, sizeof(T)*sz); }
+			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); }
 			return true;
 		}
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
-		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); } // 0 - not use, 1 - readonly, 2 - rw
+		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true, int align=0){
+			return load(std::move(S), use_mmap, raise_on_error, align);
+		} // mmap=0 - not use, 1 - readonly, 2 - rw
 
 		bool min_max(T &a, T &b, size_t &pos_a, size_t &pos_b) const {
 			bool is_ok = false;

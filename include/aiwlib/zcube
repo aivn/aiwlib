@@ -62,7 +62,6 @@ namespace aiw{
 	template <typename T, int D> class ZCube{
 		uint64_t N, B, mask[D], imask[D];
 		int R;
-		// std::vector<T> data;
 		std::shared_ptr<BaseAlloc> mem;
 		T *data = nullptr;
 	public:
@@ -75,15 +74,9 @@ namespace aiw{
 			for(int i=0; i<R; i++) mask[0] |= uint64_t(1)<<(i*D);
 			for(int i=1; i<D; i++) mask[i] = mask[i-1]<<1;			
 			for(int i=0; i<D; ++i) imask[i] = ~mask[i];
-			// data.resize(N);
-			// if(data) free(data);
-			// if(posix_memalign((void**)&data, 64, sizeof(T)*N)) WRAISE("posix_memalign failed", sizeof(T), D, R, N, sizeof(T)*N);
-			if(align) mem.reset(new MemAlignAlloc(N, sizeof(T), align));
-			else mem.reset(new MemAlloc<T>(N));
-			data = (T*)(mem->get_addr());
+			data = init_mem_ptr<T>(mem, N, align);
 		}
 		ZCube(int R_=0, int align=64){ init(R_, align); }
-		// ~ZCube(){ if(data) free(data); }
 
 		inline ZCubeNb<D> get_nb(uint64_t offset, int periodic=0) const {
 			ZCubeNb<D> res;

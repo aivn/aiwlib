@@ -51,9 +51,7 @@ namespace aiw{
 		}
 	public:
 		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0, int align=0){
-			if(align) mem.reset(new MemAlignAlloc(sz_init(box_), sizeof(T), align));
-			else mem.reset(new MemAlloc<T>(sz_init(box_)));
-			ptr = mem->get_addr(); this->set_axes(bmin_, bmax_, logscale_);
+			ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axes(bmin_, bmax_, logscale_);
 		}
 		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D>(), box_, 0, align); }
 		//----------------------------------------------------------------------		

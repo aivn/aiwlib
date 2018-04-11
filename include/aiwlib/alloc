@@ -50,6 +50,12 @@ namespace aiw{
 		size_t get_sizeof()  const { return sizeT; }				
 	};
 //---------------------------------------------------------------------------------------------	
+	template <typename T> T* init_mem_ptr(std::shared_ptr<BaseAlloc>& mem, size_t sz, int align){
+		if(align) mem.reset(new MemAlignAlloc(sz, sizeof(T), align));
+		else mem.reset(new MemAlloc<T>(sz));
+		return (T*)(mem->get_addr());
+	}
+//---------------------------------------------------------------------------------------------	
 #ifndef MINGW
     class MMapAlloc: public BaseAlloc{
 		std::shared_ptr<FILE> pf;
