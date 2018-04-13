@@ -269,11 +269,13 @@ namespace aiw{
 		}
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
 		//----------------------------------------------------------------------
-		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
+		void fill(const T &x){ out_value = x; Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
 		template <typename T2> void fill(const Mesh<T2, D> &M){
+			out_value = M.out_value;
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}
 		void fill(const Mesh &M){ 
+			out_value = M.out_value;
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}
 
