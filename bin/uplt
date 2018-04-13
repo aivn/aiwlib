@@ -152,7 +152,7 @@ tic_len, tic_width, border, pal_xsz = [aiwEntry(frame, v, replot, label=l, width
                                        [(10, 'tic sz', 2), (1, '', 1), (1, '   border', 1), (30, '   pal.sz', 2)]]
 
 x_label, y_label, z_label = [aiwEntry(panel, '', replot, label='XYZ'[i]+' label', width=20, pack={'anchor':'e'}) for i in (0,1,2)]
-title = aiwEntry(panel, '', replot, label='title', width=22, pack={'anchor':'e'})
+title = aiwEntry(panel, '%(head)s', replot, label='title', width=22, pack={'anchor':'e'})
 # def get_x_label ...
 #-------------------------------------------------------------------------------
 def scale_limits(mul):
@@ -258,7 +258,7 @@ def replot_frame(csz=None):
                     border=border.get())
     canvas._XY0, canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
 
-    ns = NameSpace(slice=slice_pos.get(), X=x_axe.get(), Y=y_axe.get(), fname=fin, frame=fr_num.get())
+    ns = NameSpace(slice=slice_pos.get(), X=x_axe.get(), Y=y_axe.get(), fname=fin, frame=fr_num.get(), head=msh0.head)
     
     canvas.create_text((yw+sz[0]-pw)/2, th, text=title.get()%ns, anchor='s', font=tfont)
     canvas.create_text(sz[0], sz[1], text=x_label.get()%ns, anchor='se', font=tfont)
