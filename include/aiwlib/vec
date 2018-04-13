@@ -125,6 +125,15 @@ namespace aiw{
 			return false;
 		}
 
+		inline Vec reverse() const { Vec res; for(int i=0; i<D; i++){ res[i] = p[D-i-1]; } return res; }
+		inline Vec sort() const {
+			Vec res = *this;
+			for(int i=0; i<D-1; i++)
+				for(int j=i+1; j<D; j++)
+					if(res[i]>res[j]){ T tmp = res[i]; res[i] = res[j]; res[j] = tmp; }
+			return res;
+		}
+		
 		T* begin(){ return p; }
 		T* end(){ return p+D; }
 	}; // end of class Vec

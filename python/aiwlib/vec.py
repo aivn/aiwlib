@@ -261,6 +261,8 @@ class Vec:
     def __hash__(self): return hash(tuple(self._getdata()))
     def contains(self, x): return x in tuple(self._getdata())
     def __contains__(self, x): return x in tuple(self._getdata())
+    def reverse(self): L = self._getdata(); L.reverse(); return Vec(*L, T=self._T())
+    def sort(self): L = self._getdata(); L.sort(); return Vec(*L, T=self._T())
     #---------------------------------------------------------------------------
     def __mod__(a, b):
         ab = _conv(a, b)
