@@ -41,7 +41,7 @@ _vec_types_table, _swig_modules, _vec_swig_type = {}, [], []
 def view_swig_modules():
     for stt in _swig_modules: stt.out_table()
 _get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
-_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V \
+_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] \
     else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
 
 def checkout_swig_types_table(stt):
@@ -51,13 +51,12 @@ def checkout_swig_types_table(stt):
         V = stt.get_item(i) #; print i, V
         if not V: continue
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
-        #if V.split()[0] in ('QVec', 'aiw::QVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
             try: D, T = _get_D(V), _get_T(V)
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
-            #print i, D, repr(T), repr(V)
+            # print i, D, repr(T), repr(V)
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
