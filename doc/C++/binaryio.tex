@@ -1,5 +1,7 @@
-\section{Операции бинарного потокового ввода/вывода --- модуль {\tt binaryio}}\label{binaryio:sec}
-Модуль \verb'binaryio' перегружает операции
+\section{Операции бинарного потокового ввода/вывода --- модуль {\tt
+  binaryio}}\label{binaryio:sec}
+Модуль \verb'binaryio' предоставляет перегруженные операции \verb'<' (для бинарного вывода) и \verb'>' (для бинарного ввода)
+в потоки \verb'aiw::IOstream'.
 \begin{verbatim}
    template<typename T> inline IOstream& operator < (IOstream& S, const T& X);
    template<typename T> inline IOstream& operator > (IOstream& S,       T& X);
@@ -20,3 +22,8 @@
     inline void load(aiw::IOstream &S)       { S.read(this, sizeof(*this)); }  
 \end{verbatim}
 вызов которого в \verb'POD'--типе объявляет методы \verb'dump/load' и автоматически перегружает операции \verb'<' и \verb'>'.
+
+Встроенные типы, объекты \verb'std::complex<T>' и вектора \verb'aiw::Vec' выводятся обычным копированием <<байт-в-байт>>.
+
+Для типов \verb'std::vector', \verb'std::string', \verb'std::list', \verb'std::map' сначала записывается размер контейнера
+(тип \verb'uint32_t' для строк и \verb'uint64_t' для остальных типов), затем содержимое контейнера.
