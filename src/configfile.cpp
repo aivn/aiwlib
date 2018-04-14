@@ -20,9 +20,9 @@ void aiw::scanf_obj(std::istream &S, bool &X){
 void aiw::scanf_obj(std::istream &S, std::string &X){
 	std::string X0; std::getline(S, X0);
 	int a = 0, b = X0.size()-1;
-	while(a<=b and (X0[a]==' ' or X0[a]=='\t' or X0[a]=='\r')) a++;
-	while(a<=b and (X0[b]==' ' or X0[b]=='\t' or X0[b]=='\r')) b--;
-	X = X0.substr(a, b);
+	while(a<b and (X0[a]==' ' or X0[a]=='\t' or X0[a]=='\r')) a++;
+	while(a<b and (X0[b]==' ' or X0[b]=='\t' or X0[b]=='\r')) b--;
+	X = X0.substr(a, b-a+1);
 }
 //------------------------------------------------------------------------------
 void aiw::ConfigFile::load(std::istream &&fin){
