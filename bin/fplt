@@ -16,6 +16,7 @@ in vec3 pos;
 out vec4 FragColor;
 uniform mat4 MVP, Model;
 uniform vec3 vmin, vmax, rstep, minmaxmul;
+uniform vec3 origin;
 uniform vec2 viewport;
 uniform float scale,raystep,density,brightness, opacity;
 uniform ivec3 size;
@@ -23,7 +24,11 @@ uniform sampler1D pal;
 uniform sampler3D data;
 //const float lighting=0.75;
 float get(vec3 coord){
-    return (texture(data, ((coord-vmin)*rstep+vec3(0.5))/textureSize(data, 0)).r-minmaxmul.x)*minmaxmul.z;
+    vec3 texcoord = ((coord-origin)*rstep+vec3(0.5))/textureSize(data, 0);
+    if ( all( greaterThan(texcoord, vec3(0.)) ) &&
+         all( lessThanEqual(texcoord, vec3(1.)) ) )
+        return (texture(data, texcoord).r - minmaxmul.x)*minmaxmul.z;
+    else return -1.;
 }
 bool notcliped(vec3 coord){
     return coord[0]>=vmin[0] && coord[0]<=vmax[0] &&
@@ -132,6 +137,33 @@ class VolumeViewer(UniversalViewer):
         kwargs.update(globals())
         if isinstance(string, str): return eval(string,kwargs,self)
         else: return eval(func2string(string), kwargs, self)
+    def set_xrange(self, lower, upper):
+        "Устанавливает диапазон значений по x, не меняет bb_auto"
+        self.V.set_bounding_box(0, lower, False), self.V.set_bounding_box(0, upper, True)
+        self.Surf.adjust_cube(self.V)
+    def set_yrange(self, lower, upper):
+        "Устанавливает диапазон значений по y, не меняет bb_auto"
+        self.V.set_bounding_box(1, lower, False), self.V.set_bounding_box(1, upper, True)
+        self.Surf.adjust_cube(self.V)
+    def set_zrange(self, lower, upper):
+        "Устанавливает диапазон значений по z, не меняет bb_auto"
+        self.V.set_bounding_box(2, lower, False), self.V.set_bounding_box(2, upper, True)
+        self.Surf.adjust_cube(self.V)
+    def clip_plane_move(self, val, pl):
+        '''Перемещает плоскости отсечения, эквивалентно перемещению соответствующих границ диапазонов значений
+        на величину val внутрь диапазона. pl 0,1 и 2 нижние границы по x,y и z соответственно, 4,5,6 — верхние'''
+        self.bb_auto = False
+        self.V.clip_plane_move(val,pl)
+        self.Surf.adjust_cube(self.V)
+    def autoscale(self):
+        "Установить пределы по x,y,z чтобы отображаемые данные полностью помещались в окно, устанавливает bb_auto."
+        bb_min, bb_max = self.Surf.autobox()
+        self.set_xrange__(bb_min[0], bb_max[0])
+        self.set_yrange__(bb_min[1], bb_max[1])
+        self.set_zrange__(bb_min[2], bb_max[2])
+        self.Surf.adjust_cube(self.V)
+        self.bb_auto = True
+        self.V.automove()
     def switch_buffer(self,name, save = True,SD = params_dump_dict):
         '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
         под текущим именем, SaveDict — словарь созраняемых параметров'''
