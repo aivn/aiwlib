@@ -6,27 +6,31 @@ class Mplt:public Plottable, public Mesh<float, 3>{
     protected:
         Texture3D data;
         GLint unif_step, unif_size, unif_raystep, unif_cminmaxmul,
-              unif_density, unif_brightness, unif_opacity;
+              unif_density, unif_brightness, unif_opacity, unif_origin;
         float raystep, density,brightness,opacity;
         glm::vec3 cminmaxmul;
+        glm::vec3 cubemin, cubemax;
     public:
         Mplt(): Plottable(), data(0, 0, 0, 0, GL_TEXTURE1),
         unif_step(-1), unif_size(-1), unif_raystep(-1),
-        unif_density(-1), unif_brightness(-1),unif_opacity(-1),
+        unif_density(-1), unif_brightness(-1),unif_opacity(-1),unif_origin(-1),
         raystep(0),density(0.5),brightness(1.0),opacity(0.95) {
             VAO.add_buffer(); //actualy this one wil contain only the vertices of a cube;)
         }
         bool load(aiw::File & S){
             bool res = Mesh<float, 3>::load(S);
-            if (!raystep) raystep = std::min(std::min(step[0],step[1]),step[2]);
+            if (!raystep){
+                raystep = std::min(std::min(step[0],step[1]),step[2]);
             //reload_texture();
+                get_auto_box(*reinterpret_cast<aiw::Vec<3, float>*>(&cubemin), *reinterpret_cast<aiw::Vec<3, float>*>(&cubemax));
+            }
             return res;
         }
-        void load_on_device(){
+        void reload_cube(){
             int NTR=12;
-            double xmin = Mesh<float, 3>::bmin[0], xmax = Mesh<float, 3>::bmax[0]-step[0],
-                ymin = Mesh<float, 3>::bmin[1], ymax = Mesh<float, 3>::bmax[1]-step[1],
-                zmin = Mesh<float, 3>::bmin[2], zmax = Mesh<float, 3>::bmax[2]-step[2];
+            float & xmin = cubemin[0], &xmax = cubemax[0],
+                &ymin = cubemin[1], &ymax = cubemax[1],
+                &zmin = cubemin[2], &zmax = cubemax[2];
             const glm::vec3 cube[8] = {  glm::vec3(xmin,ymin,zmin), glm::vec3(xmax,ymin,zmin), glm::vec3(xmin,ymax,zmin), glm::vec3(xmin,ymin,zmax),
                 glm::vec3(xmax,ymax,zmin), glm::vec3(xmin,ymax,zmax), glm::vec3(xmax,ymin,zmax), glm::vec3(xmax,ymax,zmax)};
             unsigned int indices[36] = { 
@@ -52,6 +56,9 @@ class Mplt:public Plottable, public Mesh<float, 3>{
             VAO.load_data(POS, sizeof(glm::vec3) * 8, cube);
             VAO.load_indices(NTR*3*sizeof(unsigned int), indices);
             VAO.release();
+        }
+        void load_on_device(){
+            reload_cube();
             reload_texture();
         }
         void set_density(float dens){
@@ -86,6 +93,16 @@ class Mplt:public Plottable, public Mesh<float, 3>{
             bb_min = Mesh<float, 3>::bmin;
             bb_max = Mesh<float, 3>::bmax-step;
         }
+        void adjust_cube(const Viewer & V){
+            get_auto_box(*reinterpret_cast<aiw::Vec<3, float>*>(&cubemin), *reinterpret_cast<aiw::Vec<3, float>*>(&cubemax));
+            auto vmin = V.get_vmin();
+            auto vmax = V.get_vmax();
+            for(int i=0; i<3; i++){
+                cubemin[i] = std::max(cubemin[i], vmin[i]);
+                cubemax[i] = std::min(cubemax[i], vmax[i]);
+            }
+            reload_cube();
+        }
         void attach_shader(ShaderProg * spr){
             //glBindVertexArray(VAO);
             this->VAO.bind();
@@ -98,6 +115,7 @@ class Mplt:public Plottable, public Mesh<float, 3>{
             spr->AttachUniform(unif_density,"density");
             spr->AttachUniform(unif_brightness,"brightness");
             spr->AttachUniform(unif_opacity,"opacity");
+            spr->AttachUniform(unif_origin,"origin");
             spr->AttachAttr(this->VAO.get_attr(POS),"coord");
             auto size = bbox();
             //if (unif_bmin != -1) glUniform3f(unif_bmin, bmin[0], bmin[1], bmin[2]);
@@ -105,6 +123,7 @@ class Mplt:public Plottable, public Mesh<float, 3>{
             if (unif_cminmaxmul != -1) glUniform3f(unif_cminmaxmul, cminmaxmul[0], cminmaxmul[1], cminmaxmul[2]);
             if (unif_step != -1) glUniform3f(unif_step, rstep[0], rstep[1], rstep[2]);
             if (unif_size != -1) glUniform3i(unif_size, size[0], size[1], size[2]);
+            if (unif_origin != -1) glUniform3f(unif_origin, Mesh<float, 3>::bmin[0], Mesh<float, 3>::bmin[1], Mesh<float, 3>::bmin[2]);
             if (unif_raystep != -1) glUniform1f(unif_raystep, raystep);
             if (unif_density != -1) glUniform1f(unif_density, density);
             if (unif_brightness != -1) glUniform1f(unif_brightness, brightness);

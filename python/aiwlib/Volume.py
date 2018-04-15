@@ -105,6 +105,8 @@ class Volume:
         bbmin,bbmax = fplt.vecf(0,0,0), fplt.vecf(0,0,0)
         self.Surf.get_auto_box(bbmin, bbmax)
         return bbmin, bbmax
+    def adjust_cube(self, V):
+        self.Surf.adjust_cube(V)
     def display(self,V,spr,tex):
         "Отображает данные, служебная функция"
         #if self.cb_auto:
