@@ -10,9 +10,13 @@ except ImportError, e: pass
 #-------------------------------------------------------------------------------
 #_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _is_swig_obj = lambda X: "<type 'SwigPyObject'>" in [str(type(X)), str(type(getattr(X, 'this', None)))]
-_rtable, _G, ghelp = [], {}, []
+_rtable, _G, ghelp = [], {}, [] # таблица для замыкания рекурсии, глобальная таблица и справка  
 _ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
-_racs_params, _racs_cl_params, _cl_args, _args_from_racs, _arg_seqs, _arg_order, _cl_tags = {}, set(), [], [], {}, [], []
+_racs_params = {} # параметры RACS (репозиторий, демонизация расчета, символическая ссылка и т.д.)
+_racs_cl_params = set() # имена параметров RACS заданные в командной строке 
+_cl_args, _cl_tags = [], [] # аргументы командной строки не обработанные RACS и тэги из командной строки  
+_args_from_racs = [] # значения параметров полученные из RACS при разборе аргументов командной строки
+_arg_seqs, _arg_order =  {}, [] # словарь с параметрами для пакетного запуска, последовательность имен параметров
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -95,6 +99,12 @@ class Calc:
             self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
+    #---------------------------------------------------------------------------
+    #def __setattr__(self, k, v): # monkey patch
+    #    if not k in self._init_keys and k in _args_from_racs:
+    #        v_cl  = _args_from_racs.pop(k)
+    #        self.__dict__[k] = mixt.string2bool(v_cl) if type(v) is bool else v.__class__(v_cl)
+    #    else: self.__dict__[k] = v
     #---------------------------------------------------------------------------
     def par_dict(self, *ignore_list): 
         return dict([(k, v) for k, v in self.__dict__.items() if k[0]!='_' and not k in _ignore_list+list(ignore_list)])

@@ -1,12 +1,14 @@
 #pragma once
 #include <vector>
 #include <aiwlib/mesh>
+#include <aiwlib/objconf>
 using namespace aiw;
 
 class Model{
     std::vector<Vec<2> > tracs; // массив траекторий
 public:
     double a, b, A, Omega, gamma, T, t, h; // параметры расчета
+	CONFIGURATE(a, b, A, Omega, gamma, T, t, h);
 
 	Vec<6> av;  // моменты x, v, xx, vv, xv, W
 	// вклад в моменты от одной траектории

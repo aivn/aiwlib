@@ -5,4 +5,6 @@ headers=model.hpp
 # необходимые .cpp-файлы с кодом
 modules=model.cpp
 
+cxxmain=run.cpp
+
 include aiwlib/user.mk
