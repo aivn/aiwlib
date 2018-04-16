@@ -149,44 +149,53 @@ i) & \text{для нечетных}\,k.\\
 $$
 
 Рассмотрим интеграл вида
-$$
-\int\limits_{-\infty}^{\infty} P^k(x')\,\Lambda_1(x', p)\,\Lambda_1(x', x)\, dx' =
-\int\limits_{\max\left(x-\frac12,\,p-\frac12\right)}^{\min\left(x+\frac12,\,p+\frac12\right)} P^k(x')\cdot(|x-p|<1)\, dx', 
-$$
-откуда для четных $k$
 \begin{multline}
-  P^{k+1}_i = \int\limits_{-\infty}^{\infty} \left[
-    P^{k-1}_{i-1}(x')\,\Lambda_1\left(x', i-\frac12\right) + P^{k-1}_i(x')\,\Lambda_1\left(x', i+\frac12\right)
-    \right]\,\Lambda_1(x', x)\, dx' =\\=
-  \int\limits_{\max\left(x-\frac12,\,i-1\right)}^{\min\left(x+\frac12,\,i\right)} P^{k-1}_{i-1}(x') \, dx' +
-  \int\limits_{\max\left(x-\frac12,\,i\right)}^{\min\left(x+\frac12,\,i+1\right)} P^{k-1}_i(x') \, dx', 
-  \notag
+  \int\limits_{-\infty}^{\infty} P^k(x')\,
+  \Lambda_1(x',p)\,\Lambda_1(x', x)\, dx'
+=\\=
+\left[\Lambda_1\left(x,p-\frac12\right)+\Lambda_1\left(x,p+\frac12\right)\right]
+\int\limits_{\max\left(x-\frac12,\,p-\frac12\right)}^{\min\left(x+\frac12,\,p+\frac12\right)}
+P^k(x')\, dx'
+=\\=
+\Lambda_1\left(x,p-\frac12\right)\int\limits_{p-\frac12}^{x+\frac12} P^k(x')\,dx'
++
+\Lambda_1\left(x,p+\frac12\right)\int\limits_{x-\frac12}^{p+\frac12} P^k(x')\,dx',
+\notag
 \end{multline}
-для нечетных $k$
-\begin{multline}
-  P^{k+1}_i = \int\limits_{-\infty}^{\infty} \left[
-    P^{k-1}_{i-1}(x')\,\Lambda_1\left(x', i\right) + P^{k-1}_i(x')\,\Lambda_1\left(x', i+1\right)
-    \right]\,\Lambda_1(x', x)\, dx' =\\=
-  \int\limits_{\max\left(x-\frac12,\,i-\frac12\right)}^{\min\left(x+\frac12,\,i+\frac12\right)} P^{k-1}_{i-1}(x') \, dx' +
-  \int\limits_{\max\left(x-\frac12,\,i+\frac12\right)}^{\min\left(x+\frac12,\,i+\frac32\right)} P^{k-1}_i(x') \, dx'. 
-  \notag
-\end{multline}
+что позволяет рекурсивно рассчитывать полиномы для $B$-сплайнов
+произвольного порядка.
+
+Для генерации кода $B$-сплайнов используется скрипт
+\verb'bin/bspline_codegen.py' принимающий единственный аргумент $K_{\max}$~---
+максимальный порядок генерируемого сплайна. Скрипт выдает код функций
+с сигнатурой вида
+\begin{verbatim}
+    template <int K> inline double bspline(double x);
+\end{verbatim}
+по умолчанию в модуле \verb'interpolations' имплементирован код для
+$B$-сплайна до десятого порядка включительно.
+
 
 \subsection{Функции модуля {\sf interpolations}}
 Для проведения интерполяции используется параметризованная функция (frontend)
 \begin{verbatim}
     template<typename C>
-    typename C::cell_type interpolate(const C& arr,            // контейнер
-                                      const Ind<C::dim> &pos,  // позиция ячейки
-                                      const Vec<C::dim> &x,    // координаты в ячейке
-                                      const Ind<3> &Itype);    // тип интерполяции
+    typename C::cell_type interpolate(const C& arr,           // контейнер
+                                      const Ind<C::dim> &pos, // позиция ячейки
+                                      const Vec<C::dim> &x,   // координаты в ячейке
+                                      uint64_t interp);       // тип интерполяции
 \end{verbatim}
-где \verb'Itype' --- битовые маски. Соответствующие некоторой оси \verb'axe' биты в \verb'Itype' означают:
-\verb'Itype[0]&(1<<axe)==0'~--- интерполяция нулевого порядка (кусочно--постоянная
-в рамках ячейки), \verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==0'~--- линейная интерполяция между центрами ячеек,
-\verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==1', \verb'Itype[2]&(1<<axe)==0'~--- локальный кубический сплайн,
-\verb'Itype[0]&(1<<axe)==1', \verb'Itype[1]&(1<<axe)==1', \verb'Itype[2]&(1<<axe)==1'~--- кубический $B$--сплайн.
-
+где \verb'interp' --- битовая маска задающая типы интерполяции по
+осям. Для каждой оси выделено четыре бита означающие:
+\begin{itemize}
+  \item 0 --- интерполяция нулевого порядка (кусочно--постоянная в
+    рамках ячейки);
+  \item 1 --- линейная интерполяция между центрами ячеек;
+  \item 2 --- локальный кубический сплайн;
+  \item 3 --- кубический $B$--сплайн.
+\end{itemize}
+Например \verb'interp==0x012' означает интерполяцию нулевого порялка
+по оси $x$, линейную по оси $y$ и локлаьную кубическую по оси $z$. 
 
 
 

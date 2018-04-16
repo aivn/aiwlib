@@ -20,11 +20,11 @@ class Polinome:
         PI = Polinome(0, *[p/(n+1.) for n, p in enumerate(self.P)])
         return [PI.offset(.5)-PI(i-.5), PI(i+.5)-PI.offset(-.5)]
 
-print '    template <int K> inline double bspline(double x){ WRAISE("oops...", K); return 0; }\n'
+print '    template <int K> inline double bspline(double x){ static_assert(K<=%i, "code not implemented"); return 0; }\n'%int(sys.argv[1])
 
 Plist = [Polinome(1.)]
 for k in range(1, int(sys.argv[1])+1):
-    print '    template <> inline double bspline<%i>(double x){\n    x = fabs(x);'%k
+    print '    template <> inline double bspline<%i>(double x){\n        x = fabs(x);'%k
     ##for i in range(not k%2, 1+k/2): print '    if(x<%g) return %s;'%(i+.5*(k%2), Plist[i])
     for i in range(k/2, k): print '        if(x<%g) return %s;'%(i-k*.5+1, Plist[i])
     print '        return 0.;\n    }'
