@@ -118,6 +118,59 @@ $$
     inline Vec<4> interpolate_Bspline_weights(double x);
 \end{verbatim}
 
+%Че то я туплю. Вот готовый ответ из \verb'http://sernam.ru/book_mm3d.php?id=93', над строчкой <<{\it Из уравнения (5-83) получаем параметрический В-сплайн}>>
+%$$
+%\widetilde f = (1-x)^3f_{-1} + 3x(1-x)^2 f_0 + 3x^2(1-x) f_1 + x^3 f_2
+%$$
+
+\subsection{$B$--сплайны произвольного порядка}
+Введем последовательность рекуррентных $\Lambda$--функций:
+\begin{align}
+  \Lambda_1(x, c) &= \left\{\begin{matrix}
+  1, &\text{при} & |x-c|<\frac12,\\[3mm]
+  0, &\text{при} & |x-c|\geq\frac12,
+  \end{matrix}\right. \notag\\
+  \Lambda_k(x, c) &=\int\limits_{-\infty}^{\infty}
+  \Lambda_{k-1}(x', c)\,\Lambda_1(x', x)\, dx'. \notag
+\end{align}
+Каждая $\Lambda_k(x, c)$ функция положительно определена на интервале
+$(c-k/2, c+k/2)$, обладает симметрией вида
+$\Lambda_k(c-x, c) = \Lambda_k(c+x, c)$ и
+состоит из $k$ полиномов $P^k$ степени $k-1$, сшитых (с непрерывностью
+до $k-2$ производной включительно) на границах
+интервалов единичной длины
+$$
+\Lambda_k(x, c) = \left\{\begin{matrix}
+\sum\limits_{i=0}^{k/2-1} P_i^k(|x-c|)\,\Lambda_1\left(|x-c|,
+i+\frac12\right) & \text{для четных}\,k,\\
+\sum\limits_{i=0}^{(k-1)/2} P_i^k(|x-c|)\,\Lambda_1(|x-c|,
+i) & \text{для нечетных}\,k.\\
+\end{matrix}\right.
+$$
+
+Рассмотрим интеграл вида
+$$
+\int\limits_{-\infty}^{\infty} P^k(x')\,\Lambda_1(x', p)\,\Lambda_1(x', x)\, dx' =
+\int\limits_{\max\left(x-\frac12,\,p-\frac12\right)}^{\min\left(x+\frac12,\,p+\frac12\right)} P^k(x')\cdot(|x-p|<1)\, dx', 
+$$
+откуда для четных $k$
+\begin{multline}
+  P^{k+1}_i = \int\limits_{-\infty}^{\infty} \left[
+    P^{k-1}_{i-1}(x')\,\Lambda_1\left(x', i-\frac12\right) + P^{k-1}_i(x')\,\Lambda_1\left(x', i+\frac12\right)
+    \right]\,\Lambda_1(x', x)\, dx' =\\=
+  \int\limits_{\max\left(x-\frac12,\,i-1\right)}^{\min\left(x+\frac12,\,i\right)} P^{k-1}_{i-1}(x') \, dx' +
+  \int\limits_{\max\left(x-\frac12,\,i\right)}^{\min\left(x+\frac12,\,i+1\right)} P^{k-1}_i(x') \, dx', 
+  \notag
+\end{multline}
+для нечетных $k$
+\begin{multline}
+  P^{k+1}_i = \int\limits_{-\infty}^{\infty} \left[
+    P^{k-1}_{i-1}(x')\,\Lambda_1\left(x', i\right) + P^{k-1}_i(x')\,\Lambda_1\left(x', i+1\right)
+    \right]\,\Lambda_1(x', x)\, dx' =\\=
+  \int\limits_{\max\left(x-\frac12,\,i-\frac12\right)}^{\min\left(x+\frac12,\,i+\frac12\right)} P^{k-1}_{i-1}(x') \, dx' +
+  \int\limits_{\max\left(x-\frac12,\,i+\frac12\right)}^{\min\left(x+\frac12,\,i+\frac32\right)} P^{k-1}_i(x') \, dx'. 
+  \notag
+\end{multline}
 
 \subsection{Функции модуля {\sf interpolations}}
 Для проведения интерполяции используется параметризованная функция (frontend)
@@ -136,7 +189,4 @@ $$
 
 
 
-%Че то я туплю. Вот готовый ответ из \verb'http://sernam.ru/book_mm3d.php?id=93', над строчкой <<{\it Из уравнения (5-83) получаем параметрический В-сплайн}>>
-%$$
-%\widetilde f = (1-x)^3f_{-1} + 3x(1-x)^2 f_0 + 3x^2(1-x) f_1 + x^3 f_2
-%$$
+
