@@ -35,9 +35,11 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 };
 
+#ifndef SWIG		
 #define CONFIGURATE(ARGS...) template<typename ConfT>					\
 	void configurate(ConfT &conf, bool wmode, const char *prefix=""){	\
 		aiw::obj_conf_par(conf, wmode, prefix, #ARGS, ARGS);			\
 	}
+#endif //SWIG		
 
 #endif //AIW_OBJCONF_HPP

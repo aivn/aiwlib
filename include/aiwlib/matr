@@ -11,7 +11,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int X, int Y, class T=double> class Matr{
+	template <int X, int Y=X, class T=double> class Matr{
 		T p[X*Y];
 
 		inline void set_row(){}
@@ -42,22 +42,30 @@ namespace aiw{
 		inline       T& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const T& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
-		inline Matr  operator +  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++) M.p[i] = p[i]+B.p[i]; return M; }
-		inline Matr  operator -  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++) M.p[i] = p[i]-B.p[i]; return M; }
-		inline Matr  operator &  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++) M.p[i] = p[i]*B.p[i]; return M; }
-		inline Matr& operator += (const Matr& B)       { for(int i=0; i<X*Y; i++) p[i] += B.p[i]; return *this; }
-		inline Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++) p[i] -= B.p[i]; return *this; }
-		inline Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++) p[i] *= B.p[i]; return *this; }
+		inline Matr  operator +  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M; }
+		inline Matr  operator -  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
+		inline Matr  operator &  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
+		inline Matr& operator += (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
+		inline Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
+		inline Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
 
 		inline Vec<X, T> row(const int y) const {
 			WASSERT(y<=0 && y<Y, "illegal y ", y, X, Y, sizeof(T));
 			Vec<X, T> r; for(int x=0; x<X; x++) r[x] = p[x+y*X];
 			return r;
 		}
+		inline void row(const int y, const Vec<X, T> &r){
+			WASSERT(y<=0 && y<Y, "illegal y ", y, X, Y, sizeof(T));
+			for(int x=0; x<X; x++) p[x+y*X] = r[x];
+		}
 		inline Vec<Y, T> col(const int x) const {
 			WASSERT(x<=0 && x<X, "illegal x ", x, X, Y, sizeof(T));
 			Vec<Y, T> c; for(int y=0; y<Y; y++) c[y] = p[x+y*X];
 			return c;
+		}
+		inline void col(const int x, const Vec<Y, T> &c){
+			WASSERT(x<=0 && x<X, "illegal x ", x, X, Y, sizeof(T));
+			for(int y=0; y<Y; y++) p[x+y*X] = c[y];
 		}
 		
 		inline Vec<Y, T> operator * (const Vec<X, T>& v) const { 
@@ -91,7 +99,7 @@ namespace aiw{
 			for(int y=J+1; y<Y; y++) for(int x=0; x<I; x++) M(x, y-1) = p[x+y*X];
 			for(int y=J+1; y<Y; y++) for(int x=I+1; x<X; x++) M(x-1, y-1) = p[x+y*X];
 			return M;
-		}
+		} 
 		inline T det() const {
 			if(X==1 && Y==1) return p[0]; 
 			T D = 0.;
@@ -99,6 +107,7 @@ namespace aiw{
 			return D;
 		}
 		inline Matr<Y, X, T> reverse() const {
+			static_assert(X==Y, "non square matrix!");
 			Matr <Y, X, T> M;
 			for(int x=0; x<X; x++) M(0, x) = app(x, 0).det()*(1.-2.*((x)%2));
 			T D = 0.; for(int x=0; x<X; x++) D += p[x]*M(0,x); D = 1./D;
@@ -115,17 +124,18 @@ namespace aiw{
 	//  terminate recursion for reverse matrix
 	template <class T> class Matr<0,0,T>{ public:
 		inline T det() const { return 1.; }
-		inline T& operator() (int x, int y){ WRAISE("oops... ", x, y); } // { return 1.; } //???
+		inline T& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
 	/*
 	template <int X, class T> class Matr<X,0,T>{ public:
 		inline T det() const { return 1.; }
-		//inline T operator() (int x, int y){} // { return 1.; } //???
+		inline T& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
-	template <int Y, class T> class mtrx<0,Y,T>{ public:
+	template <int Y, class T> class Matr<0,Y,T>{ public:
 		inline T det() const { return 1.; }
-		//inline T& operator() (int x, int y){} // { return 1.; } //???
-		};*/
+		inline T& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
+	};
+	*/
 	//--------------------------------------------------------------------------
 	//                       B
 	// A|B ==> AB,   A^B ==> A
