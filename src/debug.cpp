@@ -24,26 +24,32 @@ static int exc_counter = 0;
 BaseDebugStackTupleFrame::BaseDebugStackTupleFrame(bool reg){ if(reg && exc_counter<4095) exc_frames[exc_counter++] = this; } 
 BaseDebugStackTupleFrame::~BaseDebugStackTupleFrame(){ if(exc_counter>0 && exc_frames[exc_counter-1]==this) exc_counter--; } 
 //------------------------------------------------------------------------------
-void segfault_hook(int signum, siginfo_t * info, void * f){
+void signal_hook(int signum, siginfo_t * info, void * f){
 	while(exc_counter) exc_frames[--exc_counter]->out_msg(std::cerr);
 	void* buf[4096]; int size = backtrace(buf, 4096);
-	fprintf(stderr, "\n\n\nSEGMENTATION FAULT WHEN ACCESSING THE ADDRESS %p\nSTACK SIZE %d FRAMES:\n", info->si_addr, size);
+	fprintf(stderr, "\n\n\nProgram terminated with signal=%d (%s), si_code=%d\n", info->si_signo, strsignal(info->si_signo), info->si_code);
+	if(info->si_errno) fprintf(stderr, "[%s]\n", strerror(errno));
+	if(info->si_signo==SIGSEGV || info->si_signo==SIGILL || info->si_signo==SIGFPE || info->si_signo==SIGBUS)
+		fprintf(stderr, "bad address=%p\n", info->si_addr);
+	//	if(info->si_signo==SIGSEGV)
+	fprintf(stderr, "Stack size %d frames:\n", size);
 	char** strs = backtrace_symbols(buf, size);
 	if(!strs) for(int i=0; i<size; ++i) fprintf(stderr, "%p\n", buf[i]);
 	else{
 		for(int i=0; i<size; ++i) printf("%s\n", strs[i]);  
 		free(strs);
 	}
-	fprintf(stderr, "\nTO VIEW DETAILS, RUN THE COMMAND:\naddr2line -Cpif");
+	fprintf(stderr, "\nTo view details, run the command:\naddr2line -Cpif");
 	for(int i = 0; i<size; ++i) fprintf(stderr, " %p", buf[i]);
-	fprintf(stderr, " -e YOUR-PROGRAMM\n");
+	fprintf(stderr, " -e Your-programm\n\nIf the output of the addr2line is not informative, try recompile Your code with '--static' option.\n");
 	exit(1);
 }
-void aiw::init_segfault_hook(){
+void aiw::init_signal_hook(int signal){
 	struct sigaction act; 
 	memset(&act, 0, sizeof(act)); 
-	act.sa_sigaction = segfault_hook; 
+	act.sa_sigaction = signal_hook; 
 	act.sa_flags = SA_SIGINFO; 
-	sigaction(SIGSEGV, &act, NULL); 
+	sigaction(signal, &act, NULL); 
 }
+void aiw::init_segfault_hook(){ init_signal_hook(SIGSEGV); }
 //------------------------------------------------------------------------------
