@@ -9,7 +9,7 @@ void Model::init(Vec<2> xv0, int N){
 	t = 0.;
 }
 void Model::calc(){
-    double sgT =  sqrt(2*gamma*T), stab = h/(1.-.5*gamma*h);
+    double sgT =  sqrt(2*h*gamma*T), stab = 1./(1.-.5*gamma*h);
 	double Fext = A*sin(Omega*(t+.5*h));
 	double df = 1./(tracs.size()*f.step.prod());
 
@@ -18,7 +18,7 @@ void Model::calc(){
 		p[0] += p[1]*h*.5; // численная схема
 		p[1] += h*(-a*p[0]-b*p[0]*p[0]*p[0]+Fext);
 		p[0] += p[1]*h*.5;
-		p[1] += stab*(-gamma*p[1]+sgT*rand_gauss());
+		p[1] += stab*(-gamma*p[1]*h+sgT*rand_gauss());
 
         f[p] += df; av += d_av(p); 	// диагностика		 
 	}

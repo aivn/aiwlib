@@ -44,21 +44,21 @@ class SelCalc(calc.Calc):
 class Select:
     'Построение выборки по базе RACS'
     _i, autocommit = 0, False # счетчик строки, автоматическое сохранение изменений ???
-    def __init__( self, fromL=['./'], # список обрабатываемых репозиториев
-                  ev_list=[],         # список выражений
-                  progressbar=None,   # экземляр класса ProgressBar
-                  c_size=False,       # автоматически определять суммарный размер выборки
-                  check_tree=True ):  # опускаться вниз по дереву каталогов
+    def __init__(self, fromL=['./'], # список обрабатываемых репозиториев
+                 ev_list=[],         # список выражений
+                 progressbar=None,   # экземляр класса ProgressBar
+                 c_size=False,       # автоматически определять суммарный размер выборки
+                 check_tree=True,    # опускаться вниз по дереву каталогов
+                 table=None):        # готовая таблица значений (отменяет обход репозиториев)
         self._L, self.c_size, self.c_runtime, self.progressbar, self.ring = [], c_size, 0, progressbar, []
-        if not fromL: self._L, self.head, self._ev_list = [], [], []; return
+        if not fromL and table is None: self._L, self.head, self._ev_list = [], [], []; return
 
         ev_list, ev_ring = filter(lambda e: e[-1]!=':', ev_list), [e[:-1] for e in ev_list if e[-1]==':']
         if ev_ring:
             ring_D = {} # { кортеж-значений-параметров: ячейка-в-ring }  и текущая ячейка в ring
             ring_keys = [(e.split('=', 1)[0] if mixt.is_name_eq(e) else e) for e in ev_ring]
             ring_expr = [(e.split('=', 1)[1] if mixt.is_name_eq(e) else e) for e in ev_ring]
-            
-            
+                        
         fromL, starttime, csfhL = ([fromL] if type(fromL)==str else list(fromL)), time.time(), map(parse, ev_list)
         self.head, self._ev_list = [c[0].co_filename for c in csfhL if not c[3]], [c for c in csfhL if not c[3]]
         if self.progressbar: self.progressbar.clean()
@@ -107,8 +107,16 @@ class Select:
 	#-----------------------------------------------------------------------
         start, self.fromL = 0., filter(os.path.isdir, fromL)
         calc.Calc._except_report_table.extend(['repository "%s" not found\n'%r for r in fromL if not os.path.isdir(r)])
-        for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL), repository) 
-        #repository = os.path.abspath( os.path.expanduser( os.path.expandvars(chain2afuse(repository)) ) )+'/'
+        if table is None:
+            for repository in self.fromL: start = vizit(repository, start, 1./len(self.fromL), repository)
+        else:
+            for D in table:
+                R = SelCalc(None, D); R.__dict__['_repo'] = None
+                if ev_ring: self._L = ring_D.setdefault(tuple(map(R, ring_expr)), [])
+                l = [R]; self._L.append(l); Select._i += 1
+                for c, s, f, h in csfhL:
+                    l.append(R(c))
+                    if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break                
 
         if ev_ring: self.ring_keys = ring_keys
         else: ring_D = { (): self._L }

@@ -12,7 +12,7 @@ from model import *            # модель
 M = Model()
 M.a, M.b = -1, 1
 M.A, M.Omega = 0.1, 1.
-M.gamma, M.T = 0.1, 0.2
+M.gamma, M.T = 0.1, 0.05
 M.h = 0.1
 
 # инициализируем функцию распределения
