@@ -41,7 +41,8 @@ std::string aiw::make_path(const char *repo){
 			if(counter<c) counter = c;
 		}
 	}
-
+	::closedir(dp);
+	
 	// make unique path
 	for(int i=0; i<10; i++){
 		sprintf(buf, "%s/%s%03i/", repo, prefix.c_str(), ++counter);
