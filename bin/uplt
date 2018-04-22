@@ -9,7 +9,7 @@ import os, sys, math, PIL.Image, PIL.ImageTk, tkSimpleDialog, cPickle
 from aiwlib.tkWidgets import *
 from aiwlib.iostream import *
 #from aiwlib.binheads import *
-#from aiwlib.vec import *
+from aiwlib.vec import *
 from aiwlib.MeshF2 import *
 from aiwlib.MeshF3 import *
 from aiwlib.MeshUS2 import *
@@ -182,7 +182,7 @@ def replot_frame(csz=None):
     #msh = mshL[fr_num.get()].load(fin); rz = msh.min_max()
     wroot.title('uplt: %r[%i]'%(fin, fr_num))
     msh = msh0 = mshL[fr_num.get()]; sph = False # converts
-    if msh.__class__ in (SphereF, SphereD, SphereUS): sph, msh.bmin, msh.bmax, msh.interp = True, [-180., 0.], [180., 180.], sph_interp.get()
+    if msh.__class__ in (SphereF, SphereD, SphereUS): sph, msh.bmin, msh.bmax, msh.logscale, msh.interp = True, [-180., 180.], [180., 0.], 0, sph_interp.get()
     elif msh0.dim==2:
         slice_pos.config(to=0)
         if x_axe.get()=='Y' and y_axe.get()=='X': msh0 = msh = msh0.transpose(0, 1)
@@ -269,8 +269,11 @@ def replot_frame(csz=None):
     if not sph:
         preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)
         canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
-        canvas.mouse_select((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
+    canvas.mouse_select((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
+    canvas.mouse_move((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), (show_on_pal_move, hide_on_pal_move))
+    canvas.mouse_move((yw,th), (sz[0]-pw,sz[1]-xh), (ShowOnMove(msh, sph), hide_on_msh_move))
         #canvas.mouse_left((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), pal_left)
+#    canvas.mouse_move((yw,th),  (sz[0]-pw,sz[1]-xh), ShowOnMove((yw,th),  (sz[0]-pw,sz[1]-xh), ))
 
     if animate.get():
         global animate_counter
@@ -291,6 +294,35 @@ def replot_frame(csz=None):
                 if dstfile: os.system('ffmpeg -i %s/%%06d.png -q 1 -y '%tmpdir+dstfile)
 
 #-------------------------------------------------------------------------------
+eps2val = lambda V, v, logscale: (V[0]**(1+(log(V[1])/log(V[0])-1)*v) if logscale else V[0]+(V[1]-V[0])*v)
+def hide_on_pal_move(self): self.delete('pal_move')
+def hide_on_msh_move(self): self.delete('msh_move')
+def show_on_pal_move(self, xy, xy0, xy1):
+    self.delete('pal_move')
+    tfont = font.get().split(); tfont[1] = int(tfont[1])
+    v, V = float(xy1[1]-xy[1])/(xy1[1]-xy0[1]), (f_min.get(), f_max.get())
+    text = '%g'%(V[0]**(1+(log(V[1])/log(V[0])-1)*v) if f_logscale.get() else V[0]+(V[1]-V[0])*v)
+    #text = '%g'%eps2val(V, v, f_logscale.get())
+    self.create_text(xy0[0], xy[1], text=text, anchor='e', font=tfont, tag='pal_move', fill='gray')
+    self.create_line(xy0[0], xy[1], xy1[0], xy[1], fill='gray', tag='pal_move')
+class ShowOnMove:
+    def __init__(self, msh, sph): self.msh, self.sph = msh, sph
+    def __call__(self, C, xy, xy0, xy1):
+        if self.sph and mollweide.get(): return 
+        C.delete('msh_move')
+        C.create_line(xy0[0], xy[1], xy1[0], xy[1], fill='gray', tag='msh_move')
+        C.create_line(xy[0], xy0[1], xy[0], xy1[1], fill='gray', tag='msh_move')
+        eps = float(xy[0]-xy0[0])/(xy1[0]-xy0[0]), float(xy1[1]-xy[1])/(xy1[1]-xy0[1])
+        r = vec(*[eps2val((self.msh.bmin[i], self.msh.bmax[i]), eps[i], self.msh.logscale&(1<<i)) for i in (0,1)])
+        tfont = font.get().split(); tfont[1] = int(tfont[1])
+        C.create_text(xy[0], xy1[1]+3, text='%g'%r[0], anchor='n', font=tfont, tag='msh_move', fill='red')
+        C.create_text(0, xy[1], text='%g'%r[1], anchor='w', font=tfont, tag='msh_move', fill='red')        
+        if self.sph:
+            r *= pi/180; r3 = vec(cos(r[0])*sin(r[1]), sin(r[0])*sin(r[1]), cos(r[1]))
+            v, cid = self.msh[r3], sph_cellInd(r3, self.msh.rank())
+        else: v, cid = self.msh(r), self.msh.coord2pos(r)
+        C.create_text(xy[0], xy[1], text='%g\n[%s]'%(v, cid), anchor='e', font=tfont, tag='msh_move', fill='gray')
+            
 def move_select(self, x, y): self.delete('select'); self.create_rectangle(self._left_press, (x,y), outline='gray', tag='select')
 def final_select_image(self, x, y):
     self.delete('select')
@@ -318,7 +350,7 @@ def final_select_pal(self, x, y):
     A, B = [self.picts['pal'][i][1] for i in (0,1)]
     a, b, V = self._left_press[1], y, (f_min.get(), f_max.get())
     if a==b: f_autoscale.set(1); replot(); return
-    a, b = [V[0]**(1+(log(V[1])/log(V[0])-1)*(B-x)/(B-A)) if f_logscale.get() else V[0]+(V[1]-V[0])*(B-x)/(B-A) for x in a, b]
+    a, b = [eps2val(V, (B-x)/(B-A), f_logscale.get()) for x in a, b]
     if a>b: a, b = b, a
     f_autoscale.set(0); f_min.set(a); f_max.set(b); replot()
 #def pal_left(self, x, y): f_autoscale.set(1); replot(); print 'pal left'

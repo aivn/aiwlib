@@ -183,7 +183,7 @@ class Vec:
         return Vec(*[b*x for x in a._getdata()], T=_decltype(a, b))
     def __imul__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r *= %r'%(a, b))
-        for i in range(len(a)): a[i] *= b; print i, repr(a)
+        for i in range(len(a)): a[i] *= b
         return a
     #---------------------------------------------------------------------------
     # operator /

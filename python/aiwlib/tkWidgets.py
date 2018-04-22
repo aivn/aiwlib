@@ -130,7 +130,9 @@ class Plot2D(Canvas):
             self._on_move(self, x, y)
             return
         for xy0, xy1, t, f in self.mouses:
-            if t=='move' and xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]: f(self, x, y); break 
+            if t=='move':
+                if xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]: f[0](self, (x,y), xy0, xy1)
+                else: f[1](self)
     def _mouse_left_release(self, e):
         x, y = self.canvasx(e.x), self.canvasy(e.y)
         if not self._on_move and (abs(x-self._left_press[0])<=1 and abs(y-self._left_press[1])<=1):
