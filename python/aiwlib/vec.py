@@ -183,30 +183,34 @@ class Vec:
         return Vec(*[b*x for x in a._getdata()], T=_decltype(a, b))
     def __imul__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r *= %r'%(a, b))
-        for i in range(len(a)): a[i] = a[i]*b
+        for i in range(len(a)): a[i] *= b; print i, repr(a)
+        return a
     #---------------------------------------------------------------------------
     # operator /
     def __div__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
                                      [x/b for x in a._getdata()]), T=_decltype(a, b)) 
     def __rdiv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
                                      [b/x for x in a._getdata()]), T=_decltype(a, b)) 
-    def __imul__(a, b):
+    def __idiv__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r /= %r'%(a, b))
-        for i in range(len(a)): a[i] = a[i]/b
+        for i in range(len(a)): a[i] /= b
+        return a
     #---------------------------------------------------------------------------
     # operator &
     def __and__(a, b):  return Vec(*([x*y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __rand__(a, b): return Vec(*([y*x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __iand__(a, b):
         b = _2sz(b, len(a))
-        for i in range(len(a)): a[i] = a[i]*b[i]
+        for i in range(len(a)): a[i] *= b[i]
+        return a
     #---------------------------------------------------------------------------
     # operator +
     def __add__(a, b):  return Vec(*([x+y for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __radd__(a, b): return Vec(*([y+x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __iadd__(a, b):
         b = _2sz(b, len(a))
-        for i in range(len(a)): a[i] = a[i]+b[i]
+        for i in range(len(a)): a[i] += b[i]
+        return a
     #---------------------------------------------------------------------------
     # operator -
     def __neg__(self): return Vec(*([-x for x in self._getdata()]), T=self._T()) 
@@ -214,7 +218,8 @@ class Vec:
     def __rsub__(a, b): return Vec(*([y-x for x, y in _conv(a, b)]), T=_decltype(a, b)) 
     def __isub__(a, b):
         b = _2sz(b, len(a))
-        for i in range(len(a)): a[i] = a[i]-b[i]
+        for i in range(len(a)): a[i] -= b[i]
+        return a
     #---------------------------------------------------------------------------
     # operators | and ()
     def __or__  (a, b): return Vec(*(a._getdata()+_2tuple(b)), T=_decltype(a, b)) 
@@ -232,9 +237,11 @@ class Vec:
     def __ilshift__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = min(a[i], b[i])
+        return a
     def __irshift__(a, b):
         b = _2sz(b, len(a))
         for i in range(len(a)): a[i] = max(a[i], b[i])
+        return a
     #---------------------------------------------------------------------------
     # periodic ???
     def circ(self): return Vec(*(self._getdata()[l%self._D():]+self._getdata()[:l%self._D()]), T=self._T()) #???
