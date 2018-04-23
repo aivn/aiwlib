@@ -11,7 +11,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int X, int Y=X, class Q=double> class Matr{
+	template <int Y, int X=Y, class Q=double> class Matr{
 		Q p[X*Y];
 
 		inline void set_row(){}
@@ -29,16 +29,16 @@ namespace aiw{
 			static_assert(X==Y, "non-square matrix!");
 			for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = x==y?v:0.;
 		}
-		template <typename Q2> Matr& operator = (const Matr<X, Y, Q2> &M){
+		template <typename Q2> Matr& operator = (const Matr<Y, X, Q2> &M){
 			for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);
 			return *this;
 		}
-		template <typename Q2> Matr(const Matr<X, Y, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
+		template <typename Q2> Matr(const Matr<Y, X, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
 
 		
-		inline       Q& operator() (int x, int y)        { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline const Q& operator() (int x, int y)  const { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline static const Ind<2> bbox() { return Ind<2>(X, Y); }
+		inline       Q& operator() (int y, int x)        { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline static const Ind<2> bbox() { return Ind<2>(Y, X); }
 		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
@@ -76,55 +76,55 @@ namespace aiw{
 			}
 			return t; 
 		}
-		template <int Z>  inline Matr<Z, Y, Q> operator * (const Matr<Z, X, Q> &B ) const { 
-			Matr<Z, Y, Q> M; 
+		template <int Z>  inline Matr<Y, Z, Q> operator * (const Matr<X, Z, Q> &B ) const { 
+			Matr<Y, Z, Q> M; 
 			for(int y=0; y<Y; y++)
 				for(int z=0; z<Z; z++){ 
-					M(z, y) = p[y*X]*B(z, 0);
-					for(int x=1; x<X; x++) M(z, y) += (*this)(x,y)*B(z,x); 
+					M(y, z) = p[y*X]*B(0, z);
+					for(int x=1; x<X; x++) M(y, z) += (*this)(y, x)*B(x, z); 
 				}
 			return M; 
 		}  
-		inline Matr<Y, X, Q> T() const { 
-			Matr<Y, X, Q> M;  
+		inline Matr<X, Y, Q> T() const { 
+			Matr<X, Y, Q> M;  
 			for(int y=0; y<Y; y++)
-				for( int x=0; x<X; x++) M(y, x) = p[x+y*X]; 
+				for( int x=0; x<X; x++) M(x, y) = p[x+y*X]; 
 			return M;
 		}
 		
-		inline Matr<X-1, Y-1, Q> app(const int I, const int J) const {
-			Matr<X-1, Y-1, Q> M;
-			for(int y=0; y<J; y++) for(int x=0; x<I; x++) M(x, y) = p[x+y*X];
-			for(int y=0; y<J; y++) for(int x=I+1; x<X; x++) M(x-1, y) = p[x+y*X];
-			for(int y=J+1; y<Y; y++) for(int x=0; x<I; x++) M(x, y-1) = p[x+y*X];
-			for(int y=J+1; y<Y; y++) for(int x=I+1; x<X; x++) M(x-1, y-1) = p[x+y*X];
+		inline Matr<Y-1, X-1, Q> app(const int J, const int I) const {
+			Matr<Y-1, X-1, Q> M;
+			for(int y=0; y<J; y++) for(int x=0; x<I; x++) M(y, x) = p[x+y*X];
+			for(int y=0; y<J; y++) for(int x=I+1; x<X; x++) M(y, x-1) = p[x+y*X];
+			for(int y=J+1; y<Y; y++) for(int x=0; x<I; x++) M(y-1, x) = p[x+y*X];
+			for(int y=J+1; y<Y; y++) for(int x=I+1; x<X; x++) M(y-1, x-1) = p[x+y*X];
 			return M;
 		} 
 		inline Q det() const {
 			if(X==1 && Y==1) return p[0]; 
 			Q D = 0.;
-			for(int x=0; x<X; x++) D += app(x, 0).det()*p[x]*(1.-2.*(x%2));
+			for(int x=0; x<X; x++) D += app(0, x).det()*p[x]*(1.-2.*(x%2));
 			return D;
 		}
-		inline Matr<Y, X, Q> reverse() const {
+		inline Matr<X, Y, Q> reverse() const {
 			static_assert(X==Y, "non square matrix!");
-			Matr <Y, X, Q> M;
-			for(int x=0; x<X; x++) M(0, x) = app(x, 0).det()*(1.-2.*((x)%2));
-			Q D = 0.; for(int x=0; x<X; x++) D += p[x]*M(0,x); D = 1./D;
-			for(int x=0; x<X; x++) M(0, x) *= D;
-			for(int y=1; y<Y; y++) for(int x=0; x<X; x++) M(y, x) = app(x, y).det()*(1.-2.*((x+y)%2))*D;
+			Matr <X, Y, Q> M;
+			for(int x=0; x<X; x++) M(x, 0) = app(0, x).det()*(1.-2.*((x)%2));
+			Q D = 0.; for(int x=0; x<X; x++) D += p[x]*M(x, 0); D = 1./D;
+			for(int x=0; x<X; x++) M(x, 0) *= D;
+			for(int y=1; y<Y; y++) for(int x=0; x<X; x++) M(x, y) = app(y, x).det()*(1.-2.*((x+y)%2))*D;
 			return M;
 		}
 	}; // end of class Matr
 	template <int X, typename Q, typename ... Args>
 	inline Matr<X, 1+sizeof...(Args), Q> matr(const Vec<X, Q> &v, Args ... args){
-		return Matr<X, 1+sizeof...(Args), Q>(v, args...);
+		return Matr<1+sizeof...(Args), X, Q>(v, args...);
 	}
 	//--------------------------------------------------------------------------
 	//  terminate recursion for reverse matrix
 	template <class Q> class Matr<0,0,Q>{ public:
 		inline Q det() const { return 1.; }
-		inline Q& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
+		inline Q& operator() (int y, int x) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
 	/*
 	template <int X, class Q> class Matr<X,0,Q>{ public:
@@ -139,71 +139,71 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//                       B
 	// A|B ==> AB,   A^B ==> A
-	template <int X, int Y, typename Q> Matr<X+1, Y, Q> operator | (const Matr<X, Y, Q> &M, const Vec<Y, Q> &v){
-		Matr<X+1, Y, Q> R;
+	template <int Y, int X, typename Q> Matr<Y, X+1, Q> operator | (const Matr<Y, X, Q> &M, const Vec<Y, Q> &v){
+		Matr<Y, X+1, Q> R;
 		for(int y=0; y<Y; y++){
-			for(int x=0; x<X; x++) R(x, y) = M(x, y);
-			R(X, y) = v[y];
+			for(int x=0; x<X; x++) R(y, x) = M(y, x);
+			R(y, X) = v[y];
 		}
 		return R; 
 	}
-	template <int X, int Y, typename Q> Matr<X+1, Y, Q> operator | (const Vec<Y, Q> &v, const Matr<X, Y, Q> &M){
-		Matr<X+1, Y, Q> R;
+	template <int Y, int X, typename Q> Matr<Y, X+1, Q> operator | (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){
+		Matr<Y, X+1, Q> R;
 		for(int y=0; y<Y; y++){
-			R(0, y) = v[y];
-			for(int x=1; x<X+1; x++) R(x, y) = M(x, y);
+			R(y, 0) = v[y];
+			for(int x=1; x<X+1; x++) R(y, x) = M(y, x-1);
 		}
 		return R; 
 	}
-	template <int X1, int X2, int Y, typename Q> Matr<X1+X2, Y, Q> operator | (const Matr<X1, Y, Q> &M1, const Matr<X2, Y, Q> &M2){
-		Matr<X1+X2, Y, Q> R;
+	template <int Y, int X1, int X2, typename Q> Matr<Y, X1+X2, Q> operator | (const Matr<Y, X1, Q> &M1, const Matr<Y, X2, Q> &M2){
+		Matr<Y, X1+X2, Q> R;
 		for(int y=0; y<Y; y++){
-			for(int x=0; x<X1; x++) R(x, y) = M1(x, y);
-			for(int x=X1; x<X1+X2; x++) R(X1+x, y) = M2(x, y);
+			for(int x=0; x<X1; x++) R(y, x) = M1(y, x);
+			for(int x=0; x<X2; x++) R(y, x+X1) = M2(x, y);
 		}
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int X, int Y, typename Q> Matr<X, Y+1, Q> operator ^ (const Matr<X, Y, Q> &M, const Vec<X, Q> &v){
-		Matr<X, Y+1, Q> R;
-		for(int x=0; x<X; x++) R(x, 0) = v[x];
-		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(x, y+1) = M(x, y);
+	template <int X, int Y, typename Q> Matr<Y+1, X, Q> operator ^ (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){
+		Matr<Y+1, X, Q> R;
+		for(int x=0; x<X; x++) R(0, x) = v[x];
+		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y+1, x) = M(y, x);
 		return R; 
 	}
-	template <int X, int Y, typename Q> Matr<X, Y+1, Q> operator ^ (const Vec<X, Q> &v, const Matr<X, Y, Q> &M){
-		Matr<X, Y+1, Q> R;
-		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(x, y) = M(x, y);
-		for(int x=0; x<X; x++) R(x, Y) = v[x];
+	template <int X, int Y, typename Q> Matr<Y+1, X, Q> operator ^ (const Vec<X, Q> &v, const Matr<Y, X, Q> &M){
+		Matr<Y+1, X, Q> R;
+		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = M(y, x);
+		for(int x=0; x<X; x++) R(Y, x) = v[x];
 		return R; 
 	}
-	template <int X, int Y1, int Y2, typename Q> Matr<X, Y1+Y2, Q> operator ^ (const Matr<X, Y1, Q> &M1, const Matr<X, Y2, Q> &M2){
-		Matr<X, Y1+Y2, Q> R;
-		for(int y=0; y<Y2; y++)	for(int x=0; x<X; x++) R(x, y) = M2(x, y);
-		for(int y=Y2; y<Y1+Y2; y++)	for(int x=0; x<X; x++) R(x, Y2+y) = M1(x, y);
-		return R; 
-	}
-	//--------------------------------------------------------------------------
-	template <int X, int Y, typename Q> Matr<X, Y, Q> operator * (const Q &v, const Matr<X, Y, Q> &M){
-		Matr<X, Y, Q> R; for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(x, y) = v*M(x, y);
+	template <int Y1, int Y2, int X, typename Q> Matr<Y1+Y2, X, Q> operator ^ (const Matr<Y1, X, Q> &M1, const Matr<Y2, X, Q> &M2){
+		Matr<Y1+Y2, X, Q> R;
+		for(int y=0; y<Y2; y++)	for(int x=0; x<X; x++) R(y, x) = M2(y, x);
+		for(int y=0; y<Y1; y++)	for(int x=0; x<X; x++) R(x, Y2+y) = M1(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int X, int Y, typename Q> Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<X, Y, Q> &M){
-		Vec<X, Q> t; for(int x=0; x<X; x++) t[x] = v[0]*M(x, 0);
-		for(int y=1; y<Y; y++) for(int x=0; x<X; x++) t[x] += v[y]*M(x, y);
+	template <int Y, int X, typename Q> Matr<Y, X, Q> operator * (const Q &v, const Matr<Y, X, Q> &M){
+		Matr<Y, X, Q> R; for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = v*M(y, x);
+		return R; 
+	}
+	//--------------------------------------------------------------------------
+	template <int Y, int X, typename Q> Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){
+		Vec<X, Q> t; for(int x=0; x<X; x++) t[x] = v[0]*M(0, x);
+		for(int y=1; y<Y; y++) for(int x=0; x<X; x++) t[x] += v[y]*M(y, x);
 		return t; 
 	}
 	//--------------------------------------------------------------------------
-	template <int X, int Y, typename Q> std::ostream& operator << (std::ostream &str, const Matr<X, Y, Q> & M){
+	template <int Y, int X, typename Q> std::ostream& operator << (std::ostream &str, const Matr<Y, X, Q> & M){
 		for(int y=0; y<Y; y++){
-			for(int x=0; x<X; x++) str<<M(x, y)<<'\t';
+			for(int x=0; x<X; x++) str<<M(y, x)<<'\t';
 			str<<'\n';
 		}
 		return str;
 	}
 	//--------------------------------------------------------------------------
 	template <int N, typename Q, typename C> void dispense(const Matr<N, N, Q> &src, const Ind<N> &IDs, C& dst){
-		for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[x], IDs[y]) += src(x, y);
+		for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
 	}
 	//--------------------------------------------------------------------------
 };
