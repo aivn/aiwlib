@@ -122,9 +122,10 @@ namespace aiw{
 		static const int sizeof_cell_type = sizeof(T);
 		std::string head;
 
-		size_t size() const { return sz; }
-		size_t __len__(){ return sz; } 
-		int rank() const { return R; }
+		inline size_t size() const { return sz; }
+		inline size_t vsize() const { return sph_vertex_num(R); }
+		inline size_t __len__(){ return sz; } 
+		inline int rank() const { return R; }
 
 		void init(int R_, int align=0){		 
 			R = R_; 
@@ -230,6 +231,17 @@ namespace aiw{
 
 		static const bool _racs_pull_lock = true;		
 		size_t __sizeof__() const { return sizeof(Sphere) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
+		//----------------------------------------------------------------------
+		//  cells info
+		//----------------------------------------------------------------------		
+		inline size_t cellInd(const aiw::Vec<3> &r) const { return sph_cellInd(r, R); } // индекс ячейки
+		inline const aiw::Vec<3>& cell(size_t ID) const { return sph_cell(ID, R); } // центр ячейки
+		inline double cell_area(size_t ID) const { return sph_cell_area(ID, R); } // площадь ячейки
+		inline const aiw::Vec<3, uint64_t>& cell_vert(size_t ID) const { return sph_cell_vert(ID, R); } // индексы вершин ячейки
+		inline const aiw::Vec<3, uint64_t>& cell_cell(size_t ID) const { return sph_cell_cell(ID, R); } // близжайшие соседи ячейки
+		inline const aiw::Vec<3>& vert(size_t ID) const { return sph_vert(ID, R); } // вершина (узел) сетки
+		inline const aiw::Vec<3, uint64_t>& vert_vert(size_t ID) const { return sph_vert_vert(ID, R); } // индексы вершин вершины
+		inline const aiw::Vec<6, uint64_t>& vert_cell(size_t ID) const { return sph_vert_cell(ID, R); } // ячейки, к которым относится вершина
 	};
 	//--------------------------------------------------------------------------
 };
