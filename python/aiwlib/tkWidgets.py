@@ -144,7 +144,7 @@ class Plot2D(Canvas):
     def _mouse_right(self, e): 
         x, y = self.canvasx(e.x), self.canvasy(e.y)
         for xy0, xy1, t, f in self.mouses:
-            if t=='right' and xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]: f(self, x, y); break 
+            if t=='right' and xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]: f(self, (x,y), xy0, xy1); break 
     def sel_xy2coord(self, x, y): return [float(x-self._sel_region[0][0])/(self._sel_region[1][0]-self._sel_region[0][0]),
                                           1-float(y-self._sel_region[0][1])/(self._sel_region[1][1]-self._sel_region[0][1])]
     #---------------------------------------------------------------------------

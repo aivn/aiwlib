@@ -22,7 +22,7 @@ sys.path.append([ i+'/dist-packages' for i in sys.path if 'python' in i ][0]) #f
 
 #try : from racslib.pickle_db import RACS
 #except ImportError, e : RACS = lambda path : cPickle.load(open( os.path.join( path, '.RACS' ) ))
-RACS = lambda path : cPickle.load(open( os.path.join( path, '.RACS' ) ))
+RACS = lambda path : cPickle.load(open(os.path.join(path, '.RACS')))
 #    class RACS :
 #        def __init__( self, path ) :
 #            try : self.__dict__.update( cPickle.load(open( os.path.join( path, '.RACS' ) )) )
@@ -221,6 +221,7 @@ class gplt(Parser) :
                 try:
                     if not f[0] in '!<': D.update(RACS( self.srcdir if self.srcdir.startswith('/') else os.path.dirname(f)+'/'+self.srcdir )) #.par_dict())
                 except: pass
+                #except Exception, e: print e
                 fin = open( self._filters.get(f,f) ) if f[0]!='<' else os.popen(f[1:]); s = fin.readline()
                 while s and ( s.startswith('#') or not s.strip() ):
                     if s.startswith('#:') :

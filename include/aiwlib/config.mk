@@ -161,7 +161,6 @@ define imodule
 @echo '%feature("autodoc","1");' >> $@
 @echo '%include "std_string.i"' >> $@
 @echo "%inline %{ namespace aiw{}; %}" >> $@
-@echo "%inline %{ #define CONFIGURATE(ARGS...) %}" >> $@
 @echo "%define CONFIGURATE(ARGS...) %enddef" >> $@
 endef
 #-------------------------------------------------------------------------------

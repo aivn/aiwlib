@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 ''''Конфигурация таблицы calc._G
 
-Copyright (C) 2013 Antov V. Ivanov  <aiv.racs@gmail.com>
+Copyright (C) 2013,2018 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
 import os, time, fnmatch, math, mixt, chrono
@@ -69,6 +69,18 @@ use('@logfile', '" ".join(open(path+"logfile").readlines()).strip() if os.path.e
 #use( 'priority', 0, 'приоритет запуска' ) #???
 use('on_racs_call_error', 2, 'действия при ошибке в методе _RACS.__call__: 0 --- остановка, 1 --- полный отчет, 2 --- краткий отчет, 3 --- игнорировать') #???
 use('@path_', 'path[len(os.getcwd())+1:] if path.startswith(os.getcwd()+"/") else path', 'путь к расчету от текущей директории')
+use('argmin', lambda X, Y=None: min(zip(Y,X))[1] if Y else min(X, key=lambda x:x[1])[0],
+    'argmin(X,Y=None) --- значение X при котором Y минимально, X может быть списком пар [(x0,y0), ...]')
+use('argmax', lambda X, Y=None: max(zip(Y,X))[1] if Y else max(X, key=lambda x:x[1])[0],
+    'argmax(X,Y=None) --- значение X при котором Y максимально, X может быть списком пар [(x0,y0), ...]')
+use('diff', lambda X, Y=None: [((Y[i+1]-Y[i])/(X[i+1]-X[i]), (X[i+1]+X[i])*.5) for i in range(len(X)-1)] if Y else
+    [((X[i+1][1]-X[i][1])/(X[i+1][0]-X[i][0]), (X[i+1][0]+X[i][0])*.5) for i in range(len(X)-1)],
+    'diff(X,Y=none) --- dY/dX(X) как список пар, X может быть списком пар [(x0,y0), ...]')
+use('integ', lambda X, Y=None: reduce(lambda R, i: R+[(X[i+1], R[-1][1]+(Y[i]+Y[i+1])*.5*(X[i+1]-X[i]))], range(len(X)-1), [(X[0], 0.)]) if Y else
+    reduce(lambda R, i: R+[(X[i+1][0], R[-1][1]+(X[i][1]+X[i+1][1])*.5*(X[i+1][0]-X[i][0]))], range(len(X)-1), [(X[0][0], 0.)]),
+    'integ(X, Y=None) --- интегрирует Y по X методом трапеций, X может быть списком пар [(x0,y0), ...]')
+#linef ???
+use('unzip', lambda L: reduce(lambda R,X:[r+[x] for r, x in zip(R,X)], L, [[] for i in L[0]]), 'функция обратная zip, разбирает список кортежей на отдельные списки')
 #-------------------------------------------------------------------------------
 class _Region:
     def __init__(self, a, b): self.a, self.b = a, b

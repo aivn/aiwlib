@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 # импортируем необходимые модули
+from model import *            # модель
 from aiwlib.vec import *       # вектора
 from aiwlib.iostream import *  # работа с файлами
 from aiwlib.MeshF2 import *    # сетка Mesh<float,2>
-from model import *            # модель
 
 # создаем класс модели и задаем параметры
 M = Model()

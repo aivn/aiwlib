@@ -3,15 +3,15 @@
 
 # импортируем необходимые модули
 from math import *
+from model import *            # модель
 from aiwlib.vec import *       # вектора
 from aiwlib.iostream import *  # работа с файлами
 from aiwlib.MeshF2 import *    # сетка Mesh<float,2>
-from model import *            # модель
 
 # создаем класс модели и задаем параметры
 M = Model()
 M.a, M.b = -1, 1
-M.A, M.Omega = 0.1, 1.
+M.A, M.Omega = 0.01, 1.
 M.gamma, M.T = 0.1, 0.05
 M.h = 0.1
 
@@ -36,7 +36,8 @@ while M.t<=t_max: # цикл по времени
     M.calc()
     print>>tvals, M.t, M.av
     M.f.head = 't=%g'%M.t; M.f.dump(fout)
-    if M.t>=t_min: chi += M.av[1]*(cos(M.t*M.Omega)+sin(M.t*M.Omega)*1j)*M.h
+    if M.t>=t_min:
+        chi += M.av[1]*(cos(M.t*M.Omega)+sin(M.t*M.Omega)*1j)*M.h
 
 chi *= 2/(M.A*(t_max-t_min))
 print chi, abs(chi), atan2(chi.imag, chi.real)

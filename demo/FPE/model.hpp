@@ -10,7 +10,7 @@ public:
     double a, b, A, Omega, gamma, T, t, h; // параметры расчета
 	CONFIGURATE(a, b, A, Omega, gamma, T, t, h);
 
-	Vec<6> av;  // моменты x, v, xx, vv, xv, W
+	Vec<7> av;  // моменты x, v, xx, vv, xv, W, flux
 	// вклад в моменты от одной траектории
 	inline Vec<6> d_av(const Vec<2> &p) const { 
 		return p|(p&p)|(p[0]*p[1])|

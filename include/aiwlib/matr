@@ -106,7 +106,7 @@ namespace aiw{
 			for(int x=0; x<X; x++) D += app(0, x).det()*p[x]*(1.-2.*(x%2));
 			return D;
 		}
-		inline Matr<X, Y, Q> reverse() const {
+		inline Matr<X, Y, Q> inv() const {
 			static_assert(X==Y, "non square matrix!");
 			Matr <X, Y, Q> M;
 			for(int x=0; x<X; x++) M(x, 0) = app(0, x).det()*(1.-2.*((x)%2));
@@ -117,7 +117,7 @@ namespace aiw{
 		}
 	}; // end of class Matr
 	template <int X, typename Q, typename ... Args>
-	inline Matr<X, 1+sizeof...(Args), Q> matr(const Vec<X, Q> &v, Args ... args){
+	inline Matr<1+sizeof...(Args), X, Q> matr(const Vec<X, Q> &v, Args ... args){
 		return Matr<1+sizeof...(Args), X, Q>(v, args...);
 	}
 	//--------------------------------------------------------------------------
@@ -159,7 +159,7 @@ namespace aiw{
 		Matr<Y, X1+X2, Q> R;
 		for(int y=0; y<Y; y++){
 			for(int x=0; x<X1; x++) R(y, x) = M1(y, x);
-			for(int x=0; x<X2; x++) R(y, x+X1) = M2(x, y);
+			for(int x=0; x<X2; x++) R(y, x+X1) = M2(y, x);
 		}
 		return R; 
 	}
@@ -179,7 +179,7 @@ namespace aiw{
 	template <int Y1, int Y2, int X, typename Q> Matr<Y1+Y2, X, Q> operator ^ (const Matr<Y1, X, Q> &M1, const Matr<Y2, X, Q> &M2){
 		Matr<Y1+Y2, X, Q> R;
 		for(int y=0; y<Y2; y++)	for(int x=0; x<X; x++) R(y, x) = M2(y, x);
-		for(int y=0; y<Y1; y++)	for(int x=0; x<X; x++) R(x, Y2+y) = M1(y, x);
+		for(int y=0; y<Y1; y++)	for(int x=0; x<X; x++) R(Y2+y, x) = M1(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------

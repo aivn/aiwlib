@@ -81,6 +81,10 @@ namespace aiw{
 			if(I!=arg_params.end()){ std::stringstream buf(I->second); scanf_obj(buf, val); }
 			return *this;
 		}
+		template <typename T, typename ...Args> RacsCalc& operator ()(const char* keys, T& val, Args&... args){
+			SplitArgForOut b(keys); std::string key(keys, b.end); (*this)(key.c_str(), val);
+			return (*this)(keys+b.next, args...);
+		}
 		
 		template <typename T> void get(const std::string& k, const T& v){ WRAISE("incorrect call: ", k); } // for objconf
 		template <typename T> void set(const std::string& k, T& v){ // for objconf
@@ -98,5 +102,6 @@ namespace aiw{
 		void set_progress(double progress_);
 	};
 	//--------------------------------------------------------------------------
+#define CALC(ARGS...) calc(#ARGS, ARGS)
 };
 #endif //AIW_RACS_HPP

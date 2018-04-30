@@ -108,7 +108,7 @@ slice_pos = aiwScale(panel, 'slice position', command=replot, length=panel_sz, s
 
 frame = Frame(panel); frame.pack(side=TOP, anchor=W)
 phi0 = aiwEntry(frame, 0, replot, 'phi0', pack={'side':LEFT}, width=3)
-mollweide, sph_interp = [aiwCheck(frame, ('mollweide', 'interp')[i], not i, command=replot, pack={'side':LEFT}) for i in (0,1)]
+mollweide, sph_interp = [aiwCheck(frame, ('mollweide', 'interp')[i], False, command=replot, pack={'side':LEFT}) for i in (0,1)]
 #frame.forget()
 #-------------------------------------------------------------------------------
 # add <- ->, as tkWidget class
@@ -269,6 +269,7 @@ def replot_frame(csz=None):
     if not sph:
         preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)
         canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
+    else: canvas.mouse_right((yw,th),  (sz[0]-pw,sz[1]-xh), mouse_right_sph)
     canvas.mouse_select((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
     canvas.mouse_move((sz[0]-pal_xsz.get(),th), (sz[0],sz[1]-xh), (show_on_pal_move, hide_on_pal_move))
     canvas.mouse_move((yw,th), (sz[0]-pw,sz[1]-xh), (ShowOnMove(msh, sph), hide_on_msh_move))
@@ -354,6 +355,17 @@ def final_select_pal(self, x, y):
     if a>b: a, b = b, a
     f_autoscale.set(0); f_min.set(a); f_max.set(b); replot()
 #def pal_left(self, x, y): f_autoscale.set(1); replot(); print 'pal left'
+mouse_right_cmd = ''
+def mouse_right_sph(self, xy, xy0, xy1):
+    if mollweide.get() or not mouse_right_cmd: return
+    eps = float(xy[0]-xy0[0])/(xy1[0]-xy0[0]), float(xy1[1]-xy[1])/(xy1[1]-xy0[1])
+    sph = data[file_num.get()][1][fr_num.get()]
+    phi, th = [eps2val(([-pi, pi][i], [pi, 0][i]), eps[i], False) for i in (0,1)]
+    r = vec(cos(phi)*sin(th), sin(phi)*sin(th), cos(th))
+    D = {'r':r, 'v':sph[r], 'cID':sph.cellInd(r), 'phi':phi, 'theta':th, 'fname':data[file_num.get()][0], 'name':os.path.basename(data[file_num.get()][0]),
+          'frame':fr_num.get(), 'rank':sph.rank(), 'head':sph.head, 'path':os.path.dirname(data[file_num.get()][0])}
+    if mouse_right_cmd[0]=='$': os.system(mouse_right_cmd[1:]%D)
+    else: exec(mouse_right_cmd, globals(), D)
 #-------------------------------------------------------------------------------
 wroot.title('uplt')
 wroot.bind('<plus>', lambda e: scale_limits(2.5))
@@ -367,6 +379,13 @@ wroot.bind('\\', lambda e: scale_limits(0))
 #wroot.bind('<Left>', on_left)
 canvas.bind('<Configure>', lambda e: replot_frame((e.width, e.height)))
 tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(tmpdir); print 'temporary path', tmpdir
+childs = '/tmp/uplt-%s.childs'%os.getpid()
+
+if os.path.exists('.uplt'): print 'load configfile ./.uplt ...'; execfile('.uplt')
+elif os.path.exists(os.path.expanduser('~/.uplt')): print 'load configfile ~/.uplt ...'; execfile(os.path.expanduser('~/.uplt'))
+
 try: wroot.mainloop()
-finally: os.system('rm -rf '+tmpdir)
+finally:
+    if os.path.exists(childs): os.system('kill $(cat %s)'%childs)
+    os.system('rm -rf '+tmpdir+' '+childs); os.system('pkill -P %i'%os.getpid())
 #-------------------------------------------------------------------------------
