@@ -102,7 +102,9 @@ while 1:
         '''%(os.getpid(), self.path, self.path)
         f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
-    if calc._racs_params['_commit_sources']: self.md5sum = sources.commit(self.path)
+    if calc._racs_params['_commit_sources']:
+        try: self.md5sum = sources.commit(self.path)
+        except Exception, e: print>>sys.stderr, e
     if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1) or calc._racs_params['_mpi']: 
         mixt.set_output(self.path+'logfile')
     self.commit() #???

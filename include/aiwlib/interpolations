@@ -138,9 +138,9 @@ namespace aiw{
 		inline double operator()(double x) const { return pf(x); }
 	};
 	//--------------------------------------------------------------------------
-	template <typename T, typename S>
-	inline void add_table2table(const T *src, int src_sz, // таблица-источник
-								T *dst, int dst_sz,       // таблица-приемник
+	template <typename T1, typename T2, typename S>
+	inline void add_table2table(const T1 *src, int src_sz, // таблица-источник
+								T2 *dst, int dst_sz,       // таблица-приемник
 								double offset,            // смещение начала источника от начала приемника в ячейках
 								const S &spline){         // сплайн определяющий порядок аппроксимации при подсуммировании
 		int offset0 = floor(offset), w_sz = spline.order();

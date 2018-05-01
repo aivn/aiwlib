@@ -86,6 +86,7 @@ namespace aiw{
 		aiw::IOstream& operator << (long   v){ printf("%i", v); return *this; }
 		aiw::IOstream& operator << (float  v){ printf("%f", v); return *this; }
 		aiw::IOstream& operator << (double v){ printf("%lf", v); return *this; }
+		aiw::IOstream& operator << (long double v){ printf("%lf", v); return *this; }
 		aiw::IOstream& operator << (const std::string &S){ printf("%s", S.c_str()); return *this; }
 		// aiw::IOstream& operator << (IOstream& (*func)(IOstream&)){ return func(*this); }
 
