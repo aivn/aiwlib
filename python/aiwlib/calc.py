@@ -244,9 +244,12 @@ class Calc:
             finally: _rtable.pop()
         if key=='runtime': return Time(0.) #???
 	if key=='statelist': return
+        if key and key[0]=='_'  and key[-1]=='_' and key[1].isalpha() and key.replace('_','0').isalnum(): return key[1:-1] in self.__dict__
         #for r, a in _getitem_rules: 
         #    if r(key, self): return a(key, self)
-        raise KeyError(key)        
+        report = 'KeyError: %r is not defined\n'%key
+        if not report in self._except_report_table: self._except_report_table.append(report)
+        #raise KeyError(key)        
     def __setitem__(self, key, val): self.__dict__[key] = val # блокировать доступ к statelist и пр???
     def __delitem__(self, key): del self.__dict__[key]
     def get(self, name, value=None): return self[name] if name in self.__dict__ else value

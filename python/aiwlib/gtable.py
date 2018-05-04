@@ -4,7 +4,7 @@
 Copyright (C) 2013,2018 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
-import os, time, fnmatch, math, mixt, chrono
+import os, sys, time, fnmatch, math, mixt, chrono
 from calc import _G, ghelp
 def use(key, expr, doc): 'добавляет значение в глобальную таблицу'; _G[key] = expr; ghelp.append('%s : %s'%(key, doc))
 #-------------------------------------------------------------------------------
@@ -92,4 +92,11 @@ use('EPS', _Region(0,0), 'объект интевала')
 for k, v in math.__dict__.items() : 
     if k[0]!='_': use(k, v,  'число %k'%k if type(k) is float else v.__doc__.replace('\n',' '))
 del k, v, use
+#-------------------------------------------------------------------------------
+if os.path.exists(os.path.expanduser('~/.racs')):
+    try: execfile(os.path.expanduser('~/.racs'), globals(), _G)
+    except Exception, e: print>>sys.stderr, 'in ~/.racs:', e
+if os.path.exists('.racs'):
+    try: execfile('.racs', globals(), _G)
+    except Exception, e: print>>sys.stderr, 'in .racs:', e
 #-------------------------------------------------------------------------------
