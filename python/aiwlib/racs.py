@@ -57,6 +57,10 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -a|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
                          контролируемых расчетом объектов.
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
+
+  -T|--title=TITLE --- задать имя серии
+  -R|--repeat=.racs/... --- повторить серию
+  -C|--continue=.racs/started-... --- продолжить серию (должен быть единственным аргументом!)
 '''
 #  --mpi[=N] --- для серийного запуска из под MPI. Вызывает MPI_Init/Finalize, 
 #                создает уникальные директории расчетов, обеспечивает 
@@ -97,9 +101,9 @@ while 1:
         R = cPickle.load(open(%r+'.RACS'))
         if R['statelist'][-1][0]=='started':
             R['statelist'].append(('killed', get_login(), socket.gethostname(), d2s(time.time()), 'racs-statechecker'))
-            cPickle.dump(R, open(%r+'.RACS', 'w'))
+            cPickle.dump(R, open(%r+'.RACS', 'w')); os.utime(%r, None)
         break
-        '''%(os.getpid(), self.path, self.path)
+        '''%(os.getpid(), self.path, self.path, self.path)
         f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']:
@@ -207,9 +211,9 @@ if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', True), 
-         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False) }
+         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', '') }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
-calc._cl_args, calc._arg_seqs, calc._arg_order, i = list(sys.argv[1:]), {}, [], 0
+calc._cl_args, calc._arg_seqs, calc._arg_order, i, repeat_mode = list(sys.argv[1:]), {}, [], 0, False
 while i<len(calc._cl_args):
     A = calc._cl_args[i]
     if A.endswith('+'): calc._cl_tags.append(A[:-1]); del calc._cl_args[i]
@@ -239,11 +243,19 @@ while i<len(calc._cl_args):
         if v.startswith('@'): v = eval(v[1:], math.__dict__, dict(calc._args_from_racs))
         calc._args_from_racs.append((k, v)); del calc._cl_args[i]
     elif A.startswith('-') and A!='-':
-        for k, v in opts.items():
+        for k, v in opts.items()+[('repeat', ('R', '')), ('continue', ('C', ''))]:
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):
                 calc._racs_params['_'+k] = True; calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
             elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):    
                 x = A.split('=', 1)[1]
+                if k=='continue' and len(sys.argv)!=2: raise Exception('The argument %r must be unique!'%A)
+                if k=='repeat' and (A!=sys.argv[1] or repeat_mode): raise Exception('The argument %r must be firts!'%A)
+                if k in ('continue', 'repeat'):
+                    fsrc = open(x); fsrc.readline(); aargs = fsrc.readline().split()[2:] # проблемы с пробелами ???
+                    if k=='repeat': aargs.append('--title=') # сбрасываем название серии если было
+                    else: calc._racs_params['_continue'] = x
+                    calc._cl_args[0:1] = aargs; del sys.argv[1]; sys.argv[1:1] = aargs
+                    repeat_mode = True; break
                 calc._racs_params['_'+k] = mixt.string2bool(x) if type(v[1]) is bool else int(x) if type(v[1]) is int else x
                 calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
         else: i += 1

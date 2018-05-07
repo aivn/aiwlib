@@ -62,15 +62,40 @@ class Calc:
             _base_args_from_racs, t_start, n_start, n_finish = list(_args_from_racs), time.time(), 0, 0
             queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
             if _racs_params['_daemonize']: mixt.mk_daemon()
-            copies, pids, logfile = _racs_params['_copies'], [], '/tmp/racs-started-%i'%os.getpid()
-            print 'Start queue for %i items in %i threads, master PID=%i, logfile="%s"'%(len(queue), copies, os.getpid(), logfile)
+            if not os.path.exists('.racs'): os.mkdir('.racs')                
+            if not os.path.exists('/tmp/racs'): os.system('mkdir /tmp/racs; chmod a+rwx /tmp/racs')
+            stitle = _racs_params['_title'] if _racs_params.get('_title') else str(os.getpid())
+            copies, pids, logfile, smode, lenQ = _racs_params['_copies'], [], '.racs/started-%s'%stitle, 'Running the queue', len(queue)
+            if '_continue' in _racs_params:
+                old_log, runs, irun, finishes = _racs_params['_continue'], {}, 0, []
+                old_tasks = [l[:-1] for l in open(old_log) if not l.startswith('# ')]
+                for p in [l.split()[1] for l in old_tasks if l[0]!='#']:
+                    if p[0]=='+': runs[int(p[1:])] = irun; irun += 1  # номер открытой задачи отвечает номеру задачи в очереди
+                    else: finishes.append(runs.pop(int(p[1:])))       # добавляем этот номер в список закрытых задач
+                n_start = n_finish = len(finishes)
+                for p in reversed(sorted(finishes)): del queue[p]
+                #print finishes, runs, queue
+                old_tasks = ['#>>>'*(int(l.split()[1][1:]) in runs)+l for l in old_tasks]+[
+                    '#>>>%s -%s сlosed on continuation of the queue %r'%(chrono.Date(), p, stitle) for p in runs.keys()]
+                if old_log.startswith('.racs/started-'):
+                    os.rename(old_log, '.racs/stopped-'+old_log.split('-', 1)[1])
+                    if os.path.exists(old_log+'.log'): os.rename(old_log+'.log', '.racs/stopped-'+old_log.split('-', 1)[1]+'.log')
+                    for l in os.listdir('/tmp/racs/'):
+                        if not os.path.exists('/tmp/racs/'+l): os.remove('/tmp/racs/'+l)
+                smode = 'Continued the queue (original %i tasks)'%lenQ
+                #del p, old_log, runs, irun, finishes
+            print smode, 'of %i tasks in %i threads, master PID=%i, logfile="%s"'%(len(queue), copies, os.getpid(), logfile)
             streams, OUT = [sys.stdout, open(logfile, 'w')], lambda msg: [(s.write(msg+'\n'), s.flush()) for s in streams]
+            symlink = '/tmp/racs/started-%s.%i'%(stitle, int(([0]+[s.rsplit('.', 1)[1] for s in os.listdir('/tmp/racs/')
+                                                                   if s.startswith('started-%s.'%stitle) and s[len('started-%s.'%stitle):].isdigit()])[-1])+1)   
+            os.symlink(os.path.abspath(logfile), symlink)
             if _racs_params['_daemonize']: mixt.set_output(logfile+'.log')
-            OUT('# %s@%s:%s repo=%r tasks=%i threads=%i\n# '%(mixt.get_login(), socket.gethostname(), os.getcwd(),
-                                                              _racs_params['_repo'], len(queue), copies)+' '.join(sys.argv))            
+            OUT('# %s@%s:%s repo=%r tasks=%i threads=%i PID=%i\n# '%(mixt.get_login(), socket.gethostname(), os.getcwd(),
+                                                                     _racs_params['_repo'], lenQ, copies, os.getpid())+' '.join(sys.argv))            
             for a in _arg_order: OUT('#   %s: %s'%(a, _arg_seqs[a]))
-            finish_msg = lambda: OUT('%s -%i %g%% %s %s'%(chrono.Date(), p, 100.*n_finish/len(queue), mixt.time2string(time.time()-t_start),
-                                                          mixt.time2string((time.time()-t_start)*len(queue)/n_finish)))
+            finish_msg = lambda: OUT('%s -%i %g%% %s %s'%(chrono.Date(), p, 100.*n_finish/lenQ, mixt.time2string(time.time()-t_start),
+                                                          mixt.time2string((time.time()-t_start)*lenQ/n_finish)))
+            if '_continue' in _racs_params: map(OUT, old_tasks)
             for q in queue:
                 if len(pids)==copies:
                     p = os.waitpid(-1, 0)[0]
@@ -80,11 +105,12 @@ class Calc:
                 if not pid: break
                 pids.append(pid)
                 n_start += 1
-                OUT('%s +%i %g%% %s'%(chrono.Date(), pid, 100.*n_start/len(queue), ' '.join('%s=%r'%i for i in q[1:])))
+                OUT('%s +%i %g%% %s'%(chrono.Date(), pid, 100.*n_start/lenQ, ' '.join('%s=%r'%i for i in q[1:])))
             else:
                 while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; finish_msg()
-                if _racs_params['_daemonize']: streams[0].close(); os.rename(streams[1].name+'.log', '/tmp/racs-finished-%i.log'%os.getpid())
-                streams[1].close(); os.rename(streams[1].name, '/tmp/racs-finished-%i'%os.getpid())
+                if _racs_params['_daemonize']: streams[0].close(); os.rename(logfile+'.log', '.racs/finished-%s.log'%stitle)
+                streams[1].close(); os.rename(logfile, '.racs/finished-%s'%stitle)
+                os.system('rm -f '+symlink)
                 sys.exit()
         elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------

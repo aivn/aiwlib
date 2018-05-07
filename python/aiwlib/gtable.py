@@ -5,7 +5,7 @@ Copyright (C) 2013,2018 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
 import os, sys, time, fnmatch, math, mixt, chrono
-from calc import _G, ghelp
+from calc import _G, ghelp, Calc
 def use(key, expr, doc): 'добавляет значение в глобальную таблицу'; _G[key] = expr; ghelp.append('%s : %s'%(key, doc))
 #-------------------------------------------------------------------------------
 use('os', os, 'module os') 
@@ -93,10 +93,8 @@ for k, v in math.__dict__.items() :
     if k[0]!='_': use(k, v,  'число %k'%k if type(k) is float else v.__doc__.replace('\n',' '))
 del k, v, use
 #-------------------------------------------------------------------------------
-if os.path.exists(os.path.expanduser('~/.racs')):
-    try: execfile(os.path.expanduser('~/.racs'), globals(), _G)
-    except Exception, e: print>>sys.stderr, 'in ~/.racs:', e
-if os.path.exists('.racs'):
-    try: execfile('.racs', globals(), _G)
-    except Exception, e: print>>sys.stderr, 'in .racs:', e
+for conf in [os.path.expanduser('~/.racs/conf'), '.racs/conf']:
+    if os.path.exists(conf):
+        try: execfile(conf, globals(), _G)
+        except Exception, e: Calc._except_report_table.append(''.join(mixt.except_report()[1:]))
 #-------------------------------------------------------------------------------
