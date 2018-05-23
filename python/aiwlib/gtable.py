@@ -73,8 +73,8 @@ use('argmin', lambda X, Y=None: min(zip(Y,X))[1] if Y else min(X, key=lambda x:x
     'argmin(X,Y=None) --- значение X при котором Y минимально, X может быть списком пар [(x0,y0), ...]')
 use('argmax', lambda X, Y=None: max(zip(Y,X))[1] if Y else max(X, key=lambda x:x[1])[0],
     'argmax(X,Y=None) --- значение X при котором Y максимально, X может быть списком пар [(x0,y0), ...]')
-use('diff', lambda X, Y=None: [((Y[i+1]-Y[i])/(X[i+1]-X[i]), (X[i+1]+X[i])*.5) for i in range(len(X)-1)] if Y else
-    [((X[i+1][1]-X[i][1])/(X[i+1][0]-X[i][0]), (X[i+1][0]+X[i][0])*.5) for i in range(len(X)-1)],
+use('diff', lambda X, Y=None: [((X[i+1]+X[i])*.5, (Y[i+1]-Y[i])/(X[i+1]-X[i])) for i in range(len(X)-1)] if Y else
+    [((X[i+1][0]+X[i][0])*.5, (X[i+1][1]-X[i][1])/(X[i+1][0]-X[i][0])) for i in range(len(X)-1)],
     'diff(X,Y=none) --- dY/dX(X) как список пар, X может быть списком пар [(x0,y0), ...]')
 use('integ', lambda X, Y=None: reduce(lambda R, i: R+[(X[i+1], R[-1][1]+(Y[i]+Y[i+1])*.5*(X[i+1]-X[i]))], range(len(X)-1), [(X[0], 0.)]) if Y else
     reduce(lambda R, i: R+[(X[i+1][0], R[-1][1]+(X[i][1]+X[i+1][1])*.5*(X[i+1][0]-X[i][0]))], range(len(X)-1), [(X[0][0], 0.)]),

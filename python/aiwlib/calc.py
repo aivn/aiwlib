@@ -69,14 +69,14 @@ class Calc:
             if '_continue' in _racs_params:
                 old_log, runs, irun, finishes = _racs_params['_continue'], {}, 0, []
                 old_tasks = [l[:-1] for l in open(old_log) if not l.startswith('# ')]
-                for p in [l.split()[1] for l in old_tasks if l[0]!='#']:
-                    if p[0]=='+': runs[int(p[1:])] = irun; irun += 1  # номер открытой задачи отвечает номеру задачи в очереди
-                    else: finishes.append(runs.pop(int(p[1:])))       # добавляем этот номер в список закрытых задач
+                for i, p in [(j, l.split()[1]) for j, l in enumerate(old_tasks) if l[0]!='#']:
+                    if p[0]=='+': runs[int(p[1:])] = (irun, i); irun += 1  # номер открытой задачи отвечает номеру задачи в очереди
+                    else: finishes.append(runs.pop(int(p[1:]))[0])         # добавляем этот номер в список закрытых задач
                 n_start = n_finish = len(finishes)
                 for p in reversed(sorted(finishes)): del queue[p]
                 #print finishes, runs, queue
-                old_tasks = ['#>>>'*(int(l.split()[1][1:]) in runs)+l for l in old_tasks]+[
-                    '#>>>%s -%s сlosed on continuation of the queue %r'%(chrono.Date(), p, stitle) for p in runs.keys()]
+                for p in runs.values(): old_tasks[p[1]] = '#>>>'+old_tasks[p[1]]
+                old_tasks += ['#>>>%s -%s сlosed on continuation of the queue %r'%(chrono.Date(), p, stitle) for p in runs.keys()]
                 if old_log.startswith('.racs/started-'):
                     os.rename(old_log, '.racs/stopped-'+old_log.split('-', 1)[1])
                     if os.path.exists(old_log+'.log'): os.rename(old_log+'.log', '.racs/stopped-'+old_log.split('-', 1)[1]+'.log')
@@ -270,7 +270,8 @@ class Calc:
             finally: _rtable.pop()
         if key=='runtime': return Time(0.) #???
 	if key=='statelist': return
-        if key and key[0]=='_'  and key[-1]=='_' and key[1].isalpha() and key.replace('_','0').isalnum(): return key[1:-1] in self.__dict__
+        if key and key[0]=='_'  and key[-1]=='_' and key[1].isalpha() and key.replace('_','0').isalnum():
+            return key[1:-1] in self.__dict__ or key[1:-1] in self.__dict__.get('tags', [])
         #for r, a in _getitem_rules: 
         #    if r(key, self): return a(key, self)
         report = 'KeyError: %r is not defined\n'%key
