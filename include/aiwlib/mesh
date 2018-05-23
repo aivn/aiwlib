@@ -206,11 +206,11 @@ namespace aiw{
 			int n = 0; Mesh<T2, D2> A;
 			for(int i=0; i<D; i++)
 				if(pos[i]==-1){  
-					if(n>=D2) WRAISE("too many -1 values in pos", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+					if(n>=D2) WRAISE("too many -1 values in pos:", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 					A.set_axe(n, *this, i); pos[i] = 0; n++;
 				} else if(pos[i]<0 || box[i]<=pos[i])
-					WRAISE("pos out of range", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
-			if(n!=D2) WRAISE("too small -1 values in pos", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+					WRAISE("pos out of range:", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
+			if(n!=D2) WRAISE("too small -1 values in pos:", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
 			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
 			return A;
 		}
