@@ -41,6 +41,30 @@ namespace aiw{
 		return res;
 	}
 	//--------------------------------------------------------------------------
+	// разбиение параллелпипеда (a, b) плоскостью с нормалью n проходящей через точку r, возвращает объемы параллелепипеда ниже и выше плоскости
+	template <int D, typename T> Vec<2, T> split_box_by_plane(const Vec<D, T> &r, const Vec<D, T> &n, Vec<D, T> a, Vec<D, T> b, int order=10){
+		Vec<D, T> ab = b-a; a -= r; b -= r; Vec<2, T> res;
+		if(order<=0){ T an = a*n; return (an*(b*n)<0?Vec<2, T>(.5): (an<0? Vec<2, T>(1., 0.): Vec<2, T>(0., 1.)))*ab.prod(); 
+		} else {
+			Vec<D, T> c = (a+b)*.5; if(fabs(c*n)<fabs(n*ab)/(1<<(1+order))) return Vec<2, T>(.5)*ab.prod();  // оптимизация при прохождении около центра куба
+			for(Ind<D> sub; sub^=ind(2); ++sub){ // цикл по под-кубам 
+				int sign = -2;
+				for(Ind<D> vid; vid^=ind(2); ++vid){  // цикл по вершинам под-куба
+					Vec<D, T> r; for(int i=0; i<D; i++) r[i] = vid[i]?(sub[i]?b[i]:c[i]):(sub[i]?c[i]:a[i]); 
+					if(sign==-2) sign = r*n<0? -1: 1;
+					else if(sign!=(r*n<0? -1: 1)){
+						sign = 2; Vec<D, T> aa, bb;
+						for(int i=0; i<D; i++) if(sub[i]){ aa[i] = c[i]; bb[i] = b[i]; } else { aa[i] = a[i]; bb[i] = c[i]; }
+						res += split_box_by_plane(Vec<D, T>(), n, aa, bb, order-1);
+						break;
+					}
+				}
+				if(sign!=2) res[(1+sign)/2] += ab.prod()/(1<<D);
+			}
+		}
+		return res;
+	}
+	//--------------------------------------------------------------------------
 	// intriagle
 };
 #endif //AIW_ANGEM_HPP
