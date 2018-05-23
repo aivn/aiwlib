@@ -12,6 +12,7 @@
 #include "mesh"
 
 namespace aiw{
+	extern bool segy_ibm_format;
 	//--------------------------------------------------------------------------
 	// принимает/возвращает сетки aiw::Mesh<float, 1|2|3>, ось времени в сейсмограммах всегда отвечает оси X, шаги отвечают шагам сеток 
 
@@ -50,6 +51,18 @@ namespace aiw{
 		segy_write(std::move(S), data, z_pow, PV, PP0, rotate, write_file_head); 
 	}
 	//--------------------------------------------------------------------------
+	template <typename T> void segy_set_int(char* buf, int val){
+		T x = val;
+		if(segy_ibm_format) for(size_t i=0; i<sizeof(T); i++) buf[i] = ((char*)(&x))[sizeof(T)-1-i];
+		else memcpy(buf, &x, sizeof(T)); 
+	}
+	template <typename T> int segy_get_int(const char* buf){
+		T x;
+		if(segy_ibm_format) for(size_t i=0; i<sizeof(T); i++) ((char*)(&x))[sizeof(T)-1-i] = buf[i];
+		else memcpy(&x, buf, sizeof(T));
+		return x;
+	}
+	//--------------------------------------------------------------------------	
 	// можно ввести поля определяющие позиции для записи обязательных данных в заголовок.
 	class SegyFileHead{
 		char head[3600];
@@ -61,10 +74,10 @@ namespace aiw{
 		SegyFileHead();
 
 		// pos --- позиция в байтах
-		void set_int16(int pos, int value){ int16_t x = value; memcpy(head+3200+pos, &x, 2); } 
-		void set_int32(int pos, int value){ int32_t x = value; memcpy(head+3200+pos, &x, 4); }
-		int get_int16(int pos) const { int16_t x; memcpy(&x, head+3200+pos, 2); return x; }
-		int get_int32(int pos) const { int32_t x; memcpy(&x, head+3200+pos, 4); return x; }
+		void set_int16(int pos, int value){ segy_set_int<int16_t>(head+3200+pos, value); } 
+		void set_int32(int pos, int value){ segy_set_int<int32_t>(head+3200+pos, value); }
+		int get_int16(int pos) const { return segy_get_int<int16_t>(head+3200+pos); }
+		int get_int32(int pos) const { return segy_get_int<int32_t>(head+3200+pos); }
 
 		void dump(aiw::IOstream&);
 		void load(aiw::IOstream&);
@@ -80,15 +93,15 @@ namespace aiw{
 		SegyTraceHead();
 
 		// pos --- позиция в байтах
-		void set_int16(int pos, int value){ int16_t x = value; memcpy(head+pos, &x, 2); }
-		void set_int32(int pos, int value){ int32_t x = value; memcpy(head+pos, &x, 4); }
-		int get_int16(int pos) const { int16_t x; memcpy(&x, head+pos, 2); return x; }
-		int get_int32(int pos) const { int32_t x; memcpy(&x, head+pos, 4); return x; }
+		void set_int16(int pos, int value){ segy_set_int<int16_t>(head+pos, value); } 
+		void set_int32(int pos, int value){ segy_set_int<int32_t>(head+pos, value); }
+		int get_int16(int pos) const { return segy_get_int<int16_t>(head+pos); }
+		int get_int32(int pos) const { return segy_get_int<int32_t>(head+pos); }
 
 		void dump(aiw::IOstream&);
 		bool load(aiw::IOstream&);
 
-		void write(aiw::IOstream &S, float *data);
+		void write(aiw::IOstream &S, const float *data, double z_pow=0);
 		aiw::Mesh<float, 1> read(aiw::IOstream&);
 	};
 	//--------------------------------------------------------------------------

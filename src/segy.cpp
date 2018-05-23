@@ -1,3 +1,125 @@
+//------------------------------------------------------------------------------
+//  this code of Larry Jones from https://www.thecodingforums.com/threads/c-code-for-converting-ibm-370-floating-point-to-ieee-754.438469/
+//------------------------------------------------------------------------------
+/* ibm2ieee - Converts a number from IBM 370 single precision floating
+point format to IEEE 754 single precision format. For normalized
+numbers, the IBM format has greater range but less precision than the
+IEEE format. Numbers within the overlapping range are converted
+exactly. Numbers which are too large are converted to IEEE Infinity
+with the correct sign. Numbers which are too small are converted to
+IEEE denormalized numbers with a potential loss of precision (including
+complete loss of precision which results in zero with the correct
+sign). When precision is lost, rounding is toward zero (because it's
+fast and easy -- if someone really wants round to nearest it shouldn't
+be TOO difficult). */
+
+#include <sys/types.h>
+#include <netinet/in.h>
+
+void ibm2ieee(void *to, const void *from, int len)
+{
+	register unsigned fr; /* fraction */
+	register int exp; /* exponent */
+	register int sgn; /* sign */
+
+	for (; len-- > 0; to = (char *)to + 4, from = (char *)from + 4) {
+		/* split into sign, exponent, and fraction */
+		fr = ntohl(*(long *)from); /* pick up value */
+		sgn = fr >> 31; /* save sign */
+		fr <<= 1; /* shift sign out */
+		exp = fr >> 25; /* save exponent */
+		fr <<= 7; /* shift exponent out */
+
+		if (fr == 0) { /* short-circuit for zero */
+			exp = 0;
+			goto done;
+		}
+
+		/* adjust exponent from base 16 offset 64 radix point before first digit
+		   to base 2 offset 127 radix point after first digit */
+		/* (exp - 64) * 4 + 127 - 1 == exp * 4 - 256 + 126 == (exp << 2) - 130 */
+		exp = (exp << 2) - 130;
+		
+		/* (re)normalize */
+		while (fr < 0x80000000) { /* 3 times max for normalized input */
+			--exp;
+			fr <<= 1;
+		}
+
+		if (exp <= 0) { /* underflow */
+			if (exp < -24) /* complete underflow - return properly signed zero */
+				fr = 0;
+			else /* partial underflow - return denormalized number */
+				fr >>= -exp;
+			exp = 0;
+		} else if (exp >= 255) { /* overflow - return infinity */
+			fr = 0;
+			exp = 255;
+		} else { /* just a plain old number - remove the assumed high bit */
+			fr <<= 1;
+		}
+
+	done:
+		/* put the pieces back together and return it */
+		*(unsigned *)to = (fr >> 9) | (exp << 23) | (sgn << 31);
+	}
+}
+
+/* ieee2ibm - Converts a number from IEEE 754 single precision floating
+point format to IBM 370 single precision format. For normalized
+numbers, the IBM format has greater range but less precision than the
+IEEE format. IEEE Infinity is mapped to the largest representable
+IBM 370 number. When precision is lost, rounding is toward zero
+(because it's fast and easy -- if someone really wants round to nearest
+it shouldn't be TOO difficult). */
+
+void ieee2ibm(void *to, const void *from, int len)
+{
+	register unsigned fr; /* fraction */
+	register int exp; /* exponent */
+	register int sgn; /* sign */
+
+	for (; len-- > 0; to = (char *)to + 4, from = (char *)from + 4) {
+		/* split into sign, exponent, and fraction */
+		fr = *(unsigned *)from; /* pick up value */
+		sgn = fr >> 31; /* save sign */
+		fr <<= 1; /* shift sign out */
+		exp = fr >> 24; /* save exponent */
+		fr <<= 8; /* shift exponent out */
+		
+		if (exp == 255) { /* infinity (or NAN) - map to largest */
+			fr = 0xffffff00;
+			exp = 0x7f;
+			goto done;
+		}
+		else if (exp > 0) /* add assumed digit */
+			fr = (fr >> 1) | 0x80000000;
+		else if (fr == 0) /* short-circuit for zero */
+			goto done;
+		
+		/* adjust exponent from base 2 offset 127 radix point after first digit
+		   to base 16 offset 64 radix point before first digit */
+		exp += 130;
+		fr >>= -exp & 3;
+		exp = (exp + 3) >> 2;
+
+		/* (re)normalize */
+		while (fr < 0x10000000) { /* never executed for normalized input */
+			--exp;
+			fr <<= 4;
+		}
+
+	done:
+		/* put the pieces back together and return it */
+		fr = (fr >> 8) | (exp << 24) | (sgn << 31);
+		*(unsigned *)to = htonl(fr);
+	}
+}
+//------------------------------------------------------------------------------
+//  end of Larry Jones code fragment
+//------------------------------------------------------------------------------
+
+
 #include "../include/aiwlib/segy"
 
 /**
@@ -6,6 +128,8 @@
  **/
 
 using namespace aiw;
+
+bool aiw::segy_ibm_format = false;
 //------------------------------------------------------------------------------
 //   read operations
 //------------------------------------------------------------------------------
@@ -18,7 +142,8 @@ int aiw::segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::v
 		if(read_data){
 			data.push_back(std::vector<float>());
 			data.back().resize(tr.trace_sz);
-			S.read(&(data.back()[0]), tr.trace_sz*4);
+			if(segy_ibm_format){ float buf[tr.trace_sz]; S.read(buf, tr.trace_sz*4); ibm2ieee(&(data.back()[0]), buf, tr.trace_sz); }
+			else S.read(&(data.back()[0]), tr.trace_sz*4);
 			if(max_sz<tr.trace_sz) max_sz = tr.trace_sz;
 		} else S.seek(tr.trace_sz*4, SEEK_CUR);
 	}
@@ -67,10 +192,15 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 //------------------------------------------------------------------------------
 //   write operations
 //------------------------------------------------------------------------------
+void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow){
+	int sz = data.bbox()[0]; float buf[sz]; for(int i=0; i<sz; i++){ buf[i] = z_pow? data[ind(i)]*pow(i+1, z_pow): data[ind(i)]; }
+	if(segy_ibm_format){ float buf2[sz]; ieee2ibm(buf2, buf, sz); S.write(buf2, 4*sz); }
+    else S.write(buf, sz); 
+}
+//------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
 	SegyTraceHead tr; tr.PV = PV|0.; tr.PP = PP; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.dump(S);
-	if(z_pow) for(int i=0; i<data.bbox()[0]; i++){ float f = data[ind(i)]*pow(i+1, z_pow); S.write(&f, 4); }
-	else for(int i=0; i<data.bbox()[0]; i++) S.write(&(data[ind(i)]), 4);
+	segy_write_trace_data(S, data, z_pow);
 }
 //------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
@@ -80,8 +210,7 @@ void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec
 	Vec<3> delta = vec(cos(rotate), sin(rotate), 0.)*data.step[1];
 	for(int ix=0; ix<data.bbox()[1]; ix++){ 
 		SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta*ix; tr.dump(S);
-		if(z_pow) for(int iz=0; iz<data.bbox()[0]; iz++){ float f = data[ind(iz, ix)]*pow(iz+1, z_pow); S.write(&f, 4); }
-		else for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix)]), 4);
+		segy_write_trace_data(S, data.slice<1>(ind(-1, ix)), z_pow);
 	}
 }
 //------------------------------------------------------------------------------
@@ -93,8 +222,7 @@ void aiw::segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, Vec
 	for(int iy=0; iy<data.bbox()[2]; iy++) 
 		for(int ix=0; ix<data.bbox()[1]; ix++){ 
 			SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta_x*ix + delta_y*iy; tr.dump(S);
-			if(z_pow) for(int iz=0; iz<data.bbox()[0]; iz++){ float f = data[ind(iz, ix, iy)]*pow(iz+1, z_pow); S.write(&f, 4); }
-			else for(int iz=0; iz<data.bbox()[0]; iz++) S.write(&(data[ind(iz, ix, iy)]), 4);
+			segy_write_trace_data(S, data.slice<1>(ind(-1, ix, iy)), z_pow);
 		}
 }
 //------------------------------------------------------------------------------
@@ -158,11 +286,18 @@ bool aiw::SegyTraceHead::load(aiw::IOstream &S){
 	return true;
 }
 //------------------------------------------------------------------------------
-void aiw::SegyTraceHead::write(aiw::IOstream &S, float *data){ dump(S); S.write(data, trace_sz*4); }
+void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, double z_pow){
+	dump(S);
+	float buf[trace_sz]; if(z_pow) for(int i=0; i<trace_sz; i++){ buf[i] = data[i]*pow(i+1, z_pow); }
+	if(segy_ibm_format){ float buf2[trace_sz]; ieee2ibm(buf2, z_pow?buf:data, trace_sz); S.write(buf2, 4*trace_sz); }
+    else S.write(z_pow?buf:data, trace_sz); 	
+}
 //------------------------------------------------------------------------------
 aiw::Mesh<float, 1> aiw::SegyTraceHead::read(aiw::IOstream &S){
-	load(S); Mesh<float, 1> res; res.init(ind(trace_sz));
-	S.read(&(res[ind(0)]), trace_sz);
+	//if(!load(S)) return ;
+	Mesh<float, 1> res; res.init(ind(trace_sz));
+	if(segy_ibm_format){ float buf[trace_sz]; S.read(buf, trace_sz*4); ibm2ieee(&(res[ind(0)]), buf, trace_sz); }
+	else S.read(&(res[ind(0)]), trace_sz);
 	return res;
 }
 //------------------------------------------------------------------------------
