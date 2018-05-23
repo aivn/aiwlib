@@ -141,8 +141,8 @@ install: all uninstall
 	-cp libaiw.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
 links-install install-links: all uninstall
-	-ln -s $$(pwd)/include/aiwlib $(INCLUDEDIR)
-	-ln -s $$(pwd)/python/aiwlib  $(PYTHONDIR)
-	-ln -s $$(pwd)/libaiw.a  $(LIBDIR)
-	-for i in $(BIN_LIST); do ln -s $$(pwd)/bin/$$i $(BINDIR); done
+	-ln -s "$$(pwd)/include/aiwlib" $(INCLUDEDIR)
+	-ln -s "$$(pwd)/python/aiwlib"  $(PYTHONDIR)
+	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
+	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
 #-------------------------------------------------------------------------------
