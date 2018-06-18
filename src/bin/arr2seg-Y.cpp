@@ -27,7 +27,9 @@ Vec<3> atoV(const char *s){
 	return V;
 }
 
+
 int main(int argc, const char ** argv){
+	// segy_ibm_format = true;
 	int dim = 2;
 	Vec<3> step, PV, PP0; bool use_step = false, use_PP0 = false;
 	Ind<2> swaps[1024]; int sw_count = 0;

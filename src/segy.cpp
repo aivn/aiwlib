@@ -195,7 +195,7 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow){
 	int sz = data.bbox()[0]; float buf[sz]; for(int i=0; i<sz; i++){ buf[i] = z_pow? data[ind(i)]*pow(i+1, z_pow): data[ind(i)]; }
 	if(segy_ibm_format){ float buf2[sz]; ieee2ibm(buf2, buf, sz); S.write(buf2, 4*sz); }
-    else S.write(buf, sz); 
+    else S.write(buf, 4*sz); 
 }
 //------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
@@ -290,14 +290,14 @@ void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, double z_pow
 	dump(S);
 	float buf[trace_sz]; if(z_pow) for(int i=0; i<trace_sz; i++){ buf[i] = data[i]*pow(i+1, z_pow); }
 	if(segy_ibm_format){ float buf2[trace_sz]; ieee2ibm(buf2, z_pow?buf:data, trace_sz); S.write(buf2, 4*trace_sz); }
-    else S.write(z_pow?buf:data, trace_sz); 	
+    else S.write(z_pow?buf:data, 4*trace_sz); 	
 }
 //------------------------------------------------------------------------------
 aiw::Mesh<float, 1> aiw::SegyTraceHead::read(aiw::IOstream &S){
 	//if(!load(S)) return ;
 	Mesh<float, 1> res; res.init(ind(trace_sz));
 	if(segy_ibm_format){ float buf[trace_sz]; S.read(buf, trace_sz*4); ibm2ieee(&(res[ind(0)]), buf, trace_sz); }
-	else S.read(&(res[ind(0)]), trace_sz);
+	else S.read(&(res[ind(0)]), 4*trace_sz);
 	return res;
 }
 //------------------------------------------------------------------------------

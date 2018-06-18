@@ -362,8 +362,8 @@ def mouse_right_sph(self, xy, xy0, xy1):
     sph = data[file_num.get()][1][fr_num.get()]
     phi, th = [eps2val(([-pi, pi][i], [pi, 0][i]), eps[i], False) for i in (0,1)]
     r = vec(cos(phi)*sin(th), sin(phi)*sin(th), cos(th))
-    D = {'r':r, 'v':sph[r], 'cID':sph.cellInd(r), 'phi':phi, 'theta':th, 'fname':data[file_num.get()][0], 'name':os.path.basename(data[file_num.get()][0]),
-          'frame':fr_num.get(), 'rank':sph.rank(), 'head':sph.head, 'path':os.path.dirname(data[file_num.get()][0])}
+    D = {'r':r, 'v':sph[r], 'cID':sph.cellInd(r), 'cr':sph.cell(sph.cellInd(r)), 'phi':phi, 'theta':th, 'fname':data[file_num.get()][0],
+         'name':os.path.basename(data[file_num.get()][0]), 'frame':fr_num.get(), 'rank':sph.rank(), 'head':sph.head, 'path':os.path.dirname(data[file_num.get()][0])}
     if mouse_right_cmd[0]=='$': os.system(mouse_right_cmd[1:]%D)
     else: exec(mouse_right_cmd, globals(), D)
 #-------------------------------------------------------------------------------
