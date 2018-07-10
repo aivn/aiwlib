@@ -344,6 +344,7 @@ namespace aiw{
 		iterator end() const { iterator I; I.data = this; I.pos[D-1] = box[D-1]; return I; }
 #endif //SWIG
 
+		// void swap(Mesh &B){ Mesh C = *this; *this = B; B = C; }
 	};
 	//--------------------------------------------------------------------------
 	template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }

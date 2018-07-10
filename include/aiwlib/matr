@@ -36,8 +36,8 @@ namespace aiw{
 		template <typename Q2> Matr(const Matr<Y, X, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
 
 		
-		inline       Q& operator() (int y, int x)        { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x<X && 0<=y<Y, "illegal index ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		inline static const Ind<2> bbox() { return Ind<2>(Y, X); }
 		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
@@ -50,21 +50,21 @@ namespace aiw{
 		inline Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
 
 		inline Vec<X, Q> row(const int y) const {
-			WASSERT(y<=0 && y<Y, "illegal y ", y, X, Y, sizeof(Q));
+			WASSERT(0<=y && y<Y, "illegal y: ", y, X, Y, sizeof(Q));
 			Vec<X, Q> r; for(int x=0; x<X; x++) r[x] = p[x+y*X];
 			return r;
 		}
 		inline void row(const int y, const Vec<X, Q> &r){
-			WASSERT(y<=0 && y<Y, "illegal y ", y, X, Y, sizeof(Q));
+			WASSERT(0<=y && y<Y, "illegal y: ", y, X, Y, sizeof(Q));
 			for(int x=0; x<X; x++) p[x+y*X] = r[x];
 		}
 		inline Vec<Y, Q> col(const int x) const {
-			WASSERT(x<=0 && x<X, "illegal x ", x, X, Y, sizeof(Q));
+			WASSERT(0<=x && x<X, "illegal x: ", x, X, Y, sizeof(Q));
 			Vec<Y, Q> c; for(int y=0; y<Y; y++) c[y] = p[x+y*X];
 			return c;
 		}
 		inline void col(const int x, const Vec<Y, Q> &c){
-			WASSERT(x<=0 && x<X, "illegal x ", x, X, Y, sizeof(Q));
+			WASSERT(0<=x && x<X, "illegal x: ", x, X, Y, sizeof(Q));
 			for(int y=0; y<Y; y++) p[x+y*X] = c[y];
 		}
 		
@@ -180,6 +180,11 @@ namespace aiw{
 		Matr<Y1+Y2, X, Q> R;
 		for(int y=0; y<Y2; y++)	for(int x=0; x<X; x++) R(y, x) = M2(y, x);
 		for(int y=0; y<Y1; y++)	for(int x=0; x<X; x++) R(Y2+y, x) = M1(y, x);
+		return R; 
+	}
+	//--------------------------------------------------------------------------
+	template <int Y, int X, typename Q> Matr<Y, X, Q> operator * (const Matr<Y, X, Q> &M, const Q &v){
+		Matr<Y, X, Q> R; for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = v*M(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------
