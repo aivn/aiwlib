@@ -26,6 +26,15 @@ namespace aiw{
 		X[ind(N-1)] = D[N-1]; 
 		for(int i=N-2; i>=0; i--) X[ind(i)] = D[i]-C[i]*X[ind(i+1)];
 	}
+	template <typename T> void shuttle_alg(const T *M, const T* R, T* X, int N){
+		T C[N], D[N], g = 1./M[1]; C[0] = M[2]*g; D[0] = R[0]*g;
+		for(int i=1; i<N; i++){
+			g = 1./(M[3*i+1]-M[3*i+0]*C[i-1]);
+			C[i] = M[3*i+2]*g; D[i] = (R[i]-M[3*i+0]*D[i-1])*g;
+		}
+		X[N-1] = D[N-1]; 
+		for(int i=N-2; i>=0; i--) X[i] = D[i]-C[i]*X[i+1];
+	}
 	//--------------------------------------------------------------------------
 	// M - тридиагональная матрица, сетка размерами 3хN, R - правая часть, X - результат (сетки размера N)
 	// алгоритм взят из Самарский А.А. Введение в теорию разностных схем. М.: Наука, 1971. - 553 с.  http://info.alnam.ru/book_sub.php?id=91
@@ -49,6 +58,23 @@ namespace aiw{
 		}		
 		T XN = (beta[N]+alpha[N]*p[0])/(1-alpha[N]*q[0]-gamma[N]); X[ind(N-1)] = XN;
 		for(int i=0; i<N-1; i++) X[ind(i)] = p[i]+XN*q[i];
+	}
+	template <typename T> void cyclic_shuttle_alg(const T* M, const T* R, T* X, int N){
+		T alpha[N+1], beta[N+1], gamma[N+1], p[N], q[N], _c = -1./M[3*0+1];
+		alpha[1] = M[3*1+2]*_c; beta[1] = -R[0]*_c; gamma[1] = M[3*0+0]*_c;
+		for(int i=1; i<N; i++){
+			_c = 1./(-M[3*i+1]-M[3*i+0]*alpha[i]);
+			alpha[i+1] = M[3*i+2]*_c; 
+			beta[i+1] = (-R[i]+M[3*i+0]*beta[i])*_c;
+			gamma[i+1] = M[3*i+0]*gamma[i]*_c;
+		}
+		p[N-2] = beta[N-1]; q[N-2] = alpha[N-1]+gamma[N-1];
+		for(int i=N-3; i>=0; i--){
+			p[i] = alpha[i+1]*p[i+1] + beta[i+1];
+			q[i] = alpha[i+1]*q[i+1]+gamma[i+1];
+		}		
+		T XN = (beta[N]+alpha[N]*p[0])/(1-alpha[N]*q[0]-gamma[N]); X[N-1] = XN;
+		for(int i=0; i<N-1; i++) X[i] = p[i]+XN*q[i];
 	}
 	//--------------------------------------------------------------------------
 };
