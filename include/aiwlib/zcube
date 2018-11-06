@@ -135,6 +135,8 @@ namespace aiw{
 		
 		void dump(aiw::IOstream &&S) const { S.write(data, N*sizeof(T)); }
 		void load(aiw::IOstream &&S) { S.read(data, N*sizeof(T)); }
+		void dump(aiw::IOstream &S) const { S.write(data, N*sizeof(T)); }
+		void load(aiw::IOstream &S) { S.read(data, N*sizeof(T)); }
 		// convert from/to Mesh???
 		// load/dump ???
 		// axes ???
