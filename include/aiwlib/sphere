@@ -28,6 +28,7 @@ namespace aiw{
 	//   доступ к произвольному рангу, C-style
 	//--------------------------------------------------------------------------
 	size_t sph_cellInd(const aiw::Vec<3> &r, int rank); // индекс ячейки
+	size_t sph_vertInd(const aiw::Vec<3> &r, int rank); // индекс вершины
 	const aiw::Vec<3>& sph_cell(size_t ID, int rank); // центр ячейки
 	double sph_cell_area(size_t ID, int rank); // площадь ячейки
 	const aiw::Vec<3, uint64_t>& sph_cell_vert(size_t ID, int rank); // индексы вершин ячейки
@@ -117,35 +118,45 @@ namespace aiw{
 	template <typename T> class Sphere{
 		std::shared_ptr<BaseAlloc> mem;
 		T *ptr;           
-		int R; size_t sz;
+		int R, mode; // 0 - ячейки, 1 - узлы, 2 - грани
+		size_t sz;
 	public:
 		static const int sizeof_cell_type = sizeof(T);
 		std::string head;
 
+		inline int get_mode() const { return mode; }
 		inline size_t size() const { return sz; }
+		inline size_t csize() const { return sph_cells_num(R); }
 		inline size_t vsize() const { return sph_vertex_num(R); }
+		// inline size_t esize() const { return sph_edge_num(R); }
 		inline size_t __len__(){ return sz; } 
 		inline int rank() const { return R; }
 
-		void init(int R_, int align=0){		 
-			R = R_; 
+		void init(int R_, int align=0, int mode_=0){		 
+			R = R_; mode = mode_;
 			if(R>=0){
-				sz = sph_cells_num(R);
+				sz = mode==0? sph_cells_num(R): sph_vertex_num(R);
 				sph_init_table(R_);
 				ptr = init_mem_ptr<T>(mem, sz, align);
 			} else { ptr = nullptr; sz = 0; mem.reset(); }
 		}
-		Sphere(int R_=-1, int align=0): ptr(nullptr), R(-1), sz(0){ init(R_); }
-		Sphere copy(int align=0) const { Sphere res(R, align); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
+		Sphere(int R_=-1, int align=0, int mode_=0): ptr(nullptr), R(-1), sz(0){ init(R_, align, mode_); }
+		Sphere copy(int align=0) const { Sphere res(R, align, mode); for(size_t i=0; i<sz; ++i) res.ptr[i] = ptr[i]; return res; }
 
 		typedef T* iterator;
 		T* begin(){ return ptr; }
 		T* end(){ return ptr+sz; }
+
+		inline size_t find(const aiw::Vec<3> &r) const { return mode? sph_vertInd(r, R): sph_cellInd(r, R); } // индекс ячейки
+		inline const aiw::Vec<3>& center(size_t ID) const { return mode? sph_vert(ID, R): sph_cell(ID, R); } // центр ячейки
+		// inline double area(size_t ID) const { return mode? sph_vert_area(ID, R): sph_cell_area(ID, R); } // площадь ячейки
+
+		
 #ifndef SWIG
-		inline const T& operator [] (const aiw::Vec<3> &r) const { return ptr[sph_cellInd(r, R)]; }
-		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[sph_cellInd(r, R)]; }
-		inline const T& operator [] (size_t i) const { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
-		inline       T& operator [] (size_t i)       { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
+		inline const T& operator [] (const aiw::Vec<3> &r) const { return ptr[find(r)]; }
+		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[find(r)]; }
+		inline const T& operator [] (size_t i) const { WASSERT((i<=0 && i<sz), "illegal index", i, sz); return ptr[i]; }
+		inline       T& operator [] (size_t i)       { WASSERT((i<=0 && i<sz), "illegal index", i, sz); return ptr[i]; }
 		inline const T& operator [] (const aiw::Vec<2> &r) const { return (*this)[polar(r[1], r[0])]; } // phi, theta
 		inline       T& operator [] (const aiw::Vec<2> &r)       { return (*this)[polar(r[1], r[0])]; } // phi, theta
 #endif //SWIG
@@ -161,17 +172,21 @@ namespace aiw{
 		T operator()(const aiw::Vec<3> &r) const {
 			if(!interp) return (*this)[r];
 			size_t cid = sph_cellInd(r, R); Vec<3, T> v;
-			Vec<3> n[3], cXn[3], c = sph_cell(cid, R);
 			const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R);
-			for(int i=0; i<3; i++){ n[i] = sph_vert(vid[i], R); cXn[i] = c%n[i]; }
-			int tr; for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
-			if(tr==3) WRAISE("oops...", r, cid, vid, n, cXn, c);
-			for(int i=0; i<3; i++){
-				if(i==tr) continue;
-				const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
-				v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
+			Vec<3> n[3]; for(int i=0; i<3; i++) n[i] = sph_vert(vid[i], R);
+			if(mode){ for(int i=0; i<3; i++) v[i] = ptr[vid[i]];
+			} else {
+				Vec<3> cXn[3], c = sph_cell(cid, R);
+				for(int i=0; i<3; i++) cXn[i] = c%n[i]; 
+				int tr; for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
+				if(tr==3) WRAISE("oops...", r, cid, vid, n, cXn, c);
+				for(int i=0; i<3; i++){
+					if(i==tr) continue;
+					const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
+					v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
+				}
+				v[tr] = ptr[cid]; n[tr] = c;
 			}
-			v[tr] = ptr[cid]; n[tr] = c;
 			return v*barecentr(r, n);
 		}
 		T operator()(const aiw::Vec<2> &r) const { return (*this)(polar(r[1], r[0])); }
@@ -179,19 +194,19 @@ namespace aiw{
 		std::string __getstate__() const { 
 			std::stringstream buf;
 			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
-			buf.write((const char*)&R, sizeof(R)); if(sz) buf.write((char*)ptr, sizeof(T)*sz);         
+			int RM = R|(mode<<30); buf.write((const char*)&RM, sizeof(RM)); if(sz) buf.write((char*)ptr, sizeof(T)*sz);         
 			return buf.str();
 		}
 		void __C_setstate__(const std::string &state){
 			std::stringstream buf(state);
 			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
 			head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
-			int R_; buf.read((char*)&R_, sizeof(R)); init(R_);
+			int RM; buf.read((char*)&RM, sizeof(RM)); init(RM&~(3<<30), 0, RM>>30);
 			if(sz) buf.read((char*)ptr, sizeof(T)*sz);         
 		}
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { 
-			S<head<int(0)<int(sizeof(T))<R;
+			S<head<int(0)<int(sizeof(T))<((mode<<30)|R);
 			S.write(this->ptr, sizeof(T)*sz);
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // 0 - not use, 1 - readonly, 2 - rw
@@ -201,7 +216,7 @@ namespace aiw{
 				if(raise_on_error) WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h);
 				return false;
 			}
-			head = h; S>R; sz = sph_cells_num(R);
+			head = h; S>R; mode = R>>30; R &= ~(3<<30); sz = mode? sph_vertex_num(R): sph_cells_num(R);
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
 			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); }
 			return true;

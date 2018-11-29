@@ -126,6 +126,7 @@ namespace aiw{
 		}
 
 		inline Vec reverse() const { Vec res; for(int i=0; i<D; i++){ res[i] = p[D-i-1]; } return res; }
+		inline Vec operator ~ () const { reverse(); }
 		inline Vec sort() const {
 			Vec res = *this;
 			for(int i=0; i<D-1; i++)

@@ -320,7 +320,7 @@ class ShowOnMove:
         C.create_text(0, xy[1], text='%g'%r[1], anchor='w', font=tfont, tag='msh_move', fill='red')        
         if self.sph:
             r *= pi/180; r3 = vec(cos(r[0])*sin(r[1]), sin(r[0])*sin(r[1]), cos(r[1]))
-            v, cid = self.msh[r3], sph_cellInd(r3, self.msh.rank())
+            v, cid = self.msh[r3], self.msh.find(r3)
         else: v, cid = self.msh(r), self.msh.coord2pos(r)
         C.create_text(xy[0], xy[1], text='%g\n[%s]'%(v, cid), anchor='e', font=tfont, tag='msh_move', fill='gray')
             

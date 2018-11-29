@@ -16,6 +16,7 @@ def add_gp_format():
 #-------------------------------------------------------------------------------
 #   LaTeX
 #-------------------------------------------------------------------------------
+nan = float('nan')
 def _n2f( x, pattern, decimal_dot=',' ): a, p = ( ('%g'%x).split('e')+[''] )[:2]; a=a.replace('.',decimal_dot); return pattern%(a,p) if p else a
 frac_table = dict( sum([ [ ( float(i)/j, '\\frac{%i}{%i}'%(i,j) ), ( -float(i)/j, '-\\frac{%i}{%i}'%(i,j) ) ] 
                          for j in range(10,1,-1) for i in range(9,0,-1) if float(i)/j!=i/j ], [] ) )

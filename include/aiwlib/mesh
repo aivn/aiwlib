@@ -104,11 +104,22 @@ namespace aiw{
 			return load(std::move(S), use_mmap, raise_on_error); 
 		}
 		//----------------------------------------------------------------------		
+		// private:
+		//	bool easy = true;
+		//	public:
+		// inline bool is_easy() const { return easy; }
 #ifndef SWIG		
 		inline const T& get(aiw::Ind<D> pos) const {
-			// WEXC(pos); // ???
-			if(this->check_out_pos(pos)) return out_value;
+#ifndef EBUG
+			if(this->periodic || this->bounds)
+#endif //EBUG
+				if(this->check_out_pos(pos)) return out_value;
+			// if(easy){
+			//	size_t off = pos[D-1]; for(int i=D-2; i>=0; i--) off = off*box[i]+pos[i];
+			//	return ((const T*)ptr)[off];
+			//	}
 			return *((const T*)((const char*)ptr+mul*pos));
+
 		}
 		inline const T& get(const aiw::Vec<D> &r) const { return get(this->coord2pos(r)); }
 

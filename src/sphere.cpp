@@ -363,7 +363,7 @@ void aiw::sph_init_table(int rank){
 	//  WOUT(2);
 }
 //------------------------------------------------------------------------------
-size_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только для существующего ранга
+size_t aiw::sph_cellInd(const Vec<3> & r, int rank){ // пока только для существующего ранга
 	double max_a = 0., a ; uint64_t id=-1;
 	for( int i=60; i<72; i ++ ){
 		//      WOUT(i, r, cell_centers );
@@ -383,6 +383,12 @@ size_t aiw::sph_cellInd(const Vec<3> & r, int rank){// пока только д�
 		id = id*4 + ( n[0]*r>0 ) + 2*( n[1]*r>0 ) + 3*( n[2]*r>0 );//Нормали внешние
 	}//сюда можно добавить корректировку
 	return id;
+}
+//------------------------------------------------------------------------------
+size_t aiw::sph_vertInd(const Vec<3> & r, int rank){ // пока только для существующего ранга
+	const aiw::Vec<3, uint64_t>& vIDs = sph_cell_vert(sph_cellInd(r, rank), rank);
+	Vec<3> p; for(int i=0; i<3; i++) p[i] = sph_vert(vIDs[i], rank)*r;
+	return vIDs[p.imax()];
 }
 //------------------------------------------------------------------------------
 const Vec<3>& aiw::sph_cell(size_t ID, int rank){ // центр ячейки

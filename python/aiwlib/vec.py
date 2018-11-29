@@ -80,7 +80,7 @@ def _decltype(a, b):
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
-    elif iT<2: ab[iT] = _cxx_types_table[type(ab[iT])]
+    elif iT<2: ab[iT] = _cxx_types_table[type(ab[iT])] #???
     TT = [_cxx_types_table[x if type(x) is str else x.T] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
@@ -269,6 +269,7 @@ class Vec:
     def contains(self, x): return x in tuple(self._getdata())
     def __contains__(self, x): return x in tuple(self._getdata())
     def reverse(self): L = self._getdata(); L.reverse(); return Vec(*L, T=self._T())
+    def __invert__(self): return self.reverse()
     def sort(self): L = self._getdata(); L.sort(); return Vec(*L, T=self._T())
     #---------------------------------------------------------------------------
     def __mod__(a, b):
