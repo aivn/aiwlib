@@ -50,7 +50,8 @@ namespace aiw{
 	double sph_edge_area(size_t ID, int rank);  // площади ячеек при разбиении по ребрам
 	const aiw::Vec<3>& sph_edge(size_t ID, int rank); // координаты центров ребер
 	//--------------------------------------------------------------------------
-	/*
+	//   доступ к произвольному рангу, C++-style
+	//--------------------------------------------------------------------------	
 	class SphInd{
 		uint64_t I; // 5 СТАРШИХ бит на ранг, остальное на индекс
 	public:
@@ -59,14 +60,14 @@ namespace aiw{
 		inline SphInd():I(~((uint64_t)0)){} // по умолчанию индекс невалидный
 
 		inline uint64_t index() const { return I&0x07ffffffffffffff; }
-		int rank() const { return I>>59; }
+		inline int rank() const { return I>>59; }
 		inline operator bool() const { return index()!=0x07ffffffffffffff; }
 #ifndef SWIG
 		inline bool operator !() const { return index()==0x07ffffffffffffff; }
 
-		inline SphInd operator ++ (){ SphInd res; res.I = I--; return res; }
+		inline SphInd operator ++ () { SphInd res; res.I = I++; return res; }
 		inline SphInd operator ++ (int){ ++I; return *this; }
-		inline SphInd operator -- (){ SphInd res; res.I = I--; return res; }
+		inline SphInd operator -- () { SphInd res; res.I = I--; return res; }
 		inline SphInd operator -- (int){ --I; return *this; }
 #endif //SWIG
 		uint64_t __long__(){ return index(); }
@@ -77,48 +78,76 @@ namespace aiw{
 	struct SphEdgeInd;
 	//--------------------------------------------------------------------------
 	struct SphCellInd: public SphInd{
-		SphCellInd up() const;
-		SphCellInd down() const;
+		// SphCellInd up() const;
+		// SphCellInd down() const;
 #ifndef SWIG
 		inline operator uint64_t() const { return index(); }
 #endif //SWIG
 
-		SphCellInd(const aiw::Vec<3> &r, int rank);
-		double area() const;
-		const aiw::Vec<3>& center() const;
-		const aiw::Vec<3>& vert(int i) const;   // 0<=i<3
-		SphVertInd vertInd(int i) const;        // 0<=i<3
-		SphCellInd cellInd(int i) const;        // 0<=i<3
-		SphEdgeInd edgeInd(int i) const;        // 0<=i<3
+		inline SphCellInd(uint64_t I_, int R):SphInd(I_, R){}
+		inline SphCellInd(const aiw::Vec<3> &r, int R){ set(sph_cellInd(r, R), R); }
+		inline uint64_t size() const { return sph_cells_num(rank()); }
+		inline double area() const { return sph_cell_area(index(), rank()); }
+		
+		inline const aiw::Vec<3>& n() const { return sph_cell(index(), rank()); }
+		inline const aiw::Vec<3>& c(int i) const { int R = rank(); return sph_cell(sph_cell_vert(index(), R)[i], R); }   // 0<=i<3
+		inline const aiw::Vec<3>& v(int i) const { int R = rank(); return sph_vert(sph_cell_vert(index(), R)[i], R); }   // 0<=i<3
+		inline const aiw::Vec<3>& e(int i) const { int R = rank(); return sph_edge(sph_cell_edge(index(), R)[i], R); }   // 0<=i<3
+
+		inline SphCellInd cI(int i) const { int R = rank(); return SphCellInd(sph_cell_cell(index(), R)[i], R); }        // 0<=i<3
+		inline SphVertInd vI(int i) const; // { int R = rank(); return SphVertInd(sph_cell_vert(index(), R)[i], R); }        // 0<=i<3
+		inline SphEdgeInd eI(int i) const; // { int R = rank(); return SphEdgeInd(sph_cell_edge(index(), R)[i], R); }        // 0<=i<3
 	};
+	// inline const aiw::Vec<3>& vec(SphCellInd I){ return I.n(); }
 	//--------------------------------------------------------------------------
 	struct SphVertInd: public SphInd{
-		SphVertInd up() const;
-		SphVertInd down() const;
+		// SphVertInd up() const;
+		// SphVertInd down() const;
 #ifndef SWIG
 		inline operator uint64_t() const { return index(); }
 #endif //SWIG
 
-		const aiw::Vec<3>& center() const;
-		SphCellInd cellInd(int i) const;  // 0<=i<6
-		SphEdgeInd edgeInd(int i) const;  // 0<=i<6
-		SphVertInd vertInd(int i) const;  // 0<=i<6
+		inline SphVertInd(uint64_t I_, int R):SphInd(I_, R){}
+		inline SphVertInd(const aiw::Vec<3> &r, int R){ set(sph_vertInd(r, R), R); }
+		inline uint64_t size() const { return sph_vertex_num(rank()); }
+		inline double area() const { return sph_vert_area(index(), rank()); }
+
+		inline const aiw::Vec<3>& n() const { return sph_vert(index(), rank()); }
+		inline const aiw::Vec<3>& c(int i) const { int R = rank(); return sph_cell(sph_vert_cell(index(), R)[i], R); }   // 0<=i<6
+		inline const aiw::Vec<3>& v(int i) const { int R = rank(); return sph_vert(sph_vert_vert(index(), R)[i], R); }   // 0<=i<6
+		inline const aiw::Vec<3>& e(int i) const { int R = rank(); return sph_edge(sph_vert_edge(index(), R)[i], R); }   // 0<=i<6
+
+		inline SphCellInd cI(int i) const { int R = rank(); return SphCellInd(sph_vert_cell(index(), R)[i], R); }        // 0<=i<6
+		inline SphVertInd vI(int i) const { int R = rank(); return SphVertInd(sph_vert_vert(index(), R)[i], R); }        // 0<=i<6
+		inline SphEdgeInd eI(int i) const; // { int R = rank(); return SphEdgeInd(sph_vert_edge(index(), R)[i], R); }        // 0<=i<6
 	};
+	// inline const aiw::Vec<3>& vec(SphVertInd I){ return I.n(); }
+	inline SphVertInd SphCellInd::vI(int i) const { int R = rank(); return SphVertInd(sph_cell_vert(index(), R)[i], R); }        // 0<=i<3
 	//--------------------------------------------------------------------------
 	struct SphEdgeInd: public SphInd{
-		SphEdgeInd up() const;
-		SphEdgeInd down() const;
+		// SphEdgeInd up() const;
+		// SphEdgeInd down() const;
 #ifndef SWIG
 		inline operator uint64_t() const { return index(); }
 #endif //SWIG
 
-		const aiw::Vec<3>& vert(int i) const;   // 0<=i<2
-		SphVertInd vertInd(int i) const;        // 0<=i<2
-		SphCellInd cellInd(int i) const;        // 0<=i<2
-	};
-	*/
+		inline SphEdgeInd(uint64_t I_, int R):SphInd(I_, R){}
+		inline SphEdgeInd(const aiw::Vec<3> &r, int R){ set(sph_edgeInd(r, R), R); }
+		inline uint64_t size() const { return sph_edges_num(rank()); }
+		inline double area() const { return sph_edge_area(index(), rank()); }
+
+		inline const aiw::Vec<3>& n() const { return sph_edge(index(), rank()); }
+		inline const aiw::Vec<3>& c(int i) const { int R = rank(); return sph_cell(sph_edge_cell(index(), R)[i], R); }   // 0<=i<2
+		inline const aiw::Vec<3>& v(int i) const { int R = rank(); return sph_vert(sph_edge_vert(index(), R)[i], R); }   // 0<=i<2
+
+		inline SphCellInd cI(int i) const { int R = rank(); return SphCellInd(sph_edge_cell(index(), R)[i], R); }        // 0<=i<2
+		inline SphVertInd vI(int i) const { int R = rank(); return SphVertInd(sph_edge_vert(index(), R)[i], R); }        // 0<=i<2
+	};   
+	// inline const aiw::Vec<3>& vec(SphEdgeInd I){ return I.n(); }
+	inline SphEdgeInd SphCellInd::eI(int i) const { int R = rank(); return SphEdgeInd(sph_cell_edge(index(), R)[i], R); }        // 0<=i<3
+	inline SphEdgeInd SphVertInd::eI(int i) const { int R = rank(); return SphEdgeInd(sph_vert_edge(index(), R)[i], R); }        // 0<=i<6
 	//--------------------------------------------------------------------------
-	// контейнер
+	//   контейнер
 	//--------------------------------------------------------------------------
 	template <typename T> class Sphere{
 		std::shared_ptr<BaseAlloc> mem;
