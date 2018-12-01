@@ -29,21 +29,26 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	size_t sph_cellInd(const aiw::Vec<3> &r, int rank); // индекс ячейки
 	size_t sph_vertInd(const aiw::Vec<3> &r, int rank); // индекс вершины
+	size_t sph_edgeInd(const aiw::Vec<3> &r, int rank); // индекс грани
 	const aiw::Vec<3>& sph_cell(size_t ID, int rank); // центр ячейки
 	double sph_cell_area(size_t ID, int rank); // площадь ячейки
 	const aiw::Vec<3, uint64_t>& sph_cell_vert(size_t ID, int rank); // индексы вершин ячейки
 	const aiw::Vec<3, uint64_t>& sph_cell_cell(size_t ID, int rank); // близжайшие соседи ячейки
 	size_t sph_cells_num(int rank);
 	size_t sph_vertex_num(int rank);
+	size_t sph_edges_num(int rank);
 	// const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 
 	const aiw::Vec<3>& sph_vert(size_t ID, int rank); // вершина (узел) сетки
-	const aiw::Vec<3, uint64_t>& sph_vert_vert(size_t ID, int rank); // индексы вершин вершины
 	const aiw::Vec<6, uint64_t>& sph_vert_cell(size_t ID, int rank); // ячейки, к которым относится вершина
-	// const aiw::Vec<6, uint64_t>& sph_vert_edge(uint64_t ID, int rank); // близжайшие ребра вершины
-
-	// const aiw::Vec<2, uint64_t>& sph_edge_cell(uint64_t ID, int rank); // близжайшие ячейки ребра
-	// const aiw::Vec<2, uint64_t>& sph_edge_vert(uint64_t ID, int rank); // близжайшие вершины ребра
+	const aiw::Vec<3, uint64_t>& sph_cell_edge(size_t ID, int rank); // индексы ребер ячейки (в оппозит вершинам)
+	const aiw::Vec<2, uint64_t>& sph_edge_cell(size_t ID, int rank); // индексы ячеeк ребра
+	const aiw::Vec<2, uint64_t>& sph_edge_vert(size_t ID, int rank);  // индексы вершин ребра
+	const aiw::Vec<6, uint64_t>& sph_vert_vert(size_t ID, int rank); // индексы соседних вершин (для вершины)
+	const aiw::Vec<6, uint64_t>& sph_vert_edge(size_t ID, int rank);  // индексы соседних ребер (для вершины)
+	double sph_vert_area(size_t ID, int rank);  // площади ячеек при разбиении по вершинам
+	double sph_edge_area(size_t ID, int rank);  // площади ячеек при разбиении по ребрам
+	const aiw::Vec<3>& sph_edge(size_t ID, int rank); // координаты центров ребер
 	//--------------------------------------------------------------------------
 	/*
 	class SphInd{
@@ -135,8 +140,8 @@ namespace aiw{
 		void init(int R_, int align=0, int mode_=0){		 
 			R = R_; mode = mode_;
 			if(R>=0){
-				sz = mode==0? sph_cells_num(R): sph_vertex_num(R);
-				sph_init_table(R_);
+				sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
+				sph_init_table(R_); // ???
 				ptr = init_mem_ptr<T>(mem, sz, align);
 			} else { ptr = nullptr; sz = 0; mem.reset(); }
 		}
@@ -147,9 +152,33 @@ namespace aiw{
 		T* begin(){ return ptr; }
 		T* end(){ return ptr+sz; }
 
-		inline size_t find(const aiw::Vec<3> &r) const { return mode? sph_vertInd(r, R): sph_cellInd(r, R); } // индекс ячейки
-		inline const aiw::Vec<3>& center(size_t ID) const { return mode? sph_vert(ID, R): sph_cell(ID, R); } // центр ячейки
-		// inline double area(size_t ID) const { return mode? sph_vert_area(ID, R): sph_cell_area(ID, R); } // площадь ячейки
+		//----------------------------------------------------------------------
+		//  cells info
+		//----------------------------------------------------------------------		
+		inline size_t cellInd(const aiw::Vec<3> &r) const { return sph_cellInd(r, R); }                  // индекс ячейки
+		inline size_t vertInd(const aiw::Vec<3> &r) const { return sph_vertInd(r, R); }                  // индекс вершины
+		inline size_t edgeInd(const aiw::Vec<3> &r) const { return sph_edgeInd(r, R); }                  // индекс грани
+		inline const aiw::Vec<3>& cell(size_t ID) const { return sph_cell(ID, R); }                      // центр ячейки
+		inline double cell_area(size_t ID) const { return sph_cell_area(ID, R); }                        // площадь ячейки
+		inline const aiw::Vec<3, uint64_t>& cell_vert(size_t ID) const { return sph_cell_vert(ID, R); }  // индексы вершин ячейки
+		inline const aiw::Vec<3, uint64_t>& cell_cell(size_t ID) const { return sph_cell_cell(ID, R); }  // близжайшие соседи ячейки
+		inline const aiw::Vec<3>& vert(size_t ID) const { return sph_vert(ID, R); }                      // вершина (узел) сетки
+		inline const aiw::Vec<6, uint64_t>& vert_cell(size_t ID) const { return sph_vert_cell(ID, R); }  // ячейки, к которым относится вершина
+		inline const aiw::Vec<3, uint64_t>& cell_edge(size_t ID) const { return sph_cell_edge(ID, R); }  // индексы ребер ячейки (в оппозит вершинам)
+		inline const aiw::Vec<2, uint64_t>& edge_cell(size_t ID) const { return sph_edge_cell(ID, R); }  // индексы ячеeк ребра
+		inline const aiw::Vec<2, uint64_t>& edge_vert(size_t ID) const { return sph_edge_vert(ID, R); }  // индексы вершин ребра
+		inline const aiw::Vec<6, uint64_t>& vert_vert(size_t ID) const { return sph_vert_vert(ID, R); }  // индексы соседних вершин (для вершины)
+		inline const aiw::Vec<6, uint64_t>& vert_edge(size_t ID) const { return sph_vert_edge(ID, R); }  // индексы соседних ребер (для вершины)
+		inline double vert_area(size_t ID) const { return sph_vert_area(ID, R); }                        // площади ячеек при разбиении по вершинам
+		inline double edge_area(size_t ID) const { return sph_edge_area(ID, R); }                        // площади ячеек при разбиении по ребрам
+		inline const aiw::Vec<3>& edge(size_t ID) const { return sph_edge(ID, R); }                      // координаты центров ребер
+
+		//----------------------------------------------------------------------
+		//  universal access
+		//----------------------------------------------------------------------		
+		inline size_t find(const aiw::Vec<3> &r) const { return mode==0? vertInd(r): (mode==1? cellInd(r): edgeInd(r)); } // индекс ячейки
+		inline const aiw::Vec<3>& center(size_t ID) const { return mode==0? cell(ID): (mode==1? vert(ID): edge(ID)); }    // центр ячейки
+		inline double area(size_t ID) const { return mode==0? cell_area(ID): (mode==1? vert_area(ID): edge_area(ID)); }   // площадь ячейки
 
 		
 #ifndef SWIG
@@ -170,12 +199,12 @@ namespace aiw{
 
 		bool interp=false;
 		T operator()(const aiw::Vec<3> &r) const {
-			if(!interp) return (*this)[r];
+			if(!interp || mode>1) return (*this)[r];
 			size_t cid = sph_cellInd(r, R); Vec<3, T> v;
 			const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R);
 			Vec<3> n[3]; for(int i=0; i<3; i++) n[i] = sph_vert(vid[i], R);
-			if(mode){ for(int i=0; i<3; i++) v[i] = ptr[vid[i]];
-			} else {
+			if(mode) for(int i=0; i<3; i++) v[i] = ptr[vid[i]];
+			else {
 				Vec<3> cXn[3], c = sph_cell(cid, R);
 				for(int i=0; i<3; i++) cXn[i] = c%n[i]; 
 				int tr; for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
@@ -186,7 +215,7 @@ namespace aiw{
 					v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
 				}
 				v[tr] = ptr[cid]; n[tr] = c;
-			}
+			} 
 			return v*barecentr(r, n);
 		}
 		T operator()(const aiw::Vec<2> &r) const { return (*this)(polar(r[1], r[0])); }
@@ -246,17 +275,6 @@ namespace aiw{
 
 		static const bool _racs_pull_lock = true;		
 		size_t __sizeof__() const { return sizeof(Sphere) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
-		//----------------------------------------------------------------------
-		//  cells info
-		//----------------------------------------------------------------------		
-		inline size_t cellInd(const aiw::Vec<3> &r) const { return sph_cellInd(r, R); } // индекс ячейки
-		inline const aiw::Vec<3>& cell(size_t ID) const { return sph_cell(ID, R); } // центр ячейки
-		inline double cell_area(size_t ID) const { return sph_cell_area(ID, R); } // площадь ячейки
-		inline const aiw::Vec<3, uint64_t>& cell_vert(size_t ID) const { return sph_cell_vert(ID, R); } // индексы вершин ячейки
-		inline const aiw::Vec<3, uint64_t>& cell_cell(size_t ID) const { return sph_cell_cell(ID, R); } // близжайшие соседи ячейки
-		inline const aiw::Vec<3>& vert(size_t ID) const { return sph_vert(ID, R); } // вершина (узел) сетки
-		inline const aiw::Vec<3, uint64_t>& vert_vert(size_t ID) const { return sph_vert_vert(ID, R); } // индексы вершин вершины
-		inline const aiw::Vec<6, uint64_t>& vert_cell(size_t ID) const { return sph_vert_cell(ID, R); } // ячейки, к которым относится вершина
 	};
 	//--------------------------------------------------------------------------
 };

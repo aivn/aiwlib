@@ -1,23 +1,35 @@
 /**
- * Copyright (C) 2016, 2017 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017-18 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
+
+#include <map>
 #define INIT_ARR_ZERO  {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}
 #include "../include/aiwlib/sphere"
 using namespace aiw;
 
 static const int MAX_RANK=12;
+using Ind2 = Vec<2,uint64_t>;
 using Ind3 = Vec<3,uint64_t>;
 using Ind6 = Vec<6,uint64_t>;
 static int current_rank = -1;
 //------------------------------------------------------------------------------
-static Vec<3>* cell_centers[MAX_RANK] = INIT_ARR_ZERO;     // центры ячеек
-static double*  cell_areas[MAX_RANK] = INIT_ARR_ZERO;       // площади ячеек
-static Ind3* cell_vertex[MAX_RANK] = INIT_ARR_ZERO;      // индексы вершин ячейки
-static Vec<3>* vertex = nullptr;           // координаты вершин
-static Ind3* cell_neighbours[MAX_RANK] = INIT_ARR_ZERO;  // индексы соседних ячеек (для ячейки)
-static Ind6* vertex_cells[MAX_RANK] = INIT_ARR_ZERO;     // индексы ячеек (для вершины)
-static Vec<3>* normals[MAX_RANK] = INIT_ARR_ZERO;          // нормали (хранятся тройками?)
+static Vec<3>* cell_centers[MAX_RANK] = INIT_ARR_ZERO;    // центры ячеек
+static double* cell_areas[MAX_RANK] = INIT_ARR_ZERO;      // площади ячеек
+static Ind3* cell_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ячейки
+static Vec<3>* vertex = nullptr;                          // координаты вершин
+static Ind3* cell_neighbours[MAX_RANK] = INIT_ARR_ZERO;   // индексы соседних ячеек (для ячейки)
+static Ind6* vertex_cells[MAX_RANK] = INIT_ARR_ZERO;      // индексы ячеек (для вершины)
+static Vec<3>* normals[MAX_RANK] = INIT_ARR_ZERO;         // нормали (хранятся тройками?)
+
+static Ind3* cell_edges[MAX_RANK] = INIT_ARR_ZERO;        // индексы ребер ячейки (в оппозит вершинам)
+static Ind2* edge_cells[MAX_RANK] = INIT_ARR_ZERO;        // индексы ячеeк ребра
+static Ind2* edge_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ребра
+static Ind6* vertex_vertex[MAX_RANK] = INIT_ARR_ZERO;     // индексы соседних вершин (для вершины)
+static Ind6* vertex_edges[MAX_RANK] = INIT_ARR_ZERO;      // индексы соседних ребер (для вершины)
+static double* vertex_areas[MAX_RANK] = INIT_ARR_ZERO;    // площади ячеек при разбиении по вершинам 
+static double* edge_areas[MAX_RANK] = INIT_ARR_ZERO;      // площади ячеек при разбиении по ребрам 
+static Vec<3>* edge_centers[MAX_RANK] = INIT_ARR_ZERO;    // координаты центров ребер
 //------------------------------------------------------------------------------
 Vec<3> aiw::barecentr(const Vec<3> &n, const Vec<3> tr[3]){
     Vec<3> l;
@@ -68,17 +80,20 @@ int aiw::sph_max_rank(){  // максимальный инициализиров
 }
 //------------------------------------------------------------------------------
 size_t aiw::sph_cells_num(int rank){
-	if (rank>=0 && rank<30) return 60l<<2*rank;//30 не влезает в uint64_t
+	if(rank>=0 && rank<30) return 60l<<2*rank; //30 не влезает в uint64_t
 	else return 0;
 }
 size_t aiw::sph_vertex_num(int rank){
-	if (rank>=0 && rank<30) return (30l<<2*rank) +2l;//30 не влезает в uint64_t
+	if(rank>=0 && rank<30) return (30l<<2*rank) +2l; //30 не влезает в uint64_t
+	else return 0;
+}
+size_t aiw::sph_edges_num(int rank){ 
+	if(rank>=0 && rank<30) return 90l<<2*rank; //30 не влезает в uint64_t
 	else return 0;
 }
 //------------------------------------------------------------------------------
 void aiw::sph_free_table(int rank){ // освобождает таблицы старше ранга rank (включительно)
-	int old_rank=current_rank;
-	current_rank = rank;
+	int old_rank = current_rank; current_rank = rank;
 	for(int i=old_rank; i<=rank; i-- ){
 		delete [] cell_centers[i];
 		delete [] cell_areas[i];
@@ -86,6 +101,14 @@ void aiw::sph_free_table(int rank){ // освобождает таблицы с�
 		delete [] cell_neighbours[i];
 		delete [] vertex_cells[i];
 		delete [] normals[i];
+		delete [] cell_edges[i];
+		delete [] edge_cells[i];
+		delete [] edge_vertex[i];
+		delete [] vertex_vertex[i];
+		delete [] vertex_edges[i];
+		delete [] vertex_areas[i];
+		delete [] edge_areas[i];
+		delete [] edge_centers[i];
 	}
 	Vec<3> *tmp3 = vertex;
 	vertex = new Vec<3>[sph_vertex_num(current_rank)];
@@ -262,7 +285,8 @@ void mass_finish(int rank){
 //------------------------------------------------------------------------------
 void arrs_init( int rank ){
 	//WOUT(rank);
-	if (rank==0) init_zero_rank();
+	if(rank<0 || rank>=MAX_RANK) WRAISE("incorrect ", rank, MAX_RANK);
+	if(rank==0)init_zero_rank();
 	else {
 		//тут нужна другая функция
 		//Увеличивать быстродействе здесь будем потом
@@ -343,6 +367,47 @@ void arrs_init( int rank ){
 		}
 	}
 	mass_finish(rank);
+	
+	// добиваем вершины и грани
+	uint64_t cells_sz = sph_cells_num(rank), vertex_sz = sph_vertex_num(rank), edges_sz = sph_edges_num(rank);
+	cell_edges[rank] = new Ind3[cells_sz];       // индексы ребер ячейки (в оппозит вершинам)
+	edge_cells[rank] = new Ind2[edges_sz];       // индексы ячеeк ребра
+	edge_vertex[rank] = new Ind2[edges_sz];      // индексы вершин ребра
+	vertex_vertex[rank] = new Ind6[vertex_sz];   // индексы соседних вершин (для вершины)
+	vertex_edges[rank] = new Ind6[vertex_sz];    // индексы соседних ребер (для вершины)
+	vertex_areas[rank] = new double[vertex_sz];  // площади ячеек при разбиении по вершинам 
+	edge_areas[rank] = new double[edges_sz];     // площади ячеек при разбиении по ребрам 
+	edge_centers[rank] = new Vec<3>[edges_sz];   // координаты центров ребер
+
+	for(size_t i=0; i<vertex_sz; i++){
+		vertex_vertex[rank][i] = vertex_edges[rank][i] = Ind6(uint64_t(-1));
+		vertex_areas[rank][i] = 0.;
+	}
+	
+	std::map<Ind2, size_t> edges_table; // таблица пары ячеек: - ID ребер
+	for(size_t i=0; i<cells_sz; i++){
+		const Vec<3> &c0 = cell_centers[rank][i];
+		Ind3& cids = cell_neighbours[rank][i]; // ID ячеек
+		Ind3& vids = cell_vertex[rank][i];     // ID вершин
+		for(int k=0; k<3; k++){ 
+			Ind2 ec = Ind2(i, cids[k]).sort(), ev(vids[(k+1)%3], vids[(k+2)%3]);
+			size_t eID = edges_table.size(); auto I = edges_table.find(ec);
+			if(I==edges_table.end()){
+				edges_table[ec] = eID; edge_cells[rank][eID] = ec; 
+				edge_vertex[rank][eID] = ev;
+				for(int kk=0; kk<2; kk++) for(int j=0; j<6; j++) if(vertex_edges[rank][ev[kk]][j]==uint64_t(-1)){
+							vertex_edges[rank][ev[kk]][j] = eID; vertex_vertex[rank][ev[kk]][j] = ev[1-kk]; break;
+						}
+				Vec<3> &er = edge_centers[rank][eID]; er = vertex[ev[0]]+vertex[ev[1]]; er /= er.abs();
+				const Vec<3> &c1 = cell_centers[rank][cids[k]], &v0 = vertex[ev[0]], &v1 = vertex[ev[1]];
+				double trS[4] = {((c0-er)%(v0-er)).abs(), ((c1-er)%(v0-er)).abs(), ((c0-er)%(v1-er)).abs(), ((c1-er)%(v1-er)).abs()};
+				edge_areas[rank][eID] = .5*(trS[0]+trS[1]+trS[2]+trS[3]);
+				vertex_areas[rank][ev[0]] += .5*(trS[0]+trS[1]);
+				vertex_areas[rank][ev[1]] += .5*(trS[2]+trS[3]);
+			} else eID = I->second;
+			cell_edges[rank][i][k] = eID;			
+		}
+	}
 }
 //------------------------------------------------------------------------------
 void aiw::sph_init_table(int rank){
@@ -352,7 +417,7 @@ void aiw::sph_init_table(int rank){
 	else {
 		Vec<3> *tmp3 = vertex;
 		vertex = new Vec<3>[sph_vertex_num(rank)];
-		for(uint64_t i=0; i< sph_vertex_num(current_rank); i++) vertex[i] = tmp3[i];
+		for(uint64_t i=0; i<sph_vertex_num(current_rank); i++) vertex[i] = tmp3[i];
 		if (tmp3) delete [] tmp3;
 		//WOUT(rank);
 		for(int i=std::max(current_rank+1,0); i<=rank; i++){
@@ -391,39 +456,80 @@ size_t aiw::sph_vertInd(const Vec<3> & r, int rank){ // пока только д
 	return vIDs[p.imax()];
 }
 //------------------------------------------------------------------------------
+size_t aiw::sph_edgeInd(const Vec<3> & r, int rank){ // пока только для существующего ранга
+	const aiw::Vec<3, uint64_t>& eIDs = sph_cell_edge(sph_cellInd(r, rank), rank);
+	Vec<3> p; for(int i=0; i<3; i++) p[i] = sph_edge(eIDs[i], rank)*r;
+	return eIDs[p.imax()];
+}
+//------------------------------------------------------------------------------
 const Vec<3>& aiw::sph_cell(size_t ID, int rank){ // центр ячейки
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_centers[rank][ID];
 }
 //------------------------------------------------------------------------------
 double aiw::sph_cell_area(size_t ID, int rank){ // площадь ячейки
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_areas[rank][ID];
 }
 //------------------------------------------------------------------------------
 const Ind3& aiw::sph_cell_vert(size_t ID, int rank){ // индексы вершин ячейки
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
 const Ind3& aiw::sph_cell_cell(size_t ID, int rank){ // близжайшие соседи ячейки
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_neighbours[rank][ID];
 }
 // const aiw::Vec<3, uint64_t>& sph_cell_edge(uint64_t ID, int rank); // близжайшие ребра ячейки
 //------------------------------------------------------------------------------
 const Vec<3>& aiw::sph_vert(size_t ID, int rank){ // вершина (узел) сетки
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex[ID];
 }
 //------------------------------------------------------------------------------
-static const Ind3 ind3_zero;
-const Ind3& aiw::sph_vert_vert(size_t ID, int rank){ // индексы вершин вершины
-	return ind3_zero;// ЗАГЛУШКА
+const Ind6& aiw::sph_vert_cell(size_t ID, int rank){ // ячейки, к которым относится вершина
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return vertex_cells[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind6& aiw::sph_vert_cell(size_t ID, int rank){ // ячейки, к которым относится вершина
-	WASSERT(rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
-	return vertex_cells[rank][ID];
+const Ind3& aiw::sph_cell_edge(size_t ID, int rank){ // индексы ребер ячейки (в оппозит вершинам)
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return cell_edges[rank][ID];
+}
+//------------------------------------------------------------------------------
+const Ind2& aiw::sph_edge_cell(size_t ID, int rank){ // индексы ячеeк ребра
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return edge_cells[rank][ID];
+}
+//------------------------------------------------------------------------------
+const Ind2& aiw::sph_edge_vert(size_t ID, int rank){  // индексы вершин ребра
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return edge_vertex[rank][ID];
+}
+//------------------------------------------------------------------------------
+const Ind6& aiw::sph_vert_vert(size_t ID, int rank){ // индексы соседних вершин (для вершины)
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return vertex_vertex[rank][ID];
+}
+//------------------------------------------------------------------------------
+const Ind6& aiw::sph_vert_edge(size_t ID, int rank){  // индексы соседних ребер (для вершины)
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return vertex_edges[rank][ID];
+}
+//------------------------------------------------------------------------------
+double aiw::sph_vert_area(size_t ID, int rank){  // площади ячеек при разбиении по вершинам
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return vertex_areas[rank][ID];
+}
+//------------------------------------------------------------------------------
+double aiw::sph_edge_area(size_t ID, int rank){  // площади ячеек при разбиении по ребрам
+	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+	return edge_areas[rank][ID];
+}
+//------------------------------------------------------------------------------
+const Vec<3>& aiw::sph_edge(size_t ID, int rank){ // координаты центров ребер
+    WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
+    return edge_centers[rank][ID];
 }
 //------------------------------------------------------------------------------
