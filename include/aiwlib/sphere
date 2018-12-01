@@ -176,7 +176,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//  universal access
 		//----------------------------------------------------------------------		
-		inline size_t find(const aiw::Vec<3> &r) const { return mode==0? vertInd(r): (mode==1? cellInd(r): edgeInd(r)); } // индекс ячейки
+		inline size_t find(const aiw::Vec<3> &r) const { return mode==0? cellInd(r): (mode==1? vertInd(r): edgeInd(r)); } // индекс ячейки
 		inline const aiw::Vec<3>& center(size_t ID) const { return mode==0? cell(ID): (mode==1? vert(ID): edge(ID)); }    // центр ячейки
 		inline double area(size_t ID) const { return mode==0? cell_area(ID): (mode==1? vert_area(ID): edge_area(ID)); }   // площадь ячейки
 
@@ -223,19 +223,19 @@ namespace aiw{
 		std::string __getstate__() const { 
 			std::stringstream buf;
 			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
-			int RM = R|(mode<<30); buf.write((const char*)&RM, sizeof(RM)); if(sz) buf.write((char*)ptr, sizeof(T)*sz);         
+			int RM = R|(mode<<29); buf.write((const char*)&RM, sizeof(RM)); if(sz) buf.write((char*)ptr, sizeof(T)*sz);         
 			return buf.str();
 		}
 		void __C_setstate__(const std::string &state){
 			std::stringstream buf(state);
 			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
 			head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
-			int RM; buf.read((char*)&RM, sizeof(RM)); init(RM&~(3<<30), 0, RM>>30);
+			int RM; buf.read((char*)&RM, sizeof(RM)); init(RM&~(7<<29), 0, RM>>29);
 			if(sz) buf.read((char*)ptr, sizeof(T)*sz);         
 		}
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { 
-			S<head<int(0)<int(sizeof(T))<((mode<<30)|R);
+			S<head<int(0)<int(sizeof(T))<((mode<<29)|R);
 			S.write(this->ptr, sizeof(T)*sz);
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // 0 - not use, 1 - readonly, 2 - rw
@@ -245,7 +245,7 @@ namespace aiw{
 				if(raise_on_error) WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h);
 				return false;
 			}
-			head = h; S>R; mode = R>>30; R &= ~(3<<30); sz = mode? sph_vertex_num(R): sph_cells_num(R);
+			head = h; S>R; mode = R>>29; R &= ~(7<<29); sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
 			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); }
 			return true;
