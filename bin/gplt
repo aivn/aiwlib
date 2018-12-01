@@ -75,7 +75,8 @@ class mydict:
     def __init__( self, **kw_args ) : self.__dict__.update(kw_args)
     def __getitem__( self, key ) : 
         if key=='<TAG>' : mydict._TAG += 1; return self._TAG #return id(self)
-        k = key.split()[0]; v = self.__dict__.setdefault( k, False if key[-1] in '~|' else None if k=='title' else '' ); empty = not v
+        k = key.split()[0]; v = self.__dict__.setdefault( k, False if key[-1] in '~|' else None if k=='title' else '' )
+        empty = not v and not type(v) in (int, float, long, complex)
 #        if   key.endswith('#') and v : v = key[:-1]+'"%s"'%( v[:-1] if v.endswith('!') else v[:-1]%_last_dict if v.endswith('%') else Eval(v,_last_dict) )
 #        if   key.endswith('#') and v : v = "'%s'"%( v[:-1] if v.endswith('!') else v[:-1]%_last_dict if v.endswith('%') else Eval(v,_last_dict) )
         if   key.endswith('#') and v : v = key[:-1].split(' ',1)[1]+"'%s'"%ttl( v, _last_dict, False )
@@ -295,7 +296,8 @@ class gplt(Parser) :
                         tu = reduce( lambda S, k : S.replace(k,'\\'+k), '_^$', ' {\\tt %s%s}'%( ex, args ) ) 
                         base.format = bf
                 c['title'] = ': '.join( [ '\\verb"%s"'%c['fname'] if tex else c['fname'] ]*sf + [tu]*bool(tu) )
-            elif c['title']: c['title'] = ttl( c['title'], self._headers[c['fname']][1] if 'fname' in c else _last_dict, tex )
+            elif c['title']:
+                c['title'] = ttl( c['title'], self._headers[c['fname']][1] if 'fname' in c else _last_dict, tex )
 #                t, D = c['title'], ( self._headers[c['fname']][1] if 'fname' in c else _last_dict )
 #                if tex : c['title'] = '\\verb"%s"'%t[:-1] if t[-1]=='!' else t[:-1]%D if t[-1]=='%' else '$%s$'%Eval(t,D)
 #                else : c['title'] = t[:-1] if t[-1]=='!' else t[:-1]%D if t[-1]=='%' else Eval(t,D)
