@@ -213,8 +213,8 @@ namespace aiw{
 #ifndef SWIG
 		inline const T& operator [] (const aiw::Vec<3> &r) const { return ptr[find(r)]; }
 		inline       T& operator [] (const aiw::Vec<3> &r)       { return ptr[find(r)]; }
-		inline const T& operator [] (size_t i) const { WASSERT((i<=0 && i<sz), "illegal index", i, sz); return ptr[i]; }
-		inline       T& operator [] (size_t i)       { WASSERT((i<=0 && i<sz), "illegal index", i, sz); return ptr[i]; }
+		inline const T& operator [] (size_t i) const { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
+		inline       T& operator [] (size_t i)       { WASSERT(i<sz, "illegal index", i, sz); return ptr[i]; }
 		inline const T& operator [] (const aiw::Vec<2> &r) const { return (*this)[polar(r[1], r[0])]; } // phi, theta
 		inline       T& operator [] (const aiw::Vec<2> &r)       { return (*this)[polar(r[1], r[0])]; } // phi, theta
 #endif //SWIG
