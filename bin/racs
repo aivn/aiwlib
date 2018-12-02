@@ -4,6 +4,8 @@
 '''racs директория-расчета (показывает содержимое файла .RACS) 
 либо racs -q (выводит информацию о текущих пакетных запусках)
 либо racs список-репозиториев/ список-выражений действие (строит выборку)
+либо racs + репозиторий/ [параметры-расчета] (возвращает путь к новому расчету)
+     racs @ путь-к-расчету/ [параметры-расчета] (модифицирует расчет)
 
 Репозитории должны заканчиваться на символ '/'.
 
@@ -73,7 +75,7 @@ Copyright (C) 2003-2018  Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 '''
 #-----------------------------------------------------------------------------
-#   parse arguments
+#   show help or single calc
 #-----------------------------------------------------------------------------
 import os, sys, cPickle, pprint
 
@@ -97,6 +99,9 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     #print pprint.pformat(cPickle.load(open(sys.argv[1]))).replace('\\n','\n')
     sys.exit()
 
+#-----------------------------------------------------------------------------
+#   show queue
+#-----------------------------------------------------------------------------
 from aiwlib.mixt import *
 
 if len(sys.argv)==2 and sys.argv[1]=='-q':
@@ -123,10 +128,34 @@ if len(sys.argv)==2 and sys.argv[1]=='-q':
         if PID not in os.listdir('/proc'): print '\033[31mMaster process not found!\033[0m'
     sys.exit()
         
-import aiwlib.gtable, aiwlib.calc
+#-----------------------------------------------------------------------------
+#   shell API for make new calc
+#-----------------------------------------------------------------------------
+import math, aiwlib.gtable, aiwlib.calc, aiwlib.chrono
 
 if '--ghelp' in sys.argv: print '\n'.join(aiwlib.calc.ghelp); sys.exit()
 
+if sys.argv[1] in ('+', '@'):
+    if len(sys.argv)==2: print>>sys.stderr, __doc__; sys.exit()
+    if sys.argv[1]=='+':
+        calc = aiwlib.calc.Calc(path=aiwlib.mixt.make_path(sys.argv[2], 4))
+        try:
+            if os.path.islink('_') or os.path.exists('_'): os.remove('_')
+            os.symlink(calc.path, '_')
+        except Exception, e: print>>sys.stderr, e
+        calc.set_state('started', os.getppid()); print calc.path
+    else: calc = aiwlib.calc.Calc(path=sys.argv[2])
+    calc.runtime = aiwlib.chrono.Time(time.time()-float(calc.statelist[0][3]))
+    for a in sys.argv[3:]:
+        k, v = a.split('=', 1)
+        if k=='state': calc.set_state(v)
+        elif v.startswith('@'): calc.__dict__[k] = eval(v[1:], math.__dict__, dict(calc.__dict__))
+        else: calc.__dict__[k] = v
+    calc.commit(); sys.exit()
+
+#-----------------------------------------------------------------------------
+#   parse arguments for results analys
+#-----------------------------------------------------------------------------
 fromL, ev_lists, action, a_sz, pbar, csz, ctr, force, cl = [], [[]], None, len(sys.argv), False, False, False, False, False
 for i in range(1, a_sz):
     arg = sys.argv[i]
