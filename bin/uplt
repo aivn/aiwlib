@@ -119,19 +119,19 @@ def load_arrays(f):
     fin, L = File(f, 'r'), []
     while 1:
         msh2, msh3, sphF, sphD = MeshF2(), MeshF3(), SphereF(), SphereD()
-        if msh2.load(fin, 0, False): L.append(msh2)
-        elif msh3.load(fin, 0, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
-        elif sphF.load(fin, 0, False):
+        if msh2.load(fin, 1, False): L.append(msh2)
+        elif msh3.load(fin, 1, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
+        elif sphF.load(fin, 1, False):
             L.append(sphF)
             if sph_max_rank()<sphF.rank(): sph_init_table(sphF.rank())
-        elif sphD.load(fin, 0, False):
+        elif sphD.load(fin, 1, False):
             L.append(sphD)
             if sph_max_rank()<sphD.rank(): sph_init_table(sphD.rank())
         else:
             msh2, msh3, sphUS = MeshUS2(), MeshUS3(), SphereUS()
-            if msh2.load(fin, 0, False): L.append(msh2)
-            elif msh3.load(fin, 0, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
-            elif sphUS.load(fin, 0, False):
+            if msh2.load(fin, 1, False): L.append(msh2)
+            elif msh3.load(fin, 1, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
+            elif sphUS.load(fin, 1, False):
                 L.append(sphUS)
                 if sph_max_rank()<sphUS.rank(): sph_init_table(sphUS.rank())
             else:

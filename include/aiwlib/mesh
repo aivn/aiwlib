@@ -72,7 +72,7 @@ namespace aiw{
 				if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, rD, sizeof(T), szT, S.name, S.tell(), h); }
 				else return false;
 			}
-			head = h.c_str(); Ind<D> box_; S>box_;  
+			head = h.c_str(); Ind<D> box_; S>box_;
 			if(__has_trivial_copy(T)){
 				if(use_mmap){ sz_init(box_); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
 				else { init(box_, align); S.read(ptr, sz*sizeof(T)); }
