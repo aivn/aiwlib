@@ -189,6 +189,9 @@ class Select:
     def paths(self, fname=''):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
         return [l[0].path+fname for l in self._L if l ] #and os.path.exists(l[0].path+fname)]
+    def paths2py(self, fname=''):
+        'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
+        return ['['+','.join(map(repr, self.paths(fname)))+']']
     #---------------------------------------------------------------------------
     def Xcommit(self): 'сохраняет изменения в расчетах на диск'; [l[0].commit() for l in self._L if l]
     def Xremove(self):

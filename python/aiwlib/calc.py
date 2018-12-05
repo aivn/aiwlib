@@ -114,15 +114,15 @@ class Calc:
                 sys.exit()
         elif _racs_params.get('_daemonize', False): mixt.mk_daemon()
         #-----------------------------------------------------------------------
-        for k, v in _args_from_racs: # накат сторонних параметров            
-            if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
-            self.__dict__[k] = v
+        if 'path' in dict(_args_from_racs): self.__dict__['path'] = dict(_args_from_racs)['path']
         if 'path' in self.__dict__: # подготовка пути
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
+            if os.path.exists(self.path+'.RACS'): self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
+        for k, v in _args_from_racs: # накат сторонних параметров            
+            if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
+            self.__dict__[k] = v
         _init_hook(self)
-        if 'path' in self.__dict__ and not _racs_params.get('_clean_path', False) and os.path.exists(self.path+'.RACS'):
-            self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
     # def __repr__(self): return 'RACS(%r)'%self.path 
     # def __str__(self): return '@'+self.path #???
     #---------------------------------------------------------------------------

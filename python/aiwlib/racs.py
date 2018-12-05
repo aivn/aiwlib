@@ -234,7 +234,7 @@ while i<len(calc._cl_args):
                     if not L: raise Exception('incorrect step or limits in expression '+A)
                     L = [float('%g'%x) for x in L]
                     break
-            else: raise Exception('incorrect sequence expression '+A)
+            else: L = s.split() #raise Exception('incorrect sequence expression '+A) ???
         calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
         calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
     elif mixt.is_name_eq(A): 
