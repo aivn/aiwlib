@@ -39,7 +39,7 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -r|--repo=PATH --- задает путь к репозитрию для создания расчета
     path=PATH --- явно задает путь к директории расчета, если расчет существовал 
                   словарь расчета будет обновлен из директории расчета
-  -p|--clean-path[=Y] --- очищать явно заданную директорию расчета, при этом
+  -p|--clean-path[=N] --- очищать явно заданную директорию расчета, при этом
                           словарь расчета не обновляется из директории
   -s|--symlink[=Y] --- создавать символическую ссылку '_' на последнюю 
                        директорию расчета
@@ -210,7 +210,7 @@ if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
     sys.exit()
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
-         'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', True), 
+         'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', False), 
          'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', '') }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, calc._arg_seqs, calc._arg_order, i, repeat_mode = list(sys.argv[1:]), {}, [], 0, False
@@ -246,7 +246,7 @@ while i<len(calc._cl_args):
         for k, v in opts.items()+[('repeat', ('R', '')), ('continue', ('C', ''))]:
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):
                 calc._racs_params['_'+k] = True; calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
-            elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):    
+            elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):
                 x = A.split('=', 1)[1]
                 if k=='continue' and len(sys.argv)!=2: raise Exception('The argument %r must be unique!'%A)
                 if k=='repeat' and (A!=sys.argv[1] or repeat_mode): raise Exception('The argument %r must be firts!'%A)
@@ -258,7 +258,7 @@ while i<len(calc._cl_args):
                     repeat_mode = True; break
                 calc._racs_params['_'+k] = mixt.string2bool(x) if type(v[1]) is bool else int(x) if type(v[1]) is int else x
                 calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
-        else: i += 1
+        else: i += 1;
     else: i += 1
 if calc._racs_params['_mpi']: 
     calc._racs_params['_daemonize'] = False
