@@ -16,6 +16,9 @@ swig/$(MESH_NAME).i: include/aiwlib/mesh.mk
 	"return M.slice<$(MESH_TYPE), $$D>(pos, offset); }%}"; done >> $@
 	@echo '%pythoncode %{$(MESH_NAME).__setstate__ = _setstate %}' >> $@
 	@echo '%pythoncode %{from vec import *%}' >> $@	
+	@echo '%pythoncode %{$(MESH_NAME).__C_getitem__, $(MESH_NAME).__C_setitem__ =  $(MESH_NAME).__getitem__, $(MESH_NAME).__setitem__%}' >> $@	
+	@echo '%pythoncode %{$(MESH_NAME).__getitem__ = lambda self, k: self.__C_getitem__(Ind(k) if type(k) in (tuple, list) else k)%}' >> $@	
+	@echo '%pythoncode %{$(MESH_NAME).__setitem__ = lambda self, k, v: self.__C_setitem__(Ind(k) if type(k) in (tuple, list) else k, v)%}' >> $@	
 	@for D in `seq 1 $$(($(MESH_DIM)-1))`;\
 	do echo "%pythoncode %{$(MESH_NAME).slice$$D = "\
 	"lambda self, pos, offset=0:_$(MESH_NAME).$(MESH_NAME)_slice$$D(self, Ind(pos, D=$(MESH_DIM)), offset) %}"; done >> $@

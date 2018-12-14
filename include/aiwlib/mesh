@@ -104,20 +104,12 @@ namespace aiw{
 			return load(std::move(S), use_mmap, raise_on_error); 
 		}
 		//----------------------------------------------------------------------		
-		// private:
-		//	bool easy = true;
-		//	public:
-		// inline bool is_easy() const { return easy; }
 #ifndef SWIG		
 		inline const T& get(aiw::Ind<D> pos) const {
 #ifndef EBUG
 			if(this->periodic || this->bounds)
 #endif //EBUG
 				if(this->check_out_pos(pos)) return out_value;
-			// if(easy){
-			//	size_t off = pos[D-1]; for(int i=D-2; i>=0; i--) off = off*box[i]+pos[i];
-			//	return ((const T*)ptr)[off];
-			//	}
 			return *((const T*)((const char*)ptr+mul*pos));
 
 		}
@@ -127,6 +119,17 @@ namespace aiw{
 		inline       T& operator [] (const aiw::Ind<D> &p)       { return (T&)get(p); }
 		inline const T& operator [] (const aiw::Vec<D> &r) const { return     get(r); }
 		inline       T& operator [] (const aiw::Vec<D> &r)       { return (T&)get(r); }
+		/*
+	protected:
+		inline char* at_(char* p){ return p; }
+		template <typename A, typename ... Args> inline char* at_(char* p, A ix, Args ... args){ return at_(p+ix*mul[D-sizeof...(Args)-1], args...); }		
+	public:
+		template <typename ... Args> inline T& at(Args ... args){ static_assert(sizeof...(Args)==D, "illegal parametrs count!"); return *(T*)at_((char*)ptr, args...); }
+		template <typename ... Args> inline const T& at(Args ... args) const {
+			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); return *(T*)(((Mesh*)this)->at_((char*)ptr, args...)); }
+		*/
+		template <typename ... Args> inline T& at(Args ... pos) { return (*this)[Ind<D>(pos...)]; }
+		template <typename ... Args> inline const T& at(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }
 #endif // SWIG
 		inline const T& __getitem__(const aiw::Ind<D> &p) const { return get(p); }
 		inline const T& __getitem__(const aiw::Vec<D> &r) const { return get(r); }
@@ -344,12 +347,17 @@ namespace aiw{
 			Mesh<T, D> *data = nullptr;
 			Ind<D> pos;
 
-			T& operator * (){ return (*data)[pos]; }
-			const T& operator * () const { return (*data)[pos]; }
-			iterator & operator ++ (){ ++pos^=data->bbox(); return *this; } // data->next() ???
+			inline T& operator * (){ return (*data)[pos]; }
+			inline const T& operator * () const { return (*data)[pos]; }
+			inline iterator & operator ++ (){ ++pos^=data->bbox(); return *this; } // data->next() ???
 
-			bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
-			bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
+			inline T& operator ()(const Ind<D> &offset){ return (*data)[pos+offset]; }
+			inline const T& operator ()(const Ind<D> &offset) const { return (*data)[pos+offset]; }
+			template <typename ... Args> inline T& at(Args ... offset){ return (*data)[pos+Ind<D>(offset...)]; }
+			template <typename ... Args> inline const T& at(Args ... offset) const { return (*data)[pos+Ind<D>(offset...)]; }
+
+			inline bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
+			inline bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
 		};
 		iterator begin() const { iterator I; I.data = this; return I; }
 		iterator end() const { iterator I; I.data = this; I.pos[D-1] = box[D-1]; return I; }
