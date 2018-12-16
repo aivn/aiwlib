@@ -290,13 +290,17 @@ class Vec:
     def __ixor__(self, Up):
         if self._T() not in ('int', 'int32_t'): raise Exception('incorrect lvalue type in %r^=%r'%(self, Up))
         for i in range(self._D()-1):
-            if self[i]<Up[i]: return True 
-            else: self[i] = 0; self[i+1] += 1 
-        return self[self._D()-1]<Up[D-1]
+            if self[i]<Up[i]: return self #True 
+            else: self[i] = 0; self[i+1] += 1
+        return self #[self._D()-1]<Up[D-1]
     #---------------------------------------------------------------------------
     def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
     #def __del__(self): destroy_swig_object(self.this)
     def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1])
+#-------------------------------------------------------------------------------
+def iterbox(bbox):
+    bbox, pos = Ind(bbox), Ind(D=len(bbox))
+    while pos<bbox: yield pos; pos[0] += 1; pos ^= bbox
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    
     ab, bc = b-a, c-b; ab /= ab.abs(); bc /= bc.abs()
@@ -320,7 +324,7 @@ class Vecf(Vec):
     def __init__(self, *args, **kw_args): kw_args['T'] = 'float'; Vec.__init__(self, *args, **kw_args)
 vecf = lambda *args, **kw_args: Vecf(*args, **kw_args)
 
-__all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle']
+__all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle', 'iterbox']
 #-------------------------------------------------------------------------------
 #add_swig_types_table(SwigTypesTable())
 #print '======================================================'

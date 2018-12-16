@@ -205,7 +205,10 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//  universal access
 		//----------------------------------------------------------------------		
-		inline size_t find(const aiw::Vec<3> &r) const { return mode==0? cellInd(r): (mode==1? vertInd(r): edgeInd(r)); } // индекс ячейки
+		inline size_t find(const aiw::Vec<3> &r) const { // индекс ячейки
+			WASSERT(r*r>0, "incorrect direction ", r);
+			return mode==0? cellInd(r): (mode==1? vertInd(r): edgeInd(r));
+		} 
 		inline const aiw::Vec<3>& center(size_t ID) const { return mode==0? cell(ID): (mode==1? vert(ID): edge(ID)); }    // центр ячейки
 		inline double area(size_t ID) const { return mode==0? cell_area(ID): (mode==1? vert_area(ID): edge_area(ID)); }   // площадь ячейки
 

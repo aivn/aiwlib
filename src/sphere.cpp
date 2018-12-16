@@ -428,7 +428,8 @@ void aiw::sph_init_table(int rank){
 	//  WOUT(2);
 }
 //------------------------------------------------------------------------------
-size_t aiw::sph_cellInd(const Vec<3> & r, int rank){ // пока только для существующего ранга
+size_t aiw::sph_cellInd(const Vec<3> &r, int rank){ // пока только для существующего ранга
+	WASSERT(r*r>0, "incorrect direction ", r);
 	double max_a = 0., a ; uint64_t id=-1;
 	for( int i=60; i<72; i ++ ){
 		//      WOUT(i, r, cell_centers );
