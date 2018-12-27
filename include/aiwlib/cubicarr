@@ -1,0 +1,43 @@
+// -*- C++ -*-
+#ifndef AIW__HPP
+#define AIW__HPP
+
+/**
+ * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int N> class CubicArr{
+		CubicArr<T, D-1, N> p[N];
+	public:
+		static const int size = N;;
+		inline       T& operator [](const Ind<D>& pos){
+			WASSERT(0<=pos[D-1] && pos[D-1]<N, "incorrect index ", size, pos);
+			return p[pos[D-1]][*(Ind<D-1>*)&pos];
+		}
+		inline const T& operator [](const Ind<D>& pos) const {
+			WASSERT(0<=pos[D-1] && pos[D-1]<N, "incorrect index ", size, pos);
+			return p[pos[D-1]][*(Ind<D-1>*)&pos];
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <typename T, int N> class CubicArr<T, 1, N>{
+		T p[N];
+	public:
+		static const int size = N;;
+		inline       T& operator [](const Ind<1>& pos){
+			WASSERT(0<=pos[0] && pos[0]<N, "incorrect index ", size, pos);
+			return p[pos[0]];
+		}
+		inline const T& operator [](const Ind<1>& pos) const {
+			WASSERT(0<=pos[0] && pos[0]<N, "incorrect index ", size, pos);
+			return p[pos[0]];
+		}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW__HPP

@@ -1,0 +1,75 @@
+// -*- C++ -*-
+#ifndef AIW_BITS_PIRAMIDE_HPP
+#define AIW_BITS_PIRAMIDE_HPP
+
+/**
+ * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <stdio.h>
+#include <stdint.h>
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int D, int R> class BitPiramide{
+		static const size_t p_sz = size_t(1)<<(R*D>=6?R*D-6:0); 
+		uint64_t p[p_sz];
+		BitPiramide<D, R-1> u;
+	public:
+		static const uint64_t mask = D<6? (1<<(1<<D))-1: ~uint64_t(0); 
+		static const uint64_t size = uint64_t(1)<<(R*D); 
+
+		inline void fill(bool x){
+			for(size_t i=0; i<p_sz; i++) p[i] = x?~uint64_t(0): 0;
+			u.fill(x);
+		}
+		
+		inline bool get(size_t i) const { return p[i>>6]&(uint64_t(1)<<(i&0x3f)); }
+		inline bool get(size_t i, int rank_up) const {
+			if(rank_up>0) return u.get(i>>D, rank_up-1);
+			return get(i);
+		}
+		inline void setY(size_t i){	if(!get(i)){ p[i>>6] |= uint64_t(1)<<(i&0x3f); u.setY(i>>D); } }
+		inline void setN(size_t i){
+			if(get(i)){
+				p[i>>6] &= ~(uint64_t(1)<<(i&0x3f));
+				if(!(p[i>>6]&(mask << (uint64_t(1)<<D)*((i>>D)&0x3f) /*???*/ ))) u.setN(i>>D);
+			}
+		}
+		inline void set(size_t i, bool x){ if(x) setY(i); else setN(i); }
+		inline uint64_t less(uint64_t i) const {
+			uint64_t chunk = (p[i>>6]>>((1<<D)*((i>>D)&0x3f)))&mask;
+			for(int k=int(i&((1<<D)-1))-1; k>=0; k--) if(chunk&(1<<k)) return (i&~((1<<D)-1))+k;
+			i = u.less(i>>D)<<D; if(i==~uint64_t(0)<<D) return ~uint64_t(0);
+			chunk = (p[i>>6]>>((1<<D)*((i>>D)&0x3f)))&mask;
+			for(int k=(1<<D)-1; k>=0; k--) if(chunk&(1<<k)) return i+k;
+			return ~uint64_t(0); // not found
+		}
+		inline uint64_t more(uint64_t i) const {
+			uint64_t chunk = (p[i>>6]>>((1<<D)*((i>>D)&0x3f)))&mask;
+			for(int k=int(i&((1<<D)-1))+1; k<(1<<D); k++) if(chunk&(1<<k)) return (i&~((1<<D)-1))+k;
+			i = u.more(i>>D)<<D; if(i==~uint64_t(0)<<D) return ~uint64_t(0); 
+			chunk = (p[i>>6]>>((1<<D)*((i>>D)&0x3f)))&mask;
+			for(int k=0; k<(1<<D); k++) if(chunk&(1<<k)) return i+k;
+			return ~uint64_t(0); // not found
+		}
+		void out2std() const {
+			u.out2std();			
+			printf("BitPiramide<%i, %i> p_sz=%lu mask=%lu size=%lu\n", D, R, p_sz, mask, size);
+			for(size_t j=0; j<p_sz; j++){ for(int k=63; k>=0; k--) printf("%i", bool(p[j]&(uint64_t(1)<<k))); printf("\n"); }
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <int D> struct BitPiramide<D, 0>{
+		inline void fill(bool x){}
+		inline bool get(size_t i, int rank_up) const { return false; }
+		inline void setY(size_t i){}
+		inline void setN(size_t i){}
+		inline uint64_t less(uint64_t i) const { return ~uint64_t(0); }
+		inline uint64_t more(uint64_t i) const { return ~uint64_t(0); }
+		void out2std() const {}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_BITS_PIRAMIDE_HPP
