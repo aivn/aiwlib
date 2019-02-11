@@ -238,7 +238,7 @@ void aiw::SegyFileHead::dump(aiw::IOstream &S){
 	set_int16(16, dt*1e6+.5);  // shag diskretizacii, mks 16-17 18-19 ???
 	set_int16(20, trace_sz);   // chislo otschetov v trasse 21-22
 	set_int16(22, trace_sz);   // chislo otschetov v trasse 23-24
-	set_int16(24, 5);	       // FORMAT
+	set_int16(24, segy_ibm_format?1:5);	       // FORMAT
 	S.write(head, 3600);
 }
 //------------------------------------------------------------------------------
