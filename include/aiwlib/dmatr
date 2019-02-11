@@ -1,0 +1,103 @@
+// -*- C++ -*-
+#ifndef AIW_DYNAMIC_MATRIX_HPP
+#define AIW_DYNAMIC_MATRIX_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename Q, int N=512> class DynMatr{
+		Q p[N]; int X=0, Y=0;
+	public:
+		inline Ind<2> bbox() const { return Ind<2>(Y, X); }
+
+		inline void init(int Y_, int X_){ WASSERT(X_>=0 && Y_>=0 && X_*Y_<=N, "illegal matrix size: ", X_, Y_, X_*Y_, N); X = X_; Y = Y_; }
+		inline void init(int Y_, int X_, Q q){ init(Y_, X_); for(int i=0; i<X*Y; i++) p[i] = q; }
+
+		inline DynMatr(int Y_=0, int X_=0){ init(X_, Y_); }
+		inline DynMatr(int Y_, int X_, Q q){ init(X_, Y_, q); }
+		inline DynMatr(Ind<2> YX){ init(YX[0], YX[1]); }
+		
+		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
+		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
+		
+		inline DynMatr  operator +  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M; }
+		inline DynMatr  operator -  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
+		inline DynMatr  operator &  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
+		inline DynMatr& operator += (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
+		inline DynMatr& operator -= (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
+		inline DynMatr& operator &= (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
+		
+		inline DynMatr operator * (const DynMatr &B) const {
+			WASSERT(X==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			DynMatr M(Y, B.X); 
+			for(int y=0; y<Y; y++)
+				for(int z=0; z<B.X; z++){ 
+					M(y, z) = p[y*X]*B(0, z);
+					for(int x=1; x<X; x++) M(y, z) += (*this)(y, x)*B(x, z); 
+				}
+			return M; 
+		}  
+		inline DynMatr T() const { 
+			DynMatr M(X, Y);  
+			for(int y=0; y<Y; y++)
+				for( int x=0; x<X; x++) M(x, y) = p[x+y*X]; 
+			return M;
+		}
+		
+		inline DynMatr app(const int J, const int I) const {
+			DynMatr M(Y-1, X-1);
+			for(int y=0; y<J; y++) for(int x=0; x<I; x++) M(y, x) = p[x+y*X];
+			for(int y=0; y<J; y++) for(int x=I+1; x<X; x++) M(y, x-1) = p[x+y*X];
+			for(int y=J+1; y<Y; y++) for(int x=0; x<I; x++) M(y-1, x) = p[x+y*X];
+			for(int y=J+1; y<Y; y++) for(int x=I+1; x<X; x++) M(y-1, x-1) = p[x+y*X];
+			return M;
+		} 
+		inline Q det() const {
+			if(X==1 && Y==1) return p[0]; 
+			Q D = 0.;
+			for(int x=0; x<X; x++) D += app(0, x).det()*p[x]*(1.-2.*(x%2));
+			return D;
+		}
+		inline DynMatr inv() const {
+			WASSERT(X==Y, "non square matrix: ", X, Y);
+			DynMatr M(X, Y);
+			for(int x=0; x<X; x++) M(x, 0) = app(0, x).det()*(1.-2.*((x)%2));
+			Q D = 0.; for(int x=0; x<X; x++) D += p[x]*M(x, 0); D = 1./D;
+			for(int x=0; x<X; x++) M(x, 0) *= D;
+			for(int y=1; y<Y; y++) for(int x=0; x<X; x++) M(x, y) = app(y, x).det()*(1.-2.*((x+y)%2))*D;
+			return M;
+		}
+	}; // end of class DynMatr
+	//--------------------------------------------------------------------------
+	template <typename Q, int N> DynMatr<Q, N> operator * (const DynMatr<Q, N> &M, const Q &v){
+		DynMatr<Q, N> R(M.bbox()); for(int y=0; y<M.bbox()[0]; y++) for(int x=0; x<M.bbox()[1]; x++) R(y, x) = M(y, x)*v;
+		return R; 
+	}
+	//--------------------------------------------------------------------------
+	template <typename Q, int N> DynMatr<Q, N> operator * (const Q &v, const DynMatr<Q, N> &M){
+		DynMatr<Q, N> R(M.bbox()); for(int y=0; y<M.bbox()[0]; y++) for(int x=0; x<M.bbox()[1]; x++) R(y, x) = v*M(y, x);
+		return R; 
+	}
+	//--------------------------------------------------------------------------
+	template <typename Q, int N> std::ostream& operator << (std::ostream &str, const DynMatr<Q, N> &M){
+		for(int y=0; y<M.bbox()[0]; y++){
+			for(int x=0; x<M.bbox()[1]; x++) str<<M(y, x)<<'\t';
+			str<<'\n';
+		}
+		return str;
+	}
+	//--------------------------------------------------------------------------
+	// template <int N, typename Q, typename C> void dispense(const Matr<N, N, Q> &src, const Ind<N> &IDs, C& dst){
+	// 	for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
+	// }
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_DYNAMIC_MATRIX_HPP
