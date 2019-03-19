@@ -186,12 +186,12 @@ class Select:
             if dname and not os.path.exists(dname): os.makedirs(dname)
             (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
         else: return R 
-    def paths(self, fname=''):
+    def paths(self, patterns=['']):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
-        return [l[0].path+fname for l in self._L if l ] #and os.path.exists(l[0].path+fname)]
-    def paths2py(self, fname=''):
+        return sum([[l[0].path+p for p in patterns] for l in self._L if l ], []) #and os.path.exists(l[0].path+fname)]
+    def paths2py(self, patterns=['']):
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
-        return ['['+','.join(map(repr, self.paths(fname)))+']']
+        return repr(self.paths(patterns))
     #---------------------------------------------------------------------------
     def Xcommit(self): 'сохраняет изменения в расчетах на диск'; [l[0].commit() for l in self._L if l]
     def Xremove(self):
@@ -203,12 +203,13 @@ class Select:
         del self._L[:]
         self.runtime = time.time()-starttime
     #---------------------------------------------------------------------------
-    def get_keys(self, mode='or'):
+    def get_keys(self, mode='or', *patterns):
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
         starttime = time.time()
         if not self._L: return []
         keys = [set(l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys()) for l in self._L if l]
         S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, keys.pop(0))
+        if patterns: S = filter(lambda n: mixt.compare(n, patterns), S)
         self.runtime = time.time()-starttime
         return sorted(list(S))    
     def get_values_summary(self, *patterns):   #???

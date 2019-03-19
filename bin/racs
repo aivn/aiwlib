@@ -55,11 +55,11 @@
            or  --- каждый ключ есть хотя бы в одном расчете
            and --- каждый ключ есть во всех расчетах
            xor --- каждый ключ есть только в одном расчете
-    --ps|--paths [fname=''] --- вывести на стандартный вывод пути к файлу
-                 fname указанном от директории расчета для всех расчетов 
-                 (если он существует), по умолчанию выводятся пути к расчетам
-    --ps2py|--paths2py [fname=''] --- то же что --ps|--path, но в формате
-                                      списка Python
+    --ps|--paths [patterns...] --- вывести на стандартный вывод пути к файлам
+                 указанным от директории расчета для всех расчетов, 
+                 по умолчанию выводятся пути к расчетам
+    --ps2py|--paths2py [patterns...] --- то же что --ps|--path, но в формате
+                                         списка Python
 
 Кроме того, доступны следующие опции (по умолчанию отключены):
     --pb[ar]|--progressbar --- отображать процесс построения выборки
@@ -176,11 +176,11 @@ for i in range(1, a_sz):
     elif arg in '--rm --remove'.split(): action = ['Xremove']; break
     elif arg=='--keys':
         action = ['get_keys']
-        if i+1<a_sz: action.append(sys.argv[i+1]) # mode
+        if i+1<a_sz: action += sys.argv[i+1:] # mode
         break
     elif arg in '--ps --paths --ps2py --paths2py'.split():
         action = ['paths'+'2py'*('2' in arg)]
-        if i+1<a_sz: action.append(sys.argv[i+1]) # fname
+        if i+1<a_sz: action.append(sys.argv[i+1:]) # fname
         break        
     elif arg in '--pb --pbar --progressbar'.split(): pbar = ProgressBar(stdout=sys.stderr)
     elif arg in '--csz --calc-size'.split(): csz = True
@@ -224,7 +224,7 @@ elif action==['Xcommit']:
 elif action[0]=='asdata' and len(S.ring)>1:
     for i in range(len(S.ring)): sys.stdout.write(''.join(S.asdata(*action[1:]))); S.click()
 else:
-    sep, end = ('','') if action[0][:2]=='as' else (' ','\n')
+    sep, end = ('','') if action[0][:2]=='as' else (' '*(action[0]!='paths2py'),'\n')
     sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
 print>>sys.stderr, report, '... completed [%s]'%time2string(time.time()-starttime)
 #-----------------------------------------------------------------------------
