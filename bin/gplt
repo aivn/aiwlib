@@ -192,8 +192,9 @@ class gplt(Parser) :
         if self._plotted : del self._curves[:]; self._plotted=False
         self._curves.append( dict( self.Skel.__dict__.items()+[( 'function', func.split('@')[0] ),( 'header', _last_dict if self.use_last_dict else {} )] 
                                    + _parse_opt(func) ) )
-    def add( self, fname ) : 
+    def add(self, fname): 
         '''добавляет семейство кривых для отрисовки (для каждого файла отвечающего bash-шаблону fname все кривые из опции Using). 
+        Путь к файлу вида repo/[condition]/files... эквивалентен команде $(racs repo/ 'condition?' --ps files...
         В качестве файлов можно указывать команды sh (отмечаются при помощи ! или < вначале), выдающие содержимое файла через stdout, например '!seq 10'
         Команда sh начинающаяся с < предварительно запускается (для чтения заголовка) и передается в gnuplot без изменений. Команда sh начинающаяся с ! 
         запускается однократно, ее вывод сохраняется во временный файл который передается в gnuplot. 
@@ -202,6 +203,10 @@ class gplt(Parser) :
         опций (кроме title) не имеет значения, опция title всегда идет последней и начинается со знака '='. Цвета линий задаются по именам, 
         либо как #RRGGBB (например #FF0000 - красный), толщина линии обозначается целым числом. Оси могут принимать значения x{12}y{12}.
         Дополнительные опции перекрывают соответствующие опции в Using.'''
+        if '/[' in fname and ']/' in fname and fname.index('/[')<fname.index(']/'):
+            repo, cond = fname.split('/[', 1); cond, fname = cond.rsplit(']/', 1)
+            for f in os.popen('racs %r/ %r? --ps %s'%(repo, cond, fname)).readline().split(): self.add(f)
+            return
         if self._plotted: del self._curves[:]; self._plotted = False
         all_args = [int(a) if a.isdigit() else a for a in self._all.split(',') if a and a[0]!='-'] 
         all_ignore = [int(i) if i.isdigit() else i for i in [ a[1:] if a[0]=='-' else a for a in self._all.split(',') if a ]]
@@ -231,7 +236,8 @@ class gplt(Parser) :
                             l = s[2:].split(); H.update([ ( i, l[i] ) for i in range(len(l)) ]) 
                             D.update([ ( k, var( k, '($%i)'%(i+1) ) ) for i, k in H.items() ]) 
                     s = fin.readline() 
-                H = dict([ ( k, D[v] ) for k, v in H.items() ]); self._headers[f] = (H, D) #<<< end read header                
+                H = dict([ ( k, D[v] ) for k, v in H.items() ]); self._headers[f] = (H, D) #<<< end read header
+                fin.close()
             if self._all: 
                 fin = open( self._filters.get(f,f) ) if f[0]!='<' else os.popen(f[1:]); s = fin.readline()
                 while s and ( s.startswith('#') or not s.strip() ): s = fin.readline()
@@ -245,8 +251,8 @@ class gplt(Parser) :
     def stdin(self) :
         'читает данные для построения со стандартного ввода'
         f = open( self._filters.setdefault('!stdin', '/tmp/gplt-%s-%s.dat'%( os.getpid(), len(self._filters) )), 'w' )
-        for l in sys.stdin.readlines() : f.write(l)
-#        f.writelines(sys.stdin.readlines()); 
+#        for l in sys.stdin.readlines() : f.write(l)        
+        f.writelines(sys.stdin.readlines());
         f.close(); self.add('!stdin') 
     def hidden3d(self)  : 'включает 3d и hidden3d режимы'; print>>gp, 'set hidden3d';   self._3d = True
     def nohidden3d(self) : 'включает 3d и выключает hidden3d режим'; print>>gp, 'unset hidden3d'; self._3d = True
@@ -345,6 +351,7 @@ class gplt(Parser) :
         предварительно отредактировать график, showcmd задает команду для просмотра результата, остальные опции настраивают создание .pdf через pdflatex
         clear управляет удалением временных файлов, margins определяет поля при обрезании pdfcrop-ом, usepackage задает список дополнительных пакетов 
         в виде package:opt1:opt2... через пробел, head задает дополнительный заголовок после \\begin{document}'''        
+        #if '!stdin' in self._filters: print self._filters['!stdin']; os.system('less '+self._filters['!stdin'])
         toTeX, term, self._format, fn = { 'pdf':(1,'epslatex','tex',fname[:-3]+'eps'), 'eps':(0,'postscript eps enhanced','eps',fname), 
                                           'Pdf':(0,'epslatex','tex',fname[:-3]+'eps'), 'tex':(0,'latex','tex',fname[:-3]+'tex') 
                                           }.get( fname.split('.')[-1], ( 0, fname.split('.')[-1], 'txt', fname ) ); term += ' '+termopt if termopt else ''
@@ -394,7 +401,7 @@ class gplt(Parser) :
     #def table(self) : 'просмотр списка заданных кривых'; pass
     #def movie( self, pause, files ) : pass #aka animate
     def __del__(self) : 
-        if self._curves and not self._plotted : 
+        if self._curves and not self._plotted :
             self.plot() 
             try:
                 try: raw_input('gplt: press ENTER or Ctrl-C for close')        

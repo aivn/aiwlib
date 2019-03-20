@@ -50,8 +50,8 @@
     --co[mmit] --- сохранить изменения расчетов (сделанные при помощи опций ! 
                    или !!) на диск
     --rm|--remove --- удалить выбранные расчеты с диска
-    --keys [mode=or] --- вывести ключи (имена параметров) расчетов по всей 
-           выборке, в режиме
+    --keys [mode=or [patterns..]] --- вывести ключи (имена параметров) расчетов
+           по всей выборке, в режиме
            or  --- каждый ключ есть хотя бы в одном расчете
            and --- каждый ключ есть во всех расчетах
            xor --- каждый ключ есть только в одном расчете
@@ -60,6 +60,7 @@
                  по умолчанию выводятся пути к расчетам
     --ps2py|--paths2py [patterns...] --- то же что --ps|--path, но в формате
                                          списка Python
+    --gplt [gplt-options...] --- эквивалентно --asd | gplt -all C1 -std gplt-options...
 
 Кроме того, доступны следующие опции (по умолчанию отключены):
     --pb[ar]|--progressbar --- отображать процесс построения выборки
@@ -158,7 +159,7 @@ if sys.argv[1] in ('+', '@'):
 #-----------------------------------------------------------------------------
 #   parse arguments for results analys
 #-----------------------------------------------------------------------------
-fromL, ev_lists, action, a_sz, pbar, csz, ctr, force, cl = [], [[]], None, len(sys.argv), False, False, False, False, False
+fromL, ev_lists, action, a_sz, pbar, csz, ctr, force, cl, gplt = [], [[]], None, len(sys.argv), False, False, False, False, False, None
 for i in range(1, a_sz):
     arg = sys.argv[i]
     if arg in ('--ast', '--astable'):
@@ -189,6 +190,7 @@ for i in range(1, a_sz):
     elif arg=='--force': force = True
     elif arg.endswith('/'): fromL.append(arg)
     elif arg==':': ev_lists.append([])
+    elif arg=='--gplt': action = ['asdata']; gplt = sys.argv[i+1:]; break
     else: ev_lists[-1].append(arg)
 else: print>>sys.stderr, __doc__, '\033[31mAction not setting!\033[0m'; sys.exit()
 #-----------------------------------------------------------------------------
@@ -211,6 +213,9 @@ report = ''.join(['\033[31m']+aiwlib.calc.Calc._except_report_table+['\033[0m'])
 #report += 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
 #                                              (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
 report += S.report()
+
+if not gplt is None: sys.stdout = open('/tmp/racs4gplt-%i.dat'%os.getpid(), 'w')
+#    sys.stdout = os.popen('gplt -all %s -std'%S.head[0]+' %r'*len(gplt)%tuple(gplt), 'w')
 starttime = time.time()
 if action==['Xremove']:
     print report
@@ -227,4 +232,9 @@ else:
     sep, end = ('','') if action[0][:2]=='as' else (' '*(action[0]!='paths2py'),'\n')
     sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
 print>>sys.stderr, report, '... completed [%s]'%time2string(time.time()-starttime)
+
+if not gplt is None:
+    sys.stdout.close()
+    os.system('gplt -all %s %s'%(S.head[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
+    os.remove(sys.stdout.name)
 #-----------------------------------------------------------------------------
