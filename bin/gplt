@@ -6,7 +6,7 @@ Copyright (C) 2002-2017 Anton V. Ivanov <aiv.racs@gmail.com>
 This code is released under the GPL3 or later
 '''
 #-------------------------------------------------------------------------------
-import os, sys, gzip, glob, atexit, time, math, cPickle 
+import os, sys, gzip, glob, atexit, time, math, cPickle, subprocess
 from aiwlib.AST import formats
 from aiwlib.AST import *
 import aiwlib.bindopt
@@ -205,7 +205,10 @@ class gplt(Parser) :
         Дополнительные опции перекрывают соответствующие опции в Using.'''
         if '/[' in fname and ']/' in fname and fname.index('/[')<fname.index(']/'):
             repo, cond = fname.split('/[', 1); cond, fname = cond.rsplit(']/', 1)
-            for f in os.popen('racs %r/ %r? --ps %s'%(repo, cond, fname)).readline().split(): self.add(f)
+            #for f in os.popen('racs %r/ %r? --ps %s'%(repo, cond, fname)).readline().split(): self.add(f)
+            sh = subprocess.Popen(os.environ['SHELL'], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+            sh.stdin.write('racs %r/ %r? --ps %s'%(repo, cond, fname)); sh.stdin.close()
+            for f in sh.stdout.readline().split(): self.add(f)
             return
         if self._plotted: del self._curves[:]; self._plotted = False
         all_args = [int(a) if a.isdigit() else a for a in self._all.split(',') if a and a[0]!='-'] 
