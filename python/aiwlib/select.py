@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 '''Copyright (C) 2003-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
-import os, sys, time, gzip, mixt, gtable, calc, cPickle
+import os, sys, time, gzip, mixt, gtable, calc, cPickle, fnmatch
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][-] либо tag+') возвращает кортеж csfh из 4-х значений
@@ -202,6 +202,25 @@ class Select:
             except Exception, e: print e
         del self._L[:]
         self.runtime = time.time()-starttime
+    def Xcopy(self, repo, *patterns):
+        '''копирует все записи выборки в repo разрешая конфликты имен, если паттерны заданы то проверка идет до первого совпадения, 
+        для игнорирования паттерн должен начинаться со знака -'''
+        if repo[-1]!='/': repo += '/'
+        for c in [l[0] for l in self._L if l]:
+            n0, R = os.path.basename(c.path[:-1]), repo%c
+            if not os.path.exists(R): os.makedirs(R)
+            n, i, L = n0, 1, os.listdir(R)
+            while n in L: n = n0+'_d%i'%i; i += 1
+            dst = R+n+'/'; os.mkdir(dst)
+            if patterns:
+                L = []
+                for f in os.listdir(c.path):
+                    for p in patterns:
+                        if p.startswith('-') and fnmatch.fnmatch(f, p[1:]): break
+                        if not p.startswith('-') and fnmatch.fnmatch(f, p): L.append(f); break
+                if not '.RACS' in L: L.append('.RACS')
+            else: L = os.listdir(c.path)
+            for f in L: os.system('cp -r %r %r'%(c.path+f, dst))
     #---------------------------------------------------------------------------
     def get_keys(self, mode='or', *patterns):
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
