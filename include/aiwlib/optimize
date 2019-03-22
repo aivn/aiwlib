@@ -1,0 +1,68 @@
+// -*- C++ -*-
+#ifndef AIW_OPTIMIZE_HPP
+#define AIW_OPTIMIZE_HPP
+
+/**
+ * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cmath>
+#include "angem"
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template<typename T=double> struct LSQ{
+		T X=0, X2=0, XY=0, Y=0; uint64_t N = 0;
+		void add(T x, T y){ X += x; X2 += x*x; XY += x*y; Y += y; N++; }
+		T calc_b() const { return (XY/N-X*Y/(N*N))/(X2/N-X*X/(N*N)); }
+		T calc_a() const { return (Y-calc_b()*X)/N; }
+	};
+	//--------------------------------------------------------------------------
+	template <typename T, int D> T normL2(const Mesh<T, D> &a, const Mesh<T, D> &b){
+		//WASSERT(a.bbox()==b.bbox() && )
+		T corr = 0.;
+		for(Ind<D> pos; pos^=a.bbox(); ++pos){ T ff = a[pos]-b[pos]; corr += ff*ff; }
+		return corr*a.step.prod();
+	}
+	template <typename T, int D> T normL2log(const Mesh<T, D> &a, const Mesh<T, D> &b){
+		//WASSERT(a.bbox()==b.bbox() && )
+		T corr = 0.;
+		for(Ind<D> pos; pos^=a.bbox(); ++pos){
+			T ff = log(a[pos])-log(b[pos]);
+			if(!is_bad_value(ff)) corr += ff*ff;
+		}
+		return corr*a.step.prod();
+	}
+	//--------------------------------------------------------------------------
+	template <typename F, typename T> T golden_section(F& f, T a, T b, int Nit=10){ // ==> argmin f(x)
+		// |a ... xa ... xb ... b|
+		double _GS = 2/(1+sqrt(5)); // eps *= fabs(b-a);
+		T xa = b-(b-a)*_GS, xb = a+(b-a)*_GS;
+		double fxa = f(xa), fxb = f(xb);
+		for(int i=0; i<Nit; i++){
+			if(fxa>fxb){ a = xa; xa = xb; fxa = fxb; xb = a+(b-a)*_GS; fxb = f(xb); }
+			else       { b = xb; xb = xa; fxb = fxa; xa = b-(b-a)*_GS; fxa = f(xa); }
+		}
+		return .5*(a+b);
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, typename F, int D> Vec<D> gradient_descent(F& f, Vec<D> bmin, Vec<D> bmax, Vec<D> start, Vec<D> acc=vec(1e-3)){  // ==> argmin f(r)
+		acc &= bmax-bmin; // переводим относительную ошибку в абсолютную
+		Vec<D> old_start;
+		do{
+			// printf("%g %g 0\n", start[0], start[1]);
+			old_start = start;
+			T c = f(start); Vec<D, T> g;
+			for(int i=0; i<D; i++){ Vec<D> x = start; x[i] += acc[i]; g[i] = (f(x)-c)/acc[i]; }
+			g /= g.abs(); if(is_bad_value(g)) break; // нулевой градиент, что то нашли
+			Vec<D> a = shoot_box_out(start, -g, bmin, bmax), b = shoot_box_out(start, g, bmin, bmax);
+			start = golden_section(f, a, b, log((b-a).abs()/fabs((b-a)*acc))/log(1.6)+.5); // число итераций???
+			// WOUT(old_start, start, g, a, b, int(log((b-a).abs()/fabs((b-a)*acc))/log(1.6)+.5), acc);
+		} while(!((start-old_start).fabs()<acc));
+		return start;
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_OPTIMIZE_HPP
