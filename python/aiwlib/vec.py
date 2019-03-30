@@ -264,7 +264,7 @@ class Vec:
     def cknan(self): return any(map(math.isnan, self._getdata()))
     def ckinf(self): return any(map(math.isinf, self._getdata()))
     def prod(self): return reduce(lambda a, b: a*b, self._getdata())
-    def __nonzero__(self): return all(self._getdata())    
+    def __nonzero__(self): return any(self._getdata())    
     def __hash__(self): return hash(tuple(self._getdata()))
     def contains(self, x): return x in tuple(self._getdata())
     def __contains__(self, x): return x in tuple(self._getdata())
