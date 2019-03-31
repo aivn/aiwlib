@@ -223,6 +223,7 @@ report += S.report()
 
 if not gplt is None: sys.stdout = open('/tmp/racs4gplt-%i.dat'%os.getpid(), 'w')
 #    sys.stdout = os.popen('gplt -all %s -std'%S.head[0]+' %r'*len(gplt)%tuple(gplt), 'w')
+
 starttime = time.time()
 if action==['Xremove']:
     print report
@@ -246,6 +247,6 @@ print>>sys.stderr, report, '... completed [%s]'%time2string(time.time()-starttim
 
 if not gplt is None:
     sys.stdout.close()
-    os.system('gplt -all %s %s'%(S.head[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
+    os.system('gplt -all %r %s'%(S.head[0].split()[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
     os.remove(sys.stdout.name)
 #-----------------------------------------------------------------------------
