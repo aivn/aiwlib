@@ -266,11 +266,12 @@ class Select:
     def clusteringXY(self):
         'разворачивает X-колонку горизонтально, кластеризуя значения по X и Y, в итоге получается 2D таблица'
         X, Y = {}, {}  # значения колонок X, Y в виде {значение: порядковый-номер-от-нуля} и число колонок
-        for l in filter(None, self._L): X.setdefault(l[1], len(X)); Y.setdefault(l[2], len(Y))
+        v2k = lambda v: tuple(v) if v.__class__ in (set, list) else v
+        for l in filter(None, self._L): X.setdefault(v2k(l[1]), len(X)); Y.setdefault(v2k(l[2]), len(Y))
         R = [ [None, None]+['nan']*len(X)*(len(self.head)-2) for i in range(len(Y)) ] # результирующая таблица
         for y, i in Y.items(): R[i][1] = y
         for l in filter(None, self._L):
-            ix, iy = X[l[1]], Y[l[2]]
+            ix, iy = X[v2k(l[1])], Y[v2k(l[2])]
             for k, v in enumerate(l[3:]): R[iy][2+ix+k*len(X)] = v
         self.head[1] += '\n'+self.head[0]; del self.head[0]
         self.head[1:] = [ h+('\n%g'%x if type(x) is float else '\n%s'%x) for h in self.head[1:] for x in
