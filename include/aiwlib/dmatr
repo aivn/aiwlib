@@ -11,29 +11,54 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <typename Q, int N=512> class DynMatr{
+	template <typename Q, int N=4088/sizeof(Q)> class DynMatr{
 		Q p[N]; int X=0, Y=0;
 	public:
 		inline Ind<2> bbox() const { return Ind<2>(Y, X); }
 
-		inline void init(int Y_, int X_){ WASSERT(X_>=0 && Y_>=0 && X_*Y_<=N, "illegal matrix size: ", X_, Y_, X_*Y_, N); X = X_; Y = Y_; }
-		inline void init(int Y_, int X_, Q q){ init(Y_, X_); for(int i=0; i<X*Y; i++) p[i] = q; }
-
-		inline DynMatr(int Y_=0, int X_=0){ init(X_, Y_); }
-		inline DynMatr(int Y_, int X_, Q q){ init(X_, Y_, q); }
-		inline DynMatr(Ind<2> YX){ init(YX[0], YX[1]); }
-		
 		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
-		inline DynMatr  operator +  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M; }
-		inline DynMatr  operator -  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
-		inline DynMatr  operator &  (const DynMatr& B) const { DynMatr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
-		inline DynMatr& operator += (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
-		inline DynMatr& operator -= (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
-		inline DynMatr& operator &= (const DynMatr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
+		inline void init(int Y_, int X_){
+			WASSERT(X_>=0 && Y_>=0 && X_*Y_<=N, "illegal matrix size: ", X_, Y_, X_*Y_, N);
+			X = X_; Y = Y_; for(int i=0; i<X*Y; i++) p[i] = 0.; // ???
+		}
+		inline void init(int Y_, int X_, Q q){
+		    WASSERT(X_==Y_, "non-square matrix! ", X_, Y_);
+			init(Y_, X_); for(int i=0; i<X; i++) (*this)(i, i) = q;
+		}
+		inline void resize(int Y_, int X_){ init(Y_, X_); }
+
+		inline DynMatr(int Y_=0, int X_=0){ init(Y_, X_); }
+		inline DynMatr(int Y_, int X_, Q q){ init(Y_, X_, q); }
+		inline DynMatr(Ind<2> YX){ init(YX[0], YX[1]); }
+		
+		inline DynMatr  operator +  (const DynMatr& B) const {
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			DynMatr M(Y, X); for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M;
+		}
+		inline DynMatr  operator -  (const DynMatr& B) const {
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			DynMatr M(Y, X); for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M;
+		}
+		inline DynMatr  operator &  (const DynMatr& B) const {
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			DynMatr M(Y, X); for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M;
+		}
+		inline DynMatr& operator += (const DynMatr& B){
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this;
+		}
+		inline DynMatr& operator -= (const DynMatr& B){
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this;
+		}
+		inline DynMatr& operator &= (const DynMatr& B){
+			WASSERT(X==B.X && Y==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
+			for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this;
+		}
 		
 		inline DynMatr operator * (const DynMatr &B) const {
 			WASSERT(X==B.Y, "illegal matrix size: ", X, Y, B.X, B.Y);
