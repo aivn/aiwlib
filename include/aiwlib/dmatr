@@ -11,10 +11,12 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <typename Q, int N=4088/sizeof(Q)> class DynMatr{
+	template <typename Q=double, int N=9*1024> class DynMatr{
 		Q p[N]; int X=0, Y=0;
 	public:
 		inline Ind<2> bbox() const { return Ind<2>(Y, X); }
+    inline int nrows() {return Y;}
+    inline int ncols() {return X;}
 
 		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
@@ -29,8 +31,7 @@ namespace aiw{
 		    WASSERT(X_==Y_, "non-square matrix! ", X_, Y_);
 			init(Y_, X_); for(int i=0; i<X; i++) (*this)(i, i) = q;
 		}
-		inline void resize(int Y_, int X_){ init(Y_, X_); }
-
+		inline void resize(int Y_, int X_){ init(Y_, X_); }	
 		inline DynMatr(int Y_=0, int X_=0){ init(Y_, X_); }
 		inline DynMatr(int Y_, int X_, Q q){ init(Y_, X_, q); }
 		inline DynMatr(Ind<2> YX){ init(YX[0], YX[1]); }
@@ -124,5 +125,6 @@ namespace aiw{
 	// 	for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
 	// }
 	//--------------------------------------------------------------------------
+	using DMatr = aiw::DynMatr<double>;
 };
 #endif //AIW_DYNAMIC_MATRIX_HPP
