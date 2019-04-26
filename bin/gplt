@@ -234,7 +234,9 @@ class gplt(Parser) :
                 fin = open( self._filters.get(f,f) ) if f[0]!='<' else os.popen(f[1:]); s = fin.readline()
                 while s and ( s.startswith('#') or not s.strip() ):
                     if s.startswith('#:') :
-                        if '=' in s: exec( s[2:].strip(), G, D )
+                        if '=' in s:
+                            try: exec( s[2:].strip(), G, D )
+                            except Exception, E: print E
                         else: 
                             l = s[2:].split(); H.update([ ( i, l[i] ) for i in range(len(l)) ]) 
                             D.update([ ( k, var( k, '($%i)'%(i+1) ) ) for i, k in H.items() ]) 

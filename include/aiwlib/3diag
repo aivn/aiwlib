@@ -26,6 +26,18 @@ namespace aiw{
 		X[ind(N-1)] = D[N-1]; 
 		for(int i=N-2; i>=0; i--) X[ind(i)] = D[i]-C[i]*X[ind(i+1)];
 	}
+	template <typename T> void shuttle_alg2(const Mesh<T, 2> &M, const Mesh<T, 1> &R, Mesh<T, 1> &X){
+		int N = M.bbox()[1];
+		if(M.bbox()[0]!=3 || R.bbox()[0]!=N || X.bbox()[0]!=N) WRAISE("icorrect mesh size", M.bbox(), N, R.bbox(), X.bbox());
+		T C[N], D[N];
+		T g = 1./M.at(1,0); C[0] = M.at(2,0)*g; D[0] = R.at(0)*g;
+		for(int i=1; i<N; i++){
+			g = 1./(M.at(1,i)-M.at(0,i)*C[i-1]);
+			C[i] = M.at(2,i)*g; D[i] = (R.at(i)-M.at(0,i)*D[i-1])*g;
+		}
+		X.at(N-1) = D[N-1]; 
+		for(int i=N-2; i>=0; i--) X.at(i) = D[i]-C[i]*X.at(i+1);
+	}
 	template <typename T> void shuttle_alg(const T *M, const T* R, T* X, int N){
 		T C[N], D[N], g = 1./M[1]; C[0] = M[2]*g; D[0] = R[0]*g;
 		for(int i=1; i<N; i++){

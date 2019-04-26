@@ -90,6 +90,31 @@ namespace aiw{
 		return vec(Va, Vb);
 	}
 	//--------------------------------------------------------------------------
+	/*
+	// разбиение тетраэдра tetr плоскостью с нормалью n проходящей через точку r, возвращает объемы тетраэдра ниже и выше плоскости
+	template <typename T> Vec<2, T> split_tetr_by_plane(const Vec<3, T> &r, const Vec<3, T> &n, Vec<3, T> *tetr){
+		T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6; // объем тетраэдра
+		
+		int n = 0, n_cr = 0; Vec<3> cr[6]; bool f_cr[6] = {false};
+		T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;
+		for(int i=0; i<3; i++)  // цикл по вершинам тетраэдра
+			for(int j=i+1; j<4; j++){
+				if(wr[i]*wr[j]<=0){
+					f_cr[n] = true; n_cr++;
+					cr[n] = (tetr[i]*fabs(wr[i]) + tetr[j]*fabs(wr[j]))/(fabs(wr[i])+fabs(wr[j]));
+				}
+				n++;
+			}
+		if(n_cr==3){
+			
+		}
+		
+		if(n_cr==0) return ...;
+		if(n_cr==4) return ...;
+		if(n_cr==...)
+	}	
+	//--------------------------------------------------------------------------
+	*/
 	// intriagle
 };
 #endif //AIW_ANGEM_HPP

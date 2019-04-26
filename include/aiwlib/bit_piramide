@@ -14,7 +14,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <int D, int R> class BitPiramide{
 		static const size_t p_sz = size_t(1)<<(R*D>=6?R*D-6:0); 
-		uint64_t p[p_sz];
+		uint64_t p[p_sz] = {0};
 		BitPiramide<D, R-1> u;
 	public:
 		static const uint64_t mask = D<6? (1<<(1<<D))-1: ~uint64_t(0); 

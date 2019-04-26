@@ -107,4 +107,9 @@ extern char bUfFoRwRaIsE0[4096];
 	}	
 //------------------------------------------------------------------------------
 #endif //SWIG		
+//------------------------------------------------------------------------------
+#define NAME_OF_AUTODOC1(num) autodoc_##num
+#define NAME_OF_AUTODOC2(num) NAME_OF_AUTODOC1(num)
+#define AUTODOC(C) static constexpr const char * NAME_OF_AUTODOC2(__LINE__) = __FILE__ ":" C;
+//------------------------------------------------------------------------------
 #endif //AIW_DEBUG_HPP

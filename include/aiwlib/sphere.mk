@@ -12,4 +12,4 @@ swig/$(SPHERE_NAME).i: include/aiwlib/sphere.mk
 	@echo '%template($(SPHERE_NAME)) aiw::Sphere<$(SPHERE_TYPE) >;' >> $@
 	@echo '%pythoncode %{$(SPHERE_NAME).__setstate__ = _setstate %}' >> $@
 	@echo '%pythoncode %{from vec import *%}' >> $@	
-	@echo '%pythoncode %{$(SPHERE_NAME).__iter__ = lambda self: ((self.center(i), self[i]) for i in xrange(self.size()))%}' >> $@	
+	@echo '%pythoncode %{$(SPHERE_NAME).__iter__ = lambda self: ((self.center(i), self[i], self.area(i)) for i in xrange(self.size()))%}' >> $@	

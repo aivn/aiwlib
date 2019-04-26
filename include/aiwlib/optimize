@@ -48,6 +48,29 @@ namespace aiw{
 		return .5*(a+b);
 	}
 	//--------------------------------------------------------------------------
+	template <typename F, typename T> T binary_zero(F f, T a, T b, int Nit=10){ // ==> arg  f(x)==0
+		// |a ... x ... b|
+		WASSERT(f(a)*f(b)<0, "solution not found", a, b, f(a), f(b));
+		T x = (a+b)*.5;	auto fa = f(a), fx = f(x);
+		for(int i=0; i<Nit; i++){
+			if(fa*fx>0){ a = x; fa = fx; } else b = x; 
+			x = (a+b)*.5; fx = f(x);
+		}
+		return x;
+	}
+	//--------------------------------------------------------------------------
+	template <typename F, typename T> T newton_zero(F f, T a, T b, int Nit=10){ // ==> arg  f(x)==0
+		// |a ... x ... b|
+		WASSERT(f(a)*f(b)<0, "solution not found", a, b, f(a), f(b));
+		T x = (a+b)*.5, old_x = x, dx = (b-a)*(1./(1<<(Nit+1))); double err = fabsV(dx);
+		for(int i=0; i<Nit; i++){
+			auto fa = f(x-dx*.5), fx = f(x), fb = f(x+dx*.5);
+			old_x = x; x -= fx/(fb-fa)*fabsV(dx);
+			if(fabsV(x-old_x)<err) break;
+		}
+		return x;
+	}
+	//--------------------------------------------------------------------------
 	template <typename T, typename F, int D> Vec<D> gradient_descent(F& f, Vec<D> bmin, Vec<D> bmax, Vec<D> start, Vec<D> acc=vec(1e-3)){  // ==> argmin f(r)
 		acc &= bmax-bmin; // переводим относительную ошибку в абсолютную
 		Vec<D> old_start;

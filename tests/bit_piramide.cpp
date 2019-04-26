@@ -17,13 +17,13 @@ int main(int argc, const char **argv){
 	
 	uint64_t nb = ~uint64_t(0);
 	for(uint64_t i=0; i<P.size; i++){
-		if(P.less(i)!=nb) printf("i=%lu nb=%lu less=%lu\n", i, P.less(i), nb);
+		if(P.less(i)!=nb) printf("1>>> i=%lu nb=%lu less=%lu\n", i, P.less(i), nb);
 		if(P.get(i)) nb = i;
 	}
 
 	nb = ~uint64_t(0);
 	for(uint64_t i=P.size-1; i; i--){
-		if(P.more(i)!=nb) printf("i=%lu nb=%lu more=%lu\n", i, P.more(i), nb);
+		if(P.more(i)!=nb) printf("2>>> i=%lu nb=%lu more=%lu\n", i, P.more(i), nb);
 		if(P.get(i)) nb = i;
 	}
 	//--------------------------------------------------------------------------
@@ -37,13 +37,13 @@ int main(int argc, const char **argv){
 	
 	nb = ~uint64_t(0);
 	for(uint64_t i=0; i<P.size; i++){
-		if(P.less(i)!=nb) printf("i=%lu nb=%lu less=%lu\n", i, P.less(i), nb);
+		if(P.less(i)!=nb){ printf("3>>> i=%lu nb=%lu less=%lu\n", i, P.less(i), nb);   errors++; }
 		if(P.get(i)) nb = i;
 	}
 
 	nb = ~uint64_t(0);
 	for(uint64_t i=P.size-1; i; i--){
-		if(P.more(i)!=nb) printf("i=%lu nb=%lu more=%lu\n", i, P.more(i), nb);
+		if(P.more(i)!=nb){ printf("4>>> i=%lu nb=%lu more=%lu\n", i, P.more(i), nb);   errors++; }
 		if(P.get(i)) nb = i;
 	}
 	printf("\n%i ERRORS\n", errors);
