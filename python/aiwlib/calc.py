@@ -98,8 +98,8 @@ class Calc:
             if '_continue' in _racs_params: map(OUT, old_tasks)
             for q in queue:
                 if len(pids)==copies:
-                    p = os.waitpid(-1, 0)[0]
-                    pids.remove(p); n_finish += 1; finish_msg()
+                    p = os.waitpid(-1, 0)[0];  
+                    pids.remove(p); n_finish += 1; time.sleep(1); finish_msg() #<<< for lock append finish_msg on clusters?
                 _args_from_racs = _base_args_from_racs+q #+[('master', os.getpid())]
                 pid = os.fork()
                 if not pid: break
@@ -107,7 +107,7 @@ class Calc:
                 n_start += 1
                 OUT('%s +%i %g%% %s'%(chrono.Date(), pid, 100.*n_start/lenQ, ' '.join('%s=%r'%i for i in q[1:])))
             else:
-                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; finish_msg()
+                while(pids): p = os.waitpid(-1, 0)[0]; pids.remove(p); n_finish += 1; time.sleep(1); finish_msg() #<<< for lock append finish_msg on clusters?
                 if _racs_params['_daemonize']: streams[0].close(); os.rename(logfile+'.log', '.racs/finished-%s.log'%stitle)
                 streams[1].close(); os.rename(logfile, '.racs/finished-%s'%stitle)
                 os.system('rm -f '+symlink)

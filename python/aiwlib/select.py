@@ -185,7 +185,11 @@ class Select:
             fname %= self.upar; dname = os.path.dirname(fname)
             if dname and not os.path.exists(dname): os.makedirs(dname)
             (gzip.open if fname.endswith('.gz') else open)(fname, 'w').writelines(R); return []
-        else: return R 
+        else: return R
+    def ascommands(self, *tail):
+        tail = ' '+' '.join(map(str, tail))+'\n'
+        cnv = lambda x: "@'%s'"%repr(tuple(x)).replace(' ','') if repr(x)[:3] in ('Vec', 'Ind') or type(x) in (list, tuple) else repr(x) 
+        return [p[0].args[0]+''.join([' %s=%s'%(k, cnv(v)) for k, v in zip(self.head, p[1:])])+tail for p in self._L if p]
     def paths(self, patterns=['']):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
         return sum([[l[0].path+p for p in patterns] for l in self._L if l ], []) #and os.path.exists(l[0].path+fname)]
