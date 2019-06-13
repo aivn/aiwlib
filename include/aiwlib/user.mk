@@ -38,7 +38,9 @@ all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 .PRECIOUS : %.py _%.so %.o %_wrap.cxx %.i
 #-------------------------------------------------------------------------------
 all: $(name) $(notdir $(basename $(cxxmain)));
-$(name): _$(name).so $(name).py; 
+$(name): _$(name).so $(name).py
+	@echo -ne "\033[7mCHECK IMPORT: python -c 'import $(name)' ... \033[0m"
+	@if (python -c 'import $(name)'); then echo -e "\033[7mOK\033[0m"; fi
 #	@if [ "$(aiwlibs)" ]; then make-aivlib $(foreach m,$(aivlibs),'$m') ; fi
 #-------------------------------------------------------------------------------
 aiwmake:=$(sort $(aiwmake))
