@@ -1,0 +1,66 @@
+// -*- C++ -*-
+#ifndef AIW_DIPOLE_HPP
+#define AIW_DIPOLE_HPP
+
+/**
+ * Copyright (C) 2018-19 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct Dipole{
+		double Ws;       // частота источника
+		double Ts, _Ts2; // время действия источника (характерное) и его обратный квадрат
+		double t0;       // время вступления
+		aiw::Vec<3> r0s, d0s; // положение и ориентация диполя
+
+		inline double signal(double t) const { // амплитуда источника от времени
+			t -= t0; double ta = t-3.*Ts; 
+			return exp(-ta*ta*_Ts2)*sin(Ws*t);
+		}
+		inline aiw::Vec<4> signal4an(double t) const { // амплитула, первая, вторая и третья производные
+			t -= t0; double ta = t-3.*Ts, s, c; sincos(t*Ws, &s, &c);
+			double e = exp(-ta*ta*_Ts2), q = -2*_Ts2, p = q*ta;
+			return vec(s, p*s+Ws*c, p*(p*s+2*Ws*c)+q*s-Ws*Ws*s, p*(p*(p*s + 3*Ws*c) + 3*s*(q - Ws*Ws)) + Ws*c*(3*q - Ws*Ws))*e;
+		}
+		inline aiw::Vec<3> E(Vec<3> r, double t) const {
+			r -= r0s;
+			double r_abs = r.abs(), r2 = r*r;
+			Vec<3> n = r/r_abs; Vec<4> A = signal4an(t-r_abs);
+			double nd = n*d0s;
+			Vec<3> n3nd_d = n*(3*nd)-d0s;
+			return n3nd_d*(A[0]/(r_abs*r2) + A[1]/r2) + n%(n%d0s)*(A[2]/r_abs);
+		}
+		inline aiw::Vec<3> dEdt(Vec<3> r, double t) const {
+			r -= r0s;
+			double r_abs = r.abs(), r2 = r*r;
+			Vec<3> n = r/r_abs; Vec<4> A = signal4an(t-r_abs);
+			double nd = n*d0s;
+			Vec<3> n3nd_d = n*(3*nd)-d0s;
+			return n3nd_d*(A[1]/(r_abs*r2) + A[2]/r2) + n%(n%d0s)*(A[3]/r_abs);
+		}
+		inline aiw::Vec<3> dEdnG(Vec<3> r, double t, Vec<3> nG) const {
+			r -= r0s;
+			double r2 = r*r, r1 = sqrt(r2);
+			Vec<3> n = r/r1; Vec<4> A = signal4an(t-r1);
+			double nd = n*d0s, nnG = n*nG;
+			Vec<3> B(A[0]/(r2*r2), A[1]/(r1*r2), A[2]/r2);
+			return (nG*nd+n*(nG*d0s))*(3*B[0]+3*B[1]+B[2]) - n*(3*nnG*nd*(5*B[0]+5*B[1]+2*B[2]))
+				+ d0s*(nnG*(3*B[0]+3*B[1]+2*B[2])) - n%(n%d0s)*A[3]*(nnG/r1);
+		}
+		inline aiw::Vec<3> Efar(const Vec<3> &n, double t) const { return n%(n%d0s)*signal4an(t+n*r0s)[2]; }
+		
+		inline aiw::Vec<3> H(Vec<3> r, double t) const {
+			r -= r0s;
+			double r_abs = r.abs(), r2 = r*r;
+			Vec<3> n = r/r_abs; Vec<4> A = signal4an(t-r_abs);
+			return -n%d0s*(A[1]/r2+A[2]/r_abs);
+		}
+		inline aiw::Vec<3> Hfar(const Vec<3> &n, double t) const { return n%d0s*-signal4an(t+n*r0s)[2]; }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW__HPP

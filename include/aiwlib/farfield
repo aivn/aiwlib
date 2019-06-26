@@ -1,0 +1,151 @@
+// -*- C++ -*-
+#ifndef AIW_FARFIELD_HPP
+#define AIW_FARFIELD_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "farfield_buf"
+#include "sphere"
+#include "dipole"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class FarField{
+	protected:
+		//----------------------------------------------------------------------
+		struct cell_t{
+			float *E;                   // E0xyz, E1xyz - поля на внутреннем и внешнем слоях, внешний слой идет ВТОРЫМ!
+			Vecf<3> dEdn, dEdt, center; // производные полей и центр ячейки
+			int i, j, ti;               // координаты внутри тайла и момент времени		
+		};
+		//----------------------------------------------------------------------
+		struct tile_t{
+			float *buf, dt, h;               // буфер и шаги по времени и пространству
+			Vecf<3> center, n;               // центр тайла и нормаль ориентированная наружу
+			int axe, ai, aj, axe_pos;        // номера осей в базисе и позиция ВНУТРЕННЕГО слоя по оси axe
+			int frame_sz, time_sz, tile_sz;  // общий размер кадра, размер по времени и пространству
+			int g, I, J, ti = -1;            // грань, позиция тайла на грани и обход по времени: -2 сначала по времени, -1 сначала по пр-ву, иначе только слой ti 
+			
+			// for(FarFieldCell& cell: tile){ ... }
+			struct iterator: public cell_t {
+				tile_t *tile;
+				bool finished = false;
+
+				inline void calc_center(){
+					center[tile->axe] = tile->center[tile->axe];
+					center[tile->ai] = tile->center[tile->ai] + tile->h*(i+.5-tile->tile_sz*.5);
+					center[tile->aj] = tile->center[tile->aj] + tile->h*(j+.5-tile->tile_sz*.5);
+				}
+				inline void calc_diff_E(){
+					E = tile->buf + tile->frame_sz*(ti+1) + (i+j*tile->tile_sz)*6; // 6 = 3 компоненты, 2 слоя по пространству
+					for(int k=0; k<3; k++){ // внешний слой идет ВТОРЫМ!
+						float E00 = E[k-tile->frame_sz], E10 = E[k], E01 = E[k+3-tile->frame_sz], E11 = E[k+3]; // Etn
+						dEdn[k] = (E11 + E01 - E10 - E00)/(2*tile->h);
+						dEdt[k] = (E11 + E10 - E01 - E00)/(2*tile->dt);
+					}
+				}
+				inline void operator ++(){
+					if(tile->ti==-2){
+						if((++ti)==tile->time_sz){
+							ti = 0;
+							if((++i)==tile->tile_sz){
+								i = 0;
+								finished = ((++j)==tile->tile_sz);
+							}
+							calc_center();
+						}
+					} else {
+						if((++i)==tile->tile_sz){
+							i = 0;
+							if((++j)==tile->tile_sz){
+								j = 0;
+								if(tile->ti==-1) finished = ((++ti)==tile->time_sz);
+								else finished = true;
+							}
+						}
+						calc_center();
+					}
+					if(!finished) calc_diff_E();
+				}
+				// inline bool operator == (const iterator &cI) const { return ti==cI.ti && i==cI.i && j==cI.j && tile==cI.tile; }
+				inline bool operator != (const iterator &) const { return !finished; }
+				inline bool operator == (const iterator &) const { return finished; }
+
+				inline cell_t& operator *() { return *this; }
+				inline cell_t* operator ->() { return this; }
+			};
+			inline iterator begin(){
+				iterator I; I.tile = this; I.i = I.j = 0;
+				I.ti = ti<0? 0: ti;
+				I.calc_center(); I.calc_diff_E();
+				return I;
+			}
+			inline iterator end(){ return iterator(); }
+		};
+		//----------------------------------------------------------------------
+		Sphere<std::vector<Vecf<3> > > data;  // накопленные данные (дальнее поле во временной области)
+		std::vector<Vec<3> > dtaus;           // поправки к tau для различных направлений и компонент
+		int time_max;                         // максимальное число шагов
+		File farrs[3][3]; bool fdiagn;        // файлы и флаг сброса диагностики
+		
+		FarFieldBuf *p;
+	public:
+		float dt, h;       // шаги по времени и пространству
+		Vec<3> Ecoord[3];  // координаты компонент поля внутри ячейки {rEx, rEy, rEz}
+		Vec<3> offset;     // координаты левого нижнего угла
+
+		void init(FarFieldBuf *buf, int sph_rank, int time_max_, const char *path=0);
+		void step(int ti0);
+		void finish(const char *path, double w_min, double w_max, int w_sz);
+
+		// доступ к дальнему полю во временной области
+		int sph_sz() const { return data.size(); }
+		Vec<3> sph_n(int i) const { return data.center(i); }
+		const std::vector<Vecf<3> >& sph_E(int i) const { return data[i]; }
+
+		// заполняет буфер
+		void dipole_test(int ti0,    // прошедшее число шагов (потом оно же передается в step)
+						 const Dipole&);
+		bool check(); // проверяет соответсвие адресов ячеек буфера для обхода через итераторы и напрямую
+	protected:
+		struct iterator: tile_t { // эффективный обход по тайлам?
+			FarField *f; // данные
+			bool finished = false; 
+			
+			void init(){
+				axe = g%3; ai = (g+1)%3; aj = (g+2)%3; axe_pos = f->p->offset[axe]+(g>=3)*(f->p->get_surf_sz(axe)-1);
+				n[axe] = 1-2*(g<3); n[ai] = n[aj] = 0;
+				center[axe] = f->offset[axe] + (g>=3)*h*f->p->get_surf_sz(axe);
+				center[ai] = f->offset[ai] + (I+.5)*tile_sz*h;
+				center[aj] = f->offset[aj] + (J+.5)*tile_sz*h;
+			}
+
+			void operator ++(){
+				// if(I==0 && J==0) WOUT(g, buf);
+				if((++I)==f->p->get_surfT(ai)){
+					I = 0;
+					if((++J)==f->p->get_surfT(aj)){ J = 0; finished = (++g)==6; }
+				}				
+				if(!finished){ buf += f->p->tile_total_sz; init(); }
+			}
+			
+			inline bool operator != (const iterator &) const { return !finished; }			
+			inline bool operator == (const iterator &) const { return finished; }			
+			inline tile_t& operator *() { return *this; }
+			inline tile_t* operator ->() { return this; }
+		};
+		iterator begin(){
+			iterator it; it.f = this;
+			it.g = it.I = it.J = 0; it.buf = p->buf; it.dt = dt; it.h = h;			
+			it.frame_sz = p->tile_sz*p->tile_sz*6; it.time_sz = p->time_sz; it.tile_sz = p->tile_sz;
+			it.init();
+			return it;
+		}
+		iterator end(){ return iterator(); }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_FARFIELD_HPP

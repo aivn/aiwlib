@@ -1,0 +1,68 @@
+// -*- C++ -*-
+#ifndef AIW_FARFIELD_BUF_HPP
+#define AIW_FARFIELD_BUF_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cstring>
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class FarFieldBuf{ // это интерфейс для ЗАПИСИ данных		
+		float *buf; size_t buf_sz;                      // порядок следования: 6 граней * тайлы по каждой грани * время * 2 слоя (внешний слой ВТОРОЙ) * 3 компоненты
+		int time_sz, tile_sz, surf_sz[3], surfT[3];     // число шагов по времени, размеры тайла и поверхности Гюйгенса ячейках, размер поверхности Гюйгенса в ТАЙЛАХ  
+		size_t buf_offset[6], frame_sz, tile_total_sz;  // начала подбуферов для граней и общий размер тайла в ячейках 
+		inline size_t frame_axe_sz(int g) const { return ((size_t)(surfT[(g+1)%3]*surfT[(g+2)%3]))*tile_sz*tile_sz*6; }
+
+		void move_last_frame_to_first(){ for(size_t off=0; off<buf_sz; off+=tile_total_sz) memcpy(buf+off, buf+off+frame_sz*time_sz, frame_sz*4); }
+
+		void operator = (const FarFieldBuf&) = delete;
+		FarFieldBuf(const FarFieldBuf&) = delete;
+		friend class FarField;
+	public:
+		int offset[3]; // сдвиг нижнего левого угла поверхности Гюйгенса в ячейках для ВНУТРЕННЕГО слоя
+		FarFieldBuf(){ buf = nullptr; buf_sz = 0; offset[0] = offset[1] = offset[2] = 0; }
+		inline size_t size() const { return buf_sz; }
+		inline float *get_buf(){ return buf; }
+		inline int get_surf_sz(int axe) const { return surf_sz[axe]; }
+		inline int get_surfT(int axe) const { return surfT[axe]; }
+
+		void init(int time_sz_, int tile_sz_, int surf_Tx, int surf_Ty, int surf_Tz){ // в т.ч. заполняет буфер нулями
+			time_sz = time_sz_; tile_sz = tile_sz_; tile_total_sz = ((size_t)(1+time_sz))*tile_sz*tile_sz*6;
+			surfT[0] = surf_Tx; surfT[1] = surf_Ty; surfT[2] = surf_Tz;
+			for(int i=0; i<3; i++) surf_sz[i] = surfT[i]*tile_sz;
+			frame_sz = tile_sz*tile_sz*6;  buf_sz = 0; 
+			for(int g=0; g<6; g++){ buf_offset[g] = buf_sz; buf_sz += tile_total_sz*surfT[(g+1)%3]*surfT[(g+2)%3]; }
+			if(buf) delete [] buf;
+			buf = new float[buf_sz];
+			for(size_t i=0; i<buf_sz; i++) buf[i] = 0.f;
+		}
+		~FarFieldBuf(){ delete [] buf; }
+		
+		// этот метод должен быть вызван для всех ячеек буфера на каждом шаге по времени
+		// вызов для ячеек не относящихся к буферу безопасен и не приводит ни к каким последствиям
+		// возвращает true если ячейка задействована в буфере
+		inline bool set(int ti, const int *pos0, float* E){ 
+			int pos[3] = {pos0[0]-offset[0], pos0[1]-offset[1], pos0[2]-offset[2]};
+			if(pos[0]<-1 || surf_sz[0]<pos[0] || pos[1]<-1 || surf_sz[1]<pos[1] || pos[2]<-1 || surf_sz[2]<pos[2] ||
+			   (0<pos[0] && pos[0]<surf_sz[0]-1 && 0<pos[1] && pos[1]<surf_sz[1]-1 && 0<pos[2] && pos[2]<surf_sz[2]-1)) return false;
+			bool res = false;
+			for(int axe=0; axe<3; axe++){ // цикл по осям, внешний слой идет ВТОРЫМ!
+				int ai = (axe+1)%3, aj = (axe+2)%3, g = axe, l = -pos[axe];
+				if(pos[ai]==-1 || pos[ai]==surf_sz[ai] || pos[aj]==-1 || pos[aj]==surf_sz[aj]) continue;
+				if(pos[axe]>=surf_sz[axe]/2){ g += 3; l = pos[axe]-surf_sz[axe]+1; }
+				if(l==0 || l==1){
+					int I = pos[ai]/tile_sz, J = pos[aj]/tile_sz, i = pos[ai]%tile_sz, j = pos[aj]%tile_sz;
+					size_t off = buf_offset[g] + (I+J*surfT[ai])*tile_total_sz + frame_sz*(ti+1) + (i+j*tile_sz)*6+l*3;
+					buf[off] = E[0]; buf[off+1] = E[1]; buf[off+2] = E[2]; res = true; 
+				}
+			} // конец цикла по граням
+			return res; 
+		}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_FARFIELD_BUF_HPP
