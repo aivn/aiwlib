@@ -90,31 +90,71 @@ namespace aiw{
 		return vec(Va, Vb);
 	}
 	//--------------------------------------------------------------------------
-	/*
-	// разбиение тетраэдра tetr плоскостью с нормалью n проходящей через точку r, возвращает объемы тетраэдра ниже и выше плоскости
-	template <typename T> Vec<2, T> split_tetr_by_plane(const Vec<3, T> &r, const Vec<3, T> &n, Vec<3, T> *tetr){
-		T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6; // объем тетраэдра
+	struct SplitTetrByPlane{
+		double Vt, Vb, S;  // объемы выше и ниже плоскости разбинения, площадь сечения
+		Vec<3> center;     // центр сечения
 		
-		int n = 0, n_cr = 0; Vec<3> cr[6]; bool f_cr[6] = {false};
-		T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;
-		for(int i=0; i<3; i++)  // цикл по вершинам тетраэдра
-			for(int j=i+1; j<4; j++){
-				if(wr[i]*wr[j]<=0){
-					f_cr[n] = true; n_cr++;
-					cr[n] = (tetr[i]*fabs(wr[i]) + tetr[j]*fabs(wr[j]))/(fabs(wr[i])+fabs(wr[j]));
+		template <typename T> void operator() (const Vec<3, T> &r, Vec<3, T> n, Vec<3, T> *tetr){
+			n /= n.abs();  // защита от дурака?
+			T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6;  // объем тетраэдра		
+			int n_cr = 0, nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
+			T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;  // расстояние от вершин до плоскости, со знаком 
+			for(int i=0; i<3; i++)  // цикл по ребрам тетраэдра
+				for(int j=i+1; j<4; j++){
+					if(wr[i]*wr[j]<=0){  // есть пересечение или касание в вершине, строгое равенство? epsilon?
+						vid[n_cr][0] = i; vid[n_cr][1] = j; nu[i]++; nu[j]++; 
+						cr[n_cr++] = (tetr[i]*fabs(wr[i]) + tetr[j]*fabs(wr[j]))/(fabs(wr[i])+fabs(wr[j])); // тут может быть nan?
+					}
+				}  // конец цикла по ребрам тетраэдра
+			// WOUT(n, V0, wr[0], wr[1], wr[2], wr[3], n_cr);
+			// WOUT(cr[0], cr[1], cr[2], cr[3], cr[4], cr[5]);
+			S = 0; center = Vec<3>();
+			if(n_cr==0){  // нет пересечений
+				if(wr[0]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
+			} else if(n_cr==3){  // отсечение пирамиды
+				center = (cr[0]+cr[1]+cr[2])/3;
+				S = ((cr[1]-cr[0])%(cr[2]-cr[0])).abs()*.5;
+				int i; for(i=0; i<4; i++) if(nu[i]==3) break; // номер общей вершины
+				if(wr[i]>0){ Vt = S*wr[i]/3; Vb = V0 - Vt; } else { Vb = -S*wr[i]/3; Vt = V0 - Vb; }				
+			} else if(n_cr==4){  // отсечение призмы, самый сложный случай
+				center = (cr[0]+cr[1]+cr[2]+cr[3])*.25;
+				S = ((cr[1]-cr[0])%(cr[2]-cr[0])).abs()*.5 + ((cr[2]-cr[0])%(cr[3]-cr[0])).abs()*.5;
+				int i; for(i=1; i<4; i++) if(wr[0]*wr[i]>0) break; // вершины 0 и i лежат с одной стороны от плоскости
+				int ia = -1, ib = -1;  // ребра НЕ относящиеся к вершине 0
+				for(int j=0; j<4; j++) if(vid[j][0]*vid[j][1]!=0){
+						if(ia==-1) ia = j;
+						else if(ib==-1) ib = j;
+					}
+				double Vi = S*fabs(wr[0])/3 + fabs((tetr[0]-cr[ia])%(tetr[0]-cr[ib])*(tetr[i]-tetr[0]))/6;
+				if(wr[i]>0){ Vt = Vi; Vb = V0-Vi; } else { Vb = Vi; Vt = V0-Vi; }				
+			} else if(n_cr==5){  // в плоскости лежит ребро, либо плоскость проходит через вершину?
+				int n_v =0; for(int i=0; i<4; i++) n_v += wr[i]==0;  // число вершин лежащих в плоскости
+				if(n_v==2){  // в плоскости лежит ребро
+					for(int i=0; i<4; i++) if(wr[i]!=0){  // вершина не попавшая в плоскость, найти вершину с max |wr|?
+							if(wr[i]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
+						} else center += tetr[i];
+					center /= 2;
+				} else {  // в плоскости лежит грань
+					int vi = -1, pi[3] = {-1}, npi = 0;
+					for(int i=0; i<4; i++){
+						if(wr[i]) vi = i;  // вершина НЕ лежащая в плоскости
+						else { pi[npi++] = i; center += tetr[i]; }
+					}
+					center /= 3;
+					S = ((tetr[pi[1]]-tetr[pi[0]])%(tetr[pi[2]]-tetr[pi[0]])).abs()*.5;
+					if(wr[vi]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }					
 				}
-				n++;
+			} else if(n_cr==6){  // в плоскости лежит грань
+				for(int i=0; i<4; i++)
+					if(wr[i]!=0){  // вершина не попавшая в плоскость, найти вершину с max |wr|?
+						S = 6*V0/fabs(wr[i]); 
+						if(wr[i]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
+					} else center += tetr[i];
+				center /= 3;
 			}
-		if(n_cr==3){
-			
 		}
-		
-		if(n_cr==0) return ...;
-		if(n_cr==4) return ...;
-		if(n_cr==...)
-	}	
+	};
 	//--------------------------------------------------------------------------
-	*/
 	// intriagle
 };
 #endif //AIW_ANGEM_HPP
