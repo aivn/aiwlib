@@ -93,22 +93,22 @@ namespace aiw{
 	struct SplitTetrByPlane{
 		double Vt, Vb, S;  // объемы выше и ниже плоскости разбинения, площадь сечения
 		Vec<3> center;     // центр сечения
+		int n_cr;
 		
 		template <typename T> void operator() (const Vec<3, T> &r, Vec<3, T> n, Vec<3, T> *tetr){
 			n /= n.abs();  // защита от дурака?
 			T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6;  // объем тетраэдра		
-			int n_cr = 0, nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
+			// int n_cr = 0, nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
+			n_cr = 0; int nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
 			T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;  // расстояние от вершин до плоскости, со знаком 
 			for(int i=0; i<3; i++)  // цикл по ребрам тетраэдра
 				for(int j=i+1; j<4; j++){
 					if(wr[i]*wr[j]<=0){  // есть пересечение или касание в вершине, строгое равенство? epsilon?
-						vid[n_cr][0] = i; vid[n_cr][1] = j; nu[i]++; nu[j]++; 
-						cr[n_cr++] = (tetr[i]*fabs(wr[i]) + tetr[j]*fabs(wr[j]))/(fabs(wr[i])+fabs(wr[j])); // тут может быть nan?
+						vid[n_cr][0] = i; vid[n_cr][1] = j; nu[i]++; nu[j]++;
+						cr[n_cr++] = (tetr[i]*fabs(wr[j]) + tetr[j]*fabs(wr[i]))/(fabs(wr[i])+fabs(wr[j])); // тут может быть nan?
 					}
 				}  // конец цикла по ребрам тетраэдра
-			// WOUT(n, V0, wr[0], wr[1], wr[2], wr[3], n_cr);
-			// WOUT(cr[0], cr[1], cr[2], cr[3], cr[4], cr[5]);
-			S = 0; center = Vec<3>();
+			Vt = Vb = S = 0; center = Vec<3>();
 			if(n_cr==0){  // нет пересечений
 				if(wr[0]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
 			} else if(n_cr==3){  // отсечение пирамиды
