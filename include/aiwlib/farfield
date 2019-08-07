@@ -92,15 +92,16 @@ namespace aiw{
 		File farrs[3][3]; bool fdiagn;        // файлы и флаг сброса диагностики
 		
 		FarFieldBuf *p;
+		void dump_fields();  // сбрасывает массивы полей (для диагностики)
 	public:
 		float dt, h;       // шаги по времени и пространству
 		Vec<3> Ecoord[3];  // координаты компонент поля внутри ячейки {rEx, rEy, rEz}
 		Vec<3> offset;     // координаты левого нижнего угла
-
+		
 		void init(FarFieldBuf *buf, int sph_rank, int time_max_, const char *path=0);
-		void step(int ti0);
-		void finish(const char *path, double w_min, double w_max, int w_sz);
-
+		double step(int ti0);   // возвращают время своей работы 
+		double finish(const char *path, double w_min, double w_max, int w_sz);
+		
 		// доступ к дальнему полю во временной области
 		int sph_sz() const { return data.size(); }
 		Vec<3> sph_n(int i) const { return data.center(i); }
@@ -109,7 +110,8 @@ namespace aiw{
 		// заполняет буфер
 		void dipole_test(int ti0,    // прошедшее число шагов (потом оно же передается в step)
 						 const Dipole&);
-		bool check(); // проверяет соответсвие адресов ячеек буфера для обхода через итераторы и напрямую
+		bool check(); // проверяет соответствие адресов ячеек буфера для обхода через итераторы и напрямую
+		aiw::Vec<7> dipole_err(const Dipole&, const char *path) const; // ==> errPav, errPmax, av_errEav, max_errEav, max_errEmax, Pmax, Emax
 	protected:
 		struct iterator: tile_t { // эффективный обход по тайлам?
 			FarField *f; // данные
