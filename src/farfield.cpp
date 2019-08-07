@@ -11,17 +11,45 @@
 #include "../include/aiwlib/mesh"
 using namespace aiw;
 //------------------------------------------------------------------------------
+//   FarFieldProxy
+//------------------------------------------------------------------------------
+void aiw::FarFieldProxy::init(int sph_rank, int time_max_, const char *path){
+	ff = new FarField;
+	((FarField*)ff)->dt = dt;
+	((FarField*)ff)->dt = h;
+	for(int i=0; i<3; i++){
+		for(int j=0; j<3; j++) ((FarField*)ff)->Ecoord[i][j] = Ecoord[i][j];
+		((FarField*)ff)->offset[i] = offset[i];
+	}
+	((FarField*)ff)->init(&buf, sph_rank, time_max_, path);
+}
+//------------------------------------------------------------------------------
+double aiw::FarFieldProxy::step(int ti0){   // возвращают время своей работы
+	return ((FarField*)ff)->step(ti0);
+}
+//------------------------------------------------------------------------------
+double aiw::FarFieldProxy::finish(const char *path, double w_min, double w_max, int w_sz){
+	return ((FarField*)ff)->finish(path, w_min, w_max, w_sz);
+}
+//------------------------------------------------------------------------------
+aiw::FarFieldProxy::~FarFieldProxy(){
+	delete (FarField*)ff;
+}
+//------------------------------------------------------------------------------
+//   FarField
+//------------------------------------------------------------------------------
 void aiw::FarField::init(FarFieldBuf *buf, int sph_rank, int time_max_, const char *path){
 	p = buf; time_max = time_max_; data.init(sph_rank, 0, 1); 
 	for(size_t i=0; i<data.size(); i++) data[i].resize(time_max, Vecf<3>());
 	if(path){
 		fdiagn = true;
 		for(int i=0; i<3; i++) for(int j=0; j<3; j++) farrs[i][j] = File("%/%E%.msh", "w", path, ("xyz"[i]), ("xyz"[j]));
-	}
+	} else fdiagn = false;
 	dtaus.resize(data.size());
 }
 //------------------------------------------------------------------------------
-void aiw::FarField::step(int ti0){
+double aiw::FarField::step(int ti0){
+	double starttime = omp_get_wtime();
 	for(size_t i=0; i<dtaus.size(); i++) for(int k=0; k<3; k++) dtaus[i][k] = data.center(i)*Ecoord[k];
 	double _dt = 1/dt; 
 	int sph_sz = data.size();
@@ -40,31 +68,39 @@ void aiw::FarField::step(int ti0){
 			}
 		}
 	}
-	if(fdiagn) for(int axe=0; axe<3; axe++){
-			int ai = (axe+1)%3, aj = (axe+2)%3;
-			Mesh<float, 3> arrs[3]; for(int i=0; i<3; i++) arrs[i].init(ind(p->surf_sz[ai], p->surf_sz[aj], 4));
-			for(int ti=0; ti<p->time_sz; ti++){
-				for(tile_t& T: *this){
-					if(T.axe!=axe) continue;
-					T.ti = ti;
-					for(cell_t &C: T){
-						for(int l=0; l<2; l++){
-							Ind<3> pos(T.I*p->tile_sz+C.i, T.J*p->tile_sz+C.j, l+(T.g>=3)*2);
-							// for(int k=0; k<3; k++) arrs[k][pos] = C.E[3*l+k];
-							for(int k=0; k<3; k++) arrs[k][pos] = l? C.dEdt[k]: C.dEdn[k];
-						}
-					}
-				}
-				for(int k=0; k<3; k++) arrs[k].dump(farrs[axe][k]);
-			}
-		}
 	p->move_last_frame_to_first();
+	double rt = omp_get_wtime()-starttime;
+	if(fdiagn) dump_fields();
+	return rt; 	
 }
 //------------------------------------------------------------------------------
-void aiw::FarField::finish(const char *path, double w_min, double w_max, int w_sz){
+void FarField::dump_fields(){
+	for(int axe=0; axe<3; axe++){
+		int ai = (axe+1)%3, aj = (axe+2)%3;
+		Mesh<float, 3> arrs[3]; for(int i=0; i<3; i++) arrs[i].init(ind(p->surf_sz[ai], p->surf_sz[aj], 4));
+		for(int ti=0; ti<p->time_sz; ti++){
+			for(tile_t& T: *this){
+				if(T.axe!=axe) continue;
+				T.ti = ti;
+				for(cell_t &C: T){
+					for(int l=0; l<2; l++){
+						Ind<3> pos(T.I*p->tile_sz+C.i, T.J*p->tile_sz+C.j, l+(T.g>=3)*2);
+						// for(int k=0; k<3; k++) arrs[k][pos] = C.E[3*l+k];
+						for(int k=0; k<3; k++) arrs[k][pos] = l? C.dEdt[k]: C.dEdn[k];
+					}
+				}
+			}
+			for(int k=0; k<3; k++) arrs[k].dump(farrs[axe][k]);
+		}
+	}
+}
+//------------------------------------------------------------------------------
+double aiw::FarField::finish(const char *path, double w_min, double w_max, int w_sz){
+	double starttime = omp_get_wtime();
 	char pw[1024], pt[1024]; sprintf(pw, "%s/nw/", path); sprintf(pt, "%s/nt/", path);
-	::mkdir(pw, 0755); ::mkdir(pt, 0755);
+	::mkdir(path, 0755); ::mkdir(pw, 0755); ::mkdir(pt, 0755);
 	Sphere<float> sphP(data.rank(), 0, 1); sphP.fill(0.f);
+#pragma omp parallel for	
 	for(int ni=0; ni<int(data.size()); ni++){ // цикл по направлениям
 		File ft("%/%.dat", "w", pt, fill(ni, 4)); ft.printf("#:t Ex Ey Ez\n");
 		for(int ti=0; ti<time_max; ti++) ft.printf("%g %lf %lf %lf\n", (ti+.5)*dt, data[ni][ti][0], data[ni][ti][1], data[ni][ti][2]);
@@ -84,6 +120,7 @@ void aiw::FarField::finish(const char *path, double w_min, double w_max, int w_s
 			fw.printf("%g %g %g\n", w_min+(iw+.5)*dw, sqrt(Is[iw]*Is[iw]+Ic[iw]*Ic[iw]), atan2(Is[iw], Ic[iw]));		
 	} // конец цикла по направлениям
 	sphP.dump(File("%/P.sph", "w", path));
+	return 	omp_get_wtime()-starttime;
 }
 //------------------------------------------------------------------------------
 //   заполняет буфер
@@ -116,5 +153,41 @@ bool aiw::FarField::check(){
 				for(int k=0; k<3; k++) if(E[k]!=C.E[k+3*l]) { WOUT(pos, T.g, T.I, T.J, C.i, C.j, C.ti, k, l, E[k], C.E[k+3*l]); return false; }
 			}
 	return true;
+}
+//------------------------------------------------------------------------------
+aiw::Vec<7> aiw::FarField::dipole_err(const Dipole& dipole, const char *path) const { // ==> errPav, errPmax, av_errEav, max_errEav, max_errEmax, Pmax, Emax
+	double errPav=0, errPmax=0, av_errEav=0, max_errEav=0, max_errEmax=0, Pmax = 0, Emax=0;
+	Sphere<float> errEav(data.rank(), 0, 1), errEmax(data.rank(), 0, 1), errP(data.rank(), 0, 1), anP(data.rank(), 0, 1);
+	for(size_t ni=0; ni<data.size(); ni++){ // цикл по направлениям
+		double P = 0;
+		errEav[ni] = errEmax[ni] = anP[ni] = 0;
+		const Vec<3>& n = data.center(ni);
+		const std::vector<Vecf<3> > &tdata = data[ni];
+		for(size_t ti=0; ti<tdata.size(); ti++){
+			Vec<3> E = dipole.Efar(n, (ti+.5)*dt);
+			anP[ni] += E*E*dt; P += tdata[ti]*tdata[ti]*dt;
+			double err = (E-tdata[ti]).abs(), A = E.abs();
+			if(Emax<A) Emax = A;
+			errEav[ni] += err;
+			if(errEmax[ni]<err) errEmax[ni] = err;
+		}
+		errEav[ni] /= tdata.size();
+		av_errEav += errEav[ni]*data.area(ni);
+		if(max_errEav<errEav[ni]) max_errEav = errEav[ni];
+		if(max_errEmax<errEmax[ni]) max_errEmax = errEmax[ni];
+		if(Pmax<anP[ni]) Pmax = anP[ni];
+		double err = fabs(anP[ni]-P);
+		errPav += err*data.area(ni);
+		if(errPmax<err) errPmax = err;
+	}
+	errPav /= 4*M_PI*Pmax; errPmax /= Pmax; av_errEav /= 4*M_PI*Emax; max_errEav /= Emax; max_errEmax /= Emax;
+	for(size_t ni=0; ni<data.size(); ni++){
+		errEav[ni] /= Emax; errEmax[ni] /= Emax; errP[ni] /= Pmax;
+	}
+	errEav.dump(File("%/errEav.sph", "w", path));
+	errEmax.dump(File("%/errEmax.sph", "w", path));
+	errP.dump(File("%/errP.sph", "w", path));
+	anP.dump(File("%/anP.sph", "w", path));
+	return vec(errPav, errPmax, av_errEav, max_errEav, max_errEmax, Pmax, Emax);	
 }
 //------------------------------------------------------------------------------

@@ -9,6 +9,12 @@
 
 #include <cstring>
 
+#ifdef __CUDACC__
+#define   __AIW_HOST__ __host__
+#else // __CUDACC__
+#define   __AIW_HOST__ 
+#endif // __CUDACC__
+
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class FarFieldBuf{ // это интерфейс для ЗАПИСИ данных		
@@ -31,10 +37,7 @@ namespace aiw{
 		inline int get_surf_sz(int axe) const { return surf_sz[axe]; }
 		inline int get_surfT(int axe) const { return surfT[axe]; }
 
-#ifdef __CUDACC__
-		__host__ 
-#endif //__CUDACC__		
-		void init(int time_sz_, int tile_sz_, int surf_Tx, int surf_Ty, int surf_Tz){ // в т.ч. заполняет буфер нулями
+		__AIW_HOST__ void init(int time_sz_, int tile_sz_, int surf_Tx, int surf_Ty, int surf_Tz){ // в т.ч. заполняет буфер нулями
 			time_sz = time_sz_; tile_sz = tile_sz_; tile_total_sz = ((size_t)(1+time_sz))*tile_sz*tile_sz*6;
 			surfT[0] = surf_Tx; surfT[1] = surf_Ty; surfT[2] = surf_Tz;
 			for(int i=0; i<3; i++) surf_sz[i] = surfT[i]*tile_sz;
@@ -52,10 +55,7 @@ namespace aiw{
 #endif //__CUDACC__		
 		}
 		
-#ifdef __CUDACC__
-		__host__ 
-#endif //__CUDACC__		
-		~FarFieldBuf(){
+		__AIW_HOST__ ~FarFieldBuf(){
 			delete [] buf;
 #ifdef __CUDACC__
 			cudaFree(buf2);
@@ -93,6 +93,22 @@ namespace aiw{
 			cudaMemset(buf2, buf_sz*4, 0);
 		} 
 #endif //__CUDACC__		
+	};
+	//--------------------------------------------------------------------------
+	class FarFieldProxy {
+		void *ff = 0;
+	public:
+		FarFieldBuf buf;
+
+		float dt, h;          // шаги по времени и пространству
+		double Ecoord[3][3];  // координаты компонент поля внутри ячейки {rEx, rEy, rEz}
+		double offset[3];     // координаты левого нижнего угла
+		
+		__AIW_HOST__ void init(int sph_rank, int time_max_, const char *path=0);
+		__AIW_HOST__ double step(int ti0);   // возвращают время своей работы 
+		__AIW_HOST__ double finish(const char *path, double w_min, double w_max, int w_sz);
+
+		~FarFieldProxy();
 	};
 	//--------------------------------------------------------------------------
 };
