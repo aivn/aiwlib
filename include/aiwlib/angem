@@ -91,33 +91,48 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	struct SplitTetrByPlane{
-		double Vt, Vb, S;  // объемы выше и ниже плоскости разбинения, площадь сечения
-		Vec<3> center;     // центр сечения
-		int n_cr;
+		double Vt, Vb, S;   // объемы выше и ниже плоскости разбиения (относительно нормали), площадь сечения
+		Vec<3> center;      // центр сечения
+		Vec<3> section[4];  // сечение
+		int n_cr, sec_sz;   // число пересечений плоскости разбиения с ребрами тетраэдра и число точек в многоугольнике полученном при пересечении
+		bool in_plane[4];   // флаги попадания вершин в плоскость (с учетом округления)
 		
 		template <typename T> void operator() (const Vec<3, T> &r, Vec<3, T> n, Vec<3, T> *tetr){
 			n /= n.abs();  // защита от дурака?
 			T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6;  // объем тетраэдра		
 			// int n_cr = 0, nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
 			n_cr = 0; int nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
-			T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;  // расстояние от вершин до плоскости, со знаком 
+			T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;  // расстояние от вершин до плоскости, со знаком
+			
+			for(int i=0; i<4; i++) in_plane[i] = false;
+			for(int i=0; i<3; i++)  // цикл по ребрам тетраэдра, набиваем in_plane
+				for(int j=i+1; j<4; j++){
+					T _l_ij = 1/(tetr[i]-tetr[j]).abs(); // обратная длины ребра
+					if(fabs(wr[i])*_l_ij<1e-8) in_plane[i] = true;
+					if(fabs(wr[j])*_l_ij<1e-8) in_plane[j] = true;
+				} // конец цикла по ребрам тетраэдра
+
 			for(int i=0; i<3; i++)  // цикл по ребрам тетраэдра
 				for(int j=i+1; j<4; j++){
-					if(wr[i]*wr[j]<=0){  // есть пересечение или касание в вершине, строгое равенство? epsilon?
+					if(wr[i]*wr[j]<0 || in_plane[i] || in_plane[j]){  // есть пересечение или касание в вершине, строгое равенство? epsilon?
 						vid[n_cr][0] = i; vid[n_cr][1] = j; nu[i]++; nu[j]++;
-						cr[n_cr++] = (tetr[i]*fabs(wr[j]) + tetr[j]*fabs(wr[i]))/(fabs(wr[i])+fabs(wr[j])); // тут может быть nan?
+						if(in_plane[i] && in_plane[j]) cr[n_cr++] = (tetr[i]+tetr[j]) *.5; // округление
+						else if(in_plane[i]) cr[n_cr++] = tetr[i]; // округление
+						else if(in_plane[j]) cr[n_cr++] = tetr[j]; // округление
+						else { T wi = fabs(wr[i]), wj = fabs(wr[j]);  cr[n_cr++] = (tetr[i]*wj + tetr[j]*wi)/(wi+wj); } // тут может быть nan?
 					}
 				}  // конец цикла по ребрам тетраэдра
-			Vt = Vb = S = 0; center = Vec<3>();
+
+			Vt = Vb = S = 0; center = Vec<3>(); sec_sz = 0;
 			if(n_cr==0){  // нет пересечений
 				if(wr[0]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
 			} else if(n_cr==3){  // отсечение пирамиды
-				center = (cr[0]+cr[1]+cr[2])/3;
+				for(int i=0; i<3; i++){ section[i] = cr[i]; center += cr[i]; } sec_sz = 3; center /= 3;
 				S = ((cr[1]-cr[0])%(cr[2]-cr[0])).abs()*.5;
 				int i; for(i=0; i<4; i++) if(nu[i]==3) break; // номер общей вершины
 				if(wr[i]>0){ Vt = S*wr[i]/3; Vb = V0 - Vt; } else { Vb = -S*wr[i]/3; Vt = V0 - Vb; }				
 			} else if(n_cr==4){  // отсечение призмы, самый сложный случай
-				center = (cr[0]+cr[1]+cr[2]+cr[3])*.25;
+				for(int i=0; i<4; i++){ section[i] = cr[i]; center += cr[i]; } sec_sz = 4; center /= 4;
 				S = ((cr[1]-cr[0])%(cr[2]-cr[0])).abs()*.5 + ((cr[2]-cr[0])%(cr[3]-cr[0])).abs()*.5;
 				int i; for(i=1; i<4; i++) if(wr[0]*wr[i]>0) break; // вершины 0 и i лежат с одной стороны от плоскости
 				int ia = -1, ib = -1;  // ребра НЕ относящиеся к вершине 0
@@ -128,17 +143,17 @@ namespace aiw{
 				double Vi = S*fabs(wr[0])/3 + fabs((tetr[0]-cr[ia])%(tetr[0]-cr[ib])*(tetr[i]-tetr[0]))/6;
 				if(wr[i]>0){ Vt = Vi; Vb = V0-Vi; } else { Vb = Vi; Vt = V0-Vi; }				
 			} else if(n_cr==5){  // в плоскости лежит ребро, либо плоскость проходит через вершину?
-				int n_v =0; for(int i=0; i<4; i++) n_v += wr[i]==0;  // число вершин лежащих в плоскости
+				int n_v =0; for(int i=0; i<4; i++) n_v += in_plane[i];  // число вершин лежащих в плоскости
 				if(n_v==2){  // в плоскости лежит ребро
-					for(int i=0; i<4; i++) if(wr[i]!=0){  // вершина не попавшая в плоскость, найти вершину с max |wr|?
+					for(int i=0; i<4; i++) if(!in_plane[i]){  // вершина не попавшая в плоскость, найти вершину с max |wr|?
 							if(wr[i]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
-						} else center += tetr[i];
+						} else { section[sec_sz++] = tetr[i]; center += tetr[i]; }
 					center /= 2;
 				} else {  // в плоскости лежит грань
 					int vi = -1, pi[3] = {-1}, npi = 0;
 					for(int i=0; i<4; i++){
 						if(wr[i]) vi = i;  // вершина НЕ лежащая в плоскости
-						else { pi[npi++] = i; center += tetr[i]; }
+						else { pi[npi++] = i; section[sec_sz++] = tetr[i]; center += tetr[i]; }
 					}
 					center /= 3;
 					S = ((tetr[pi[1]]-tetr[pi[0]])%(tetr[pi[2]]-tetr[pi[0]])).abs()*.5;
@@ -147,9 +162,9 @@ namespace aiw{
 			} else if(n_cr==6){  // в плоскости лежит грань
 				for(int i=0; i<4; i++)
 					if(wr[i]!=0){  // вершина не попавшая в плоскость, найти вершину с max |wr|?
-						S = 6*V0/fabs(wr[i]); 
+						S = 3*V0/fabs(wr[i]); 
 						if(wr[i]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
-					} else center += tetr[i];
+					} else { section[sec_sz++] = tetr[i]; center += tetr[i]; }
 				center /= 3;
 			}
 		}
