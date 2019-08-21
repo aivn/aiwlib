@@ -15,11 +15,11 @@ namespace aiw{
 		Q p[N]; int X=0, Y=0;
 	public:
 		inline Ind<2> bbox() const { return Ind<2>(Y, X); }
-    inline int nrows() {return Y;}
-    inline int ncols() {return X;}
+		inline int nrows() const { return Y; }
+		inline int ncols() const { return X; }
 
-		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		inline       Q& operator() (int y, int x)       { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q));  return p[x+y*X]; }
+		inline const Q& operator() (int y, int x) const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q));  return p[x+y*X]; }
 		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
