@@ -244,7 +244,9 @@ elif action[0]=='Xcopy':
     if force or raw_input('copy calcs to %r (%i items, y/[any input])?'%(action[1], len(S)))=='y': S.Xcopy(*action[1:])
     else: print>>sys.stderr, 'aborted'; sys.exit()
 elif action[0]=='asdata' and len(S.ring)>1:
-    for i in range(len(S.ring)): sys.stdout.write(''.join(S.asdata(*action[1:]))); S.click()
+    for i in range(len(S.ring)):
+        if len(S): sys.stdout.write(''.join(S.asdata(*action[1:])))
+        S.click()
 else:
     sep, end = ('','') if action[0][:2]=='as' else (' '*(action[0]!='paths2py'),'\n')
     sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
