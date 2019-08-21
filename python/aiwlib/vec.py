@@ -76,12 +76,13 @@ builtins_import, __builtins__['__import__'] = __import__, import_hook
 #-------------------------------------------------------------------------------
 def _decltype(a, b):
     'take two objects, return two C++ types (as strings)'
-    ab, iT = [a, b], (0 if not hasattr(a, 'T') else 1 if not hasattr(b, 'T') else 2)
+    ab, iT = [a, b], (0 if not hasattr(a, 'T') and not hasattr(a, '_T') else 1 if not hasattr(b, 'T') and not hasattr(b, '_T') else 2)
+    if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
     elif iT<2: ab[iT] = _cxx_types_table[type(ab[iT])] #???
-    TT = [_cxx_types_table[x if type(x) is str else x.T] for x in ab]
+    TT = [_cxx_types_table[x if type(x) is str else x.T if hasattr(x, 'T') else x._T()] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
 _is_vec = lambda X: type(X) in (list, tuple) or hasattr(X, 'T')
@@ -246,6 +247,7 @@ class Vec:
     # periodic ???
     def circ(self): return Vec(*(self._getdata()[l%self._D():]+self._getdata()[:l%self._D()]), T=self._T()) #???
     def abs(self): return sum([x*x for x in self._getdata()])**.5
+    def abs2(self): return sum([x*x for x in self._getdata()])
     def pow(self, p): Vec(*[x**p for x in self._getdata()])
     def fabs(self): return Vec(*map(abs, self._getdata()))
     def ceil(self): return Vec(*map(math.ceil, self._getdata()), T=self._T())

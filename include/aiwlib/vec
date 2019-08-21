@@ -75,7 +75,8 @@ namespace aiw{
 		}
 
 		// *** OTHER FUNCTIONS ***
-		inline T abs() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return sqrt(x); }
+		inline T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
+		inline T abs() const { return sqrt(abs2()); }
 
 		inline Vec pow(const int n) const { // ????
 			if(n==0) return Vec((T)1.);		
