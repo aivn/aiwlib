@@ -1,0 +1,581 @@
+// -*- C++ -*-
+#ifndef AIW_AMR_HPP
+#define AIW_AMR_HPP
+
+/**
+ * Copyright (C) 2018-19 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <vector>
+#include <list>
+#include <map>
+#include <algorithm>
+// #include "bit_piramide"
+// #include "cubicarr" 
+#include "zcube"
+#include "mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>  class AdaptiveMesh: public aiw::BaseMesh<D>{
+		static const uint64_t Dbits = ~((~0)<<D);
+		static const uint64_t RDbits = ~((~0)<<(R*D));
+		static const int32_t R1Dbits = ~((~0)<<((R-1)*D));
+		static const int tile_sz = 1<<(D*R);       // число ячеек в тайле
+		static const int chunks_sz = 1<<(D*(R-1)); // число чанков
+		static const int usages_sz = 1<<(D*R-6);   // число 64х битных слов в массиве usages, должно быть R*D>=6
+		inline static void copy_chunk(const T* src, T* dst){ for(int i=0; i<(1<<D); i++) dst[i] = src[i]; }
+		inline static int off2tid(int off){ return (off>>((R-1)*D))&Dbits; }
+		inline static int chID2tid(int chID){ return (chID>>((R-2)*D))&Dbits; }
+		// static_assert(D<=6);
+		//----------------------------------------------------------------------
+		// template <typename MM> struct meta_t{ MM data[1<<(R*D)]; typedef MM meta_data_type;  static const bool is_meta = true;  };
+		// template <> struct meta_t<void>{ int *data = nullptr;    typedef int meta_data_type; static const bool is_meta = false; };
+		//----------------------------------------------------------------------
+		struct tile_t;
+		struct cell_t { // данные интерфейса для доступа к ячейке
+			T* ptr;        // указатель на ячейку
+			tile_t *tile;  // тайл в котором лежит ячейка
+			int offset;    // позиция ячейки в тайле 
+		};
+		//----------------------------------------------------------------------
+		//  базовый тайл, интерфейс для работы с флагами, выделением памяти, обохода и пр.
+		//----------------------------------------------------------------------
+		struct root_t;
+		struct patch_t { T data[1<<D]; /* patch_t *next; // односвязный список патчей в тайле для быстрого коммита? */ };
+		struct tile_t{  // базовый тайл
+			// meta_t<M> *meta = nullptr;
+			root_t *root;  // корневая структура дерева тайлов
+			Vec<D> bmin, step;	// нижний угол и шаг тайла - СЧИТАТЬ ИХ В load  и при аллоцировании тайла!!!!
+
+			tile_t *parent = nullptr, *childs[1<<D] = {nullptr};  // родительский  и дочерние тайлы, устанавливать ссылки на соседей для нижнего уровня?
+			inline int find_child_ID(tile_t *tile) const { for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i; return -1; } // ищет номер дочернего тайла 
+
+			//------------------------------------------------------------------
+			//  работа с флагами использования и выделением памяти
+			//------------------------------------------------------------------
+			uint64_t usages[3][usages_sz] = {0};  // флаги текущего [0] и будущего [1] использования (этого достаточно для обхода), актуальность ячейки для границы [2] 
+			inline bool get_cell_usage(bool future, int off) const { return usages[future][off>>6]&(1<<(off&0x3f)); }
+			inline bool get_chunk_usage(bool future, int chID) const { return usages[future][chID>>(6-D)]&(Dbits<<((chID<<D)&0x3f)); } 
+			inline int get_chunk_usage(int chID) const {
+				int i = chID>>(6-D); uint64_t m = Dbits<<((chID<<D)&0x3f);
+				return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m);
+			} 
+
+			uint16_t rank = 0, ch_use = 0, ch_alloc = 0, ch_free = 0;  //  уровень вложения, число занятых, аллоцированных и освобожденных чанков
+			inline uint16_t ch_size() const { return ch_use+ch_alloc-ch_free; }
+			virtual void alloc_chunk(int chID) = 0; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
+
+			inline void activate_cell(int off){   
+				int chID = off>>D; int s01 = get_chunk_usage(chID);
+				alloc_chunk(chID); usages[1][off>>6] |= 1<<(off&0x3f);
+				bool s2 = get_chunk_usage(1, chID); ch_alloc += !s01 && s2; ch_free -= (s01==1); 
+			}
+			inline void deactivate_cell(int off){ 
+				int chID = off>>D; int s01 = get_chunk_usage(chID);
+				usages[1][off>>6] &= ~(1<<(off&0x3f));
+				bool s2 = get_chunk_usage(1, chID); ch_free += s01==3 && !s2; ch_alloc -= (s01==2) && !s2; 
+			}
+			inline void deactivate_chunk(int chID){ 
+				int s01 = get_chunk_usage(chID);
+				usages[1][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f));
+				ch_free += s01==3; ch_alloc -= (s01==2); 
+			}
+
+			/*
+			void recalc_ch_counters(){  //  пересчитывает число занятых, аллоцированных и освобожденных чанков
+				ch_use = ch_alloc = ch_free = 0;
+				for(int i=0; i<usages_sz; i++) for(j=0; j<(1<<(6-D)); j++){
+						bool s_old = (usages[0][i]>>(j*D))&Dbits, s_new = (usages[1][i]>>(j*D))&Dbits;
+						ch_use += s_old;
+						ch_alloc += !s_old && s_new;
+						ch_free += s_old && !s_new;
+					} 
+			}
+			*/
+			inline void commit_usages(){ ch_use += ch_alloc; ch_use -= ch_free; for(int i=0; i<usages_sz; i++) usages[0][i] = usages[1][i]; }
+			//------------------------------------------------------------------
+			//  разбиение ячеек
+			//------------------------------------------------------------------
+			inline bool get_cell_split(bool future, int off) const {
+				int tid = off2tid(off);	return childs[tid] && childs[tid]->get_chunk_usage(future, (off<<D)&RDbits);
+			}
+			inline int get_cell_split(int off) const { int tid = off2tid(off); return childs[tid] && childs[tid]->get_chunk_usage((off<<D)&RDbits); }
+			// разбиение ячейки не связано с выделением памяти, память выделяется при активации подъячеек.
+			// дочерний тайл устанавливается методом root_t::tile_alloc(tile_t* parent, int tid, bool heavy=false); ???
+			// объединение ячейки делается через метод deactivate_chunk нижнего уровня?
+			//------------------------------------------------------------------
+			//  обход
+			//------------------------------------------------------------------
+			virtual T* cell(int cID) = 0;   // доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr 
+			// inline T* cell(int cID){ return (T*)(((const tile_t*)this)->cell(cID)); }   // доступ к ячейке, если ячейка неактивирована возвращает nullptr
+			// настраивает C на первую ячейку в тайле или его подтайлах (только из УЖЕ АКТИВНЫХ), возвращает false если таких нет для данного тайла и его подтайлов
+			inline bool first(cell_t &C, int trmode, int start=0) const {
+				int i = start, utbl = (trmode<0)*2, dst_rank = abs(trmode)-1;
+				for(int tid=off2tid(start); tid<(1<<D); tid++){
+					int lim = (tid+1)<<((R-1)*D);
+					if(trmode){
+						if(rank==dst_rank){
+							while(i<lim){  
+								int lim2 = std::min(((i>>6)+1)<<6, lim);
+								if(!usages[utbl][i>>6]) i = lim2;
+								else for(; i<lim2; i++) if(get_cell_usage(utbl, i)){ C.offset = i; C.ptr = cell(i); C.tile = this; return true; }
+							}
+						} else if(childs[tid] && childs[tid]->first(C, trmode, (i<<D)&RDbits)) return true; 
+					} else {
+						if(childs[tid]){ // могут быть разбитые ячейки
+							for(; i<lim; i++){
+								if(childs[tid]->get_chunk_usage(0, i&R1Dbits)) return childs[tid]->first(C, trmode, (i<<D)&RDbits);
+								if(get_cell_usage(0, i)){ C.offset = i; C.ptr = cell(i); C.tile = this; return true; }
+							}
+						} else while(i<lim){  // не может быть разбитых ячеек
+								int lim2 = std::min(((i>>6)+1)<<6, lim);
+								if(!usages[0][i>>6]) i = lim2;
+								else for(; i<lim2; i++) if(get_cell_usage(0, i)){ C.offset = i; C.ptr = cell(i); C.tile = this; return true; }
+							}
+					}
+				}
+				return false;
+			}
+			// переключает C на следующую ячейку,  возвращает false если таких нет для данного тайла и его подтайлов
+			inline bool next(cell_t &C, int trmode) const { return first(C, trmode, C.offset+1); } 
+			
+			tile_t* find_nb_tile(Ind<D> tpos, bool force=false) const; // ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль
+
+			patch_t* patches[chunks_sz] = {nullptr};  // указатель на массив патчей, сейчас выделяется во всех тайлах но надо выделять только там где нужно
+		};
+		//----------------------------------------------------------------------
+		//  тяжелый тайл играющий роль страницы памяти
+		//----------------------------------------------------------------------
+		struct heavy_tile_t: public tile_t{
+			T data[tile_sz] = { T() }; // данные
+
+			// метаинформация по каждому чанку занимает два бита:
+			//   0 - свободен 
+			//   1 - занят в данном тайле
+			//   2 - занят в другом (легком) тайле
+			//   3 - конфликт, локально чанк выделен в массиве патчей. Не используется? 
+			uint32_t chunks[chunks_sz>>4] = {0}, first_free_chunk = 0, far_ch_sz = 0;  //  первый свободный чанк (оптимизация?) и число сторонних чанков
+			inline int get_chunk_info(int off) const { return (chunks[off>>4]>>(2*(off&0xf)))&3; }
+			inline void set_chunk_info(int off, int val){ chunks[off>>4] &= ~(3<<(2*(off&0xf))); chunks[off>>4] |= (val&3)<<(2*(off&0xf)); }
+			void alloc_chunk(int chID); // виртуальная, гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
+
+			T* cell(int cID){  // виртуальная, доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
+				int chID = cID>>D;
+				if(this->patches && this->patches[chID]) return this->patches[chID].data + (cID&Dbits);
+				return get_chunk_info(chID)==1 ? data+cID : nullptr; 
+			}
+			
+			uint16_t alloc_far_chunk(){ // возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
+				for(uint32_t i=first_free_chunk; i<(chunks_sz>>4); i++)
+					if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return first_free_chunk = i+1; }
+				return 0;
+			}
+			void free_far_chunk(uint16_t chID){
+				chID -= 1;
+				if(this->patches[chID] && this->get_chunk_usage(1, chID)){ copy_chunk(this->patches[chID].data, data+(int(chID)<<D)); set_chunk_info(chID, 1); }
+				else { set_chunk_info(chID, 0);	if(first_free_chunk>chID) first_free_chunk = chID; }
+				this->patches[chID] = nullptr; far_ch_sz--; 
+			}			
+			// актуализует значение first_free_chunk, обновляет usages и счетчики.
+			// ПЕРЕД вызовом для конфликтных чанков должно быть освобождено место, ВСЕ патчи считаются примененными!
+			bool commit();
+		};
+		//----------------------------------------------------------------------
+		//  легкий тайл
+		//----------------------------------------------------------------------
+		struct light_tile_t: public tile_t{
+			heavy_tile_t* page = nullptr;      // тяжелый тайл играющий роль страницы
+			uint16_t chunks[chunks_sz] = {0};  // чанки, если чанк не выделен = 0
+
+			T* cell(int cID){  // виртуальная, доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
+				int chID = cID>>D;
+				if(this->patches && this->patches[chID]) return this->patches[chID]+(cID&Dbits);
+				return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+			}
+
+			void alloc_chunk(int chID); // виртуальная, гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
+			bool commit(); 
+		};
+		//----------------------------------------------------------------------
+		//  корень дерева тайлов
+		//----------------------------------------------------------------------
+		struct root_t {
+			AdaptiveMesh *msh;
+			tile_t *root = nullptr;
+			Ind<D> pos;
+			
+			std::list<patch_t> patches;
+			std::list<heavy_tile_t> htiles;
+			std::list<light_tile_t> ltiles;
+			// std::vector<havy_tile_t*> ptiles;
+			
+			// void alloc_tile(...){...} ???
+			heavy_tile_t* search_page(int sz){ // возвращает наиболее подходящую по размеру страницу. Это можно оптимизировать через бинарный поиск?
+				heavy_tile_t* page = nullptr; int gap = chunks_sz;
+				for(heavy_tile_t &p: htiles){
+					int d = chunks_sz - (int(p.ch_use+p.ch_usage)+p.far_ch_sz+sz);
+					if(d>=0 && d+p.ch_free<gap){ page = &p; gap = d+p.ch_free; }
+				}
+				if(!page){ htiles.emplace_back(); page = &(htiles.back()); }
+				return page;
+			}
+			void commit(){
+				// сортировать по размеру???
+				for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()) ++I; else ltiles.erase(I++);
+				for(auto I=htiles.begin(); I!=htiles.end();) if(I->commit()) ++I; else htiles.erase(I++);
+				patches.clear();
+			}
+			int get_max_rank() const {
+				int res = 0;
+				for(const heavy_tile_t &t: htiles) if(res<t.rank) res = t.rank;
+				for(const light_tile_t &t: ltiles) if(res<t.rank) res = t.rank;
+				return res;
+			}
+			//------------------------------------------------------------------
+			void dump(IOstream&& S) const {
+				S<D<int(sizeof(T))<R<pos; std::map<void*, int> tbl; tbl[0] = 0;
+				for(const heavy_tile_t &t: htiles){ int ID = tbl.size(); tbl[&t] = ID; } 
+				S<int(tbl.size()); // число тяжелых тайлов+1
+				for(const light_tile_t &t: ltiles){ int ID = tbl.size(); tbl[&t] = ID; }
+				S<int(tbl.size())<tbl[root];  // общее число тайлов и номер корневого тайла
+				for(const heavy_tile_t &t: htiles){
+					S<t.rank<t.ch_use<t.far_ch_sz<tbl[t.parent]; for(int i=0; i<(1<<D); i++) S<tbl[t.childs[i]];
+					S<t.usages[0]<t.usages[2]<t.chunks; S.write(t.data, sizeof(T)*tile_sz); 
+				}
+				for(const light_tile_t &t: ltiles){
+					S<t.rank<t.ch_use<tbl[t.page]<tbl[t.parent]; for(int i=0; i<(1<<D); i++) S<tbl[t.childs[i]];
+					S<t.usages[0]<t.usages[2]<t.chunks; 
+				}
+			}
+			bool load(IOstream&& S){
+				size_t stell = S.tell(); int Di, szT, Ri; S>Di>szT>Ri; if(D!=Di || sizeof(T)!=szT || R!=Ri){
+					S.seek(stell); WERR(Di, D, szT, Ri, R,  sizeof(T));
+					return false;
+				}
+				int h_sz, hl_sz, rID; S>h_sz>hl_sz>rID;
+				htiles.clear(); ltiles.clear(); std::vector<tile_t*> tbl(hl_sz, 0); 
+				for(int i=1; i<h_sz; i++){ htiles.emplace_back(); tbl[i] = &htiles.back(); }
+				for(int i=h_sz; i<hl_sz; i++){ ltiles.emplace_back(); tbl[i] = &ltiles.back(); }
+				root = tbl[rID]; tbl[rID].root = this; int I;
+				for(heavy_tile_t &t: htiles){
+					S>t.rank>t.ch_use>t.far_ch_sz>I; t.parent = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl[I]; }
+					S>t.usages[0]>t.usages[2]>t.chunks; S.read(t.data, sizeof(T)*tile_sz);
+					if(t.rank) t.root = this; for(int i=0; i<usages_sz; i++) t.usages[1][i] = t.usages[0][i];
+				}
+				for(light_tile_t &t: ltiles){
+					S>t.rank>t.ch_use>I; t.parent = tbl[I]; S>I; t.page = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl[I]; }
+					S>t.usages[0]>t.usages[2]>t.chunks; t.root = this; for(int i=0; i<usages_sz; i++) t.usages[1][i] = t.usages[0][i]; 
+				}
+				return true;
+			}
+		};		
+		Mesh<root_t, D> tiles; // базовая (самая крупная) сетка тайлов нулевого ранга
+	public:
+		//----------------------------------------------------------------------
+		//  инициализация сетки
+		//----------------------------------------------------------------------
+		void init(Ind<D> tbox){
+			this->box = tbox*(1<<R);
+			tiles.init(tbox);
+			for(Ind<D> pos; pos^=tbox; ++pos){
+				root_t &r = tiles[pos]; r.msh = this; r.pos = pos;
+				r.htiles.emplace_back(); tile_t *t = r.root = &(r.htiles.back()); t->root = &r;
+				for(int i=0; i<usages_sz; i++) t->usages[0][i] = t->usages[1][i] = ~uint64_t(0); // все ячейки активированы
+				for(int i=0; i<chunks_sz; i++) t->set_chunk_info(i, 1); // все чанки локально заняты
+				t->ch_alloc = chunks_sz; t->first_free_chunk = chunks_sz;
+			}			
+		}
+		//----------------------------------------------------------------------
+		//  основной интерфейс доступа к ячейкам
+		//----------------------------------------------------------------------
+		struct Cell: protected cell_t{ 
+			friend class Tile;
+			inline operator bool () const { return this->ptr; }  
+			inline bool operator !() const { return !this->ptr; }
+			inline bool dummy() const { return !this->tile; }
+			inline bool is_used() const { return this->tile && this->tile->get_cell_usage(0, this->offset); }       // ячейка сейчас используется?
+			inline bool will_be_used() const { return this->tile && this->tile->get_cell_usage(1, this->offset); }  // ячейка будет использоваться?
+			inline bool is_split() const { return this->tile && this->tile->get_cell_split(0, this->offset); }      // ячейка сейчас разбита?
+			inline bool will_be_split() const { return this->tile && this->tile->get_cell_split(1, this->offset); } // ячейка будет разбита?
+			inline bool is_bound() const { return this->tile && this->tile->get_cell_usage(2, this->offset); }      // ячейка является граничной?
+
+			inline Vec<D> bmin() const { return this->tile->bmin + zoff2pos<D>(this->offset, R)*this->tile->step; }
+			inline Vec<D> step() const { return this->tile->step; }
+			inline int rank() const { return this->tile->rank; }  // уровень вложенности
+			
+			inline       T& operator * ()       { return *this->ptr; } // доступ к данным ячейки
+			inline const T& operator * () const { return *this->ptr; }
+			inline       T* operator -> ()       { return this->ptr; }
+			inline const T* operator -> () const { return this->ptr; }
+
+			inline const Cell operator [](const Ind<D> &dpos) const { // доступ к соседям
+				Cell res; res.offset = calc_nb_zoffset(dpos, this->offset|(Dbits<<(R*D)));
+				if((res.offset>>(R*D))!=Dbits) res.tile = this->tile->find_nb_tile(zoff2pos<D>(res.offset>>(R*D), 2)-ind(1)); // попали в другой тайл
+				else res.tile = this->tile;
+				res.offset &= RDbits; res.ptr = res.is_used()? res.tile->cell(res.offset): nullptr; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
+				return res;
+			}
+			template <typename ... Args> inline const Cell operator() (Args ... dpos) { return (*this)[Ind<D>(dpos...)]; } // доступ к соседям
+
+			Cell parent(){  // доступ к родительской ячейке
+				Cell res; res.tile = this->tile->parent; res.offset = this->offset>>D;
+				if(res.tile){ res.offset |= res.tile->find_child(this->tile)<<((R-1)*D); res.ptr = res.tile->cell(res.offset); }
+				if(!is_used() && !res.is_used() && !res.will_be_used()){ res.tile = nullptr; res.ptr = nullptr; } // защита от расслаивания???
+				return res;
+			} 
+			Cell child(int scID){ // доступ к подъячейке, 0<=scID<8
+				Cell res; res.tile = this->tile->childs[this->offset>>((R-1)*D)]; res.offset = ((this->offset<<D)&RDbits)|scID;
+				if(is_used()){
+					if(!res.tile){ // размещаем новый тайл
+						this->tile->root->ltiles.emplace_back(); res.tile = &(this->tile->root->ltiles.back());
+						res.tile->parent = this->tile; res.tile->root = this->tile->root; this->tile->childs[this->offset>>((R-1)*D)] = res.tile;
+					}
+				} else if(!res.is_used()) res.tile = nullptr; // защита от расслаивания???
+				if(res.tile) res.ptr = res.tile->cell(res.offset);
+				return res;
+			}
+
+			// активировать ячейку если она не использовалась, память выделяется сразу но после AdaptiveMesh::commit() данные могут быть перемещены
+			// можно активировать ячейку если у нее есть активный сосед сверху/снизу (или если она имеет нулевой ранг???)
+			bool activate(){ 
+				if(!this->tile || (!parent().is_active() && !this->tile->childs[this->offset>>((R-1)*D)]->get_chunk_usage(0, this->offset&R1Dbits))) return false;
+				this->tile->activate_cell(this->offset);  this->ptr = this->tile->cell(this->offset);
+				return true;
+			}
+			// деактивировать ячейку если она использовалась, память сохраняется до AdaptiveMesh::commit()
+			// можно деактивировать ячейку только если у нее есть единственный активный сосед сверху/снизу
+			bool deactivate(){  
+				if(this->tile && parent().is_active()^this->tile->childs[this->offset>>((R-1)*D)]->get_chunk_usage(0, this->offset&R1Dbits)) return false;
+				if(this->tile){ this->tile->deactivate_cell(this->offset);  return true; }  // ptr = nullptr; ???
+				return false; 
+			}
+			
+			T* split(){ // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
+				Cell res = child(0); if(!res.activate()) return nullptr;
+				for(int i=1; i<(1<<D); i++) res.tile->activate_cell(res.offset+i);
+				return res.ptr;
+			}
+			void join(){ // деактивирует все подъячейки
+				Cell res = child(0);
+				if(res.deactivate()) for(int i=1; i<(1<<D); i++) res.tile->deactivate_cell(res.offset+i);
+			}
+			
+			// проверки является ли ячейка граничной?
+			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
+			// inline typename const meta_t<M>::meta_data_type& meta(int i) const {...}
+		};
+		class Tile { // это интерфейс доступа к тайлу (верхнего?!) уровня
+			root_t *root; int trmode;
+			friend class AdaptiveMesh;
+		public:
+			class iterator: public Cell{				
+				int trmode; bool stop = false;
+				friend class Tile;
+			public:
+				void operator ++(){ stop = !this->tile->next(*this); }
+				// inline bool operator == (const iterator &) const { return stop; }  
+				inline bool operator != (const iterator &) const { return !stop; }  
+			};
+			iterator begin(){ iterator I; I.trmode = trmode; I.stop = !root->root->first(I); return I; }
+			iterator end(){ return iterator(); }
+
+			// еще информация по тайлу - позиция, число ячеек, заполненность, размер памяти и пр?
+		};
+
+		int trmode = 0; // -1 --- нижний уровень, 0 и выше --- заданный ранг??? // 0 --- нижний уровень, n>0 --- ранг n-1, n<0 --- границы -n:1-n 
+		Tile get_tile(Ind<D> pos){ Tile t0;  t0.root = ind(0)<=pos && pos<tiles.bbox() ? &(tiles[pos]) : nullptr;  t0.trmode = trmode;  return t0; }
+		Tile get_tile(int tID){ return get_tile(tID%tiles.bbox()); } // позволяет делать параллельный обход
+
+		// прямой доступ к ячейкам нулевого ранга?
+		
+		// общий обход
+		struct iterator: public Tile {
+			inline void operator ++ (){ *this = this->root->msh->get_tile(this->root->pos%this->root->msh->bbox()+1); }
+			inline bool operator != (const iterator&) const { return this->root; }
+		};
+		iterator begin(){ iterator I; I.root = &(tiles[ind(0)]); I.trmode = trmode; return I; }
+		iterator end(){ return iterator(); }
+		// порождение итераторв для обходов на соотв рангах?
+
+		void commit(){ for(root_t& r: tiles) r.commit(); }
+		// void out2dat(IOstream&&); ???
+		// минимальный/максимальный ранги, размер памяти, число тайлов (в т.ч. по рангам), заполненность тайлов и пр.
+		// T& operator(const Vec<D> &r){} // доступ к произвольной ячейке по координате ???
+		template <typename SEE_UP_F, typename SEE_DOWN_F> void commit(SEE_UP_F see_up_f, SEE_DOWN_F see_down_f, const std::vector<Ind<D> > &stencil){
+		}
+		// void commit(...){} // реализует отмеченные через итераторы разбиения/слияния, примает ф-ии задания значений в разбитой ячейке и фии измельчения/укрупнения метаинформации?
+		//----------------------------------------------------------------------
+		//   сброс и чтение с диска
+		//----------------------------------------------------------------------
+		void dump(IOstream&& S) const {			
+			int h_sz = this->head.size()+5+D*16; if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
+			char h[h_sz]; for(int i=0; i<h_sz; i++) h[i] = 0; // for old gcc versions
+			memcpy(h, this->head.c_str(), this->head.size()); 
+			memcpy(h+h_sz-4-D*16, &this->bmin, D*8); memcpy(h+h_sz-4-D*8, &this->bmax, D*8); memcpy(h+h_sz-4, &this->logscale, 4);
+			S<h_sz; S.write(h, h_sz); S<(D|(1<<31))<int(sizeof(T))<R<tiles.bbox();  // пишем заголовок
+			for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].dump(S);
+		}
+		void dump(IOstream& S) const { dump(std::move(S)); }
+		//----------------------------------------------------------------------
+		bool load(IOstream&& S, int use_mmap=0, bool raise_on_error=true){ // mmap пока игнорируется
+			std::string h; int rD=-1, szT=-1, rR=-1;  size_t s = S.tell(); S>h>rD>szT>rR;
+			if(S.tell()-s!=16+h.size()){ S.seek(s); return false; }
+			if(rD!=(D|(1<<31)) || szT!=sizeof(T) || rR!=R){ 
+				S.seek(s); 
+				if(raise_on_error){ WRAISE("incorrect AdaptiveMesh::load(): ", D, rD, sizeof(T), szT, R, rR, S.name, S.tell(), h); }
+				else return false;
+			}
+			this->head = h.c_str(); Ind<D> box_; S>box_; init(box_);
+			
+			Vec<D> bmin_, bmax_=box_, step_; int logscale_=0;
+			if(h.size()>this->head.size()+4+D*16){
+				int i = this->head.size(), i0 = h.size()-(4+D*16); while(i<i0 && h[i]==0) i++;
+				if(i==i0){
+					memcpy(&bmin_, h.c_str()+i0, D*8); i0 += D*8;
+					memcpy(&bmax_, h.c_str()+i0, D*8); i0 += D*8;
+					memcpy(&this->logscale_, h.c_str()+i0, 4);
+				}
+			}
+			this->set_axes(bmin_, bmax_, logscale_);
+			for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].load(S);
+			return true;
+		}
+		bool load(IOstream& S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
+		//----------------------------------------------------------------------
+	};
+	//-------------------------------------------------------------------------
+	// ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль
+	template <typename T, int D, int R>	typename AdaptiveMesh<T, D, R>::tile_t* AdaptiveMesh<T, D, R>::tile_t::find_nb_tile(Ind<D> tpos, bool force) const { 
+		if(parent){
+			int ti = parent->find_child_ID(this); 
+			for(int k=0; k<D; k++) tpos[k] += bool((1<<k)&ti); // перешли в систему координат родительского тайла
+			if(ind(0)<=tpos && tpos<ind(2)) return parent->childs[pos2zoff(tpos, 1)]; // внутри родительского тайла
+			Ind<D> upos; for(int i=0; i<D; i++){ upos[i] = tpos[i]/2; tpos[i] = (upos[i]+2)%2; } // позиция уровнем выше и доп позиция
+			tile_t *utile = parent->find_nb_tile(upos, force); // это тайл уровнем выше
+			if(utile){
+				int cht = pos2zoff(tpos, 1);
+				if(force && !utile->childs[cht]){
+					root->ltiles.emplace_back(); utile->childs[cht] = &(root->ltiles.back());
+					utile->childs[cht]->parent = utile;  utile->childs[cht]->root = root; 
+				}
+				return utile->childs[cht];
+			}
+		} else { // это тайл верхнего уровня
+			tpos += root->pos;
+			if(ind(0)<=tpos && tpos<tiles.bbox()) return root->msh->tiles[tpos].root;
+		}
+		return nullptr; 
+	}
+	//--------------------------------------------------------------------------
+	// гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_chunk(int chID){ 
+		int s = get_chunk_info(chID);
+		if(s==0) set_chunk_info(chID, 1);
+		else if(s==2 && !this->patches[chID]){ this->root->patches.emplace_back(); this->patches[chID] = &(this->root->patches.back()); }
+	}
+	// гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::light_tile_t::alloc_chunk(int chID){ 
+		if(!chunks[chID] && !this->patches[chID]){
+			// if(!page) ...; // где выделяем страницу ??? делаем это сразу при аллоцировании легкого тайла ???
+			if(page) chunks[chID] = page->try_far_chunk_alloc(); // пытаемся выделить чанк в уже существующей странице
+			if(!chunks[chID]){ this->root->patches.emplace_back(); this->patches[chID] = &(this->root->patches.back()); }
+		}
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::light_tile_t::commit(){
+		if(this->ch_size()>chunks_sz/2){ // надо сделать тяжелым тайлом
+			this->commit_usages();
+			this->root->htiles.emplace_back(); heavy_tile_t &ht = this->root->htiles.back(); ht = (tile_t&)(*this); 
+			for(int i=0; i<(1<<D); i++) if(this->childs[i]) this->childs[i]->parent = &ht;
+			if(this->parent) this->parent->childs[this->parent->find_child_ID(this)] = &ht;
+			else this->root->root = &ht;
+			for(int i=0; i<chunks_sz; i++){
+				if(this->get_chunk_usage(1, i)){
+					if(this->patches[i]) copy_chunk(this->patches[i].data, ht->data+(i<<D)); 
+					else{ copy_chunk(page->data+((chunks[i]-1)<<D), ht->data+(i<<D)); page->free_far_chunk(chunks[i]-1); }
+					ht->set_chunk_info(i, 1);
+				}
+				ht->patches[i] = nullptr;
+			}
+			return false;
+		}
+		heavy_tile_t *page2 = page;
+		if(page->ch_size()<chunks_sz/2 || int(page->ch_use+page->ch_alloc)+this->ch_size()>chunks_sz || (!page->root && page->far_ch_sz<chunks_sz/2))
+			page2 = this->root->search_page(this->ch_use+this->ch_alloc-this->ch_free); // пытаемся сменить страницу
+		if(page2!=page){ // переносим данные
+			for(int i=0; i<chunks_sz; i++){
+				if(this->get_chunk_usage(1, i)){
+					int chID = page2->alloc_far_chunk();
+					if(this->patches[i]) copy_chunk(this->patches[i].data, page2->data+((chID-1)<<D)); 
+					else { copy_chunk(page->data+((chunks[i]-1)<<D), page2->data+((chID-1)<<D)); page->free_far_chunk(chunks[i]-1); }
+					chunks[i] = chID;
+				}
+				this->patches[i] = nullptr;
+			}
+			page = page2; this-> commit_usages();
+		} else { // остаемся на той же странице, самый частый вариант. Занулить весь patches[i]?
+			for(int i=0; i<usages_sz; i++) if(this->usages[0][i]!=this->usages[1][i]){
+					for(int I=i>>(6-D); I<((i+1)>>(6-D)); I++){
+						int u = this->get_chunk_usage(I); if(!u) continue;
+						int chID = chunks[I]; chID--;
+						if(chID>=0){
+							if(u==1){ page->free_far_chunk(chID); chunks[I] = 0; } // чанк был локально освобожден
+							else if(page->patches[chID] && page->get_chunk_usage(1, chID)){ // разрешаем конфликт на странице
+								chunks[I] = page->alloc_far_chunk();
+								copy_chunk(page->data+(chID<<D), page->data+((chunks[I]-1)<<D));
+								page->free_far_chunk(chID);
+							}
+						} else if(u==2 && this->patches[I]){ //  накатываем патч
+							chunks[I] = page->alloc_far_chunk();
+							copy_chunk(this->patches[I].data, page->data+((chunks[I]-1)<<D));
+						}
+					}
+				}
+			this->commit_usages();
+		}
+		return this->ch_use;
+	}		
+	// актуализует значение first_free_chunk, обновляет usages и счетчики.
+	// ПЕРЕД вызовом для конфликтных чанков должно быть освобождено место, ВСЕ патчи считаются примененными!
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::heavy_tile_t::commit(){
+		if(!this->root) return far_ch_sz;  // это страница памяти
+		if(this->ch_size()<chunks_sz/2){  // надо попытаться сделать легким тайлом
+			this->commit_usages();
+
+			this->root->ltiles.emplace_back(); light_tile_t &lt = this->root->ltiles.back();
+			lt = (tile_t&)(*this);
+			for(int i=0; i<(1<<D); i++) if(this->childs[i]) this->childs[i]->parent = &lt;
+			if(this->parent) this->parent->childs[this->parent->find_child_ID(this)] = &lt;
+			else this->root->root = &lt;
+			lt.page = this->root->search_page(this->ch_use);
+			if(lt.page==this){
+				this->root = nullptr; 
+				for(int i=0; i<chunks_sz; i++){
+					if(this->get_chunk_usage(1, i)){ lt.chunks[i] = i+1; set_chunk_info(i, 2); }
+					this->patches[i] = nullptr;
+				}
+			} else for(int i=0; i<chunks_sz; i++) if(this->get_chunk_usage(1, i)){
+						lt.chunks[i] = lt.page->alloc_far_chunk();
+						copy_chunk(data+(i<<D), lt.page->data+((lt.chunks[i]-1)<<D));
+					}
+			return far_ch_sz;
+		} else {
+			// обязательно надо занулить все патчи?!
+			for(int i=0; i<usages_sz; i++) 
+				if(this->usages[0][i]!=this->usages[1][i]){
+					for(int chID=i>>(6-D); chID<((i+1)>>(6-D)); chID++){
+						int u = this->get_chunk_usage(chID), s = get_chunk_info(chID);
+						if(u==1){ // чанк был локально освобожден
+							if(s!=2){ set_chunk_info(chID, 0); if(first_free_chunk>chID) first_free_chunk = chID; }
+						} else if(u==2){ set_chunk_info(chID, 1); } // чанк был локально выделен
+					}
+				}
+			this->commit_usages();
+		}
+		return this->ch_use+far_ch_sz;
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_AMR_HPP

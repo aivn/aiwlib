@@ -32,10 +32,10 @@ endif
 
 all: libaiw.a;
 
-iostream swig mpi4py plot2D: %: python/aiwlib/%.py python/aiwlib/_%.so;
+iostream swig mpi4py plot2D amrview: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield}.o); rm -f libaiw.a; ar -csr libaiw.a $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield,amrview}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #-------------------------------------------------------------------------------
 #   run SWIG
 #-------------------------------------------------------------------------------

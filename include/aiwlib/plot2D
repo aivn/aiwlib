@@ -19,6 +19,7 @@
 
 #include "mesh"
 #include "sphere"
+#include "amrview"
 
 namespace aiw{
     //--------------------------------------------------------------------------
@@ -149,6 +150,14 @@ namespace aiw{
 		} else {
 			Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(phi0-M_PI, M_PI) + .5*step;
 			for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
+		}
+	}
+	//--------------------------------------------------------------------------
+	template <typename P> void plot2D(AdaptiveMeshView &f, const CalcColor &color, P& image){
+		Vec<2> step = Vec<2>(image.size)/f.bbox();
+		for(auto I=f.begin(); I!=f.end(); ++I){
+			Ind<2> bmin = ((I.bmin&step)+vec(.5))<<image.size, sz = (((I.bmax&step)+vec(.5))<<image.size)-bmin; Ind<3> c = color(*I);
+			for(Ind<2> pos; pos^=sz; ++pos) image.set_pixel(bmin+pos, c);
 		}
 	}
 	//--------------------------------------------------------------------------

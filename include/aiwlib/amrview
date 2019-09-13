@@ -1,0 +1,117 @@
+// -*- C++ -*-
+#ifndef AIW_AMRVIEW_HPP
+#define AIW_AMRVIEW_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * For read and view AMR data only!
+ **/
+
+#include <string>
+#include <vector>
+#include "vec"
+#include "iostream"
+#include "zcube"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class AdaptiveMeshView{
+	public:
+		static const int Dmax = 4; // максимальная поддерживаемая размерность
+	protected:
+		int R, D, szT;  // ранг (размер) тайла, размерность сетки, размер ячейки
+		int max_rank;   // максимальный ранг (степень вложенности) тайла
+		Ind<Dmax> box;  // размер сетки нулевого ранга В ТАЙЛАХ
+
+	public:
+		//		void clear();
+		std::string head;
+
+		inline int get_D() const { return D; } 
+		inline int get_R() const { return R; } 
+		inline int get_szT() const { return szT; }
+		inline int get_max_rank() const { return max_rank; }
+		inline aiw::Ind<Dmax> bboxD() const { return box*(R<<max_rank); }
+		
+		aiw::Ind<Dmax> slice;  // параметры среза (-1 для отображения, 0 или больше позиция) на самой мелкой сетке
+		int offset_in_cell=0;  // смещение отображаемого поля внутри ячейки в байтах
+		bool swap = false;     // транспонирование (обмен осей)?
+		// aiw::Ind<2> get_axes() const; // отображаемые оси
+		inline aiw::Ind<2> bbox() const { // return box(get_axes())*(R<<max_rank); }
+			Ind<2> res(-1); int j=0;
+			for(int i=0; i<Dmax && j<2; i++) if(slice[i]==-1) res[j++] = box[i]*(R<<max_rank);
+			return res;
+		}
+		
+		// float operator [] (const aiw::Ind<2> &pos); // непонятно нужен ли произвольный доступ ???
+		
+	protected:
+		struct tile_t{
+			uint16_t rank;            // ранг (степень вложенности) тайла
+			Ind<Dmax> pos;            // позиция нижнего левого угла тайла на мелкой сетке
+			std::vector<bool> usage;  // длины 1<<(D*R) для ячеек.
+			std::vector<bool> ghost;  // длины 1<<(D*R) для ячеек.
+			std::vector<bool> split;  // длины 1<<(D*R) для ячеек.
+			tile_t *parent, *child[1<<Dmax] = {0}; // родительский и дочерние тайлы
+			inline int find(tile_t *t) const { for(int i=0; i<(1<<Dmax); i++){ if(child[i]==t) return i; } return -1; }
+
+			virtual float get(int offset, AdaptiveMeshView *msh) const = 0; // доступ к ячейке
+			void set_child_pos(int D, int dR2max){
+				for(int i=0; i<(1<<D); i++) if(child[i]){
+						for(int j=0; j<D; j++) child[i]->pos[j] = pos[j] + bool(i&(1<<j))*(1<<dR2max);
+						child[i]->set_child_pos(D, dR2max-1);
+					}
+			}
+		};
+		struct heavy_tile_t: public tile_t{
+			std::vector<char> data; // длины 1<<(D*R) для ячеек!
+			float get(int offset, AdaptiveMeshView *msh) const { return usage[offset]? *(float*)&(data[offset*msh->szT + msh->offset_in_cell]): nanf(""); }
+		};
+		friend class heavy_tile_t;
+		
+		struct light_tile_t: public tile_t{
+			heavy_tile_t *page;
+			std::vector<uint16_t> chunks; // длины 1<<(D*(R-1)) для чанков, содержит смещения чанков
+			float get(int offset, AdaptiveMeshView *msh) const {
+				int c = 1<<msh->D;
+				return usage[offset]? page->get(chunks[offset>>msh->D]*c+offset%c, msh): nanf("");
+			}
+		};
+		friend class light_tile_t;
+
+		std::vector<heavy_tile_t> htiles; 
+		std::vector<light_tile_t> ltiles;
+		std::vector<tile_t*> tiles; // сетка нулевого уровня 
+		
+	public:
+#ifndef SWIG
+		//----------------------------------------------------------------------
+		class iterator{
+			friend class AdaptiveMeshView;
+			uint32_t offset, mask;  // смещение внутри тайла и маска (для построения среза)
+			tile_t *tile;
+			AdaptiveMeshView *msh;
+			int axes[2];  // номера осей по которым происходит итерирование
+		public:
+			Ind<2> bmin, bmax; // границы ячейки на мелкой сетке
+
+			inline float operator *() const { return tile->get(offset, msh); }
+
+			void operator ++ ();
+			bool operator == (const iterator &) const { return !tile; }
+			bool operator != (const iterator &) const { return tile; }
+		};
+		//----------------------------------------------------------------------
+		iterator find(aiw::Ind<2> pos);  // произвольный доступ по срезу
+		inline iterator begin() { return find(ind(0, 0)); }
+		inline iterator end() { return iterator(); }
+
+		bool load(aiw::IOstream&& S, bool use_mmap=false, bool raise_on_error=true);
+#endif //SWIG		
+		bool load(aiw::IOstream& S, bool use_mmap=false, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_AMRVIEW_HPP
