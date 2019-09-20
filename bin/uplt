@@ -17,6 +17,7 @@ from aiwlib.MeshUS3 import *
 from aiwlib.SphereF import *
 from aiwlib.SphereD import *
 from aiwlib.SphereUS import *
+#from aiwlib.amrview import *
 from aiwlib.plot2D import *
 
 
@@ -118,7 +119,7 @@ def load_arrays(f):
     print 'load %r ...'%f,; sys.stdout.flush()
     fin, L = File(f, 'r'), []
     while 1:
-        msh2, msh3, sphF, sphD = MeshF2(), MeshF3(), SphereF(), SphereD()
+        msh2, msh3, sphF, sphD, amr = MeshF2(), MeshF3(), SphereF(), SphereD(), AdaptiveMeshView()
         if msh2.load(fin, 1, False): L.append(msh2)
         elif msh3.load(fin, 1, False): L.append(msh3) #; print msh3.bmin, msh3.step, msh3.bmax
         elif sphF.load(fin, 1, False):
@@ -127,6 +128,10 @@ def load_arrays(f):
         elif sphD.load(fin, 1, False):
             L.append(sphD)
             if sph_max_rank()<sphD.rank(): sph_init_table(sphD.rank())
+        elif amr.load(fin, False, False):
+            amr.dim = 2; amr.slice[0] = amr.slice[1] = -1; amr.sizeof_cell_type = 4;
+            amr.bmin = (0.,0.); amr.step = (1.,1.); amr.bmax = amr.bbox(); amr.logscale = 0
+            L.append(amr)
         else:
             msh2, msh3, sphUS = MeshUS2(), MeshUS3(), SphereUS()
             if msh2.load(fin, 1, False): L.append(msh2)

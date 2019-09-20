@@ -156,8 +156,9 @@ namespace aiw{
 	template <typename P> void plot2D(AdaptiveMeshView &f, const CalcColor &color, P& image){
 		Vec<2> step = Vec<2>(image.size)/f.bbox();
 		for(auto I=f.begin(); I!=f.end(); ++I){
-			Ind<2> bmin = ((I.bmin&step)+vec(.5))<<image.size, sz = (((I.bmax&step)+vec(.5))<<image.size)-bmin; Ind<3> c = color(*I);
-			for(Ind<2> pos; pos^=sz; ++pos) image.set_pixel(bmin+pos, c);
+			Ind<2> bmin = ((I.bmin&step)+vec(.5))<<(image.size-ind(1)), sz = (((I.bmax&step)+vec(.5))<<image.size)-bmin; Ind<3> c = color(*I);
+			// WOUT(f.bbox(), I.bmin, I.bmax, step, bmin, sz, image.size);
+			for(Ind<2> pos; pos^=sz; ++pos){ WASSERT(ind(0)<=bmin+pos && bmin+pos<image.size, "oops..", bmin, pos, sz, image.size, f.bbox(), step, *I, c); image.set_pixel(bmin+pos, c); }
 		}
 	}
 	//--------------------------------------------------------------------------

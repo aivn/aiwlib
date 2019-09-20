@@ -20,6 +20,7 @@ namespace aiw{
 	class AdaptiveMeshView{
 	public:
 		static const int Dmax = 4; // максимальная поддерживаемая размерность
+		static const int dim = 2;  // заплатка для uplt?
 	protected:
 		int R, D, szT;  // ранг (размер) тайла, размерность сетки, размер ячейки
 		int max_rank;   // максимальный ранг (степень вложенности) тайла
@@ -34,14 +35,14 @@ namespace aiw{
 		inline int get_szT() const { return szT; }
 		inline int get_max_rank() const { return max_rank; }
 		inline aiw::Ind<Dmax> bboxD() const { return box*(R<<max_rank); }
-		
+
 		aiw::Ind<Dmax> slice;  // параметры среза (-1 для отображения, 0 или больше позиция) на самой мелкой сетке
 		int offset_in_cell=0;  // смещение отображаемого поля внутри ячейки в байтах
 		bool swap = false;     // транспонирование (обмен осей)?
 		// aiw::Ind<2> get_axes() const; // отображаемые оси
 		inline aiw::Ind<2> bbox() const { // return box(get_axes())*(R<<max_rank); }
 			Ind<2> res(-1); int j=0;
-			for(int i=0; i<Dmax && j<2; i++) if(slice[i]==-1) res[j++] = box[i]*(R<<max_rank);
+			for(int i=0; i<Dmax && j<2; i++) if(slice[i]==-1) res[j++] = box[i]*(1<<(R+max_rank));
 			return res;
 		}
 		
@@ -54,20 +55,22 @@ namespace aiw{
 			std::vector<bool> usage;  // длины 1<<(D*R) для ячеек.
 			std::vector<bool> ghost;  // длины 1<<(D*R) для ячеек.
 			std::vector<bool> split;  // длины 1<<(D*R) для ячеек.
-			tile_t *parent, *child[1<<Dmax] = {0}; // родительский и дочерние тайлы
-			inline int find(tile_t *t) const { for(int i=0; i<(1<<Dmax); i++){ if(child[i]==t) return i; } return -1; }
+			tile_t *parent = nullptr, *childs[1<<Dmax] = {0}; // родительский и дочерние тайлы
+			inline int find_child_ID(tile_t *t) const { for(int i=0; i<(1<<Dmax); i++){ if(childs[i]==t) return i; } return -1; }
 
 			virtual float get(int offset, AdaptiveMeshView *msh) const = 0; // доступ к ячейке
 			void set_child_pos(int D, int dR2max){
-				for(int i=0; i<(1<<D); i++) if(child[i]){
-						for(int j=0; j<D; j++) child[i]->pos[j] = pos[j] + bool(i&(1<<j))*(1<<dR2max);
-						child[i]->set_child_pos(D, dR2max-1);
+				for(int i=0; i<(1<<D); i++) if(childs[i]){
+						for(int j=0; j<D; j++) childs[i]->pos[j] = pos[j] + bool(i&(1<<j))*(1<<dR2max);
+						childs[i]->set_child_pos(D, dR2max-1);
 					}
 			}
+			tile_t* root(){ return parent? parent->root(): this; }
 		};
 		struct heavy_tile_t: public tile_t{
 			std::vector<char> data; // длины 1<<(D*R) для ячеек!
-			float get(int offset, AdaptiveMeshView *msh) const { return usage[offset]? *(float*)&(data[offset*msh->szT + msh->offset_in_cell]): nanf(""); }
+			inline float raw_get(int offset, AdaptiveMeshView *msh) const { return *(float*)&(data[offset*msh->szT + msh->offset_in_cell]); }
+			float get(int offset, AdaptiveMeshView *msh) const { return usage[offset]? raw_get(offset, msh): nanf(""); }
 		};
 		friend class heavy_tile_t;
 		
@@ -76,13 +79,14 @@ namespace aiw{
 			std::vector<uint16_t> chunks; // длины 1<<(D*(R-1)) для чанков, содержит смещения чанков
 			float get(int offset, AdaptiveMeshView *msh) const {
 				int c = 1<<msh->D;
-				return usage[offset]? page->get(chunks[offset>>msh->D]*c+offset%c, msh): nanf("");
+				// WOUT(offset, usage[offset], chunks[offset>>msh->D], (chunks[offset>>msh->D]-1)*c+offset%c);
+				return usage[offset]? page->raw_get((chunks[offset>>msh->D]-1)*c+offset%c, msh): nanf("");
 			}
 		};
 		friend class light_tile_t;
 
-		std::vector<heavy_tile_t> htiles; 
-		std::vector<light_tile_t> ltiles;
+		std::list<heavy_tile_t> htiles; 
+		std::list<light_tile_t> ltiles;
 		std::vector<tile_t*> tiles; // сетка нулевого уровня 
 		
 	public:
@@ -90,7 +94,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		class iterator{
 			friend class AdaptiveMeshView;
-			uint32_t offset, mask;  // смещение внутри тайла и маска (для построения среза)
+			uint32_t offset, mask;  // смещение внутри тайла и маска (для построения среза), содержит 1 на позициях которые могут меняться
 			tile_t *tile;
 			AdaptiveMeshView *msh;
 			int axes[2];  // номера осей по которым происходит итерирование
@@ -102,6 +106,7 @@ namespace aiw{
 			void operator ++ ();
 			bool operator == (const iterator &) const { return !tile; }
 			bool operator != (const iterator &) const { return tile; }
+			int rank() const { return tile->rank; }
 		};
 		//----------------------------------------------------------------------
 		iterator find(aiw::Ind<2> pos);  // произвольный доступ по срезу
@@ -111,6 +116,10 @@ namespace aiw{
 		bool load(aiw::IOstream&& S, bool use_mmap=false, bool raise_on_error=true);
 #endif //SWIG		
 		bool load(aiw::IOstream& S, bool use_mmap=false, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
+		aiw::Vec<2> min_max();
+
+		float operator()(aiw::Vec<2> pos){ return *find(pos); }
+		aiw::Ind<2> coord2pos(aiw::Vec<2> coord){ return coord; }
 	};
 	//--------------------------------------------------------------------------
 };
