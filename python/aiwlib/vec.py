@@ -277,9 +277,9 @@ class Vec:
     def __mod__(a, b):
         ab = _conv(a, b)
         if len(ab)==2: return ab[0][0]*ab[1][1]-ab[1][0]*ab[0][1]
-        elif len(ab)==3: return Vec(*[ab[1][0]*ab[2][1]-ab[2][1]*ab[1][1], 
-                                      ab[2][0]*ab[0][1]-ab[0][1]*ab[2][1], 
-                                      ab[0][0]*ab[1][1]-ab[1][1]*ab[0][1]], T=_decltype(a, b))
+        elif len(ab)==3: return Vec(*[ab[1][0]*ab[2][1]-ab[2][0]*ab[1][1], 
+                                      ab[2][0]*ab[0][1]-ab[0][0]*ab[2][1], 
+                                      ab[0][0]*ab[1][1]-ab[1][0]*ab[0][1]], T=_decltype(a, b))
         else: raise Exception('incorrect arguments in vectors product %r%%%r'%(a, b))
     #---------------------------------------------------------------------------
     def __rmod__(a, b):
