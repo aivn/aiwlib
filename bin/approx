@@ -111,5 +111,5 @@ if not gplt is None:
         fout = open(tmpn, 'w')
         for l in zip(X, Y, F): print>>fout, ' '.join(map(str, l))
         fout.close()
-        os.system('gplt -U "y@p,=data z@=approx" %s '%tmpn+gplt)
+        os.system('gplt -U "y@p,=data z@=approx fabs(y-z)@x1y2,=error" -ln y2 %s'%tmpn+gplt)
         os.remove(fout.name)
