@@ -51,6 +51,8 @@ namespace aiw{
 	struct IOstream{
 		std::string name;
 		virtual ~IOstream(){}
+		virtual operator bool () const = 0;
+		inline bool operator !() const { return !*this; }
 		
 		virtual void close() = 0;
 		virtual long tell() const = 0;
@@ -107,6 +109,7 @@ namespace aiw{
 	public:
 		File(){}
 		File(FILE *f){ pf.reset(f, [](FILE*){}); }
+		operator bool () const { return pf.get() && !feof(pf.get()); }
 #ifndef SWIG
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
 			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);

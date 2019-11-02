@@ -20,6 +20,7 @@ namespace aiw{
 		std::shared_ptr<gzFile_s> pf;
 	public:
 		GzFile(){}
+		operator bool () const { return pf.get() && !gzeof(pf.get()); }
 #ifndef SWIG
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
 			std::stringstream path; format2stream(path, format, args...); gzFile f = ::gzopen(path.str().c_str(), mode);
