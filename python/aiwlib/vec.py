@@ -85,7 +85,7 @@ def _decltype(a, b):
     TT = [_cxx_types_table[x if type(x) is str else x.T if hasattr(x, 'T') else x._T()] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
-_is_vec = lambda X: type(X) in (list, tuple) or hasattr(X, 'T')
+_is_vec = lambda X: type(X) in (list, tuple) or isinstance(X, Vec)
 def _2sz(X, sz):
     if len(X)==sz: return X._getdata() if hasattr(X, '_getall') else X
     if len(X)==1: return (X[0],)*sz
