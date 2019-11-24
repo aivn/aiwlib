@@ -1,0 +1,73 @@
+// -*- C++ -*-
+#ifndef AIW_LLBE_HPP
+#define AIW_LLBE_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ * 
+ * Landau-Lifshitz-Bloch Equation work and coeff.
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	namespace LLBE{
+		// analitic solution
+		inline float Z(float p){ return float(4*M_PI)*(fabsf(p>1e-6f)? sinhf(p)/p: 1.f+p*p/6.f); }
+		inline float L(float p){ return fabsf(p>1e-6f)? 1.f/tanh(p)-1.f/p: p/3.f; }
+		inline float dLdp(float p){ float shp = sinhf(p); return fabsf(p>1e-6f)? 1.f/(p*p)-1.f/(shp*shp) : 1.f/3.f-p*p/15.f; }
+		const float MAX_P = logf(HUGE_VALF)-1;
+		inline float invL(float M){
+			if(fabsf(M)<1e-6f) return M*3;
+			float p = 1.f;
+			for(int i=0; i<10; i++){
+				float Lp = L(p);
+				if(p>MAX_P || fabsf(Lp-M)<1e-8f) break;
+				p = p-(Lp-M)/dLdp(p);
+				if(fabsf(p)<1e-6f) return p;
+			}
+			return p;
+		}
+		
+		// approximations
+		inline float M2_MM(float MM){ return 1.f/3+ (0.4115f + (0.0303f + (0.3523f - 0.1261f*MM)*MM)*MM)*MM;  }
+		inline float M2(float M){ return M2_MM(M*M); }
+		inline float M3(float M){ return .6026f*M*(1.f+.00669f*cosh(5.288f*M)); } 
+		inline Vecf<3> Hdiss(const Vecf<3> &M, const Vecf<3> &H){
+			float MM = M*M;  if(MM<1e-6) return H*(-2.f/3);
+			float _MM = 1.f/MM,  M2av = M2_MM(MM);
+			Vecf<3> res;
+			for(int i=0; i<3; i++) for(int j=0; j<3; j++){
+					float delta = (i==j), nn = M[i]*M[j]*_MM;
+					res[i] += ((M2av*(3*nn-delta) + delta-nn)*.5f - delta)*H[j];
+				}
+			return res;			
+		}
+		inline Vecf<3> Kprec(const Vecf<3> &M, const Vecf<3> &nK){
+			// float MM = M*M; return (.59256f + (.21515f+.2008f*MM)*MM)*(M*nK)*(M%nK);
+			float MM = M*M; return (.5926f + (.215f+.2f*MM)*MM)*(M*nK)*(M%nK);
+		}
+		inline Vecf<3> Kdiss(const Vecf<3> &M, const Vecf<3> &nK){ 
+			float MM = M*M; if(MM<1e-6f) return Vecf<3>(); // но это неточно???
+			float m = sqrt(MM), _m = 1.f/m, beta = M*nK*_m, m3m = M3(m);
+			// return M*(.069f/m*sinh(3.39f*m)*(1.f-m)*(1.f-3.f*beta)) + M%(M%nK)*( 0.6022f/m*(1.f+0.00669f*cosh(5.288f*m))*beta );
+			return M*((m3m-1.f)*(3.f*beta*beta-1.f)*.5) + (M%(M%nK))*(m3m*_m*beta);
+		}
+
+		// corr. MD
+		inline float Upsilon_MM(float MM, float eta){
+			return (1.f-eta)/(1.f-MM)*(1.f-M2_MM(MM))*.5f*(1.f+ ((0.3684f + 0.1873f*eta)*eta - (0.3236f+0.2523f*eta)*MM)*eta );
+		}
+		inline float Upsilon(float M, float eta){ return Upsilon_MM(M*M, eta); }
+		inline float Lambda(float M, float eta){
+			float MM = M*M, EE = eta*eta;
+			return (1.f-eta)/(1.f-MM)*( -0.6639f + (-0.7617f +0.2689f*M +0.3472f*MM)*eta + (0.2718f - 1.367f*eta +0.5078f*EE -0.418f*M +1.833f*MM)*EE);
+		}
+		inline float Psi(float M, float eta, float nKm){ return (0.46134f*M*M - 1.384f*nKm*nKm)*(1.f-eta)*M; }
+		inline float Q3(float eta){ return -(0.69279f + (-0.24455f + (1.1055f -0.53462f*eta)*eta)*eta)*eta*(1-eta); }
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_LLBE_HPP
