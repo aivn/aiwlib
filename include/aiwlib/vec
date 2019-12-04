@@ -135,6 +135,9 @@ namespace aiw{
 					if(res[i]>res[j]){ T tmp = res[i]; res[i] = res[j]; res[j] = tmp; }
 			return res;
 		}
+
+		inline T calc(T x) const { T res = p[D-1]; for(int i=D-2; i>=0; i--){ res = p[i]+res*x; } return res; }
+		inline Vec<D-1, T> diff() const { Vec<D-1, T> res; for(int i=1; i<D; i++){ res[i-1] = i*p[i]; } return res; }
 		
 		T* begin(){ return p; }
 		T* end(){ return p+D; }

@@ -273,6 +273,8 @@ class Vec:
     def reverse(self): L = self._getdata(); L.reverse(); return Vec(*L, T=self._T())
     def __invert__(self): return self.reverse()
     def sort(self): L = self._getdata(); L.sort(); return Vec(*L, T=self._T())
+    def calc(self, x): return sum(c*x**i for i, c in enumerate(self._getdata()))
+    def diff(self): return Vec(*[(i+1)*c for i, c in enumerate(self._getdata()[1:])], T=self._T())
     #---------------------------------------------------------------------------
     def __mod__(a, b):
         ab = _conv(a, b)
