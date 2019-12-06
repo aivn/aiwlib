@@ -127,6 +127,11 @@ namespace aiw{
 			for(int y=1; y<Y; y++) for(int x=0; x<X; x++) M(x, y) = app(y, x).det()*(1.-2.*((x+y)%2))*D;
 			return M;
 		}
+		inline Q tr() const {
+			static_assert(X==Y, "non square matrix!");			
+			Q res = p[0]; for(int i=1; i<X; i++) res += p[i*(X+1)];
+			return res;
+		}
 	}; // end of class Matr
 	template <int X, typename Q, typename ... Args>
 	inline Matr<1+sizeof...(Args), X, Q> matr(const Vec<X, Q> &v, Args ... args){
