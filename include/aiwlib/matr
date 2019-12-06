@@ -20,6 +20,7 @@ namespace aiw{
 			set_row(vvv...);
 		}
 	public:
+		inline void fill(Q x=0){ for(int i=0; i<X*Y; i++) p[i] = x; }
 		template <typename ... Args> explicit Matr(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==Y, "illegal parametrs count!"); 
 			set_row(xxx...); 
@@ -49,7 +50,8 @@ namespace aiw{
 		inline Matr& operator += (const Vec<Y, Q>& B)        { 
 		  for(int i=0; i<Y; i++){ p[i] += B.p[i]; } return *this; 
 		}
-		inline Matr& operator /= (const Q& B)          { for(int i=0; i<X*Y; i++){ p[i] /= B; } return *this; }
+		template <typename Q2> inline Matr& operator *= (Q2 x){ for(int i=0; i<X*Y; i++){ p[i] *= x; } return *this; }
+		template <typename Q2> inline Matr& operator /= (Q2 x){ return *this *= (1./x); }
 		inline Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
 		inline Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
 
@@ -227,6 +229,23 @@ namespace aiw{
 	template <int N, typename Q, typename C> void dispense(const Matr<N, N, Q> &src, const Ind<N> &IDs, C& dst){
 		for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
 	}
+	//--------------------------------------------------------------------------
+    template <typename T> Vec<3, T> eigenvalues(const Matr<3, 3, T> &A){
+		T Atr = A.tr(), q = Atr/3; Matr<3, 3, T> AqE = A; for(int i=0; i<3; i++) AqE(i, i) -= q;
+		T p = sqrt((AqE*AqE).tr()/6), detB2 = (AqE*(1/p)).det()/2;
+		T phi = detB2<=-1? M_PI/3: (detB2>=1?0: acos(detB2)/3);
+		Vec<3, T> vals; vals[2] = q+2*p*cos(phi); vals[0] = q+2*p*cos(phi+2*M_PI/3); vals[1] = Atr - vals[0]-vals[2];
+		return vals;
+    }
+	//--------------------------------------------------------------------------
+    template <typename T> Vec<3, T> eigenvector(const Matr<3, 3, T> &A, const Vec<3, T> &eigvals, int n){
+		Matr<3, 3, T> A1=A, A2=A; int i1 = (n==0), i2 = 2-(n==2); 
+		for(int i=0; i<3; i++){ A1(i, i) -= eigvals[i1]; A2(i, i) -= eigvals[i2]; }
+		Matr<3, 3, T> AA = A1*A2; Vec<3, T> cols[3] = { AA.col(0), AA.col(1), AA.col(2) };
+		T s[3]; for(int i=0; i<3; i++) s[i] = cols[i]*cols[i];
+		int i_max = 0; for(int i=1; i<3; i++) if(s[i_max]<s[i]) i_max = i;
+		return cols[i_max]/cols[i_max].abs();
+    }
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_MATRIX_HPP
