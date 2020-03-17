@@ -20,6 +20,7 @@ namespace aiw{
 			set_row(vvv...);
 		}
 	public:
+		static Ind<2> size(){ return ind(Y, X); }
 		inline void fill(Q x=0){ for(int i=0; i<X*Y; i++) p[i] = x; }
 		template <typename ... Args> explicit Matr(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==Y, "illegal parametrs count!"); 
@@ -47,9 +48,6 @@ namespace aiw{
 		inline Matr  operator -  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
 		inline Matr  operator &  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
 		inline Matr& operator += (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
-		inline Matr& operator += (const Vec<Y, Q>& B)        { 
-		  for(int i=0; i<Y; i++){ p[i] += B.p[i]; } return *this; 
-		}
 		template <typename Q2> inline Matr& operator *= (Q2 x){ for(int i=0; i<X*Y; i++){ p[i] *= x; } return *this; }
 		template <typename Q2> inline Matr& operator /= (Q2 x){ return *this *= (1./x); }
 		inline Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
@@ -212,10 +210,23 @@ namespace aiw{
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int Y, int X, typename Q> Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){
+	template <int Y, int X, typename Q> inline Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){  // v as line
 		Vec<X, Q> t; for(int x=0; x<X; x++) t[x] = v[0]*M(0, x);
 		for(int y=1; y<Y; y++) for(int x=0; x<X; x++) t[x] += v[y]*M(y, x);
 		return t; 
+	}
+	template <int Y, int X, typename Q> Vec<Y, Q> operator * (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){  // v as column
+		Vec<Y, Q> t; 
+		for(int y=0; y<Y; y++){
+			t[y] = v[0]*M(y, 0);
+			for(int x=1; x<X; x++) t[y] += v[x]*M(y, x);
+		}
+		return t; 
+	}
+	template <int Y, int X, typename Q> inline Matr<Y, X, Q> operator ^ (const Vec<Y, Q> &a, const Vec<X, Q> b){  // tensor mult.
+		Matr<Y, X, Q> M; 
+		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) M(y, x) = a[y]*b[x];
+		return M; 
 	}
 	//--------------------------------------------------------------------------
 	template <int Y, int X, typename Q> std::ostream& operator << (std::ostream &str, const Matr<Y, X, Q> & M){
@@ -246,6 +257,12 @@ namespace aiw{
 		int i_max = 0; for(int i=1; i<3; i++) if(s[i_max]<s[i]) i_max = i;
 		return cols[i_max]/cols[i_max].abs();
     }
+	//--------------------------------------------------------------------------
+	// from Boris Kritskiy
+	template <int Y, typename Q>  Matr<Y, 1, Q>& operator += (Matr<Y, 1, Q> &M, const Vec<Y, Q>& B){ 
+		for(int i=0; i<Y; i++) M(0,i) += B[i]; 
+		return M; 
+	}
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_MATRIX_HPP
