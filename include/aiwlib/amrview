@@ -94,14 +94,14 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		class iterator{
 			friend class AdaptiveMeshView;
-			uint32_t offset, mask;  // смещение внутри тайла и маска (для построения среза), содержит 1 на позициях которые могут меняться
-			tile_t *tile;
-			AdaptiveMeshView *msh;
-			int axes[2];  // номера осей по которым происходит итерирование
+			uint32_t offset = 0, mask = 0;  // смещение внутри тайла и маска (для построения среза), содержит 1 на позициях которые могут меняться
+			tile_t *tile = nullptr;
+			AdaptiveMeshView *msh = nullptr;
+			int axes[2] = {0};  // номера осей по которым происходит итерирование
 		public:
 			Ind<2> bmin, bmax; // границы ячейки на мелкой сетке
 
-			inline float operator *() const { return tile->get(offset, msh); }
+			inline float operator *() const { return tile? tile->get(offset, msh): nanf(""); }
 
 			void operator ++ ();
 			bool operator == (const iterator &) const { return !tile; }

@@ -7,6 +7,7 @@
 using namespace aiw;
 //------------------------------------------------------------------------------
 aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::find(aiw::Ind<2> pos){  // произвольный доступ по срезу
+	if(!(Ind<2>()<=pos && pos<bbox())) return iterator();
 	iterator I; I.msh = this; I.bmin = pos; I.bmax = pos+ind(1<<max_rank); I.mask = I.offset = 0; 
 	// ищем тайл сетки нулевого ранга T0 и позицию P внутри него (на самой мелкой сетке)
 	Ind<Dmax> P; int j = 0, T0 = 0, s = 1, N = 1<<(R+max_rank); // счетчик осей, смещение на большой сетке, размер тайла нулевого ранга на мелкой сетке
