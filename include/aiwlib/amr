@@ -3,7 +3,7 @@
 #define AIW_AMR_HPP
 
 /**
- * Copyright (C) 2018-19 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2018-20 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -27,9 +27,10 @@ namespace aiw{
 		static const int tile_sz = 1<<(D*R);       // число ячеек в тайле
 		static const int chunks_sz = 1<<(D*(R-1)); // число чанков
 		static const int usages_sz = 1<<(D*R-6);   // число 64х битных слов в массиве usages, должно быть R*D>=6
-		inline static void copy_chunk(const T* src, T* dst){ for(int i=0; i<(1<<D); i++) dst[i] = src[i]; }
-		inline static int off2tid(int off){ return (off>>((R-1)*D))&Dbits; }
-		inline static int chID2tid(int chID){ return (chID>>((R-2)*D))&Dbits; }
+		static void copy_chunk(const T* src, T* dst){ for(int i=0; i<(1<<D); i++) dst[i] = src[i]; }
+		static int off2tid(int off){ return (off>>((R-1)*D))&Dbits; } //  смещение ячейки в номер дочернего тайла 
+		static int chID2tid(int chID){ return (chID>>((R-2)*D))&Dbits; } //  смещение чанка в номер дочернего тайла
+		static bool check_out_tile(uint32_t nb_off){ return ((nb_off>>(R*D))&Dbits)!=Dbits; }
 		// static_assert(D<=6);
 		//----------------------------------------------------------------------
 		// template <typename MM> struct meta_t{ MM data[1<<(R*D)]; typedef MM meta_data_type;  static const bool is_meta = true;  };
@@ -52,7 +53,7 @@ namespace aiw{
 			Vec<D> bmin, step;	     // нижний угол и шаг тайла - СЧИТАТЬ ИХ В load  и при аллоцировании тайла!!!!
 
 			tile_t *parent = nullptr, *childs[1<<D] = {nullptr};  // родительский  и дочерние тайлы, устанавливать ссылки на соседей для нижнего уровня?
-			inline int find_child_ID(tile_t *tile) const { for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i; WRAISE(this, tile); return -1; } // ищет номер дочернего тайла 
+			inline int find_child_ID(const tile_t *tile) const { for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i; WRAISE("", this, tile); return -1; } // ищет номер дочернего тайла 
 			void set_coords(int tID){ // устанавливает bmin и step (в т.ч. для потомков), tID --- позиция тайла у родителя
 				if(parent){ step = parent->step/2; for(int i=0; i<D; i++) bmin[i] = parent->bmin[i]+bool(tID&(1<<i))*(1<<R)*step[i]; }
 				else { bmin = root->msh->tiles.cell_angle(root->pos, false); step = root->msh->tiles.step/(1<<R); }
@@ -61,14 +62,14 @@ namespace aiw{
 			//------------------------------------------------------------------
 			//  работа с флагами использования и выделением памяти
 			//------------------------------------------------------------------
-			uint64_t usages[3][usages_sz] = {{0}};  // флаги текущего [0] и будущего [1] использования (этого достаточно для обхода), актуальность ячейки для границы [2] 
+			uint64_t usages[3][usages_sz] = {{0}};  // флаги текущего [0] и будущего [1] использования (этого достаточно для обхода), ghost  
 			inline bool get_cell_usage(bool future, int off) const { return usages[future][off>>6]&(uint64_t(1)<<(off&0x3f)); }
 			inline bool get_chunk_usage(bool future, int chID) const { return usages[future][chID>>(6-D)]&(Dbits<<((chID<<D)&0x3f)); } 
 			inline int get_chunk_usage(int chID) const {
 				int i = chID>>(6-D); uint64_t m = Dbits<<((chID<<D)&0x3f);
 				return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m);
 			} 
-
+			
 			uint16_t rank = 0, ch_use = 0, ch_alloc = 0, ch_free = 0;  //  уровень вложения, число занятых, аллоцированных и освобожденных чанков
 			inline uint16_t ch_size() const { return ch_use+ch_alloc-ch_free; }
 			virtual void alloc_chunk(int chID) = 0; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
@@ -105,9 +106,20 @@ namespace aiw{
 			//  разбиение ячеек
 			//------------------------------------------------------------------
 			inline bool get_cell_split(bool future, int off) const {
-				int tid = off2tid(off);	return childs[tid] && childs[tid]->get_chunk_usage(future, (off<<D)&RDbits);
+				int tid = off2tid(off);	return childs[tid] && childs[tid]->get_chunk_usage(future, off&R1Dbits); // (off<<D)&RDbits);
 			}
-			inline int get_cell_split(int off) const { int tid = off2tid(off); return childs[tid] && childs[tid]->get_chunk_usage((off<<D)&RDbits); }
+			/*
+			inline bool get_cell_split(int off) const { return usages[3][off>>6]&(uint64_t(1)<<(off&0x3f)); }
+			inline void split_cell(int off){
+				usages[3][off>>6] |= uint64_t(1)<<(off&0x3f);
+				if(parent) parent->split_cell((off2tid(off)<<((R-1)*D))|(off>>D));
+			}
+			inline void join_cell(int off){
+				usages[3][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f));
+				if()
+			}
+			*/
+			// inline int get_cell_split(int off) const { int tid = off2tid(off); return childs[tid] && childs[tid]->get_chunk_usage((off<<D)&RDbits); }
 			// разбиение ячейки не связано с выделением памяти, память выделяется при активации подъячеек.
 			// дочерний тайл устанавливается методом root_t::tile_alloc(tile_t* parent, int tid, bool heavy=false); ???
 			// объединение ячейки делается через метод deactivate_chunk нижнего уровня?
@@ -147,39 +159,22 @@ namespace aiw{
 				} // конец цикла по областям отвечающим дочерним тайлам
 				return false;
 			}
-			inline bool first(cell_t &C, int trmode, int start=0){ // неоптимизировано, trmode не поддерживается, только для НЕПРЕРЫВНОГО ПОЛЯ
+			// при необходимости рекурсивно спускается вниз по тайлу
+			// неоптимизировано, trmode не поддерживается, только для НЕПРЕРЫВНОГО ПОЛЯ
+			inline bool first(cell_t &C, int trmode, int start=0){ 
 				if(get_cell_usage(0, start)){ C.offset = start; C.ptr = cell(start); C.tile = this;	return true;  }
 				int tid = off2tid(start); if(childs[tid]) return childs[tid]->first(C, trmode, (start<<D)&RDbits);
 				return false; 
 			}
+			// ходит вверх по тайлам, для спуска вызывает first
 			inline bool next(cell_t &C, int trmode){
 				if(C.offset+1<tile_sz && first(C, trmode, C.offset+1)) return true;
-				tile_t *t = this, *p = parent; int i = C.offset;
+				tile_t *t = this, *p = parent; uint32_t i = C.offset;
 				while(p){
-					i = (p->find_child_ID(t)<<((R-1)*D))+(i>>D);
-					if(i+1<tile_sz && p->get_cell_usage(0, i+1)){ C.offset = i+1; C.ptr = p->cell(i+1); C.tile = p; return true; }
+					i = (p->find_child_ID(t)<<((R-1)*D))|(i>>D); // смещение уровнем выше
+					if(i+1<tile_sz && p->first(C, trmode, i+1)) return true;
 					t = p; p = t->parent;
 				}
-				return false;
-			} 
-			// переключает C на следующую ячейку, возвращает false если таких нет для данного тайла нулевого уровня (и его подтайлов)
-			inline bool next1(cell_t &C, int trmode){
-				if(first(C, trmode, C.offset+1)) return true;
-				if(!parent) return false;
-				return parent->first(C, trmode, (parent->find_child_ID(this)<<((R-1)*D))+(C.offset>>D)+1);
-			} 
-			inline bool next2(cell_t &C, int trmode, int gmode=3){
-				if(C.offset==tile_sz-1){
-					if((gmode&1) && parent){ C.offset = (parent->find_child_ID(this)<<((R-1)*D))+(C.offset>>D); return parent->next(C, trmode); }
-					return false;
-				}
-				if(get_cell_usage(0, C.offset+1)){ C.offset++; C.ptr = cell(C.offset); C.tile = this;  return true;  }
-				int offset0 = C.offset; 
-				if(gmode&2){
-					tile_t* c = childs[C.offset>>((R-1)*D)];
-					if(c){ C.offset = (((C.offset+1)<<D)&RDbits)-1; if(c->next(C, trmode, 2)) return true; }
-				}
-				if((gmode&1) && parent){ C.offset = (parent->find_child_ID(this)<<((R-1)*D))+(offset0>>D); return parent->next(C, trmode, 1); }
 				return false;
 			} 
 				
@@ -187,8 +182,9 @@ namespace aiw{
 
 			patch_t* patches[chunks_sz] = {nullptr};  // указатель на массив патчей, сейчас выделяется во всех тайлах но надо выделять только там где нужно
 
-			virtual void out_info() const;
-		};
+			virtual void out_info() const = 0;
+			uint32_t get_tile_pos() const {	return parent? (parent->get_tile_pos()<<D)|parent->find_child_ID(this): 0; }
+		}; // end of struct tile_t
 		//----------------------------------------------------------------------
 #define USING_TT_ATTRS using tile_t::root; using tile_t::bmin; using tile_t::step; \
 		using tile_t::parent; using tile_t::childs; using tile_t::patches; using tile_t::get_chunk_usage; \
@@ -238,7 +234,7 @@ namespace aiw{
 					   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], first_free_chunk, far_ch_sz);
 				for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
 			}
-		};
+		}; // end of struct heavy_tile_t
 		//----------------------------------------------------------------------
 		//  легкий тайл
 		//----------------------------------------------------------------------
@@ -262,7 +258,7 @@ namespace aiw{
 					   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], page);
 				for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
 			}
-		};
+		}; // end of struct light_tile_t
 #undef USING_TT_ATTRS
 		//----------------------------------------------------------------------
 		//  корень дерева тайлов
@@ -279,7 +275,7 @@ namespace aiw{
 
 			void operator = (const root_t &r){
 				pos = r.pos;  htiles = r.htiles;  ltiles = r.ltiles; // patches = r.patches;
-				WOUT(pos, htiles.size(), ltiles.size());
+				// WOUT(pos, htiles.size(), ltiles.size());
 				std::map<const void*, int> tbl; tbl[0] = 0;  // таблица для восстановления дерева тайлов
 				for(const heavy_tile_t &t: r.htiles){ int ID = tbl.size(); tbl[&t] = ID; } int h_sz = tbl.size();
 				for(const light_tile_t &t: r.ltiles){ int ID = tbl.size(); tbl[&t] = ID; }
@@ -369,7 +365,7 @@ namespace aiw{
 				for(const heavy_tile_t &t: htiles) if(!t.root) t.out_info();
 				root->out_info();
 			}			
-		};
+		}; // end of struct root_t
 		// friend class root_t;
 		Mesh<root_t, D> tiles; // базовая (самая крупная) сетка тайлов нулевого ранга
 	public:
@@ -433,32 +429,36 @@ namespace aiw{
 			using cell_t::ptr; using cell_t::tile; using cell_t::offset;
 			
 			friend class Tile;
-			inline operator bool () const { return ptr; }  
-			inline bool operator !() const { return !ptr; }
-			inline bool dummy() const { return !tile; }
-			inline bool is_used() const { return tile && tile->get_cell_usage(0, offset); }       // ячейка сейчас используется?
-			inline bool will_be_used() const { return tile && tile->get_cell_usage(1, offset); }  // ячейка будет использоваться?
-			inline bool is_split() const { return tile && tile->get_cell_split(0, offset); }      // ячейка сейчас разбита?
-			inline bool will_be_split() const { return tile && tile->get_cell_split(1, offset); } // ячейка будет разбита?
-			inline bool is_fiction() const { return tile && tile->get_cell_usage(2, offset); }    // ячейка является фиктивной?
+			operator bool () const { return ptr; }  
+			bool operator !() const { return !ptr; }
+			bool dummy() const { return !tile; }
+			bool is_used() const { return tile && tile->get_cell_usage(0, offset); }       // ячейка сейчас используется?
+			bool will_be_used() const { return tile && tile->get_cell_usage(1, offset); }  // ячейка будет использоваться?
+			bool is_split() const { return tile && tile->get_cell_split(0, offset); }      // ячейка сейчас разбита?
+			bool will_be_split() const { return tile && tile->get_cell_split(1, offset); } // ячейка будет разбита?
+			bool is_fiction() const { return tile && tile->get_cell_usage(2, offset); }    // ячейка является фиктивной?
 
-			inline Vec<D> bmin() const { return tile->bmin + (zoff2pos<D>(offset, R)&tile->step); }
-			inline Vec<D> step() const { return tile->step; }
-			inline int rank() const { return tile->rank; }  // уровень вложенности
+			Vec<D> bmin() const { return tile->bmin + (zoff2pos<D>(offset, R)&tile->step); }
+			Vec<D> step() const { return tile->step; }
+			int rank() const { return tile->rank; }  // уровень вложенности
 			
-			inline       T& operator * ()       { return *ptr; } // доступ к данным ячейки
-			inline const T& operator * () const { return *ptr; }
-			inline       T* operator -> ()       { return ptr; }
-			inline const T* operator -> () const { return ptr; }
+			T& operator * ()       { return *ptr; } // доступ к данным ячейки
+			const T& operator * () const { return *ptr; }
+			T* operator -> ()       { return ptr; }
+			const T* operator -> () const { return ptr; }
 
-			inline const Cell operator [](const Ind<D> &dpos) const { // доступ к соседям
+			void* dcell(){ return ptr; }
+			void* dtile(){ return tile; }
+			uint32_t doffset(){ return offset; }
+			
+			const Cell operator [](const Ind<D> &dpos) const { // доступ к соседям
 				Cell res; res.offset = calc_nb_zoffset(dpos, offset|(Dbits<<(R*D)));
-				if((res.offset>>(R*D))!=Dbits) res.tile = tile->find_nb_tile(zoff2pos<D>(res.offset>>(R*D), 2)-ind(1)); // попали в другой тайл
+				if(check_out_tile(res.offset)) res.tile = tile->find_nb_tile(zoff2pos<D>((res.offset>>(R*D)), 2)-ind(1)); // попали в другой тайл
 				else res.tile = tile;
 				res.offset &= RDbits; res.ptr = res.is_used()? res.tile->cell(res.offset): nullptr; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
 				return res;
 			}
-			template <typename ... Args> inline const Cell operator() (Args ... dpos) { return (*this)[Ind<D>(dpos...)]; } // доступ к соседям
+			template <typename ... Args>  const Cell operator() (Args ... dpos) { return (*this)[Ind<D>(dpos...)]; } // доступ к соседям
 
 			Cell parent(){  // доступ к родительской ячейке
 				Cell res; res.tile = tile->parent; res.offset = offset>>D;
@@ -505,11 +505,79 @@ namespace aiw{
 				if(res.deactivate()) for(int i=1; i<(1<<D); i++) res.tile->deactivate_cell(res.offset+i);
 				activate(); // ???
 			}
-			
+
+		protected:
+			uint32_t bound_ = ~0;
+		public:
+			uint32_t bound(){ // по два бита на каждую ось, слева/справа
+				if(bound_!=~0) return bound_;
+				bound_ = 0; uint64_t goff = (uint64_t(tile->get_tile_pos())<<(R*D))|offset, mask = (~uint64_t(0))>>(64-D*(R+tile->rank));
+				for(int i=0; i<D; i++){
+					uint64_t omask = zmasks[D-1]<<i, gm = goff&omask;
+					if(tile->root->pos[i]==0 && !gm) bound_ |= 1<<(i*2);
+					if(tile->root->pos[i]==tile->root->msh->tiles.bbox()[i]-1 && gm==(mask&omask)) bound_ |= 1<<(1+(i*2));
+				}
+				return bound_;
+			} 
+		protected:
+			template <typename F> void deep2face(F& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank){
+				uint32_t childID = off2tid(off); t = t->childs[childID];
+				if(!t){ WRAISE("", bmin(), this->rank(), rank, axe); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
+				off = (off<<D)&RDbits;
+				double dS = 1./(1<<(D*(t->rank+1-rank)));
+				for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
+						if(t->get_cell_usage(0, off+i)) f(*this, *(t->cell(off+i)), dS, t->step[axe]*.5);
+						else deep2face(f, t, off+i, mask, res4cmp, axe, rank);
+					}				
+			}
+		public:
+			// f(Cell&, const T&, double доля_площади_грани, double расстояние_от_грани_ДО_центра_СОСЕДНЕЙ_ячейки_по_оси_СО_знаком)
+			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
+			template <typename F>  void face(F& f, int axe){ 
+				if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
+				// считаем offset и тайл соседней ячейки
+				int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1, nb_off = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
+				if(bound()&(1<<(2*a+(axe>0)))){ f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); return; } // это граничная ячейка
+				Ind<D> nbt_pos; nbt_pos[a] = sign; tile_t *nb_tile = check_out_tile(nb_off)? tile->find_nb_tile(nbt_pos): tile;
+
+				uint32_t old_nb_off = nb_off;
+				
+				nb_off &= RDbits;
+				
+				bool way_up = nb_tile && nb_tile->parent;
+				if(nb_tile){
+					if(nb_tile->get_cell_usage(0, nb_off)){ f(*this, *(nb_tile->cell(nb_off)), 1., nb_tile->step[a]*sign*.5); return; } // один сосед на том же уровне
+					if(nb_tile->get_cell_split(false, nb_off)) way_up = false; //  точно идем вниз, много мелких соседей
+				} else if(tile->parent) {  //  мы на границе тайла текущего уровня
+					tile_t *t = tile, *p = t->parent; uint32_t off = offset; // old_nb_off>>D;
+					while(p){
+						off = (p->find_child_ID(t)<<((R-1)*D))|(off>>D); // смещение родительской ячейки в тайле выше
+						nb_off = calc_nb_zoffset<D>(a, sign, off|(Dbits<<(R*D))); // соседняя ячейка уровнем выше
+						if(check_out_tile(nb_off)){ // попали в соседний тайл уровнем выше
+							nb_off &= RDbits;
+							tile_t* nbt = p->find_nb_tile(nbt_pos);
+							if(nbt && nbt->get_cell_usage(0, nb_off)){ f(*this, *(nbt->cell(nb_off)), 1., nbt->step[a]*sign*.5); return; }
+						} else if(p->get_cell_usage(0, nb_off&RDbits)){ f(*this, *(p->cell(nb_off&RDbits)), 1., p->step[a]*sign*.5); return; } // остались в верхнем тайле
+						t = p; p = t->parent;
+					}
+					WRAISE("", bmin(), rank());
+				}
+				if(way_up){  // пробуем подняться, один большой сосед по грани
+					tile_t *t = nb_tile, *p = t->parent; uint32_t uoff = nb_off;
+					while(p){
+						uoff = (p->find_child_ID(t)<<((R-1)*D))|(uoff>>D);
+						if(p->get_cell_usage(0, uoff)){ f(*this, *(p->cell(uoff)), 1., p->step[a]*sign*.5); return; } // тут хорошо бы проверить расположение ячейки?
+						t = p; p = t->parent;
+					}
+				}
+				// подняться не удалось, идем вниз - много мелких соседей
+				if(nb_tile) deep2face(f, nb_tile, nb_off, 1<<a, bool(axe<0)<<a, a, tile->rank);
+				else f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); 
+			}
 			// проверки является ли ячейка граничной?
 			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
 			// inline typename const meta_t<M>::meta_data_type& meta(int i) const {...}
-		};
+		}; // end of class Cell
 		class Tile { // это интерфейс доступа к тайлу (верхнего?!) уровня
 			root_t *root; int trmode;
 			friend class AdaptiveMesh;
@@ -548,7 +616,7 @@ namespace aiw{
 				(Tile&)*this = root->msh->get_tile(pos);
 			}
 			inline bool operator != (const iterator&) const { return root; }
-		};
+		}; 
 		iterator begin(){ iterator I; I.root = &(tiles[ind(0)]); I.trmode = trmode; return I; }
 		iterator end(){ return iterator(); }
 		// порождение итераторв для обходов на соотв рангах?
@@ -599,13 +667,13 @@ namespace aiw{
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
-	// ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль
-	template <typename T, int D, int R>	typename AdaptiveMesh<T, D, R>::tile_t* AdaptiveMesh<T, D, R>::tile_t::find_nb_tile(Ind<D> tpos, bool force) const { 
+	// ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль. Смысл force неясен, сейчас force нигде не используется
+	template <typename T, int D, int R>	typename AdaptiveMesh<T, D, R>::tile_t* AdaptiveMesh<T, D, R>::tile_t::find_nb_tile(Ind<D> tpos, bool force) const {
 		if(parent){
-			int ti = parent->find_child_ID(this); 
+			int ti = parent->find_child_ID(this);
 			for(int k=0; k<D; k++) tpos[k] += bool((1<<k)&ti); // перешли в систему координат родительского тайла
-			if(ind(0)<=tpos && tpos<ind(2)) return parent->childs[pos2zoff(tpos, 1)]; // внутри родительского тайла
-			Ind<D> upos; for(int i=0; i<D; i++){ upos[i] = tpos[i]/2; tpos[i] = (upos[i]+2)%2; } // позиция уровнем выше и доп позиция
+			if(ind(0)<=tpos && tpos<ind(2)) return parent->childs[pos2zoff(tpos, 1)]; // находимся внутри родительского тайла
+			Ind<D> upos; for(int i=0; i<D; i++){ upos[i] = tpos[i]>=0?tpos[i]/2:-1; tpos[i] = (tpos[i]+2)%2; } // позиция уровнем выше и доп позиция
 			tile_t *utile = parent->find_nb_tile(upos, force); // это тайл уровнем выше
 			if(utile){
 				int cht = pos2zoff(tpos, 1);
@@ -618,7 +686,7 @@ namespace aiw{
 			}
 		} else { // это тайл верхнего уровня
 			tpos += root->pos;
-			if(ind(0)<=tpos && tpos<tiles.bbox()) return root->msh->tiles[tpos].root;
+			if(ind(0)<=tpos && tpos<root->msh->tiles.bbox()) return root->msh->tiles[tpos].root;
 		}
 		return nullptr; 
 	}

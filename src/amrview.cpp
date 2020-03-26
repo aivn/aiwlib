@@ -30,7 +30,7 @@ aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::find(aiw::Ind<2> pos){  /
 }
 //------------------------------------------------------------------------------
 void aiw::AdaptiveMeshView::iterator::operator ++ (){	
-	uint32_t imask = ~mask, fix = offset&imask, off0 = offset; 
+	uint32_t imask = ~mask, fix = offset&imask; 
 	offset = (((offset|imask)+1)&mask)|fix;
 	if(offset==fix){ // текущий тайл закончился
 		// Ind<2> start(-1); tile = tile->next_tile(msh, axes, start);
