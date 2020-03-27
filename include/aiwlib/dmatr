@@ -151,27 +151,26 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 #define BODY															\
 	WASSERT(v.size()==M.bbox()[0], "v*M ", v.size(), M.bbox());			\
-	DynVec<Q> t; t.resize(X); for(int x=0; x<X; x++) t[x] = v[0]*M(0, x); \
+	for(int x=0; x<X; x++) t[x] = v[0]*M(0, x);							\
 	for(int y=1; y<Y; y++) for(int x=0; x<X; x++) t[x] += v[y]*M(y, x);	\
 	return t;
 	// v as line
-	template <typename Q> inline DynVec<Q> operator * (const DynVec<Q> &v, const DynMatr<Q> &M){ int Y = v.size(), X = M.bbox()[1]; BODY }
-	template <int Y, typename Q> inline DynVec<Q> operator * (const Vec<Y, Q> &v, const DynMatr<Q> &M){ int X = M.bbox()[1]; BODY }
-	template <int Y, int X, typename Q> inline DynVec<Q> operator * (const DynVec<Q> &v, const Matr<Y, X, Q> &M){ BODY }
+	template <typename Q> inline DynVec<Q> operator * (const DynVec<Q> &v, const DynMatr<Q> &M){ int Y = v.size(), X = M.bbox()[1]; DynVec<Q> t(X); BODY }
+	template <int Y, typename Q> inline DynVec<Q> operator * (const Vec<Y, Q> &v, const DynMatr<Q> &M){ int X = M.bbox()[1]; DynVec<Q> t(X); BODY }
+	template <int Y, int X, typename Q> inline Vec<X, Q> operator * (const DynVec<Q> &v, const Matr<Y, X, Q> &M){ Vec<X, Q> t; BODY }
 #undef BODY
 	//--------------------------------------------------------------------------
 #define BODY													\
 	WASSERT(M.bbox()[1]==v.size(), "M*v ", M.bbox(), v.size());	\
-	DynVec<Q> t; t.resize(Y);									\
 	for(int y=0; y<Y; y++){										\
 		t[y] = v[0]*M(y, 0);									\
 		for(int x=1; x<X; x++) t[y] += v[x]*M(y, x);			\
 	}															\
 	return t; 
 	// v as column
-	template <typename Q> DynVec<Q> operator * (const DynMatr<Q> &M, const DynVec<Q> &v){ int Y = M.bbox()[0], X = v.size(); BODY }
-	template <int X, typename Q> DynVec<Q> operator * (const DynMatr<Q> &M, const Vec<X, Q> &v){ int Y = M.bbox()[0]; BODY }
-	template <int Y, int X, typename Q> DynVec<Q> operator * (const Matr<Y, X, Q> &M, const DynVec<Q> &v){ BODY }
+	template <typename Q> DynVec<Q> operator * (const DynMatr<Q> &M, const DynVec<Q> &v){ int Y = M.bbox()[0], X = v.size(); DynVec<Q> t(Y); BODY }
+	template <int X, typename Q> DynVec<Q> operator * (const DynMatr<Q> &M, const Vec<X, Q> &v){ int Y = M.bbox()[0]; DynVec<Q> t(Y); BODY }
+	template <int Y, int X, typename Q> Vec<Y, Q> operator * (const Matr<Y, X, Q> &M, const DynVec<Q> &v){ Vec<Y, Q> t; BODY }
 #undef BODY
 	//--------------------------------------------------------------------------
 #define BODY															\
