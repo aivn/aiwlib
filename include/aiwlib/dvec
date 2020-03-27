@@ -13,7 +13,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <typename T=double> class Vec{
+	template <typename T=double> class DynVec{
 		std::vector<T> p;
 		void set_x(){}
 		template <typename T2, typename ... Args>
@@ -29,7 +29,7 @@ namespace aiw{
 		template <int D, class T2> operator Vec<D, T2>() const {
 			if(D!=size()) WRAISE("", D, size(), sizeof(T), sizeof(T2));
 			Vec<D, T2> res; for(int i=0; i<D; i++) res[i] = p[i]; 
-			retrun res;
+			return res;
 		}
 		
 		T operator [] (int i) const { 
@@ -75,8 +75,8 @@ namespace aiw{
 			return v; 
 		}
 		template <typename T2> DynVec<decltype(T()/T2())> fmod(const DynVec<T2> &b) const {
-			WASSERT(size()==b.size(), "", size(), b.size());
-			DynVec<decltype(T()/T2())> v; v.resize(size()); for(int i=0; i<D; i++) v[i] = ::fmod(p[i], b[i]); 
+			if(size()!=b.size()) WRAISE("", size(), b.size());
+			DynVec<decltype(T()/T2())> v; v.resize(size()); for(int i=0; i<size(); i++) v[i] = ::fmod(p[i], b[i]); 
 			return v; 
 		}
 
@@ -104,7 +104,7 @@ namespace aiw{
 
 		DynVec reverse() const { DynVec res; res.resize(size()); for(int i=0; i<size(); i++){ res[i] = p[size()-i-1]; } return res; }
 		DynVec operator ~ () const { reverse(); }
-		DynVec sort() const { Vec res = *this; std::sort(res.begin(), res.end()); return res; }
+		DynVec sort() const { DynVec res = *this; std::sort(res.begin(), res.end()); return res; }
 
 		T calc(T x) const { T res = p.back(); for(int i=size()-2; i>=0; i--){ res = p[i]+res*x; } return res; }
 		DynVec diff() const { DynVec res; res.resize(size()-1); for(int i=1; i<size(); i++){ res[i-1] = i*p[i]; } return res; }
@@ -114,26 +114,26 @@ namespace aiw{
 	}; // end of class DynVec
 	//--------------------------------------------------------------------------
 	template <typename T, typename ... Args>
-	inline DynVec<1+sizeof...(Args), T> dvec(T x, Args ... args){ return DynVec<T>(x, args...);	}
+	inline DynVec<T> dvec(T x, Args ... args){ return DynVec<T>(x, args...);	}
 	//--------------------------------------------------------------------------
 	//  compare 
 	//--------------------------------------------------------------------------
 #define VEC_CMP_VEC(OP, CMP, RET)										\
 	template <typename T1, typename T2>									\
 	inline bool operator OP (const DynVec<T1> &a, const DynVec<T2> &b){	\
-		WASSERT(a.size()==b.size(), "op " #OP, a.size(), b.size());		\
+		if(a.size()!=b.size()) WRAISE("op " #OP, a.size(), b.size());	\
 		for(int i=0; i<a.size(); i++) if(a[i] CMP b[i]) return RET;		\
 		return !RET;													\
 	}																	\
 	template <int D, typename T1, typename T2>							\
 	inline bool operator OP (const Vec<D, T1> &a, const DynVec<T2> &b){	\
-		WASSERT(D==1 || D==b.size(), "op " #OP, D, b.size());			\
+		if(D!=1 && D!=b.size()) WRAISE("op " #OP, D, b.size());			\
 		for(int i=0; i<b.size(); i++) if(a[D>1?i:0] CMP b[i]) return RET; \
 		return !RET;													\
 	}																	\
 	template <int D, typename T1, typename T2>							\
 	inline bool operator OP (const DynVec<T1> &a, const Vec<D,T2> &b){	\
-		WASSERT(D==1 || D==a.size(), "op " #OP, a.size(), D);			\
+		if(D!=1 && D!=a.size()) WRAISE("op " #OP, a.size(), D);			\
 		for(int i=0; i<a.size(); i++) if(a[i] CMP b[D>1?i:0]) return RET; \
 		return !RET;													\
 	}																	
@@ -179,21 +179,21 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T1, typename T2> 
 	inline decltype(T1()*T2()) operator * (const DynVec<T1> &a, const DynVec<T2> &b){
-		WASSERT(a.size()==b.size(), "operator *", a.size(), b.size());		
+		if(a.size()!=b.size()) WRAISE("operator * ", a.size(), b.size());		
 		decltype(T1()*T2()) res; if(a.size()) res = a[0]*b[0];
 		for(int i=1; i<a.size(); i++) res += a[i]*b[i];
 		return res;
 	}
 	template <int D, typename T1, typename T2> 
 	inline decltype(T1()*T2()) operator * (const Vec<D, T1> &a, const DynVec<T2> &b){
-		WASSERT(D==1 || D==b.size(), "operator *", D, b.size());		
+		if(D!=1 && D!=b.size()) WRAISE("operator * ", D, b.size());		
 		decltype(T1()*T2()) res; if(b.size()) res = a[0]*b[0];
 		for(int i=1; i<b.size(); i++) res += a[D>1?i:0]*b[i];
 		return res;
 	}
 	template <int D, typename T1, typename T2> 
 	inline decltype(T1()*T2()) operator * (const DynVec<T1> &a, const Vec<D, T2> &b){
-		WASSERT(D==1 || D==a.size(), "operator *", a.size(), D);		
+		if(D!=1 && D==a.size()) WRAISE("operator * ", a.size(), D);		
 		decltype(T1()*T2()) res; if(a.size()) res = a[0]*b[0];
 		for(int i=1; i<a.size(); i++) res += a[i]*b[D>1?i:0];
 		return res;
@@ -201,18 +201,19 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//  binary vectors operations
 	//--------------------------------------------------------------------------
+	
 #define VEC_BIN_OP(OP, ROP, EXC, ED1, E1D, IEXC, IED1)					\
 	template <typename T1, typename T2>									\
 	inline VEC(ROP) operator OP (const DynVec<T1> &a,					\
 								 const DynVec<T2> &b){					\
-		WASSERT(a.size()==b.size(), "op " #OP, a.size(), b.size());		\
+		if(a.size()!=b.size()) WRAISE("op " #OP, a.size(), b.size());	\
 		VEC(ROP) r;	r.resize(a.size());									\
 		for(int i=0; i<a.size(); i++) r[i] = EXC;						\
 		return r;														\
 	}																	\
 	template <int D, typename T1, typename T2>	inline VEC(ROP)			\
 	operator OP (const DynVec<T1> &a, const Vec<D, T2> &b){  			\
-		WASSERT(D==1 || D==a.size(), "op " #OP, a.size(), D);			\
+		if(D!=1 && D!=a.size()) WRAISE("op " #OP, a.size(), D);  		\
 		VEC(ROP) r;	r.resize(a.size());									\
 		if(D==1) for(int i=0; i<a.size(); i++) r[i] = ED1;				\
 		else for(int i=0; i<a.size(); i++) r[i] = EXC;					\
@@ -220,7 +221,7 @@ namespace aiw{
 	}																	\
 	template <int D, typename T1, typename T2>	inline VEC(ROP)			\
 	operator OP (const Vec<D,T1> &a, const DynVec<T2> &b){  			\
-		WASSERT(D==1 || D==b.size(), "op " #OP, D, b.size());			\
+		if(D!=1 && D!=b.size()) WRAISE("op " #OP, D, b.size());			\
 		VEC(ROP) r;	r.resize(a.size());									\
 		if(D==1) for(int i=0; i<b.size(); i++) r[i] = E1D;				\
 		else for(int i=0; i<b.size(); i++) r[i] = EXC;					\
@@ -229,19 +230,19 @@ namespace aiw{
 	template <typename T1, typename T2>									\
 	inline DynVec<T1>& operator OP##= (DynVec<T1> &a,					\
 									   const DynVec<T2> &b){			\
-		WASSERT(a.size()==b.size(), "op " #OP "=", a.size(), b.size());	\
+	if(a.size()!=b.size()) WRAISE("op " #OP "=", a.size(), b.size());	\
 		for(int i=0; i<a.size(); i++) a[i] IEXC;						\
 		return a;														\
 	}																	\
 	template <int D, typename T1, typename T2>  						\
 	inline DynVec<T1>& operator OP##= (DynVec<T1> &a,					\
 									   const Vec<D, T2> &b){			\
-		WASSERT(D==1 || D==a.size(), "op " #OP "=", a.size(), D);		\
-		if(D==1) for(int i=0; i<a.size(); i++) a[i] a[i] = ED1;			\
+		if(D!=1 && D!=a.size()) WRAISE("op " #OP "=", a.size(), D);		\
+		if(D==1) for(int i=0; i<a.size(); i++) a[i] = ED1;				\
 		else for(int i=0; i<a.size(); i++) a[i] IEXC;					\
 		return a;														\
 	}																	
-
+	
 	VEC_BIN_OP(+, +, a[i]+b[i], a[i]+b[0], a[0]+b[i], +=b[i], +=b[0]);					
 	VEC_BIN_OP(-, -, a[i]-b[i], a[i]-b[0], a[0]-b[i], -=b[i], -=b[0]);					
 	VEC_BIN_OP(/, /, a[i]/b[i], a[i]/b[0], a[0]/b[i], /=b[i], /=b[0]);					
@@ -303,8 +304,9 @@ namespace std{
 //---------------------------------------------------------------------------
 	template<typename T> struct less<aiw::DynVec<T> > {
 		bool operator()(const aiw::DynVec<T> &x, const aiw::DynVec<T> &y ) const { 
-			less<T> cmp_l;
-			for(int i=D-1; i>=0; i--){
+			if(x.size()!=y.size()) WRAISE("", x.size(), y.size());
+	        less<T> cmp_l;
+	        for(int i=x.size()-1; i>=0; i--){
 				if(cmp_l(x[i], y[i])) return true;
 				if(cmp_l(y[i], x[i])) return false;
 			}
