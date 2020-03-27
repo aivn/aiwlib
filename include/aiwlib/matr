@@ -20,7 +20,8 @@ namespace aiw{
 			set_row(vvv...);
 		}
 	public:
-		static Ind<2> size(){ return ind(Y, X); }
+		// static Ind<2> size(){ return ind(Y, X); }
+		static Ind<2> bbox(){ return Ind<2>(Y, X); }
 		inline void fill(Q x=0){ for(int i=0; i<X*Y; i++) p[i] = x; }
 		template <typename ... Args> explicit Matr(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==Y, "illegal parametrs count!"); 
@@ -40,7 +41,6 @@ namespace aiw{
 		
 		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline static const Ind<2> bbox() { return Ind<2>(Y, X); }
 		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
@@ -132,6 +132,8 @@ namespace aiw{
 			Q res = p[0]; for(int i=1; i<X; i++) res += p[i*(X+1)];
 			return res;
 		}
+		      Q* data()       { return p; }
+		const Q* data() const { return p; }
 	}; // end of class Matr
 	template <int X, typename Q, typename ... Args>
 	inline Matr<1+sizeof...(Args), X, Q> matr(const Vec<X, Q> &v, Args ... args){
@@ -223,7 +225,7 @@ namespace aiw{
 		}
 		return t; 
 	}
-	template <int Y, int X, typename Q> inline Matr<Y, X, Q> operator ^ (const Vec<Y, Q> &a, const Vec<X, Q> b){  // tensor mult.
+	template <int Y, int X, typename Q> inline Matr<Y, X, Q> operator ^ (const Vec<Y, Q> &a, const Vec<X, Q> &b){  // tensor mult.
 		Matr<Y, X, Q> M; 
 		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) M(y, x) = a[y]*b[x];
 		return M; 
