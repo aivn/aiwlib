@@ -21,6 +21,7 @@ namespace aiw{
 	template <typename T, int D, int R>  class AdaptiveMesh: public aiw::BaseMesh<D>{
 		UsingBaseMeshAttributes;
 		
+		static const int tile_rank = R;
 		static const uint64_t Dbits = ~((~0)<<D);
 		static const uint64_t RDbits = ~((~0)<<(R*D));
 		static const int32_t R1Dbits = ~((~0)<<((R-1)*D));
@@ -69,9 +70,11 @@ namespace aiw{
 				int i = chID>>(6-D); uint64_t m = Dbits<<((chID<<D)&0x3f);
 				return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m);
 			} 
+			bool chunk_is_full(int chID) const { uint64_t mask = Dbits<<((chID<<D)&0x3f); return (usages[0][chID>>(6-D)]&mask)==mask; }
 			
 			uint16_t rank = 0, ch_use = 0, ch_alloc = 0, ch_free = 0;  //  уровень вложения, число занятых, аллоцированных и освобожденных чанков
-			inline uint16_t ch_size() const { return ch_use+ch_alloc-ch_free; }
+			// uint16_t ch_size() const { return ch_use+ch_alloc-ch_free; }
+			virtual uint16_t ch_size() const = 0; 
 			virtual void alloc_chunk(int chID) = 0; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
 
 			inline void activate_cell(int off){   
@@ -204,25 +207,38 @@ namespace aiw{
 			//   2 - занят в другом (легком) тайле
 			//   3 - конфликт, локально чанк выделен в массиве патчей. Не используется? 
 			uint32_t chunks[chunks_sz>>4?chunks_sz>>4:1] = {0}, first_free_chunk = 0, far_ch_sz = 0;  //  первый свободный чанк (оптимизация?) и число сторонних чанков
-			inline int get_chunk_info(int off) const { return (chunks[off>>4]>>(2*(off&0xf)))&3; }
-			inline void set_chunk_info(int off, int val){ chunks[off>>4] &= ~(3<<(2*(off&0xf))); chunks[off>>4] |= (val&3)<<(2*(off&0xf)); }
+			int get_chunk_info(int off) const { return (chunks[off>>4]>>(2*(off&0xf)))&3; }
+			void set_chunk_info(int off, int val){ chunks[off>>4] &= ~(3<<(2*(off&0xf))); chunks[off>>4] |= (val&3)<<(2*(off&0xf)); }
 			void alloc_chunk(int chID) override; // виртуальная, гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
+
+			uint16_t ch_size() const override {
+				int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(get_chunk_info(i));
+				if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
+				return res;
+			}
 
 			T* cell(int cID) override {  // виртуальная, доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
 				int chID = cID>>D;
-				if(patches && patches[chID]) return patches[chID]->data + (cID&Dbits);
-				return get_chunk_info(chID)==1 ? data+cID : nullptr; 
+				// if(patches && patches[chID]) return patches[chID]->data + (cID&Dbits);
+				// return get_chunk_info(chID)==1 ? data+cID : nullptr;
+				T * res;
+				if(patches && patches[chID]) res = patches[chID]->data + (cID&Dbits);
+				else res = get_chunk_info(chID)==1 ? data+cID : nullptr;
+				// if(!res) WOUT(cID, bmin, rank, this);
+				return res;
+
 			}
 			
 			uint16_t alloc_far_chunk(){ // возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
-				for(uint32_t i=first_free_chunk; i<chunks_sz; i++)
-					if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return first_free_chunk = i+1; }
+				// for(uint32_t i=first_free_chunk; i<chunks_sz; i++) if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return first_free_chunk = i+1; }
+				for(uint32_t i=0; i<chunks_sz; i++)	if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return i+1; }
+				// WOUT(this, far_ch_sz);
 				return 0;
 			}
 			void free_far_chunk(uint16_t chID){
 				// chID -= 1;
 				if(patches[chID] && get_chunk_usage(1, chID)){ copy_chunk(patches[chID]->data, data+(int(chID)<<D)); set_chunk_info(chID, 1); }
-				else { set_chunk_info(chID, 0);	if(first_free_chunk>chID) first_free_chunk = chID; }
+				else { set_chunk_info(chID, 0);	/*if(first_free_chunk>chID) first_free_chunk = chID;*/ }
 				patches[chID] = nullptr; far_ch_sz--; 
 			}			
 			// актуализует значение first_free_chunk, обновляет usages и счетчики.
@@ -246,8 +262,20 @@ namespace aiw{
 
 			T* cell(int cID){  // виртуальная, доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
 				int chID = cID>>D;
-				if(patches && patches[chID]) return patches[chID]->data+(cID&Dbits);
-				return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+				// if(patches && patches[chID]) return patches[chID]->data+(cID&Dbits);
+				// return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+				T *res;
+				if(patches && patches[chID]) res = patches[chID]->data+(cID&Dbits);
+				else res = chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+				// if(!res) WOUT(cID, chID, bmin, rank, chunks[chID], this->get_cell_usage(0,cID), this->get_cell_usage(1,cID));
+				return res;
+
+			}
+
+			uint16_t ch_size() const override {
+				int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(chunks[i]);
+				if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
+				return res;
 			}
 
 			void alloc_chunk(int chID); // виртуальная, гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
@@ -301,8 +329,10 @@ namespace aiw{
 			heavy_tile_t* search_page(int sz){ // возвращает наиболее подходящую по размеру страницу. Это можно оптимизировать через бинарный поиск?
 				heavy_tile_t* page = nullptr; int gap = chunks_sz;
 				for(heavy_tile_t &p: htiles){
-					int d = chunks_sz - (int(p.ch_use+p.ch_alloc)+p.far_ch_sz+sz);
-					if(d>=0 && d+p.ch_free<gap){ page = &p; gap = d+p.ch_free; }
+					// int d = chunks_sz - (int(p.ch_use+p.ch_alloc)+p.far_ch_sz+sz);
+					// if(d>=0 && d+p.ch_free<gap){ page = &p; gap = d+p.ch_free; }
+					int d = chunks_sz - int(p.ch_size())-sz;
+					if(d>=0 && d<gap){ page = &p; gap = d; }
 				}
 				if(!page){ htiles.emplace_back(); page = &(htiles.back()); }
 				return page;
@@ -365,6 +395,11 @@ namespace aiw{
 				for(const heavy_tile_t &t: htiles) if(!t.root) t.out_info();
 				root->out_info();
 			}			
+			void tiles2dat(IOstream& S) const {
+				for(const heavy_tile_t &t: htiles) if(t.root) S("%\n%\n\n\n%\n%\n\n\n", t.bmin|t.rank, (t.bmin+t.step*(1<<R))|t.rank,
+																(t.bmin+vec(t.step[0]*(1<<R), 0))|t.rank, (t.bmin+vec(0, t.step[0]*(1<<R)))|t.rank);
+				for(const light_tile_t &t: ltiles) S("%\n%\n\n\n", t.bmin|t.rank, (t.bmin+t.step*(1<<R))|t.rank); // at ???
+			}
 		}; // end of struct root_t
 		// friend class root_t;
 		Mesh<root_t, D> tiles; // базовая (самая крупная) сетка тайлов нулевого ранга
@@ -380,7 +415,7 @@ namespace aiw{
 				r.htiles.emplace_back(); heavy_tile_t *t; r.root = t = &(r.htiles.back()); t->root = &r; t->set_coords(-1);
 				for(int i=0; i<usages_sz; i++) t->usages[0][i] = t->usages[1][i] = ~uint64_t(0); // все ячейки активированы
 				for(int i=0; i<chunks_sz; i++) t->set_chunk_info(i, 1); // все чанки локально заняты
-				t->ch_use = chunks_sz; t->first_free_chunk = chunks_sz;
+				t->ch_use = chunks_sz; // t->first_free_chunk = chunks_sz;
 			}
 		}
 		void init(Ind<D> tbox){ init(tbox, vec(0.), tbox*(1<<R)); }
@@ -447,10 +482,6 @@ namespace aiw{
 			T* operator -> ()       { return ptr; }
 			const T* operator -> () const { return ptr; }
 
-			void* dcell(){ return ptr; }
-			void* dtile(){ return tile; }
-			uint32_t doffset(){ return offset; }
-			
 			const Cell operator [](const Ind<D> &dpos) const { // доступ к соседям
 				Cell res; res.offset = calc_nb_zoffset(dpos, offset|(Dbits<<(R*D)));
 				if(check_out_tile(res.offset)) res.tile = tile->find_nb_tile(zoff2pos<D>((res.offset>>(R*D)), 2)-ind(1)); // попали в другой тайл
@@ -495,9 +526,11 @@ namespace aiw{
 			}
 			
 			T* split(){ // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
+				// if(bmin()==vec(14.,12.)) WOUT(rank());
 				Cell res = child(0); if(!res.activate()) return nullptr; 
 				for(int i=1; i<(1<<D); i++) res.tile->activate_cell(res.offset+i);
 				deactivate(); // ???
+				// if(bmin()==vec(14.,12.)) WOUT(rank());
 				return res.ptr;
 			}
 			void join(){ // деактивирует все подъячейки
@@ -520,7 +553,7 @@ namespace aiw{
 				return bound_;
 			} 
 		protected:
-			template <typename F> void deep2face(F& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank){
+			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank){
 				uint32_t childID = off2tid(off); t = t->childs[childID];
 				if(!t){ WRAISE("", bmin(), this->rank(), rank, axe); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
 				off = (off<<D)&RDbits;
@@ -533,7 +566,7 @@ namespace aiw{
 		public:
 			// f(Cell&, const T&, double доля_площади_грани, double расстояние_от_грани_ДО_центра_СОСЕДНЕЙ_ячейки_по_оси_СО_знаком)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
-			template <typename F>  void face(F& f, int axe){ 
+			template <typename F>  void face(F&& f, int axe){ 
 				if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
 				// считаем offset и тайл соседней ячейки
 				int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1, nb_off = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
@@ -628,6 +661,19 @@ namespace aiw{
 		template <typename SEE_UP_F, typename SEE_DOWN_F> void commit(SEE_UP_F see_up_f, SEE_DOWN_F see_down_f, const std::vector<Ind<D> > &stencil){
 		}
 		// void commit(...){} // реализует отмеченные через итераторы разбиения/слияния, примает ф-ии задания значений в разбитой ячейке и фии измельчения/укрупнения метаинформации?
+		// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split/join(const Cell&, T *chunk_data) 
+		template <typename F_CHECK, typename F_SPLIT, typename F_JOIN> void rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
+			for(auto t: *this) for(auto c: t){
+					if(!(c.offset%(1<<D)) && c.tile->chunk_is_full(c.offset>>D)){ // возможно этот чанк потребует слияния
+						int chk[1<<D], sum_chk = 0;
+						for(int i=0; i<(1<<D); i++){ Cell c2 = c; c2.offset +=i; c2.ptr += i; chk[i] = f_check(c2); sum_chk += chk[i]; }
+						if(sum_chk==-(1<<D)){ Cell p = c.parent(); p.join(); f_join(p); } // чанк требует слияния
+						else for(int i=0; i<(1<<D); i++) if(chk[i]==1){ Cell c2 = c; c2.offset +=i; c2.ptr += i; f_split(c2); }
+						c.offset += (1<<D)-1; c.ptr += (1<<D)-1;
+					} else if(f_check(c)==1){ c.split(); f_split(c); }
+				}
+			commit();
+		}
 		//----------------------------------------------------------------------
 		//   сброс и чтение с диска
 		//----------------------------------------------------------------------
@@ -664,6 +710,9 @@ namespace aiw{
 			return true;
 		}
 		bool load(IOstream& S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
+		//----------------------------------------------------------------------
+		void tiles2dat(IOstream&& S) const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos){ tiles[pos].tiles2dat(S); } }
+		// void tiles2dat(IOstream& S) const { tiles2dat(std::move(S)); }
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
@@ -726,17 +775,22 @@ namespace aiw{
 		heavy_tile_t *page2 = page;
 		if(!page || page->ch_size()<chunks_sz/2 || int(page->ch_use+page->ch_alloc)+ch_size()>chunks_sz || (!page->root && page->far_ch_sz<chunks_sz/2))
 			page2 = root->search_page(ch_use+ch_alloc-ch_free); // пытаемся сменить страницу
+		// if(bmin==vec(14.,12)) WOUT(page2, ch_use, ch_alloc, ch_free, ch_use+ch_alloc-ch_free, page2->ch_size()); 
 		if(page2!=page){ // переносим данные
+			// if(bmin==vec(14.,12)) WOUT(patches[0], this->get_cell_usage(1,0), get_chunk_usage(1, 0)); 
 			for(int i=0; i<chunks_sz; i++){
 				if(get_chunk_usage(1, i)){
 					int chID = page2->alloc_far_chunk();
 					if(patches[i]) copy_chunk(patches[i]->data, page2->data+((chID-1)<<D)); 
 					else { copy_chunk(page->data+((chunks[i]-1)<<D), page2->data+((chID-1)<<D)); page->free_far_chunk(chunks[i]-1); }
 					chunks[i] = chID;
+					// if(bmin==vec(14.,12)) WOUT(i, chunks[i], chID, patches[i]); 
 				}
 				patches[i] = nullptr;
 			}
+			// if(bmin==vec(14.,12)) WOUT(chunks[0], this->get_cell_usage(0,0), this->get_cell_usage(1,0), get_chunk_usage(0, 0), get_chunk_usage(1, 0)); 
 			page = page2;  commit_usages();
+			// if(bmin==vec(14.,12)) WOUT(chunks[0], this->get_cell_usage(0,0), this->get_cell_usage(1,0), get_chunk_usage(0, 0), get_chunk_usage(1, 0)); 
 		} else { // остаемся на той же странице, самый частый вариант. Занулить весь patches[i]?
 			for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){
 					for(int I=i>>(6-D); I<((i+1)>>(6-D)); I++){
@@ -790,7 +844,7 @@ namespace aiw{
 					for(int chID=i>>(6-D); chID<((i+1)>>(6-D)); chID++){
 						int u = get_chunk_usage(chID), s = get_chunk_info(chID);
 						if(u==1){ // чанк был локально освобожден
-							if(s!=2){ set_chunk_info(chID, 0); if(first_free_chunk>chID) first_free_chunk = chID; }
+							if(s!=2){ set_chunk_info(chID, 0); /* if(first_free_chunk>chID) first_free_chunk = chID; */ }
 						} else if(u==2){ set_chunk_info(chID, 1); } // чанк был локально выделен
 					}
 				}
