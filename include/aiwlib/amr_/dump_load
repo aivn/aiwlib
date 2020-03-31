@@ -1,0 +1,85 @@
+// -*- C++ -*-
+#ifndef AIW_AMR_DUMP_LOAD_HPP
+#define AIW_AMR_DUMP_LOAD_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::dump(IOstream& S) const {
+		S<D<int(sizeof(T))<R<pos; std::map<const void*, int> tbl; tbl[0] = 0;
+		for(const heavy_tile_t &t: htiles){ int ID = tbl.size(); tbl[&t] = ID; } 
+		S<int(tbl.size()); // число тяжелых тайлов+1
+		for(const light_tile_t &t: ltiles){ int ID = tbl.size(); tbl[&t] = ID; }
+		S<int(tbl.size())<tbl[root];  // общее число тайлов и номер корневого тайла
+		for(const heavy_tile_t &t: htiles){
+			S<t.rank<t.ch_use<t.far_ch_sz<tbl[t.parent]; for(int i=0; i<(1<<D); i++) S<tbl[t.childs[i]];
+			S<t.usages[0]<t.usages[2]<t.chunks; S.write(t.data, sizeof(T)*tile_sz); 
+		}
+		for(const light_tile_t &t: ltiles){
+			S<t.rank<t.ch_use<tbl[t.page]<tbl[t.parent]; for(int i=0; i<(1<<D); i++) S<tbl[t.childs[i]];
+			S<t.usages[0]<t.usages[2]<t.chunks; 
+		}
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::root_t::load(IOstream& S){
+		size_t stell = S.tell(); int Di, szT, Ri; S>Di>szT>Ri; if(D!=Di || sizeof(T)!=szT || R!=Ri){
+			S.seek(stell); WERR(Di, D, szT, Ri, R,  sizeof(T));
+			return false;
+		}
+		int h_sz, hl_sz, rID; S>pos>h_sz>hl_sz>rID; 
+		htiles.clear(); ltiles.clear(); std::vector<heavy_tile_t*> htbl(h_sz, 0); std::vector<tile_t*> tbl(hl_sz, 0); 
+		for(int i=1; i<h_sz; i++){ htiles.emplace_back(); tbl[i] = htbl[i] = &htiles.back(); }
+		for(int i=h_sz; i<hl_sz; i++){ ltiles.emplace_back(); tbl[i] = &ltiles.back(); }
+		root = tbl[rID]; tbl[rID]->root = this; 
+		int I;
+		for(heavy_tile_t &t: htiles){
+			S>t.rank>t.ch_use>t.far_ch_sz>I; t.parent = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl[I]; }
+			S>t.usages[0]>t.usages[2]>t.chunks; S.read(t.data, sizeof(T)*tile_sz);
+			if(t.rank) t.root = this; for(int i=0; i<usages_sz; i++) t.usages[1][i] = t.usages[0][i];
+		}
+		for(light_tile_t &t: ltiles){
+			S>t.rank>t.ch_use>I; t.page = htbl[I]; S>I; t.parent = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl[I]; }
+			S>t.usages[0]>t.usages[2]>t.chunks; t.root = this; for(int i=0; i<usages_sz; i++) t.usages[1][i] = t.usages[0][i]; 
+		}
+		root->set_coords(-1);
+		return true;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::dump(IOstream&& S) const {			
+		int h_sz = head.size()+5+D*16; if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
+		char h[h_sz]; for(int i=0; i<h_sz; i++) h[i] = 0; // for old gcc versions
+		memcpy(h, head.c_str(), head.size()); 
+		memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
+		S<h_sz; S.write(h, h_sz); S<(D|(1<<31))<int(sizeof(T))<R<tiles.bbox();  // пишем заголовок
+		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].dump(S);
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::load(IOstream&& S, int use_mmap, bool raise_on_error){ // mmap пока игнорируется
+		std::string h; int rD=-1, szT=-1, rR=-1;  size_t s = S.tell(); S>h>rD>szT>rR;
+		if(S.tell()-s!=16+h.size()){ S.seek(s); return false; }
+		if(rD!=(D|(1<<31)) || szT!=sizeof(T) || rR!=R){ 
+			S.seek(s); 
+			if(raise_on_error){ WRAISE("incorrect AdaptiveMesh::load(): ", D, rD, sizeof(T), szT, R, rR, S.name, S.tell(), h); }
+			else return false;
+		}
+		head = h.c_str(); Ind<D> box_; S>box_; 
+		Vec<D> bmin_, bmax_= box_, step_; int logscale_=0;
+		if(h.size()>head.size()+4+D*16){
+			int i = head.size(), i0 = h.size()-(4+D*16); while(i<i0 && h[i]==0) i++;
+			if(i==i0){
+				memcpy(&bmin_, h.c_str()+i0, D*8); i0 += D*8;
+				memcpy(&bmax_, h.c_str()+i0, D*8); i0 += D*8;
+				memcpy(&logscale_, h.c_str()+i0, 4);
+			}
+		}
+		init(box_, bmin_, bmax_);
+		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].load(S);
+		return true;
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_AMR_DUMP_LOAD_HPP

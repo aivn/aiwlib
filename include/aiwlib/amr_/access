@@ -1,0 +1,161 @@
+// -*- C++ -*-
+#ifndef AIW_AMR_ACCESS_HPP
+#define AIW_AMR_ACCESS_HPP
+
+/**
+ * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль. Смысл force неясен, сейчас force нигде не используется
+	template <typename T, int D, int R>	typename AdaptiveMesh<T, D, R>::tile_t* AdaptiveMesh<T, D, R>::tile_t::find_nb_tile(Ind<D> tpos, bool force) const {
+		if(parent){
+			int ti = parent->find_child_ID(this);
+			for(int k=0; k<D; k++) tpos[k] += bool((1<<k)&ti); // перешли в систему координат родительского тайла
+			if(ind(0)<=tpos && tpos<ind(2)) return parent->childs[pos2zoff(tpos, 1)]; // находимся внутри родительского тайла
+			Ind<D> upos; for(int i=0; i<D; i++){ upos[i] = tpos[i]>=0?tpos[i]/2:-1; tpos[i] = (tpos[i]+2)%2; } // позиция уровнем выше и доп позиция
+			tile_t *utile = parent->find_nb_tile(upos, force); // это тайл уровнем выше
+			if(utile){
+				int cht = pos2zoff(tpos, 1);
+				if(force && !utile->childs[cht]){
+					root->ltiles.emplace_back(); utile->childs[cht] = &(root->ltiles.back());
+					utile->childs[cht]->parent = utile;  utile->childs[cht]->root = root;
+					utile->childs[cht]->set_coords(cht);
+				}
+				return utile->childs[cht];
+			}
+		} else { // это тайл верхнего уровня
+			tpos += root->pos;
+			if(ind(0)<=tpos && tpos<root->msh->tiles.bbox()) return root->msh->tiles[tpos].root;
+		}
+		return nullptr; 
+	}
+	//--------------------------------------------------------------------------
+	// при необходимости рекурсивно спускается вниз по тайлу
+	// неоптимизировано, trmode не поддерживается, только для НЕПРЕРЫВНОГО ПОЛЯ
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::first(cell_t &C, int trmode, int start){ 
+		if(get_cell_usage(0, start)){ C.offset = start; C.ptr = cell(start); C.tile = this;	return true;  }
+		int tid = cID2ctID(start); if(childs[tid]) return childs[tid]->first(C, trmode, (start<<D)&RDbits);
+		return false; 
+	}
+	//--------------------------------------------------------------------------
+	// ходит вверх по тайлам, для спуска вызывает first
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::next(cell_t &C, int trmode){
+		if(C.offset+1<tile_sz && first(C, trmode, C.offset+1)) return true;
+		tile_t *t = this, *p = parent; uint32_t i = C.offset;
+		while(p){
+			i = (p->find_child_ID(t)<<((R-1)*D))|(i>>D); // смещение уровнем выше
+			if(i+1<tile_sz && p->first(C, trmode, i+1)) return true;
+			t = p; p = t->parent;
+		}
+		return false;
+	} 
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> T* AdaptiveMesh<T, D, R>::heavy_tile_t::cell(int cID){  // если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
+		int chID = cID>>D;
+		if(patches && patches[chID]) return patches[chID]->data + (cID&Dbits);
+		return get_chunk_info(chID)==1 ? data+cID : nullptr;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> T* AdaptiveMesh<T, D, R>::light_tile_t::cell(int cID){  // если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
+		int chID = cID>>D;
+		// if(patches && patches[chID]) return patches[chID]->data+(cID&Dbits);
+		// return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+		T *res;
+		if(patches && patches[chID]) res = patches[chID]->data+(cID&Dbits);
+		else res = chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
+		// if(!res) WOUT(cID, chID, bmin, rank, chunks[chID], this->get_cell_usage(0,cID), this->get_cell_usage(1,cID));
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	//  Cell
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> const typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::operator [](const Ind<D> &dpos) const { // доступ к соседям
+		Cell res; res.offset = calc_nb_zoffset(dpos, offset|(Dbits<<(R*D)));
+		if(check_out_tile(res.offset)) res.tile = tile->find_nb_tile(zoff2pos<D>((res.offset>>(R*D)), 2)-ind(1)); // попали в другой тайл
+		else res.tile = tile;
+		res.offset &= RDbits; res.ptr = res.is_used()? res.tile->cell(res.offset): nullptr; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::parent(){  // доступ к родительской ячейке
+		Cell res; res.tile = tile->parent; res.offset = offset>>D;
+		if(res.tile){ res.offset |= res.tile->find_child_ID(tile)<<((R-1)*D); res.ptr = res.tile->cell(res.offset); }
+		if(!is_used() && !res.is_used() && !res.will_be_used()){ res.tile = nullptr; res.ptr = nullptr; } // защита от расслаивания???
+		return res;
+	} 
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::child(int scID){ // доступ к подъячейке, 0<=scID<8
+		Cell res; res.tile = tile->childs[offset>>((R-1)*D)]; res.offset = ((offset<<D)&RDbits)|scID;
+		// WOUT(tile, scID, offset, ptr, is_used(), res.tile, res.offset, res.ptr);
+		if(is_used()){
+			if(!res.tile){ // размещаем новый легкий тайл, он НЕ АССОЦИИРОВАН СО СТРАНИЦЕЙ! 
+				tile->root->ltiles.emplace_back(); res.tile = &(tile->root->ltiles.back()); res.tile->rank = tile->rank+1;
+				res.tile->parent = tile; res.tile->root = tile->root; tile->childs[offset>>((R-1)*D)] = res.tile;
+				res.tile->set_coords(offset>>((R-1)*D));
+			}
+		} else if(!res.is_used()) res.tile = nullptr; // защита от расслаивания???
+		if(res.tile) res.ptr = res.tile->cell(res.offset);
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> template<typename F>
+	void AdaptiveMesh<T, D, R>::Cell::deep2face(F&& f, typename AdaptiveMesh<T, D, R>::tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank){
+		uint32_t childID = cID2ctID(off); t = t->childs[childID];
+		if(!t){ WRAISE("", bmin(), this->rank(), rank, axe); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
+		off = (off<<D)&RDbits;
+		double dS = 1./(1<<(D*(t->rank+1-rank)));
+		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
+				if(t->get_cell_usage(0, off+i)) f(*this, *(t->cell(off+i)), dS, t->step[axe]*.5);
+				else deep2face(f, t, off+i, mask, res4cmp, axe, rank);
+			}				
+	}
+	//--------------------------------------------------------------------------
+	// f(Cell&, const T&, double доля_площади_грани, double расстояние_от_грани_ДО_центра_СОСЕДНЕЙ_ячейки_по_оси_СО_знаком)
+	// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
+	template <typename T, int D, int R> template<typename F> void AdaptiveMesh<T, D, R>::Cell::face(F&& f, int axe){ 
+		if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
+		// считаем offset и тайл соседней ячейки
+		int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1, nb_off = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
+		if(bound()&(1<<(2*a+(axe>0)))){ f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); return; } // это граничная ячейка
+		Ind<D> nbt_pos; nbt_pos[a] = sign; tile_t *nb_tile = check_out_tile(nb_off)? tile->find_nb_tile(nbt_pos): tile;
+		
+		uint32_t old_nb_off = nb_off;
+		
+		nb_off &= RDbits;
+		
+		bool way_up = nb_tile && nb_tile->parent;
+		if(nb_tile){
+			if(nb_tile->get_cell_usage(0, nb_off)){ f(*this, *(nb_tile->cell(nb_off)), 1., nb_tile->step[a]*sign*.5); return; } // один сосед на том же уровне
+			if(nb_tile->get_cell_split(false, nb_off)) way_up = false; //  точно идем вниз, много мелких соседей
+		} else if(tile->parent) {  //  мы на границе тайла текущего уровня
+			tile_t *t = tile, *p = t->parent; uint32_t off = offset; // old_nb_off>>D;
+			while(p){
+				off = (p->find_child_ID(t)<<((R-1)*D))|(off>>D); // смещение родительской ячейки в тайле выше
+				nb_off = calc_nb_zoffset<D>(a, sign, off|(Dbits<<(R*D))); // соседняя ячейка уровнем выше
+				if(check_out_tile(nb_off)){ // попали в соседний тайл уровнем выше
+					nb_off &= RDbits;
+					tile_t* nbt = p->find_nb_tile(nbt_pos);
+					if(nbt && nbt->get_cell_usage(0, nb_off)){ f(*this, *(nbt->cell(nb_off)), 1., nbt->step[a]*sign*.5); return; }
+				} else if(p->get_cell_usage(0, nb_off&RDbits)){ f(*this, *(p->cell(nb_off&RDbits)), 1., p->step[a]*sign*.5); return; } // остались в верхнем тайле
+				t = p; p = t->parent;
+			}
+			WRAISE("", bmin(), rank());
+		}
+		if(way_up){  // пробуем подняться, один большой сосед по грани
+			tile_t *t = nb_tile, *p = t->parent; uint32_t uoff = nb_off;
+			while(p){
+				uoff = (p->find_child_ID(t)<<((R-1)*D))|(uoff>>D);
+				if(p->get_cell_usage(0, uoff)){ f(*this, *(p->cell(uoff)), 1., p->step[a]*sign*.5); return; } // тут хорошо бы проверить расположение ячейки?
+				t = p; p = t->parent;
+			}
+		}
+		// подняться не удалось, идем вниз - много мелких соседей
+		if(nb_tile) deep2face(f, nb_tile, nb_off, 1<<a, bool(axe<0)<<a, a, tile->rank);
+		else f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); 
+	}
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_AMR_ACCESS_HPP
