@@ -3,11 +3,31 @@
 #define AIW_AMR_MEMORY_HPP
 
 /**
- * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2019-20 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
 namespace aiw{
+	//--------------------------------------------------------------------------
+	// разбивает ячейку, возвращает указатель на данные чанка
+	template <typename T, int D, int R> T* AdaptiveMesh<T, D, R>::tile_t::split_cell(int off){
+		int tID = off>>((R-1)*D), chID = off&R1Dbits; tile_t *t = childs[tID]; // дочерние тайл и чанк
+		if(!t){ // размещаем новый легкий тайл, он НЕ АССОЦИИРОВАН СО СТРАНИЦЕЙ! 
+			root->ltiles.emplace_back(); t = &(root->ltiles.back()); t->rank = rank+1;
+			t->root = root; t->parent = this; childs[tID] = t; t->set_coords(tID);
+		}
+		t->alloc_chunk(chID); t->usages[1][chID>>(6-D)] |= Dbits<<((chID<<D)&0x3f);
+		usages[1][off>>6] &= ~(uint64_t(1)<<(off&0x3f));
+		return t->cell(chID<<D);
+	}
+	// объединяет чанк, возвращает родительскую ячейку
+	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::cell_t AdaptiveMesh<T, D, R>::tile_t::join_chunk(int chID){
+		usages[1][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f)); // деактивируем чанк
+		cell_t res; res.tile = parent; res.offset = (parent->find_child_ID(this)<<(D*(R-1)))|chID; 
+		parent->alloc_chunk(res.offset>>D); parent->usages[1][res.offset>>6] |= uint64_t(1)<<(res.offset&0x3f);
+		res.ptr = parent->cell(res.offset);
+		return res;
+	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> AdaptiveMesh<T, D, R> AdaptiveMesh<T, D, R>::copy() const {
 		AdaptiveMesh res = *this; res.tiles = tiles.copy();

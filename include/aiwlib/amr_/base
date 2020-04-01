@@ -30,11 +30,11 @@ namespace aiw{
 		bool s2 = get_chunk_usage(1, chID); ch_free += s01==3 && !s2; ch_alloc -= (s01==2) && !s2; 
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::deactivate_chunk(int chID){ 
+	/* template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::deactivate_chunk(int chID){ 
 		int s01 = get_chunk_usage(chID);
 		usages[1][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f));
 		ch_free += s01==3; ch_alloc -= (s01==2); 
-	}
+		} */
 	//--------------------------------------------------------------------------
 	//   heavy_tile_t
 	//--------------------------------------------------------------------------			

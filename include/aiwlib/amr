@@ -73,7 +73,7 @@ namespace aiw{
 
 			void activate_cell(int off);
 			void deactivate_cell(int off);
-			void deactivate_chunk(int chID);
+			// void deactivate_chunk(int chID);
 
 			void commit_usages(){ ch_use += ch_alloc; ch_alloc = 0; ch_use -= ch_free; for(int i=0; i<usages_sz; i++) usages[0][i] = usages[1][i]; }
 
@@ -91,6 +91,9 @@ namespace aiw{
 
 			virtual void out_info() const = 0;
 			uint32_t get_tile_pos() const {	return parent? (parent->get_tile_pos()<<D)|parent->find_child_ID(this): 0; }
+
+			T* split_cell(int off);       // разбивает ячейку, возвращает указатель на данные чанка
+			cell_t join_chunk(int chID);  // объединяет чанк, возвращает родительскую ячейку
 		}; // end of struct tile_t
 		//----------------------------------------------------------------------
 #define USING_TT_ATTRS using tile_t::root; using tile_t::bmin; using tile_t::step; \

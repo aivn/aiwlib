@@ -3,7 +3,7 @@
 #define AIW_AMR_ACCESS_HPP
 
 /**
- * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2019-20 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -66,7 +66,7 @@ namespace aiw{
 		T *res;
 		if(patches && patches[chID]) res = patches[chID]->data+(cID&Dbits);
 		else res = chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
-		// if(!res) WOUT(cID, chID, bmin, rank, chunks[chID], this->get_cell_usage(0,cID), this->get_cell_usage(1,cID));
+		// if(!res || size_t(res)==0xc000000000000) WOUT(res, cID, chID, bmin, rank, chunks[chID], this->get_cell_usage(0,cID), this->get_cell_usage(1,cID));
 		return res;
 	}
 	//--------------------------------------------------------------------------
@@ -83,20 +83,20 @@ namespace aiw{
 	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::parent(){  // доступ к родительской ячейке
 		Cell res; res.tile = tile->parent; res.offset = offset>>D;
 		if(res.tile){ res.offset |= res.tile->find_child_ID(tile)<<((R-1)*D); res.ptr = res.tile->cell(res.offset); }
-		if(!is_used() && !res.is_used() && !res.will_be_used()){ res.tile = nullptr; res.ptr = nullptr; } // защита от расслаивания???
+		// if(!is_used() && !res.is_used() && !res.will_be_used()){ res.tile = nullptr; res.ptr = nullptr; } // защита от расслаивания???
 		return res;
 	} 
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::child(int scID){ // доступ к подъячейке, 0<=scID<8
 		Cell res; res.tile = tile->childs[offset>>((R-1)*D)]; res.offset = ((offset<<D)&RDbits)|scID;
 		// WOUT(tile, scID, offset, ptr, is_used(), res.tile, res.offset, res.ptr);
-		if(is_used()){
+		// if(is_used()){
 			if(!res.tile){ // размещаем новый легкий тайл, он НЕ АССОЦИИРОВАН СО СТРАНИЦЕЙ! 
 				tile->root->ltiles.emplace_back(); res.tile = &(tile->root->ltiles.back()); res.tile->rank = tile->rank+1;
 				res.tile->parent = tile; res.tile->root = tile->root; tile->childs[offset>>((R-1)*D)] = res.tile;
 				res.tile->set_coords(offset>>((R-1)*D));
 			}
-		} else if(!res.is_used()) res.tile = nullptr; // защита от расслаивания???
+			// }  else if(!res.is_used()) res.tile = nullptr; // защита от расслаивания???
 		if(res.tile) res.ptr = res.tile->cell(res.offset);
 		return res;
 	}
@@ -108,7 +108,7 @@ namespace aiw{
 		off = (off<<D)&RDbits;
 		double dS = 1./(1<<(D*(t->rank+1-rank)));
 		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
-				if(t->get_cell_usage(0, off+i)) f(*this, *(t->cell(off+i)), dS, t->step[axe]*.5);
+				if(t->get_cell_usage(0, off+i)) f(*(t->cell(off+i)), dS, t->step[axe]*.5);
 				else deep2face(f, t, off+i, mask, res4cmp, axe, rank);
 			}				
 	}
@@ -119,7 +119,7 @@ namespace aiw{
 		if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
 		// считаем offset и тайл соседней ячейки
 		int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1, nb_off = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
-		if(bound()&(1<<(2*a+(axe>0)))){ f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); return; } // это граничная ячейка
+		if(bound()&(1<<(2*a+(axe>0)))){ f(*(T*)(nullptr), 1., tile->step[a]*sign*.5); return; } // это граничная ячейка
 		Ind<D> nbt_pos; nbt_pos[a] = sign; tile_t *nb_tile = check_out_tile(nb_off)? tile->find_nb_tile(nbt_pos): tile;
 		
 		uint32_t old_nb_off = nb_off;
@@ -128,7 +128,7 @@ namespace aiw{
 		
 		bool way_up = nb_tile && nb_tile->parent;
 		if(nb_tile){
-			if(nb_tile->get_cell_usage(0, nb_off)){ f(*this, *(nb_tile->cell(nb_off)), 1., nb_tile->step[a]*sign*.5); return; } // один сосед на том же уровне
+			if(nb_tile->get_cell_usage(0, nb_off)){ f(*(nb_tile->cell(nb_off)), 1., nb_tile->step[a]*sign*.5); return; } // один сосед на том же уровне
 			if(nb_tile->get_cell_split(false, nb_off)) way_up = false; //  точно идем вниз, много мелких соседей
 		} else if(tile->parent) {  //  мы на границе тайла текущего уровня
 			tile_t *t = tile, *p = t->parent; uint32_t off = offset; // old_nb_off>>D;
@@ -138,8 +138,8 @@ namespace aiw{
 				if(check_out_tile(nb_off)){ // попали в соседний тайл уровнем выше
 					nb_off &= RDbits;
 					tile_t* nbt = p->find_nb_tile(nbt_pos);
-					if(nbt && nbt->get_cell_usage(0, nb_off)){ f(*this, *(nbt->cell(nb_off)), 1., nbt->step[a]*sign*.5); return; }
-				} else if(p->get_cell_usage(0, nb_off&RDbits)){ f(*this, *(p->cell(nb_off&RDbits)), 1., p->step[a]*sign*.5); return; } // остались в верхнем тайле
+					if(nbt && nbt->get_cell_usage(0, nb_off)){ f(*(nbt->cell(nb_off)), 1., nbt->step[a]*sign*.5); return; }
+				} else if(p->get_cell_usage(0, nb_off&RDbits)){ f(*(p->cell(nb_off&RDbits)), 1., p->step[a]*sign*.5); return; } // остались в верхнем тайле
 				t = p; p = t->parent;
 			}
 			WRAISE("", bmin(), rank());
@@ -148,13 +148,13 @@ namespace aiw{
 			tile_t *t = nb_tile, *p = t->parent; uint32_t uoff = nb_off;
 			while(p){
 				uoff = (p->find_child_ID(t)<<((R-1)*D))|(uoff>>D);
-				if(p->get_cell_usage(0, uoff)){ f(*this, *(p->cell(uoff)), 1., p->step[a]*sign*.5); return; } // тут хорошо бы проверить расположение ячейки?
+				if(p->get_cell_usage(0, uoff)){ f(*(p->cell(uoff)), 1., p->step[a]*sign*.5); return; } // тут хорошо бы проверить расположение ячейки?
 				t = p; p = t->parent;
 			}
 		}
 		// подняться не удалось, идем вниз - много мелких соседей
 		if(nb_tile) deep2face(f, nb_tile, nb_off, 1<<a, bool(axe<0)<<a, a, tile->rank);
-		else f(*this, *(T*)(nullptr), 1., tile->step[a]*sign*.5); 
+		else f(*(T*)(nullptr), 1., tile->step[a]*sign*.5); 
 	}
 	//--------------------------------------------------------------------------
 };

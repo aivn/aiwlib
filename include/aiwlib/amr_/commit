@@ -3,7 +3,7 @@
 #define AIW_AMR_COMMIT_HPP
 
 /**
- * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2019-20 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -72,7 +72,7 @@ namespace aiw{
 				}
 			commit_usages();
 		}
-		return ch_use;
+		return chunks_sz-free_chunks_sz();
 	}		
 	// актуализует значение first_free_chunk, обновляет usages и счетчики.
 	// ПЕРЕД вызовом для конфликтных чанков должно быть освобождено место, ВСЕ патчи считаются примененными!
@@ -118,13 +118,13 @@ namespace aiw{
 	template <typename T, int D, int R> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 	void AdaptiveMesh<T, D, R>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
 		for(auto t: *this) for(auto c: t){
-				if(!(c.offset%(1<<D)) && c.tile->chunk_is_full(c.offset>>D)){ // возможно этот чанк потребует слияния
+				if(!(c.offset%(1<<D)) && c.tile->rank>0 && c.tile->chunk_is_full(c.offset>>D)){ // возможно этот чанк потребует слияния
 					int chk[1<<D], sum_chk = 0;
 					for(int i=0; i<(1<<D); i++){ Cell c2 = c; c2.offset +=i; c2.ptr += i; chk[i] = f_check(c2); sum_chk += chk[i]; }
-					if(sum_chk==-(1<<D)){ Cell p = c.parent(); p.join(); f_join(p); } // чанк требует слияния
-					else for(int i=0; i<(1<<D); i++) if(chk[i]==1){ Cell c2 = c; c2.offset += i; c2.ptr += i; c2.split(); f_split(c2); }
+					if(sum_chk==-(1<<D)){ Cell p; (cell_t&)p = c.tile->join_chunk(c.offset>>D); f_join(p, c.ptr); } // чанк действительно потребовал слияния
+					else for(int i=0; i<(1<<D); i++) if(chk[i]==1){ Cell c2 = c; c2.offset += i; c2.ptr += i; f_split(c2, c.tile->split_cell(c2.offset)); }
 					c.offset += (1<<D)-1; c.ptr += (1<<D)-1;
-				} else if(f_check(c)==1){ c.split(); f_split(c); }
+				} else if(f_check(c)==1) f_split(c, c.tile->split_cell(c.offset));
 			}
 		commit();
 	}
