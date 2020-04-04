@@ -30,43 +30,52 @@ aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::core_t::find(aiw::Ind<2> 
 }
 //------------------------------------------------------------------------------
 void aiw::AdaptiveMeshView::iterator::next(){	
-	imin += msh->off; imax += msh->off;
-	uint32_t imask = ~mask, fix = offset&imask; 
-	offset = (((offset|imask)+1)&mask)|fix;
+	// imin += msh->off; imax += msh->off;  // переходим в глобальную систему координат
+	uint32_t imask = ~mask, fix = offset&imask; offset = (((offset|imask)+1)&mask)|fix;
 	if(offset==fix){ // текущий тайл закончился
 		tile_t *root = tile->root();  Ind<2> p1(root->pos[axes[0]], root->pos[axes[1]]);  // тайл нулевого уровня и его угол
+		int dT = 1<<(msh->core->R + msh->core->max_rank - tile->rank); // размер тайла текущего уровня
 		if(tile->parent){
-			Ind<Dmax> p0 = (tile->pos - root->pos)/(1<<(msh->core->R + msh->core->max_rank - tile->rank));  // исходная позиция в тайле нулевого уровня
+			Ind<Dmax> p0 = (tile->pos - root->pos)/dT;  // позиция текущего тайла в тайле нулевого уровня
 			offset = 0; mask = 0;
 			for(int i=0; i<msh->core->D; i++){
 				offset += interleave_bits(msh->core->D, p0[i], tile->rank)<<i;
 				for(int k=0; k<tile->rank; k++) mask |= 1<<(msh->core->D*k+i);
 			}
 			imask = ~mask; fix = offset&imask; offset = (((offset|imask)+1)&mask)|fix;
-			if(offset!=fix){
-				for(int i=0; i<2; i++) p1[i] += de_interleave_bits(msh->core->D, offset>>axes[i], tile->rank)*(1<<(msh->core->R+msh->core->max_rank-tile->rank));
-				*this = msh->find(p1);
+			if(offset!=fix){ // мы остались в том же тайле нулевого уровня, offset задает следующий тайл для текущего ранга разбиения
+				for(int i=0; i<2; i++) p1[i] += de_interleave_bits(msh->core->D, offset>>axes[i], tile->rank)*dT;
+				*this = msh->core->find(p1, msh); imin -= msh->off;  imax -= msh->off; 
 				return;
 			}
-		}
-		p1 /= (1<<(msh->core->max_rank+msh->core->R)); p1[axes[0]]++;				
+		} // если мы попали сюда значит тайл нулевого уровня так или иначе закончился, ищем следующий
+		dT = 1<<(msh->core->max_rank+msh->core->R); p1 /= dT; p1[axes[0]]++;				
 		if(p1[axes[0]]>=msh->core->box[axes[0]]){
 			p1[axes[0]] = 0; p1[axes[1]]++;
 			if(p1[axes[1]]>=msh->core->box[axes[1]]){ tile = nullptr; return; } // обход закончен
 		}
-		*this = msh->find(p1*(1<<(msh->core->max_rank+msh->core->R))); 
+		*this = msh->core->find(p1*dT, msh);  imin -= msh->off;  imax -= msh->off;
 		return;
 	}
-
 	int csz = 1<<(msh->core->max_rank-tile->rank);
-	for(int i=0; i<2; i++){  // считаем bmin, bmax
-		imin[i] = tile->pos[axes[i]] + de_interleave_bits(msh->core->D, offset>>axes[i], msh->core->R)*csz;
+	for(int i=0; i<2; i++){  // считаем imin, imax
+		imin[i] = tile->pos[axes[i]] + de_interleave_bits(msh->core->D, offset>>axes[i], msh->core->R+tile->rank)*csz;
 		imax[i] = imin[i]+csz;
 	}
-	if(tile->split[offset] || !tile->usage[offset]) *this = msh->find(imin);
-	else{ imin -= msh->off; imax -= msh->off; } 
+	if(tile->split[offset] || !tile->usage[offset]) *this = msh->core->find(imin, msh);
+	imin -= msh->off; imax -= msh->off; 
+	// *this = msh->core->find(imin, msh);
 }
 //------------------------------------------------------------------------------
+bool aiw::AdaptiveMeshView::iterator::tile_bound(int axe) const { // axe - номер оси + 1 со знаком (-слева, +справа) т.е. -/+1, -/+2
+	uint32_t D = msh->core->D, R = msh->core->R, Dbits = 1<<axes[abs(axe)-1], RDbits = (~uint32_t(0))>>(32-R*D);
+	uint32_t off = offset, zm = (zmasks[D-1]<<axes[abs(axe)-1])&RDbits;
+	for(tile_t *t = tile; t; t=t->childs[off>>((R-1)*D)]){
+		if((axe<0 && !(zm&off))||(axe>0 && (off&zm)==zm)) return true;
+		off = (axe<0? off<<D: (off<<D)|Dbits)&RDbits;
+	}
+	return false;
+}
 //void aiw::AdaptiveMeshView::clear(){}
 //------------------------------------------------------------------------------
 template <typename T> void read_vector(aiw::IOstream& S, std::vector<T> &V, int sz){ V.resize(sz); S.read(V.data(), sz*sizeof(T)); }

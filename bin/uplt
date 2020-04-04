@@ -110,6 +110,11 @@ slice_pos = aiwScale(panel, 'slice position', command=replot, length=panel_sz, s
 frame = Frame(panel); frame.pack(side=TOP, anchor=W)
 phi0 = aiwEntry(frame, 0, replot, 'phi0', pack={'side':LEFT}, width=3)
 mollweide, sph_interp = [aiwCheck(frame, ('mollweide', 'interp')[i], False, command=replot, pack={'side':LEFT}) for i in (0,1)]
+
+frame = Frame(panel); frame.pack(side=TOP, anchor=W)
+offset_in_cell = aiwEntry(frame, 0, replot, 'cell offset', pack={'side':LEFT}, width=3)
+plot_bound_cell = aiwCheck(frame, 'bounds', command=replot, pack={'side':LEFT})
+plot_bound_tile = aiwCheck(frame, 'tiles', command=replot, pack={'side':RIGHT})
 #frame.forget()
 #-------------------------------------------------------------------------------
 # add <- ->, as tkWidget class
@@ -128,10 +133,7 @@ def load_arrays(f):
         elif sphD.load(fin, 1, False):
             L.append(sphD)
             if sph_max_rank()<sphD.rank(): sph_init_table(sphD.rank())
-        elif amr.load(fin, False, False):
-            amr.dim = 2; amr.slice[0] = amr.slice[1] = -1; amr.sizeof_cell_type = 4;
-            amr.bmin = (0.,0.); amr.step = (1.,1.); amr.bmax = amr.bbox(); amr.logscale = 0
-            L.append(amr)
+        elif amr.load(fin, False, False): L.append(amr)
         else:
             msh2, msh3, sphUS = MeshUS2(), MeshUS3(), SphereUS()
             if msh2.load(fin, 1, False): L.append(msh2)
@@ -142,6 +144,7 @@ def load_arrays(f):
             else:
                 print '%s frames [OK]'%len(L) if L else '[\033[31mFAILED\033[0m]'
                 return (f, L) if L else None
+
 data, converts = filter(None, map(load_arrays, sys.argv[1:])), []
 if not data: print 'not correct files'; sys.exit()
 fr_num, file_num = [aiwScale(panel, ('frame', 'file')[i]+' number', command=replot, length=panel_sz, showvalue=YES,
@@ -204,6 +207,8 @@ def replot_frame(csz=None):
         if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
         if crop_axes.get(): msh = msh.crop(ind(x_crop_min,y_crop_min), ind(x_crop_max,y_crop_max), ind(x_crop_step,y_crop_step))
         else: x_crop_min.set(0); y_crop_min.set(0); x_crop_max.set(msh.bbox()[0]); y_crop_max.set(msh.bbox()[1])
+    try: msh0.offset_in_cell = msh.offset_in_cell = offset_in_cell.get()
+    except: msh0.offset_in_cell = msh.offset_in_cell = -1
     rz = msh.min_max()
     if rz[0]==rz[1]: rz[0] -= .5; rz[1] += .5
     if f_autoscale.get():
@@ -212,7 +217,7 @@ def replot_frame(csz=None):
         f_min.set(rz[0]); f_max.set(rz[1])
     if f_logscale.get() and f_min.get()<=0.: f_min.set(1e-16)
     color, color2 = CalcColor(), CalcColor()
-    for  p in 'logscale modulus invert'.split():
+    for p in 'logscale modulus invert'.split():
         setattr(color, p, eval('f_'+p).get()); setattr(color2, p, eval('f_'+p).get()) 
     color.init(Plot2D.paletters[f_pal.get()], rz[0], rz[1])
     color2.init(Plot2D.paletters[f_pal.get()], f_min.get(), f_max.get())
@@ -224,7 +229,7 @@ def replot_frame(csz=None):
         msh0.interp = msh.interp = (itypes.index(x_interp.get())<<4)+itypes.index(y_interp.get())
         #if x_flip.get(): msh = msh.flip(0); msh0 = msh0.flip(0)
         #if y_flip.get(): msh = msh.flip(1); msh0 = msh0.flip(1)
-    
+        
         if(edit_axes.get()):
             msh.set_axes(vec(x_min.get(), y_min.get()), vec(x_max.get(), y_max.get()), x_logscale.get()|2*y_logscale.get())
         else:
@@ -259,7 +264,8 @@ def replot_frame(csz=None):
     canvas.add_tics(tag='X', orient=0, xyN=(yw, sz[1]-xh, sz[0]-yw-pw), side=0, limits=(msh.bmin[0], msh.bmax[0]),
                     logscale=x_logscale.get(), font=tfont, tic_sz=(tic_len.get(), tic_width.get()))
     canvas.add_pict('img', (yw,th),  (sz[0]-pw,sz[1]-xh),
-                    (lambda im: plot2D(msh, color2, im, mollweide.get(), phi0.get()*pi/180)) if sph else (lambda im: plot2D(msh, color2, im)),
+                    (lambda im: plot2D(msh, color2, im, mollweide.get(), phi0.get()*pi/180)) if sph else
+                    (lambda im: plot2D(msh, color2, im, plot_bound_cell.get()+2*plot_bound_tile.get())),
                     border=border.get())
     canvas._XY0, canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
 

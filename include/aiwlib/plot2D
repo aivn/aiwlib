@@ -91,7 +91,7 @@ namespace aiw{
 		ImagePIL(aiw::Ind<2> size_);
 
 		aiw::Ind<2> size;
-		inline void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
 			char* ptr = im->image[size[1]-pos[1]-1] + pos[0]*im->pixelsize;
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
@@ -114,6 +114,7 @@ namespace aiw{
 
 		aiw::Ind<2> size;
 		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
 			png_byte *ptr = rows[size[1]-pos[1]-1] + 3*pos[0];
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
@@ -125,7 +126,7 @@ namespace aiw{
 		for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, typename P> void plot2D(const aiw::Mesh<T, 2> &f, const CalcColor &color, P& image){
+	template <typename T, typename P> void plot2D(const aiw::Mesh<T, 2> &f, const CalcColor &color, P& image, int bounds=0){
 		Vec<2> step = (f.bmax-f.bmin)/image.size; Vec<2> bmin = f.bmin + .5*step;
 		if(f.bbox()==image.size) for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f[pos])); 
 		else for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(bmin+(pos&step))));
@@ -153,12 +154,21 @@ namespace aiw{
 		}
 	}
 	//--------------------------------------------------------------------------
-	template <typename P> void plot2D(AdaptiveMeshView &f, const CalcColor &color, P& image){
-		Vec<2> step = Vec<2>(image.size)/f.bbox();
+	template <typename P> void plot2D(AdaptiveMeshView &f, const CalcColor &color, P& image, int bounds=0){
+		Vec<2> step = Vec<2>(image.size)/f.bbox(); 
 		for(auto I=f.begin(); I!=f.end(); ++I){
-			Ind<2> bmin = ((I.bmin&step)+vec(.5))<<(image.size-ind(1)), sz = (((I.bmax&step)+vec(.5))<<image.size)-bmin; Ind<3> c = color(*I);
-			// WOUT(f.bbox(), I.bmin, I.bmax, step, bmin, sz, image.size);
-			for(Ind<2> pos; pos^=sz; ++pos){ WASSERT(ind(0)<=bmin+pos && bmin+pos<image.size, "oops..", bmin, pos, sz, image.size, f.bbox(), step, *I, c); image.set_pixel(bmin+pos, c); }
+			Ind<2> imin = ((I.imin&step)+vec(.5))<<(image.size-ind(1))>>ind(0), sz = (((I.imax&step)+vec(.5))<<image.size)-imin; Ind<3> c = color(*I);
+			for(Ind<2> pos; pos^=sz; ++pos) image.set_pixel(imin+pos, c);
+			if(bounds&1){
+				for(int i=0; i<sz[0]; i++) image.set_pixel(imin+ind(i,0), ind(255,0,0));
+				for(int i=1; i<sz[1]; i++) image.set_pixel(imin+ind(0,i), ind(255,0,0));
+			} 
+			if(bounds&2){
+				if(I.tile_bound(-2)) for(int i=0; i<sz[0]; i++) image.set_pixel(imin+ind(i,0), ind(0,0,255));
+				if(I.tile_bound(-1)) for(int i=0; i<sz[1]; i++) image.set_pixel(imin+ind(0,i), ind(0,0,255));
+				if(I.tile_bound(2)) for(int i=0; i<sz[0]; i++) image.set_pixel(imin+ind(i,sz[1]-1), ind(0,0,255));
+				if(I.tile_bound(1)) for(int i=0; i<sz[1]; i++) image.set_pixel(imin+ind(sz[0]-1,i), ind(0,0,255));
+			} 
 		}
 	}
 	//--------------------------------------------------------------------------

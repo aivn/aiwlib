@@ -41,9 +41,8 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		struct heavy_tile_t: public tile_t{
 			std::vector<char> data; // длины 1<<(D*R) для ячеек!
-			float raw_get(int offset, AdaptiveMeshView *msh) const {
-				return  *(float*)&(data[offset*msh->core->szT + msh->offset_in_cell]);
-			}
+			
+			float raw_get(int offset, AdaptiveMeshView *msh) const { return  *(float*)&(data[offset*msh->core->szT + msh->offset_in_cell]);	}
 			float get(int offset, AdaptiveMeshView *msh) const { return usage[offset]? (msh->offset_in_cell>=0? raw_get(offset, msh) : float(rank)): nanf(""); }
 		}; // end of struct heavy_tile_t		
 		//----------------------------------------------------------------------
@@ -53,7 +52,8 @@ namespace aiw{
 			float get(int offset, AdaptiveMeshView *msh) const {
 				int c = 1<<msh->core->D;
 				// WOUT(offset, usage[offset], chunks[offset>>msh->D], (chunks[offset>>msh->D]-1)*c+offset%c);
-				return usage[offset]? (msh->offset_in_cell>=0? page->raw_get((chunks[offset>>msh->core->D]-1)*c+offset%c, msh) : float(rank)): nanf("");
+				return usage[offset]? (msh->offset_in_cell>=0? page->raw_get((chunks[offset>>msh->core->D]-1)*c+offset%c, msh) :
+									   float(msh->offset_in_cell==-1? rank: rank-.5)): nanf("");
 			}
 		}; // end of struct light_tile_t
 	public:
@@ -73,6 +73,7 @@ namespace aiw{
 			bool operator == (const iterator &) const { return !tile; }
 			bool operator != (const iterator &) const { return tile; }
 			int rank() const { return tile->rank; }
+			bool tile_bound(int axe) const; // axe - номер оси + 1 со знаком (-слева, +справа) т.е. -/+1, -/+2 
 		}; // end of struct iterator
 		//------------------------------------------------------------------
 #endif //SWIG
@@ -104,7 +105,7 @@ namespace aiw{
 	public:
 #ifndef SWIG
 		iterator find(aiw::Ind<2> pos){ iterator I = core->find(off+pos, this); I.imin -= off; I.imax -= off; return I; }  // произвольный доступ по срезу
-		iterator begin() { iterator I = core->find(ind(0, 0), this); while(I.tile && !I.check_bbox()) I.next(); return I; }
+		iterator begin() { iterator I = core->find(ind(0, 0), this); I.imin -= off; I.imax -= off; while(I.tile && !I.check_bbox()) I.next(); return I; }
 	    iterator end() { return iterator(); }
 #endif //SWIG
 		
