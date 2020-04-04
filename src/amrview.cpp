@@ -1,72 +1,70 @@
 /**
- * Copyright (C) 2019 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2019-20 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
 #include "../include/aiwlib/amrview"
 using namespace aiw;
 //------------------------------------------------------------------------------
-aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::find(aiw::Ind<2> pos){  // произвольный доступ по срезу
-	if(!(Ind<2>()<=pos && pos<bbox())) return iterator();
-	iterator I; I.msh = this; I.bmin = pos; I.bmax = pos+ind(1<<max_rank); I.mask = I.offset = 0; 
+aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::core_t::find(aiw::Ind<2> pos, AdaptiveMeshView *msh){  // произвольный доступ по срезу
+	if(!(Ind<2>()<=pos && pos<msh->fbox)) return iterator();
+	iterator I; I.msh = msh; I.mask = I.offset = 0; 
 	// ищем тайл сетки нулевого ранга T0 и позицию P внутри него (на самой мелкой сетке)
 	Ind<Dmax> P; int j = 0, T0 = 0, s = 1, N = 1<<(R+max_rank); // счетчик осей, смещение на большой сетке, размер тайла нулевого ранга на мелкой сетке
-	uint64_t offset0 = 0, mask0 = 0, maskR = (~uint64_t(0))>>(64-R*D), maskD = (~uint64_t(0))>>(64-D); // смещение на мелкой сетке, R*D бит и D бит
+	uint64_t offset0 = 0, mask0 = 0, maskRD = (~uint64_t(0))>>(64-R*D), maskD = (~uint64_t(0))>>(64-D); // смещение на мелкой сетке, R*D бит и D бит
 	for(int i=0; i<D; i++){ // цикл по координатам
-		P[i] = slice[i]; if(P[i]==-1){ P[i] = swap? pos[1-j]: pos[j]; I.axes[swap?1-j:j] = i; j++; }
-		T0 += s*(P[i]/N); P[i] %= N; s *= box[i];
-		uint64_t f = interleave_bits(D, P[i], R+max_rank)<<i; offset0 |= f;
-		if(slice[i]==-1) for(int k=0; k<R+max_rank; k++) mask0 |= uint64_t(1)<<(k*D+i); 
+		P[i] = msh->slice[i]; if(P[i]==-1){ P[i] = msh->swap? pos[1-j]: pos[j]; I.axes[msh->swap?1-j:j] = i; j++; }
+		T0 += s*(P[i]/N); P[i] %= N; s *= box[i];  offset0 |= interleave_bits(D, P[i], R+max_rank)<<i;
+		if(msh->slice[i]==-1) for(int k=0; k<R+max_rank; k++) mask0 |= uint64_t(1)<<(k*D+i);  // в mask0 единицы стоят на позициях которые могут меняться
 	}
-	if(T0>int(tiles.size())){ I.tile = nullptr; return I; }
+	if(T0>int(tiles.size())){ I.tile = nullptr; return I; } // вышли за пределы сетки
 	I.tile = tiles[T0]; I.offset = offset0>>(max_rank*D); I.mask = mask0>>(max_rank*D); // настраиваем I на тайл нулевого ранга
+	for(int i=0; i<2; i++){ I.imin[i] = I.tile->pos[I.axes[i]]+de_interleave_bits(D, I.offset>>I.axes[i], R)*(1<<max_rank); I.imax[i] = I.imin[i]+(1<<max_rank); }
 	// поиск внутри тайла
 	while(I.tile->split[I.offset]){ // пока есть разбитые ячейки
 		int f = (offset0>>(D*(R+max_rank-I.tile->rank-1)))&maskD; // номер дочернего тайла
-		I.tile = I.tile->childs[f];	I.offset = (offset0>>((max_rank-I.tile->rank)*D))&maskR; I.mask = (mask0>>((max_rank-I.tile->rank)*D))&maskR;		
-		// for(int i=0; i<D; i++){ if(I.offset&(1<<i)) I.bmin[i] = (I.bmin[i]+I.bmax[i])/2; else I.bmax[i] = (I.bmin[i]+I.bmax[i])/2; }
+		I.tile = I.tile->childs[f];	I.offset = (offset0>>((max_rank-I.tile->rank)*D))&maskRD; I.mask = (mask0>>((max_rank-I.tile->rank)*D))&maskRD;		
+		for(int i=0; i<2; i++){ if(I.offset&(1<<I.axes[i])) I.imin[i] = (I.imin[i]+I.imax[i])/2; else I.imax[i] = (I.imin[i]+I.imax[i])/2; }
 	}
 	return I;
 }
 //------------------------------------------------------------------------------
-void aiw::AdaptiveMeshView::iterator::operator ++ (){	
+void aiw::AdaptiveMeshView::iterator::next(){	
+	imin += msh->off; imax += msh->off;
 	uint32_t imask = ~mask, fix = offset&imask; 
 	offset = (((offset|imask)+1)&mask)|fix;
 	if(offset==fix){ // текущий тайл закончился
-		// Ind<2> start(-1); tile = tile->next_tile(msh, axes, start);
-		// if(!tile) return; // обход закончен
-
-		tile_t *root = tile->root();
-		Ind<2> p1(root->pos[axes[0]], root->pos[axes[1]]);  // угол тайла нулевого уровня (будущая позиция точки)
+		tile_t *root = tile->root();  Ind<2> p1(root->pos[axes[0]], root->pos[axes[1]]);  // тайл нулевого уровня и его угол
 		if(tile->parent){
-			Ind<Dmax> p0 = (tile->pos - root->pos)/(1<<(msh->R + msh->max_rank - tile->rank));  // исходная позиция в тайле нулевого уровня
+			Ind<Dmax> p0 = (tile->pos - root->pos)/(1<<(msh->core->R + msh->core->max_rank - tile->rank));  // исходная позиция в тайле нулевого уровня
 			offset = 0; mask = 0;
-			for(int i=0; i<msh->D; i++){
-				offset += interleave_bits(msh->D, p0[i], tile->rank)<<i;
-				for(int k=0; k<tile->rank; k++) mask |= 1<<(msh->D*k+i);
+			for(int i=0; i<msh->core->D; i++){
+				offset += interleave_bits(msh->core->D, p0[i], tile->rank)<<i;
+				for(int k=0; k<tile->rank; k++) mask |= 1<<(msh->core->D*k+i);
 			}
 			imask = ~mask; fix = offset&imask; offset = (((offset|imask)+1)&mask)|fix;
 			if(offset!=fix){
-				for(int i=0; i<2; i++) p1[i] += de_interleave_bits(msh->D, offset>>axes[i], tile->rank)*(1<<(msh->R+msh->max_rank-tile->rank));
+				for(int i=0; i<2; i++) p1[i] += de_interleave_bits(msh->core->D, offset>>axes[i], tile->rank)*(1<<(msh->core->R+msh->core->max_rank-tile->rank));
 				*this = msh->find(p1);
 				return;
 			}
 		}
-		p1 /= (1<<(msh->max_rank+msh->R)); p1[axes[0]]++;				
-		if(p1[axes[0]]>=msh->box[axes[0]]){
+		p1 /= (1<<(msh->core->max_rank+msh->core->R)); p1[axes[0]]++;				
+		if(p1[axes[0]]>=msh->core->box[axes[0]]){
 			p1[axes[0]] = 0; p1[axes[1]]++;
-			if(p1[axes[1]]>=msh->box[axes[1]]){ tile = nullptr; return; } // обход закончен
+			if(p1[axes[1]]>=msh->core->box[axes[1]]){ tile = nullptr; return; } // обход закончен
 		}
-		*this = msh->find(p1*(1<<(msh->max_rank+msh->R))); 
+		*this = msh->find(p1*(1<<(msh->core->max_rank+msh->core->R))); 
 		return;
 	}
 
-	int csz = 1<<(msh->max_rank-tile->rank);
+	int csz = 1<<(msh->core->max_rank-tile->rank);
 	for(int i=0; i<2; i++){  // считаем bmin, bmax
-		bmin[i] = tile->pos[axes[i]] + de_interleave_bits(msh->D, offset>>axes[i], msh->R)*csz;
-		bmax[i] = bmin[i]+csz;
+		imin[i] = tile->pos[axes[i]] + de_interleave_bits(msh->core->D, offset>>axes[i], msh->core->R)*csz;
+		imax[i] = imin[i]+csz;
 	}
-	if(tile->split[offset] || !tile->usage[offset]) *this = msh->find(bmin);
+	if(tile->split[offset] || !tile->usage[offset]) *this = msh->find(imin);
+	else{ imin -= msh->off; imax -= msh->off; } 
 }
 //------------------------------------------------------------------------------
 //void aiw::AdaptiveMeshView::clear(){}
@@ -77,7 +75,7 @@ void read_vector(aiw::IOstream& S, std::vector<bool> &V, int sz){
 	V.resize(sz); for(int i=0; i<sz; i++) V[i] = buf[i/64]&(uint64_t(1)<<(i%64));
 }
 //------------------------------------------------------------------------------
-bool aiw::AdaptiveMeshView::load(aiw::IOstream&& S, bool use_mmap, bool raise_on_error){
+bool aiw::AdaptiveMeshView::core_t::load(aiw::IOstream&& S, bool use_mmap, bool raise_on_error){
 	std::string h; int rD=-1, rszT=-1, rR=-1;  size_t s = S.tell(); S>h>rD>rszT>rR;
 	if(S.tell()-s!=16+h.size()){ S.seek(s); return false; }
 	if(!(rD&(1<<31))){ 
@@ -88,19 +86,16 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream&& S, bool use_mmap, bool raise_on
 	head = h.c_str(); R = rR; D = rD&~(1<<31); szT = rszT;
 	box = ind(0); S.read(&box, D*4);
 
-	/*
 	for(int i=0; i<Dmax; i++){ bmin[i] = 0; bmax[i] = box[i]; } // int logscale_= 0;
 	if(h.size()>head.size()+4+D*16){
 		int i = this->head.size(), i0 = h.size()-(4+D*16); while(i<i0 && h[i]==0) i++;
 		if(i==i0){
 			memcpy(&bmin, h.c_str()+i0, D*8); i0 += D*8;
 			memcpy(&bmax, h.c_str()+i0, D*8); i0 += D*8;
-			memcpy(&this->logscale, h.c_str()+i0, 4);
+			// memcpy(&this->logscale, h.c_str()+i0, 4);
 		}
 	}
-	//	this->set_axes(bmin_, bmax_, logscale_);
-	*/
-
+	
 	int tiles_sz = box[0]; for(int i=1; i<D; i++) tiles_sz *= box[i];
 	tiles.resize(tiles_sz); htiles.clear(); ltiles.clear(); max_rank = 0;
 	for(int Ti=0; Ti<tiles_sz; Ti++){ // цикл по тайлам нулевого ранга
@@ -156,7 +151,20 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream&& S, bool use_mmap, bool raise_on
 		// WOUT(Ti, tiles[Ti]->pos);
 	} // конец цикла по тайлам нулевого ранга
 	//WOUT(max_rank);
+	for(int i=0; i<D; i++) step[i] = (bmax[i]-bmin[i])/(box[i]*(1<<(R+max_rank)));
 	return true;
+}
+//------------------------------------------------------------------------------
+bool aiw::AdaptiveMeshView::load(aiw::IOstream& S, bool use_mmap, bool raise_on_error){
+	core_t *core2 = new core_t;
+	if(core2->load(std::move(S), use_mmap, raise_on_error)){
+		core.reset(core2);
+		dim = core->D;
+		slice = ind(0); slice[0] = slice[1] = -1;
+		set_axes(0, 1);
+		return true;
+	}
+	delete core2; return false;
 }
 //------------------------------------------------------------------------------
 aiw::Vec<2> aiw::AdaptiveMeshView::min_max(){
@@ -164,7 +172,54 @@ aiw::Vec<2> aiw::AdaptiveMeshView::min_max(){
 	for(; I!=end(); ++I){
 		if(a>*I) a = *I;
 		if(b<*I) b = *I;
+		// WOUT(I.imin, I.imax, I.rank(), *I);
 	}
+	// WOUT(a, b, offset_in_cell, bmin, bmax, box_, fbox, core->max_rank);
 	return vec(a, b);
+}
+//------------------------------------------------------------------------------
+void aiw::AdaptiveMeshView::set_axes(int ax, int ay){
+	axes[0] = ax;  axes[1] = ay; swap = ax>ay;
+	for(int i=0; i<2; i++){
+		bmin[i] = core->bmin[axes[i]];
+		bmax[i] = core->bmax[axes[i]];
+		step[i] = core->step[axes[i]];
+		off[i] = 0;
+		fbox[i] = box_[i] = core->box[axes[i]]*(1<<(core->R+core->max_rank));
+	}
+}
+//------------------------------------------------------------------------------
+AdaptiveMeshView aiw::AdaptiveMeshView::slice2(aiw::Ind<3> spos){
+	AdaptiveMeshView amv = *this; int j=0;
+	for(int i=0; i<3 && j<2; i++) if(spos[i]==-1) amv.axes[j++] = i;
+	amv.set_axes(amv.axes[0], amv.axes[1]);
+	return amv;
+}
+//------------------------------------------------------------------------------
+AdaptiveMeshView aiw::AdaptiveMeshView::transpose(int, int){
+	AdaptiveMeshView amv = *this;
+	amv.swap = !swap;
+	for(int i=0; i<2; i++){
+		amv.bmin[i] = bmin[1-i]; 
+		amv.bmax[i] = bmax[1-i]; 
+		amv.step[i] = step[1-i]; 
+		amv.off[i]  = off[1-i];
+		amv.box_[i] = box_[1-i];
+		amv.axes[i] = axes[1-i];
+		amv.fbox[i] = fbox[1-i];
+	}
+	return amv;
+}
+//------------------------------------------------------------------------------
+AdaptiveMeshView aiw::AdaptiveMeshView::crop(aiw::Ind<2> a, aiw::Ind<2> b, Ind<2> d){
+	WOUT(a, b, d, off, bmin, bmax, step, box_, fbox);
+	// a = find(a).imin; b = find(b-ind(1)).imax;
+	// WOUT(a, b, d, off, bmin, bmax, step, box_, fbox);
+	AdaptiveMeshView amv = *this;
+	amv.off += a; amv.box_ = b-a;
+	amv.bmin = core->bmin(axes[0], axes[1])+(step&amv.off);
+	amv.bmax = amv.bmin + (amv.step&amv.box_); 
+	WOUT(amv.off, amv.bmin, amv.bmax, amv.step, amv.box_, amv.fbox);
+	return amv;
 }
 //------------------------------------------------------------------------------
