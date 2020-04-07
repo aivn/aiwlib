@@ -167,7 +167,7 @@ namespace aiw{
 		return r;												   
 	}
 	template <typename T1, typename T2>
-	inline VEC(/) operator * (T1 x, const DynVec<T2> &v){
+	inline VEC(/) operator / (T1 x, const DynVec<T2> &v){
 		VEC(/) r(v.size());								
 		for(int i=0; i<v.size(); i++) r[i] = x/v[i];
 		return r;												   

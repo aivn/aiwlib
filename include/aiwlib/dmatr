@@ -39,17 +39,22 @@ namespace aiw{
 		DynMatr(int Y_=0, int X_=0){ init(Y_, X_); }
 		DynMatr(int Y_, int X_, Q q){ init(Y_, X_, q); }
 		DynMatr(Ind<2> YX){ init(YX[0], YX[1]); }
-				
-		template <typename TB> DynMatr operator * (const TB &B) const {
-			WASSERT(X==B.bbox()[0], "illegal matrix size: ", bbox(), B.bbox());
-			int BX = B.bbox()[1]; DynMatr M(Y, BX);  
-			for(int y=0; y<Y; y++)
-				for(int z=0; z<BX; z++){ 
-					M(y, z) = p.get()[y*X]*B(0, z);
-					for(int x=1; x<X; x++) M(y, z) += (*this)(y, x)*B(x, z); 
-				}
-			return M; 
-		}  
+
+		//----------------------------------------------------------------------
+#define BODY															\
+		WASSERT(X==B.bbox()[0], "illegal matrix size: ", bbox(), B.bbox());	\
+		int BX = B.bbox()[1]; DynMatr M(Y, BX);							\
+		for(int y=0; y<Y; y++)											\
+			for(int z=0; z<BX; z++){									\
+				M(y, z) = p.get()[y*X]*B(0, z);							\
+				for(int x=1; x<X; x++) M(y, z) += (*this)(y, x)*B(x, z); \
+			}															\
+		return M;														
+		DynMatr operator * (const DynMatr &B) const { BODY } 
+		template <int YY, int XX> DynMatr operator * (const Matr<YY, XX, Q> &B) const { BODY }
+#undef BODY
+		//----------------------------------------------------------------------
+		 
 		DynMatr T() const { 
 			DynMatr M(X, Y);  
 			for(int y=0; y<Y; y++)
@@ -87,18 +92,46 @@ namespace aiw{
 		}
 		      Q* data()       { return p.get(); }
 		const Q* data() const { return p.get(); }
+
+		//----------------------------------------------------------------------
+		DynVec<Q> row(const int y) const {
+			WASSERT(0<=y && y<Y, "illegal y: ", y, X, Y, sizeof(Q));
+			DynVec<Q> r(X); for(int x=0; x<X; x++) r[x] = p.get()[x+y*X];
+			return r;
+		}
+		void row(const int y, const DynVec<Q> &r){
+			WASSERT(0<=y && y<Y && r.size()==X, "illegal y: ", y, X, Y, r.size(), sizeof(Q));
+			for(int x=0; x<X; x++) p.get()[x+y*X] = r[x];
+		}
+		template<int XX> void row(const int y, const Vec<XX, Q> &r){
+			WASSERT(0<=y && y<Y && r.size()==X, "illegal y: ", y, X, Y, r.size(), sizeof(Q));
+			for(int x=0; x<X; x++) p.get()[x+y*X] = r[x];
+		}
+		DynVec<Q> col(const int x) const {
+			WASSERT(0<=x && x<X, "illegal x: ", x, X, Y, sizeof(Q));
+			DynVec<Q> c(Y); for(int y=0; y<Y; y++) c[y] = p.get()[x+y*X];
+			return c;
+		}
+		void col(const int x, const DynVec<Q> &c){
+			WASSERT(0<=x && x<X && c.size()==Y, "illegal x: ", x, X, Y, c.size(), sizeof(Q));
+			for(int y=0; y<Y; y++) p.get()[x+y*X] = c[y];
+		}
+		template<int YY> void col(const int x, const Vec<YY, Q> &c){
+			WASSERT(0<=x && x<X && c.size()==Y, "illegal x: ", x, X, Y, c.size(), sizeof(Q));
+			for(int y=0; y<Y; y++) p.get()[x+y*X] = c[y];
+		}
 	}; // end of class DynMatr
 	//--------------------------------------------------------------------------
 	template <typename Q> DynMatr<Q>& operator *= (DynMatr<Q> &M, const Q &v){
-		int sz = M.bbox().prod(); for(int i=0; i<sz; i++) M.data[i] *= v;
+		int sz = M.bbox().prod(); for(int i=0; i<sz; i++) M.data()[i] *= v;
 		return M; 
 	}
 	template <typename Q> DynMatr<Q> operator * (const DynMatr<Q> &M, const Q &v){
-		DynMatr<Q> R(M.bbox()); int sz = M.bbox().prod(); for(int i=0; i<sz; i++) R.data()[i] = M.data[i]*v;
+		DynMatr<Q> R(M.bbox()); int sz = M.bbox().prod(); for(int i=0; i<sz; i++) R.data()[i] = M.data()[i]*v;
 		return R; 
 	}
 	template <typename Q> DynMatr<Q> operator * (const Q &v, const DynMatr<Q> &M){
-		DynMatr<Q> R(M.bbox()); int sz = M.bbox().prod(); for(int i=0; i<sz; i++) R.data()[i] = v*M.data[i];
+		DynMatr<Q> R(M.bbox()); int sz = M.bbox().prod(); for(int i=0; i<sz; i++) R.data()[i] = v*M.data()[i];
 		return R; 
 	}
 	//--------------------------------------------------------------------------
@@ -146,7 +179,7 @@ namespace aiw{
 
 	MATR_BIN_OP(-, -)
 	MATR_BIN_OP(+, +)
-	MATR_BIN_OP(*, &)
+	MATR_BIN_OP(&, *)
 #undef MATR_BIN_OP
 	//--------------------------------------------------------------------------
 #define BODY															\
