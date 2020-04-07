@@ -20,6 +20,16 @@ namespace aiw{
 			S<t.usages[0]<t.usages[2]<t.chunks; S.write(t.data, sizeof(T)*tile_sz); 
 		}
 		for(const light_tile_t &t: ltiles){
+			if(!t.page || tbl.find(t.page)==tbl.end()){
+				out_info(); 
+				for(int i=0; i<chunks_sz; i++){
+					if(t.patches[i]) WOUT(i);
+					if(t.chunks[i]) WOUT(i, t.chunks[i]);
+				}
+				t.out_info();
+				WOUT(t.page->root);
+				exit(1);
+			}
 			S<t.rank<t.ch_use<tbl[t.page]<tbl[t.parent]; for(int i=0; i<(1<<D); i++) S<tbl[t.childs[i]];
 			S<t.usages[0]<t.usages[2]<t.chunks; 
 		}
@@ -56,6 +66,7 @@ namespace aiw{
 		memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
 		S<h_sz; S.write(h, h_sz); S<(D|(1<<31))<int(sizeof(T))<R<tiles.bbox();  // пишем заголовок
 		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].dump(S);
+		S.flush();
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::load(IOstream&& S, int use_mmap, bool raise_on_error){ // mmap пока игнорируется
@@ -78,6 +89,7 @@ namespace aiw{
 		}
 		init(box_, bmin_, bmax_);
 		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].load(S);
+		set_max_rank_box_step();
 		return true;
 	}
 	//--------------------------------------------------------------------------

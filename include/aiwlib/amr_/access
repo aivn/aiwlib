@@ -80,27 +80,6 @@ namespace aiw{
 		return res;
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::parent(){  // доступ к родительской ячейке
-		Cell res; res.tile = tile->parent; res.offset = offset>>D;
-		if(res.tile){ res.offset |= res.tile->find_child_ID(tile)<<((R-1)*D); res.ptr = res.tile->cell(res.offset); }
-		// if(!is_used() && !res.is_used() && !res.will_be_used()){ res.tile = nullptr; res.ptr = nullptr; } // защита от расслаивания???
-		return res;
-	} 
-	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::Cell AdaptiveMesh<T, D, R>::Cell::child(int scID){ // доступ к подъячейке, 0<=scID<8
-		Cell res; res.tile = tile->childs[offset>>((R-1)*D)]; res.offset = ((offset<<D)&RDbits)|scID;
-		// WOUT(tile, scID, offset, ptr, is_used(), res.tile, res.offset, res.ptr);
-		// if(is_used()){
-			if(!res.tile){ // размещаем новый легкий тайл, он НЕ АССОЦИИРОВАН СО СТРАНИЦЕЙ! 
-				tile->root->ltiles.emplace_back(); res.tile = &(tile->root->ltiles.back()); res.tile->rank = tile->rank+1;
-				res.tile->parent = tile; res.tile->root = tile->root; tile->childs[offset>>((R-1)*D)] = res.tile;
-				res.tile->set_coords(offset>>((R-1)*D));
-			}
-			// }  else if(!res.is_used()) res.tile = nullptr; // защита от расслаивания???
-		if(res.tile) res.ptr = res.tile->cell(res.offset);
-		return res;
-	}
-	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> template<typename F>
 	void AdaptiveMesh<T, D, R>::Cell::deep2face(F&& f, typename AdaptiveMesh<T, D, R>::tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank){
 		uint32_t childID = cID2ctID(off); t = t->childs[childID];

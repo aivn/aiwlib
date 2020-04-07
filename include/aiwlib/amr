@@ -23,6 +23,7 @@ namespace aiw{
 		
 		static const int tile_rank = R;
 		static const uint64_t Dbits = ~((~0)<<D);
+		static const uint64_t CHbits = ~((~0)<<(1<<D));
 		static const uint64_t RDbits = ~((~0)<<(R*D));
 		static const int32_t R1Dbits = ~((~0)<<((R-1)*D));
 		static const int tile_sz = 1<<(D*R);       // число ячеек в тайле
@@ -54,7 +55,14 @@ namespace aiw{
 			Vec<D> bmin, step;	     // нижний угол и шаг тайла - СЧИТАТЬ ИХ В load  и при аллоцировании тайла!!!!
 
 			tile_t *parent = nullptr, *childs[1<<D] = {nullptr};  // родительский  и дочерние тайлы, устанавливать ссылки на соседей для нижнего уровня?
-			int find_child_ID(const tile_t *tile) const { for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i; WRAISE("", this, tile); return -1; } // ищет номер дочернего тайла 
+			//			int find_child_ID(const tile_t *tile) const { for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i; WRAISE("", this, tile); return -1; } // ищет номер дочернего тайла 
+			int find_child_ID(const tile_t *tile) const {
+				for(int i=0; i<(1<<D); i++) if(childs[i]==tile) return i;
+				if(root) root->out_info();
+				WOUT(this, tile, root, tile->parent, tile->root);
+				abort();
+				return -1;
+			} // ищет номер дочернего тайла 
 			void set_coords(int tID); // устанавливает bmin и step (в т.ч. для потомков), tID --- позиция тайла у родителя
 			//------------------------------------------------------------------
 			//  работа с флагами использования и выделением памяти
@@ -62,22 +70,25 @@ namespace aiw{
 			uint64_t usages[3][usages_sz] = {{0}};  // флаги текущего [0] и будущего [1] использования (этого достаточно для обхода), ghost  
 
 			bool get_cell_usage(bool future, int off) const { return usages[future][off>>6]&(uint64_t(1)<<(off&0x3f)); }
-			bool get_chunk_usage(bool future, int chID) const { return usages[future][chID>>(6-D)]&(Dbits<<((chID<<D)&0x3f)); } 
-			int get_chunk_usage(int chID) const { int i = chID>>(6-D); uint64_t m = Dbits<<((chID<<D)&0x3f); return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m); } 
-			bool chunk_is_full(int chID) const { uint64_t mask = Dbits<<((chID<<D)&0x3f); return (usages[0][chID>>(6-D)]&mask)==mask; }
+			void set_cell_usage_on(int off)  { usages[1][off>>6] |=   uint64_t(1)<<(off&0x3f);  }
+			void set_cell_usage_off(int off) { usages[1][off>>6] &= ~(uint64_t(1)<<(off&0x3f)); }
+
+			bool get_chunk_usage(bool future, int chID) const { return usages[future][chID>>(6-D)]&(CHbits<<((chID<<D)&0x3f)); } 
+			int get_chunk_usage(int chID) const { int i = chID>>(6-D); uint64_t m = CHbits<<((chID<<D)&0x3f); return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m); } 
+			bool chunk_is_full(int chID) const { uint64_t mask = CHbits<<((chID<<D)&0x3f); return (usages[0][chID>>(6-D)]&mask)==mask; }
+			void set_chunk_usage_on(int chID)  { usages[1][chID>>(6-D)] |=   CHbits<<((chID<<D)&0x3f);  }
+			void set_chunk_usage_off(int chID) { usages[1][chID>>(6-D)] &= ~(CHbits<<((chID<<D)&0x3f)); }
 			
 			uint16_t rank = 0, ch_use = 0, ch_alloc = 0, ch_free = 0;  //  уровень вложения, число занятых, аллоцированных и освобожденных чанков
-			// uint16_t free_chunks_sz() const { return ch_use+ch_alloc-ch_free; }
-			virtual uint16_t free_chunks_sz() const = 0; 
+			virtual int alloc_chunks_sz() const = 0; // это можно потом оптимизировать через счетчики как ch_use+ch_alloc-ch_free
 			virtual void alloc_chunk(int chID) = 0; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
-
-			void activate_cell(int off);
-			void deactivate_cell(int off);
-			// void deactivate_chunk(int chID);
 
 			void commit_usages(){ ch_use += ch_alloc; ch_alloc = 0; ch_use -= ch_free; for(int i=0; i<usages_sz; i++) usages[0][i] = usages[1][i]; }
 
 			bool get_cell_split(bool future, int off) const { int tid = cID2ctID(off); return childs[tid] && childs[tid]->get_chunk_usage(future, off&R1Dbits); }
+
+			void replace_me(tile_t &other);   // заменяет все связи (parent, childs, root) с this на связи с other, копирует *this в other
+			bool will_need();                 // проверяет будет ли нужен еще тайл, если нет обнуляет все ссылки на этот тайл
 			//------------------------------------------------------------------
 			//  обход
 			//------------------------------------------------------------------
@@ -86,10 +97,18 @@ namespace aiw{
 			bool first(cell_t &C, int trmode, int start=0); // при необходимости рекурсивно спускается вниз по тайлу			
 			bool next(cell_t &C, int trmode); // ходит вверх по тайлам, для спуска вызывает first				
 			tile_t* find_nb_tile(Ind<D> tpos, bool force=false) const; // ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль
-
+			const T& get(uint64_t off0, int crank) const {
+				uint64_t off = off0>>((crank-R)*D);	if(get_cell_usage(0, off)) return *cell(off);
+				tile_t *t = childs[off0>>(--crank*D)]; WASSERT(t, "", off0, bmin, rank, crank, this);
+				return t->get(off0&~(Dbits<<(D*crank)), crank);				
+			}
+			
 			patch_t* patches[chunks_sz] = {nullptr};  // указатель на массив патчей, сейчас выделяется во всех тайлах но надо выделять только там где нужно
 
 			virtual void out_info() const = 0;
+			virtual void selfcheck() const = 0;
+			void out2dat(IOstream &S) const { S("%\n%\n%\n%\n%\n\n\n", bmin|rank, (bmin+(step(0)*(1<<R)|0))|rank,
+												(bmin+step*(1<<R))|rank, (bmin+(0|step(1)*(1<<R)))|rank, bmin|rank); }
 			uint32_t get_tile_pos() const {	return parent? (parent->get_tile_pos()<<D)|parent->find_child_ID(this): 0; }
 
 			T* split_cell(int off);       // разбивает ячейку, возвращает указатель на данные чанка
@@ -98,7 +117,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 #define USING_TT_ATTRS using tile_t::root; using tile_t::bmin; using tile_t::step; \
 		using tile_t::parent; using tile_t::childs; using tile_t::patches; using tile_t::get_chunk_usage; \
-		using tile_t::free_chunks_sz; using tile_t::commit_usages; using tile_t::ch_use; using tile_t::ch_alloc; \
+		using tile_t::commit_usages; using tile_t::ch_use; using tile_t::ch_alloc; using tile_t::will_need; using tile_t::replace_me; \
 		using tile_t::ch_free; using tile_t::rank; using tile_t::usages; 
 		//----------------------------------------------------------------------
 		//  тяжелый тайл играющий роль страницы памяти
@@ -118,14 +137,15 @@ namespace aiw{
 			void set_chunk_info(int off, int val){ chunks[off>>4] &= ~(3<<(2*(off&0xf))); chunks[off>>4] |= (val&3)<<(2*(off&0xf)); }
 			void alloc_chunk(int chID) override; // виртуальная, гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
 
-			uint16_t free_chunks_sz() const override; 
+			int alloc_chunks_sz() const override; 
 			T* cell(int cID) override;  // виртуальная, доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
-			uint16_t alloc_far_chunk(); // возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
+			uint16_t alloc_far_chunk(bool in_commit=false); // возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
 			void free_far_chunk(uint16_t chID);
 			// актуализует значение first_free_chunk, обновляет usages и счетчики.
 			// ПЕРЕД вызовом для конфликтных чанков должно быть освобождено место, ВСЕ патчи считаются примененными!
 			bool commit();
 			void out_info() const;
+			void selfcheck() const override;
 		}; // end of struct heavy_tile_t
 		//----------------------------------------------------------------------
 		//  легкий тайл
@@ -137,10 +157,11 @@ namespace aiw{
 			uint16_t chunks[chunks_sz] = {0};  // чанки, если чанк не выделен = 0
 
 			T* cell(int cID) override;  //  доступ к ячейке, если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
-			uint16_t free_chunks_sz() const override;
+			int alloc_chunks_sz() const override;
 			void alloc_chunk(int chID) override; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит, определена после root_t
 			bool commit(); 
 			void out_info() const;
+			void selfcheck() const override;
 		}; // end of struct light_tile_t
 #undef USING_TT_ATTRS
 		//----------------------------------------------------------------------
@@ -165,21 +186,26 @@ namespace aiw{
 			bool load(IOstream& S);
 
 			void out_info() const;
-			void tiles2dat(IOstream& S) const;
+			void tiles2dat(IOstream& hS, IOstream& lS) const;
+			void selfcheck() const;
 		}; // end of struct root_t
 		// friend class root_t;
 		Mesh<root_t, D> tiles; // базовая (самая крупная) сетка тайлов нулевого ранга
+		int max_rank = -1;
+		void set_max_rank_box_step(); // устанавливает max_rank, box и шаги
 	public:
 		//  инициализация сетки
 		void init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_);
 		void init(Ind<D> tbox){ init(tbox, vec(0.), tbox*(1<<R)); }
 		AdaptiveMesh copy() const;
 		//  сбор информации о сетке
-		inline Ind<D> bbox() const { return tiles.bbox()*(1<<R); }
-		int get_max_rank() const;
+		// inline Ind<D> bbox() const { return tiles.bbox()*(1<<R); } <<== box from base_mesh 
+		int get_max_rank() const { return max_rank; }
 		size_t size() const;   // число ячеек
 		size_t memsz() const;  // размер памяти в байтах
 		void out_info() const;
+		void tiles2dat(IOstream&& hS, IOstream&& lS) const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].tiles2dat(hS, lS); }
+		void selfcheck() const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].selfcheck(); }
 		//----------------------------------------------------------------------
 		//  основной интерфейс доступа к ячейкам
 		//----------------------------------------------------------------------
@@ -189,12 +215,6 @@ namespace aiw{
 			friend class Tile;
 			operator bool () const { return ptr; }  
 			bool operator !() const { return !ptr; }
-			bool dummy() const { return !tile; }
-			bool is_used() const { return tile && tile->get_cell_usage(0, offset); }       // ячейка сейчас используется?
-			bool will_be_used() const { return tile && tile->get_cell_usage(1, offset); }  // ячейка будет использоваться?
-			bool is_split() const { return tile && tile->get_cell_split(0, offset); }      // ячейка сейчас разбита?
-			bool will_be_split() const { return tile && tile->get_cell_split(1, offset); } // ячейка будет разбита?
-			bool is_fiction() const { return tile && tile->get_cell_usage(2, offset); }    // ячейка является фиктивной?
 
 			Vec<D> bmin() const { return tile->bmin + (zoff2pos<D>(offset, R)&tile->step); }
 			Vec<D> step() const { return tile->step; }
@@ -208,18 +228,7 @@ namespace aiw{
 			const Cell operator [](const Ind<D> &dpos) const; // доступ к соседям
 			template <typename ... Args>  const Cell operator() (Args ... dpos) { return (*this)[Ind<D>(dpos...)]; } // доступ к соседям
 
-			Cell parent();  // доступ к родительской ячейке
-			Cell child(int scID); // доступ к подъячейке, 0<=scID<8
-
-			// активировать ячейку если она не использовалась, память выделяется сразу но после AdaptiveMesh::commit() данные могут быть перемещены
-			// можно активировать ячейку если у нее есть активный сосед сверху/снизу (или если она имеет нулевой ранг???)
-			bool activate();
-			// деактивировать ячейку если она использовалась, память сохраняется до AdaptiveMesh::commit()
-			// можно деактивировать ячейку только если у нее есть единственный активный сосед сверху/снизу
-			bool deactivate();
-			
-			T* split(); // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
-			void join(); // деактивирует все подъячейки
+			T* split(){ return tile->split_cell(offset); } // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
 
 		protected:
 			uint32_t bound_ = ~0;
@@ -275,7 +284,7 @@ namespace aiw{
 		iterator end(){ return iterator(); }
 		// порождение итераторв для обходов на соотв рангах?
 
-		void commit(){ for(root_t& r: tiles) r.commit(); }
+		void commit(){ for(root_t& r: tiles){ r.commit(); } set_max_rank_box_step(); }
 		// void out2dat(IOstream&&); ???
 		// минимальный/максимальный ранги, размер памяти, число тайлов (в т.ч. по рангам), заполненность тайлов и пр.
 		// T& operator(const Vec<D> &r){} // доступ к произвольной ячейке по координате ???
@@ -292,9 +301,18 @@ namespace aiw{
 		bool load(IOstream&& S, int use_mmap=0, bool raise_on_error=true); // mmap пока игнорируется
 		bool load(IOstream& S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
 		//----------------------------------------------------------------------
-		void tiles2dat(IOstream&& S) const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos){ tiles[pos].tiles2dat(S); } }
-		// void tiles2dat(IOstream& S) const { tiles2dat(std::move(S)); }
+		//   произвольный доступ
 		//----------------------------------------------------------------------
+		T out_value;
+	protected:
+		const T& get(Ind<D> pos) const {
+			return check_out_pos(pos)? out_value: tiles[pos/(1<<(R+max_rank))].root->get(pos2zoff(pos%(1<<(R+max_rank)), 1<<(R+max_rank)), R+max_rank);
+		}
+	public:
+		const T& operator [](const Ind<D> &pos) const { return get(pos); }
+		      T& operator [](const Ind<D> &pos)       { return (T&)get(pos); }
+		const T& operator ()(const Vec<D> &coord) const { return get(coord2pos(coord)); }
+		      T& operator ()(const Vec<D> &coord)       { return (T&)get(coord2pos(coord)); }		
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
 };

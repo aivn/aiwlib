@@ -11,114 +11,107 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::commit(){
 		// сортировать по размеру???
-		for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()) ++I; else ltiles.erase(I++);
+		for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()) ++I; else ltiles.erase(I++); 
 		for(auto I=htiles.begin(); I!=htiles.end();) if(I->commit()) ++I; else htiles.erase(I++);
 		patches.clear();
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::light_tile_t::commit(){
-		if(free_chunks_sz()>chunks_sz/2){ // надо сделать тяжелым тайлом
+		int patches_sz = 0; // число патчей 		
+		for(int i=0; i<chunks_sz; i++){
+			patches_sz += bool(patches[i]);
+			if(page && chunks[i] && page->patches[chunks[i]-1]){ //  сразу забираем к себе все конфликтные чанки  - это не очень эффективно но зато надежно
+				if(get_chunk_usage(1, i)){ 
+					root->patches.emplace_back(); patches[i] = &(root->patches.back());
+					copy_chunk(page->data+((chunks[i]-1)<<D), patches[i]->data);
+				}
+				page->free_far_chunk(chunks[i]-1); chunks[i] = 0;
+			}
+		}
+		if(alloc_chunks_sz()>chunks_sz/2){ // надо сделать тяжелым тайлом
 			commit_usages();
-			root->htiles.emplace_back(); heavy_tile_t &ht = root->htiles.back(); (tile_t&)ht = (tile_t&)(*this); 
-			for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->parent = &ht;
-			if(parent) parent->childs[parent->find_child_ID(this)] = &ht;
-			else root->root = &ht;
+			root->htiles.emplace_back(); heavy_tile_t &ht = root->htiles.back(); replace_me(ht);
 			for(int i=0; i<chunks_sz; i++){
 				if(get_chunk_usage(1, i)){
 					if(patches[i]) copy_chunk(patches[i]->data, ht.data+(i<<D)); 
 					else{ copy_chunk(page->data+((chunks[i]-1)<<D), ht.data+(i<<D)); page->free_far_chunk(chunks[i]-1); }
 					ht.set_chunk_info(i, 1);
 				}
-				ht.patches[i] = nullptr;
-			}
-			return false;
+				ht.patches[i] = nullptr; // патчи приходят из текущего тайла
+			}			
+			return false; // поскольку связи на тайл заменены и данные скопированы мы его просто выбрасываем
 		}
-		heavy_tile_t *page2 = page;
-		if(!page || page->free_chunks_sz()<chunks_sz/2 || int(page->ch_use+page->ch_alloc)+free_chunks_sz()>chunks_sz || (!page->root && page->far_ch_sz<chunks_sz/2))
-			page2 = root->search_page(ch_use+ch_alloc-ch_free); // пытаемся сменить страницу
-		// if(bmin==vec(14.,12)) WOUT(page2, ch_use, ch_alloc, ch_free, ch_use+ch_alloc-ch_free, page2->free_chunks_sz()); 
+		heavy_tile_t *page2 = page; int ac_sz = alloc_chunks_sz(), page_sz = page? page->alloc_chunks_sz(): 0;
+		
+		// if(!page || page->alloc_chunks_sz()<chunks_sz/2   // это плохой тяжелый тайл который сейчас переделают в легкий 
+		//   || int(page->ch_use+page->ch_alloc)+free_chunks_sz()>chunks_sz || (!page->root && page->far_ch_sz<chunks_sz/2))
+		if(!page || page_sz+patches_sz<chunks_sz/2 || page_sz+patches_sz>chunks_sz) page2 = root->search_page(ac_sz); // меняем страницу если нужно	
+		
 		if(page2!=page){ // переносим данные
-			// if(bmin==vec(14.,12)) WOUT(patches[0], this->get_cell_usage(1,0), get_chunk_usage(1, 0)); 
 			for(int i=0; i<chunks_sz; i++){
 				if(get_chunk_usage(1, i)){
 					int chID = page2->alloc_far_chunk();
+					// WASSERT(!(patches[i] && chunks[i]), "", i, get_chunk_usage(i), patches[i], chunks[i]);
 					if(patches[i]) copy_chunk(patches[i]->data, page2->data+((chID-1)<<D)); 
 					else { copy_chunk(page->data+((chunks[i]-1)<<D), page2->data+((chID-1)<<D)); page->free_far_chunk(chunks[i]-1); }
 					chunks[i] = chID;
-					// if(bmin==vec(14.,12)) WOUT(i, chunks[i], chID, patches[i]); 
-				}
+				} else if(chunks[i]){ page->free_far_chunk(chunks[i]-1); chunks[i] = 0; } // чанк больше не используется
 				patches[i] = nullptr;
 			}
-			// if(bmin==vec(14.,12)) WOUT(chunks[0], this->get_cell_usage(0,0), this->get_cell_usage(1,0), get_chunk_usage(0, 0), get_chunk_usage(1, 0)); 
-			page = page2;  commit_usages();
-			// if(bmin==vec(14.,12)) WOUT(chunks[0], this->get_cell_usage(0,0), this->get_cell_usage(1,0), get_chunk_usage(0, 0), get_chunk_usage(1, 0)); 
+			page = page2;  
 		} else { // остаемся на той же странице, самый частый вариант. Занулить весь patches[i]?
-			for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){
-					for(int I=i>>(6-D); I<((i+1)>>(6-D)); I++){
-						int u = get_chunk_usage(I); if(!u) continue;
-						int chID = chunks[I]; chID--;
-						if(chID>=0){
-							if(u==1){ page->free_far_chunk(chID); chunks[I] = 0; } // чанк был локально освобожден
-							else if(page->patches[chID] && page->get_chunk_usage(1, chID)){ // разрешаем конфликт на странице
-								chunks[I] = page->alloc_far_chunk();
-								copy_chunk(page->data+(chID<<D), page->data+((chunks[I]-1)<<D));
-								page->free_far_chunk(chID);
-							}
-						} else if(u==2 && patches[I]){ //  накатываем патч
+			for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ // цикл по 8ми байтным словам в usages, только для тех слов где было изменение
+					for(int I=i<<(6-D); I<((i+1)<<(6-D)); I++){ // цикл по чанкам
+						int u = get_chunk_usage(I); if(!u) continue; // два бита, 1 - текущее использование, 2 - будущее
+						int chID = chunks[I]; chID--; // ID чанка на странице
+						if(chID>=0 && u==1){ page->free_far_chunk(chID); chunks[I] = 0; } // чанк был локально освобожден
+						else if(chID<0 && u==2 && patches[I]){ // если чанк не был выделен, но будет использоваться --- накатываем патч
 							chunks[I] = page->alloc_far_chunk();
 							copy_chunk(patches[I]->data, page->data+((chunks[I]-1)<<D));
+							patches[I] = nullptr;
 						}
-					}
-				}
-			commit_usages();
+					} // конец цикла по чанкам
+				} // конец цикла по 8ми байтным словам в usages
 		}
-		return chunks_sz-free_chunks_sz();
+		commit_usages();
+		return will_need();
 	}		
+	//--------------------------------------------------------------------------
 	// актуализует значение first_free_chunk, обновляет usages и счетчики.
 	// ПЕРЕД вызовом для конфликтных чанков должно быть освобождено место, ВСЕ патчи считаются примененными!
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::heavy_tile_t::commit(){
-		if(!root) return far_ch_sz;  // это страница памяти
-		if(free_chunks_sz()<chunks_sz/2){  // надо попытаться сделать легким тайлом
+		if(!root){ commit_usages(); return will_need(); } // это страница памяти
+		int self_sz = 0, other_sz = 0; for(int i=0; i<chunks_sz; i++){ self_sz += get_chunk_usage(1, i); other_sz += get_chunk_info(i)==2; }
+		if(!other_sz && self_sz<chunks_sz/2){  // надо сделать легким тайлом
 			commit_usages();
-
-			root->ltiles.emplace_back(); light_tile_t &lt = root->ltiles.back();
-			(tile_t&)lt = (tile_t&)(*this);
-			for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->parent = &lt;
-			if(parent) parent->childs[parent->find_child_ID(this)] = &lt;
-			else root->root = &lt;
-			lt.page = root->search_page(ch_use);
-			if(lt.page==this){
+			root->ltiles.emplace_back(); light_tile_t &lt = root->ltiles.back(); replace_me(lt);
+			lt.page = root->search_page(self_sz);
+			if(lt.page==this){  // этот тайл остается страницей для нового легкого тайла, при этом все конфликты с легкими тайлами уже разрешены
 				root = nullptr; 
-				for(int i=0; i<chunks_sz; i++){
-					if(get_chunk_usage(1, i)){ lt.chunks[i] = i+1; set_chunk_info(i, 2); }
-					patches[i] = nullptr;
-				}
+				for(int i=0; i<chunks_sz; i++) if(get_chunk_usage(1, i)){ lt.chunks[i] = i+1; set_chunk_info(i, 2); }
 			} else for(int i=0; i<chunks_sz; i++) if(get_chunk_usage(1, i)){
-						lt.chunks[i] = lt.page->alloc_far_chunk();
-						copy_chunk(data+(i<<D), lt.page->data+((lt.chunks[i]-1)<<D));
+						lt.chunks[i] = lt.page->alloc_far_chunk(true); 
+						copy_chunk(data+(i<<D), lt.page->data+((lt.chunks[i]-1)<<D)); 
 					}
-			return far_ch_sz;
-		} else {
-			// обязательно надо занулить все патчи?!
+		} else {  // остается тяжелым тайлом
 			for(int i=0; i<usages_sz; i++) 
-				if(usages[0][i]!=usages[1][i]){
-					for(int chID=i>>(6-D); chID<((i+1)>>(6-D)); chID++){
-						int u = get_chunk_usage(chID), s = get_chunk_info(chID);
-						if(u==1){ // чанк был локально освобожден
-							if(s!=2){ set_chunk_info(chID, 0); /* if(first_free_chunk>chID) first_free_chunk = chID; */ }
-						} else if(u==2){ set_chunk_info(chID, 1); } // чанк был локально выделен
-					}
-				}
+				if(usages[0][i]!=usages[1][i])
+					for(int chID=i<<(6-D); chID<((i+1)<<(6-D)); chID++)
+						if(get_chunk_usage(chID)==1 && get_chunk_info(chID)==1) set_chunk_info(chID, 0); // if(first_free_chunk>chID) first_free_chunk = chID; 
 			commit_usages();
 		}
-		return ch_use+far_ch_sz;
+		return will_need();
+		// return ch_use+far_ch_sz;
 	}
 	//--------------------------------------------------------------------------
 	// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split/join(const Cell&, T *chunk_data) 
 	template <typename T, int D, int R> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 	void AdaptiveMesh<T, D, R>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
-		for(auto t: *this) for(auto c: t){
+		for(auto t: *this){
+			t.root->selfcheck();
+			for(auto c: t){
 				if(!(c.offset%(1<<D)) && c.tile->rank>0 && c.tile->chunk_is_full(c.offset>>D)){ // возможно этот чанк потребует слияния
+					// if(false){ // возможно этот чанк потребует слияния
 					int chk[1<<D], sum_chk = 0;
 					for(int i=0; i<(1<<D); i++){ Cell c2 = c; c2.offset +=i; c2.ptr += i; chk[i] = f_check(c2); sum_chk += chk[i]; }
 					if(sum_chk==-(1<<D)){ Cell p; (cell_t&)p = c.tile->join_chunk(c.offset>>D); f_join(p, c.ptr); } // чанк действительно потребовал слияния
@@ -126,6 +119,7 @@ namespace aiw{
 					c.offset += (1<<D)-1; c.ptr += (1<<D)-1;
 				} else if(f_check(c)==1) f_split(c, c.tile->split_cell(c.offset));
 			}
+		}
 		commit();
 	}
 	//--------------------------------------------------------------------------

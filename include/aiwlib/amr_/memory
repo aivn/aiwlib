@@ -16,17 +16,32 @@ namespace aiw{
 			root->ltiles.emplace_back(); t = &(root->ltiles.back()); t->rank = rank+1;
 			t->root = root; t->parent = this; childs[tID] = t; t->set_coords(tID);
 		}
-		t->alloc_chunk(chID); t->usages[1][chID>>(6-D)] |= Dbits<<((chID<<D)&0x3f);
-		usages[1][off>>6] &= ~(uint64_t(1)<<(off&0x3f));
+		t->alloc_chunk(chID); t->set_chunk_usage_on(chID); set_cell_usage_off(off);
+		// WOUT(this, t);
 		return t->cell(chID<<D);
 	}
 	// объединяет чанк, возвращает родительскую ячейку
 	template <typename T, int D, int R> typename AdaptiveMesh<T, D, R>::cell_t AdaptiveMesh<T, D, R>::tile_t::join_chunk(int chID){
-		usages[1][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f)); // деактивируем чанк
+		// WOUT(this, parent);
 		cell_t res; res.tile = parent; res.offset = (parent->find_child_ID(this)<<(D*(R-1)))|chID; 
-		parent->alloc_chunk(res.offset>>D); parent->usages[1][res.offset>>6] |= uint64_t(1)<<(res.offset&0x3f);
+		parent->alloc_chunk(res.offset>>D); parent->set_cell_usage_on(res.offset); set_chunk_usage_off(chID);
 		res.ptr = parent->cell(res.offset);
 		return res;
+	}
+	//--------------------------------------------------------------------------
+	// заменяет все связи (parent, childs, root) с this на связи с other, копирует *this в other
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::replace_me(tile_t &other){
+		other = *this;  // здесь копируется все включая childs, parent, root
+		for(int i=0; i<(1<<D); i++) if(childs[i]){ childs[i]->parent = &other; childs[i] = nullptr; }
+		if(parent){ parent->childs[parent->find_child_ID(this)] = &other; parent = nullptr; }
+		else root->root = &other;
+	}
+	// проверяет будет ли нужен еще тайл, если нет обнуляет все ссылки на этот тайл
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::will_need(){
+		for(int i=0; i<(1<<D); i++) if(childs[i]) return true;  // этот тайл нужен в любом случае так как у него есть дочерние тайлы
+		if(alloc_chunks_sz()) return true;
+		if(parent) parent->childs[parent->find_child_ID(this)] = nullptr;
+		return false;
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> AdaptiveMesh<T, D, R> AdaptiveMesh<T, D, R>::copy() const {
@@ -65,16 +80,21 @@ namespace aiw{
 		for(heavy_tile_t &p: htiles){
 			// int d = chunks_sz - (int(p.ch_use+p.ch_alloc)+p.far_ch_sz+sz);
 			// if(d>=0 && d+p.ch_free<gap){ page = &p; gap = d+p.ch_free; }
-			int d = chunks_sz - int(p.free_chunks_sz())-sz;
+			int d = chunks_sz - p.alloc_chunks_sz()-sz;
 			if(d>=0 && d<gap){ page = &p; gap = d; }
 		}
 		if(!page){ htiles.emplace_back(); page = &(htiles.back()); }
 		return page;
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> uint16_t AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_far_chunk(){ // возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
+	// возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
+	template <typename T, int D, int R> uint16_t AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_far_chunk(bool in_commit){ 
 		// for(uint32_t i=first_free_chunk; i<chunks_sz; i++) if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return first_free_chunk = i+1; }
 		for(uint32_t i=0; i<chunks_sz; i++)	if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return i+1; }
+		if(in_commit){
+			for(uint32_t i=0; i<chunks_sz; i++) WOUT(i, get_chunk_info(i), get_chunk_usage(i));
+			WRAISE("", this);
+		}
 		return 0;
 	}
 	//--------------------------------------------------------------------------
@@ -100,13 +120,13 @@ namespace aiw{
 		}
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> uint16_t AdaptiveMesh<T, D, R>::heavy_tile_t::free_chunks_sz() const {
+	template <typename T, int D, int R> int AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_chunks_sz() const {
 		int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(get_chunk_info(i));
 		if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
 		return res;
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> uint16_t AdaptiveMesh<T, D, R>::light_tile_t::free_chunks_sz() const {
+	template <typename T, int D, int R> int AdaptiveMesh<T, D, R>::light_tile_t::alloc_chunks_sz() const {
 		int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(chunks[i]);
 		if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
 		return res;

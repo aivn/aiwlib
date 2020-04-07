@@ -69,10 +69,12 @@ void aiw::AdaptiveMeshView::iterator::next(){
 //------------------------------------------------------------------------------
 bool aiw::AdaptiveMeshView::iterator::tile_bound(int axe) const { // axe - номер оси + 1 со знаком (-слева, +справа) т.е. -/+1, -/+2
 	uint32_t D = msh->core->D, R = msh->core->R, Dbits = 1<<axes[abs(axe)-1], RDbits = (~uint32_t(0))>>(32-R*D);
-	uint32_t off = offset, zm = (zmasks[D-1]<<axes[abs(axe)-1])&RDbits;
+	uint32_t off = offset&RDbits, zm = (zmasks[D-1]<<axes[abs(axe)-1])&RDbits;
 	for(tile_t *t = tile; t; t=t->childs[off>>((R-1)*D)]){
 		if((axe<0 && !(zm&off))||(axe>0 && (off&zm)==zm)) return true;
 		off = (axe<0? off<<D: (off<<D)|Dbits)&RDbits;
+		// if((axe<0 && r==0)||(axe>0 && r==R)) return true;
+		// off = (axe<0? off<<D: (off<<D)|Dbits)&RDbits;
 	}
 	return false;
 }
@@ -119,22 +121,24 @@ bool aiw::AdaptiveMeshView::core_t::load(aiw::IOstream&& S, bool use_mmap, bool 
 		std::vector<heavy_tile_t*> hts(h_sz-1);
 		std::vector<light_tile_t*> lts(hl_sz-h_sz);
 
-		for(int i=1; i<h_sz; i++){ htiles.emplace_back(); tbl[i] = hts[i-1] = &htiles.back(); }
-		for(int i=h_sz; i<hl_sz; i++){ ltiles.emplace_back(); tbl[i] = lts[i-h_sz] = &ltiles.back(); }
-		tiles[Ti] = tbl[rID];  int I; uint32_t far_ch_sz; uint16_t ch_use;
+		for(int i=1; i<h_sz; i++){ htiles.emplace_back(); tbl.at(i) = hts.at(i-1) = &htiles.back(); }
+		for(int i=h_sz; i<hl_sz; i++){ ltiles.emplace_back(); tbl.at(i) = lts.at(i-h_sz) = &ltiles.back(); }
+		tiles.at(Ti) = tbl.at(rID);  int I; uint32_t far_ch_sz; uint16_t ch_use;
 		//WOUT(rID, tbl[rID]);
 		//for(int i=0; i<hl_sz; i++) WOUT(i, tbl[i]);
 		for(heavy_tile_t *t: hts){			
-			S>t->rank>ch_use>far_ch_sz>I;  t->parent = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl[I]; }
+			S>t->rank>ch_use>far_ch_sz>I;  t->parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl.at(I); }
 			//WOUT(t, t->parent, t->childs[0], t->childs[1], t->childs[2], t->childs[3]);
 			if(max_rank<t->rank) max_rank = t->rank;
 			read_vector(S, t->usage, 1<<(R*D));
 			read_vector(S, t->ghost, 1<<(R*D));
 			S.seek(1<<((R-1)*D-2), 1); // пропускаем chunks
 			read_vector(S, t->data, (1<<(R*D))*szT); //for(int i=0; i<int(t->data.size()/4); i++) WOUT(i, *(float*)&(t->data[i*4]));
-		}
+		}		
 		for(light_tile_t *t: lts){
-			S>t->rank>ch_use>I; t->page = hts[I-1]; S>I; t->parent = tbl[I]; for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl[I]; }
+			S>t->rank>ch_use>I;
+			if(I<=0) WRAISE("", I);
+			t->page = hts.at(I-1); S>I; t->parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl.at(I); }
 			if(max_rank<t->rank) max_rank = t->rank;
 			//WOUT(t, t->parent, t->page, t->childs[0], t->childs[1], t->childs[2], t->childs[3], t->parent->find_child_ID(t));
 			read_vector(S, t->usage, 1<<(R*D)); //for(int i=0; i<int(t->usage.size()); i++) WOUT(i, t->usage[i]);
@@ -148,7 +152,7 @@ bool aiw::AdaptiveMeshView::core_t::load(aiw::IOstream&& S, bool use_mmap, bool 
 				tile_t *c = t->childs[i]; // дочерний тайл
 				if(c) for(int j=0; j<(1<<(D*(R-1))); j++) // цикл по чанкам дочернего тайла
 						  for(int k=0; k<(1<<D); k++) // цикл по ячейкам в чанке дочернего тайла
-							  if(c->usage[(j<<D)+k]){ t->split[(i<<((R-1)*D))+j] = true; break; }
+							  if(c->usage.at((j<<D)+k)){ t->split[(i<<((R-1)*D))+j] = true; break; }
 			}
 		}
 	} // конец цикла по тайлам нулевого ранга

@@ -37,23 +37,27 @@ namespace aiw{
 					}
 				}
 			tile_t* root(){ return parent? parent->root(): this; }
+			int max_subtile_runk(int off, int D, int R) const { tile_t *t = childs[off>>(D*(1-R))]; return t? t->max_subtile_runk((off<<D)&((~0)>>(32-R*D)), D, R): rank; }
 		}; // end of struct tile_t
 		//----------------------------------------------------------------------
 		struct heavy_tile_t: public tile_t{
 			std::vector<char> data; // длины 1<<(D*R) для ячеек!
 			
 			float raw_get(int offset, AdaptiveMeshView *msh) const { return  *(float*)&(data[offset*msh->core->szT + msh->offset_in_cell]);	}
-			float get(int offset, AdaptiveMeshView *msh) const { return usage[offset]? (msh->offset_in_cell>=0? raw_get(offset, msh) : float(rank)): nanf(""); }
+			float get(int offset, AdaptiveMeshView *msh) const {
+				int oic = msh->offset_in_cell;
+				return usage[offset]? (oic>=0? raw_get(offset, msh) : float(oic==-2? max_subtile_runk(offset, msh->core->D, msh->core->R): rank)): nanf("");
+			}
 		}; // end of struct heavy_tile_t		
 		//----------------------------------------------------------------------
 		struct light_tile_t: public tile_t{
 			heavy_tile_t *page;
 			std::vector<uint16_t> chunks; // длины 1<<(D*(R-1)) для чанков, содержит смещения чанков
 			float get(int offset, AdaptiveMeshView *msh) const {
-				int c = 1<<msh->core->D;
+				int D = msh->core->D, c = 1<<D, oic = msh->offset_in_cell;
 				// WOUT(offset, usage[offset], chunks[offset>>msh->D], (chunks[offset>>msh->D]-1)*c+offset%c);
-				return usage[offset]? (msh->offset_in_cell>=0? page->raw_get((chunks[offset>>msh->core->D]-1)*c+offset%c, msh) :
-									   float(msh->offset_in_cell==-1? rank: rank-.5)): nanf("");
+				return usage[offset]? (oic>=0? page->raw_get((chunks[offset>>D]-1)*c+offset%c, msh) :
+									   float(oic==-1? rank: (oic==-2? max_subtile_runk(offset, D, msh->core->R) :rank-.5))): nanf("");
 			}
 		}; // end of struct light_tile_t
 	public:

@@ -18,40 +18,64 @@ namespace aiw{
 		for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->set_coords(i);
 	}			
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::activate_cell(int off){   
-		int chID = off>>D; int s01 = get_chunk_usage(chID);
-		alloc_chunk(chID); usages[1][off>>6] |= uint64_t(1)<<(off&0x3f);
-		bool s2 = get_chunk_usage(1, chID); ch_alloc += !s01 && s2; ch_free -= (s01==1); 
-	}
-	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::deactivate_cell(int off){ 
-		int chID = off>>D; int s01 = get_chunk_usage(chID);
-		usages[1][off>>6] &= ~(uint64_t(1)<<(off&0x3f));
-		bool s2 = get_chunk_usage(1, chID); ch_free += s01==3 && !s2; ch_alloc -= (s01==2) && !s2; 
-	}
-	//--------------------------------------------------------------------------
-	/* template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::deactivate_chunk(int chID){ 
-		int s01 = get_chunk_usage(chID);
-		usages[1][chID>>(6-D)] &= ~(Dbits<<((chID<<D)&0x3f));
-		ch_free += s01==3; ch_alloc -= (s01==2); 
-		} */
-	//--------------------------------------------------------------------------
-	//   heavy_tile_t
+	//   out_info()
 	//--------------------------------------------------------------------------			
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::out_info() const {
+		printf("#==== OUT INFO ====\n");
+		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].out_info();
+		size_t sz = size(), msz = memsz();
+		printf("#==== max_rank=%i size=%ld memsz=%ld memory overhead=%g\n", get_max_rank(), sz, msz, double(msz)/(sizeof(T)*sz));
+	}
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::out_info() const {
+		printf("#R[%i", pos[0]); for(int i=1; i<D; i++) printf(",%i", pos[i]);
+		printf("]: this=%p max_rank=%i root=%p htiles=%i ltiles=%i patches=%i\n",
+			   this, get_max_rank(), root, int(htiles.size()), int(ltiles.size()), int(patches.size()));
+		for(const heavy_tile_t &t: htiles) if(!t.root) t.out_info();
+		root->out_info();
+	}			
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::heavy_tile_t::out_info() const {
 		char buf[2*rank+1]; for(int i=0; i<2*rank; i++) buf[i] = ' '; buf[2*rank] = 0;
 		printf("#%sH: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL first_free_chunk=%i far_ch_sz=%i\n",
 			   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], first_free_chunk, far_ch_sz);
 		for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
 	}
-	//--------------------------------------------------------------------------
-	//  light_tile_t
-	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::light_tile_t::out_info() const {
 		char buf[2*rank+1]; for(int i=0; i<2*rank; i++) buf[i] = ' '; buf[2*rank] = 0;
-		printf("#%sL: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL page=%p\n",
-			   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], page);
+		printf("#%sL: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL page=%p asz=%i\n",
+			   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], page, alloc_chunks_sz());
 		for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
+	}
+	//--------------------------------------------------------------------------
+	//   selfcheck()
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::selfcheck() const{
+		for(const heavy_tile_t& t: htiles) t.selfcheck();
+		for(const light_tile_t& t: ltiles) t.selfcheck();
+	}
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::heavy_tile_t::selfcheck() const{
+		bool res = true; if(parent) parent->find_child_ID(this);
+		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root)){
+				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root); res = false;
+			}
+		// for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
+		// for(int i=0; i<chunks_sz; i++) if(get_chunk_usage(i) && get_chunk_info(i)!=1){ WOUT(i, get_chunk_usage(i), get_chunk_info(i)); res = false; }
+		// if(patches) for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), get_chunk_info(i)); res = false; }
+		if(!res){ if(root){ root->out_info(); } out_info(); abort(); }
+	}
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::light_tile_t::selfcheck() const{
+		bool res = true; if(parent) parent->find_child_ID(this);
+		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root)){
+				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root); res = false;
+			}
+		/*
+		for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
+		for(int i=0; i<chunks_sz; i++){
+			if(bool(get_chunk_usage(i))!=bool(chunks[i])){ WOUT(i, get_chunk_usage(i), chunks[i]); res = false; }
+			if(chunks[i] && page->get_chunk_info(chunks[i]-1)!=2){ WOUT(i, chunks[i], page->get_chunk_info(chunks[i]-1), page->get_chunk_usage(chunks[i]-1)); res = false; }
+		}
+		if(patches) for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), chunks[i]); res = false; }
+		*/
+		if(!res){ root->out_info();  out_info(); printf("#--- page ----\n");  page->out_info(); abort(); }
 	}
 	//--------------------------------------------------------------------------
 	//   root_t
@@ -63,21 +87,17 @@ namespace aiw{
 		return res;
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::out_info() const {
-		printf("#R[%i", pos[0]); for(int i=1; i<D; i++) printf(",%i", pos[i]);
-		printf("]: this=%p max_rank=%i root=%p htiles=%i ltiles=%i patches=%i\n",
-			   this, get_max_rank(), root, int(htiles.size()), int(ltiles.size()), int(patches.size()));
-		for(const heavy_tile_t &t: htiles) if(!t.root) t.out_info();
-		root->out_info();
-	}			
-	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::tiles2dat(IOstream& S) const {
-		for(const heavy_tile_t &t: htiles) if(t.root) S("%\n%\n\n\n%\n%\n\n\n", t.bmin|t.rank, (t.bmin+t.step*(1<<R))|t.rank,
-														(t.bmin+vec(t.step[0]*(1<<R), 0))|t.rank, (t.bmin+vec(0, t.step[0]*(1<<R)))|t.rank);
-		for(const light_tile_t &t: ltiles) S("%\n%\n\n\n", t.bmin|t.rank, (t.bmin+t.step*(1<<R))|t.rank); // at ???
+	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::tiles2dat(IOstream& hS, IOstream& lS) const {
+		for(const heavy_tile_t &t: htiles) if(t.root) t.out2dat(hS);
+		for(const light_tile_t &t: ltiles) t.out2dat(lS); 
 	}
 	//--------------------------------------------------------------------------
 	//  AdaptiveMesh
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>	void AdaptiveMesh<T, D, R>::set_max_rank_box_step(){ // устанавливает max_rank, box и шаги
+		max_rank = 0; for(Ind<D> pos; pos^=tiles.bbox(); ++pos) max_rank = std::max(tiles[pos].get_max_rank(), max_rank);
+		box = tiles.bbox()*(1<<(R+max_rank)); this->set_axes(bmin, bmax);
+	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_){
 		box = tbox*(1<<R); this->set_axes(bmin_, bmax_);
@@ -89,12 +109,7 @@ namespace aiw{
 			for(int i=0; i<chunks_sz; i++) t->set_chunk_info(i, 1); // все чанки локально заняты
 			t->ch_use = chunks_sz; // t->first_free_chunk = chunks_sz;
 		}
-	}
-	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> int AdaptiveMesh<T, D, R>::get_max_rank() const {
-		int res = 0;
-		for(Ind<D> pos; pos^=tiles.bbox(); ++pos){ int r = tiles[pos].get_max_rank(); if(res<r) res = r; }
-		return res;
+		set_max_rank_box_step();
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> size_t AdaptiveMesh<T, D, R>::size() const { // число ячеек
@@ -117,45 +132,7 @@ namespace aiw{
 		return res;
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::out_info() const {
-		printf("#==== OUT INFO ====\n");
-		for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].out_info();
-		size_t sz = size(), msz = memsz();
-		printf("#==== max_rank=%i size=%ld memsz=%ld memory overhead=%g\n", get_max_rank(), sz, msz, double(msz)/(sizeof(T)*sz));
-	}
-	//--------------------------------------------------------------------------
 	//  Cell
-	//--------------------------------------------------------------------------
-	// активировать ячейку если она не использовалась, память выделяется сразу но после AdaptiveMesh::commit() данные могут быть перемещены
-	// можно активировать ячейку если у нее есть активный сосед сверху/снизу (или если она имеет нулевой ранг???)
-	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::Cell::activate(){ 
-		if(!tile || (!parent().is_used() && !tile->childs[offset>>((R-1)*D)]->get_chunk_usage(0, offset&R1Dbits))) return false;
-		tile->activate_cell(offset);  ptr = tile->cell(offset);
-		return true;
-	}
-	//--------------------------------------------------------------------------
-	// деактивировать ячейку если она использовалась, память сохраняется до AdaptiveMesh::commit()
-	// можно деактивировать ячейку только если у нее есть единственный активный сосед сверху/снизу
-	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::Cell::deactivate(){  
-		if(tile && parent().is_used()^tile->childs[offset>>((R-1)*D)]->get_chunk_usage(0, offset&R1Dbits)) return false;
-		if(tile){ tile->deactivate_cell(offset);  return true; }  // ptr = nullptr; ???
-		return false; 
-	}
-	//--------------------------------------------------------------------------	
-	template <typename T, int D, int R> T* AdaptiveMesh<T, D, R>::Cell::split(){ // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
-		// if(bmin()==vec(14.,12.)) WOUT(rank());
-		Cell res = child(0); if(!res.activate()) return nullptr; 
-		for(int i=1; i<(1<<D); i++) res.tile->activate_cell(res.offset+i);
-		deactivate(); // ???
-		// if(bmin()==vec(14.,12.)) WOUT(rank());
-		return res.ptr;
-	}
-	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::Cell::join(){ // деактивирует все подъячейки
-		Cell res = child(0);
-		if(res.deactivate()) for(int i=1; i<(1<<D); i++) res.tile->deactivate_cell(res.offset+i);
-		activate(); // ???
-	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> uint32_t AdaptiveMesh<T, D, R>::Cell::bound(){ // по два бита на каждую ось, слева/справа
 		if(bound_!=~0) return bound_;
