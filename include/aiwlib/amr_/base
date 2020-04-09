@@ -51,31 +51,58 @@ namespace aiw{
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::selfcheck() const{
 		for(const heavy_tile_t& t: htiles) t.selfcheck();
 		for(const light_tile_t& t: ltiles) t.selfcheck();
+		for(const heavy_tile_t& ht: htiles) if(ht.far_ch_sz){ 
+				bool res = false;
+				for(const light_tile_t& lt: ltiles) if(lt.page==&ht){ res = true; break; }
+				if(!res){
+					out_info();
+					WOUT(&ht, ht.far_ch_sz, ht.alloc_chunks_sz(), ht.root, ht.parent, ht.rank);
+					for(int i=0; i<chunks_sz; i++) WOUT(i, ht.get_chunk_usage(i), ht.get_chunk_info(i), ht.patches[i]);
+					abort();
+				}
+			}
 	}
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::heavy_tile_t::selfcheck() const{
-		bool res = true; if(parent) parent->find_child_ID(this);
-		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root)){
-				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root); res = false;
+		bool res = true;
+		if(parent){ parent->find_child_ID(this); if(parent->rank+1!=rank){ WOUT(parent->rank, rank); res= false; } }
+		else if((root && root->root!=this) || rank){ WOUT(root->root, rank); res = false; }
+		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root || childs[i]->rank!=rank+1)){
+				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root, rank, childs[i]->rank); res = false;
 			}
-		// for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
-		// for(int i=0; i<chunks_sz; i++) if(get_chunk_usage(i) && get_chunk_info(i)!=1){ WOUT(i, get_chunk_usage(i), get_chunk_info(i)); res = false; }
-		// if(patches) for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), get_chunk_info(i)); res = false; }
-		if(!res){ if(root){ root->out_info(); } out_info(); abort(); }
+		/* */
+		for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
+		for(int i=0; i<chunks_sz; i++) if(get_chunk_usage(i) && get_chunk_info(i)!=1){ WOUT(i, get_chunk_usage(i), get_chunk_info(i)); res = false; }
+		for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), get_chunk_info(i)); res = false; }
+		/* */
+		if(!res){
+			if(root){
+				root->out_info(); 
+				for(const light_tile_t&lt: root->ltiles) if(lt.page==this){
+						printf("#--- page ---");
+						for(int i=0; i<chunks_sz; i++) WOUT(i, lt.chunks[i], lt.get_chunk_usage(i));
+						break;
+					}
+			printf("#--- self ----\n"); out_info();
+			abort();
+			}
+		}
 	}
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::light_tile_t::selfcheck() const{
-		bool res = true; if(parent) parent->find_child_ID(this);
-		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root)){
-				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root); res = false;
+		bool res = true;
+		if(parent){ parent->find_child_ID(this); if(parent->rank+1!=rank){ WOUT(parent->rank, rank); res= false; } }
+		else if((root && root->root!=this) || rank){ WOUT(root->root, rank); res = false; }
+		for(int i=0; i<(1<<D); i++) if(childs[i] && (childs[i]->parent!=this || childs[i]->root!=root || childs[i]->rank!=rank+1)){
+				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root, rank, childs[i]->rank); res = false;
 			}
-		/*
+		/* */
 		for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
 		for(int i=0; i<chunks_sz; i++){
 			if(bool(get_chunk_usage(i))!=bool(chunks[i])){ WOUT(i, get_chunk_usage(i), chunks[i]); res = false; }
 			if(chunks[i] && page->get_chunk_info(chunks[i]-1)!=2){ WOUT(i, chunks[i], page->get_chunk_info(chunks[i]-1), page->get_chunk_usage(chunks[i]-1)); res = false; }
 		}
-		if(patches) for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), chunks[i]); res = false; }
-		*/
-		if(!res){ root->out_info();  out_info(); printf("#--- page ----\n");  page->out_info(); abort(); }
+		for(int i=0; i<chunks_sz; i++) if(patches[i]){ WOUT(i, patches[i], get_chunk_usage(i), chunks[i]); res = false; }
+		/* */		
+		if(!res){ root->out_info(); printf("#--- self ----\n"); out_info(); printf("#--- page ----\n");  page->out_info(); abort(); }
 	}
 	//--------------------------------------------------------------------------
 	//   root_t
@@ -106,7 +133,7 @@ namespace aiw{
 			root_t &r = tiles[pos]; r.msh = this; r.pos = pos;
 			r.htiles.emplace_back(); heavy_tile_t *t; r.root = t = &(r.htiles.back()); t->root = &r; t->set_coords(-1);
 			for(int i=0; i<usages_sz; i++) t->usages[0][i] = t->usages[1][i] = ~uint64_t(0); // все ячейки активированы
-			for(int i=0; i<chunks_sz; i++) t->set_chunk_info(i, 1); // все чанки локально заняты
+			for(int i=0; i<chunks_sz; i++) t->set_chunk_info(i, 1); // все чанки локально заняты, сделать это через  alloc_chunk?
 			t->ch_use = chunks_sz; // t->first_free_chunk = chunks_sz;
 		}
 		set_max_rank_box_step();

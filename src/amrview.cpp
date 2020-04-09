@@ -137,8 +137,8 @@ bool aiw::AdaptiveMeshView::core_t::load(aiw::IOstream&& S, bool use_mmap, bool 
 		}		
 		for(light_tile_t *t: lts){
 			S>t->rank>ch_use>I;
-			if(I<=0) WRAISE("", I);
-			t->page = hts.at(I-1); S>I; t->parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl.at(I); }
+			// if(I<0) WRAISE("", I);
+			t->page = I? hts.at(I-1): nullptr; S>I; t->parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t->childs[i] = tbl.at(I); }
 			if(max_rank<t->rank) max_rank = t->rank;
 			//WOUT(t, t->parent, t->page, t->childs[0], t->childs[1], t->childs[2], t->childs[3], t->parent->find_child_ID(t));
 			read_vector(S, t->usage, 1<<(R*D)); //for(int i=0; i<int(t->usage.size()); i++) WOUT(i, t->usage[i]);

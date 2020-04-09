@@ -20,7 +20,8 @@ namespace aiw{
 			S<t.usages[0]<t.usages[2]<t.chunks; S.write(t.data, sizeof(T)*tile_sz); 
 		}
 		for(const light_tile_t &t: ltiles){
-			if(!t.page || tbl.find(t.page)==tbl.end()){
+			if(!t.page) WOUT(&t, t.alloc_chunks_sz(), t.parent, t.rank);
+			if(tbl.find(t.page)==tbl.end()){
 				out_info(); 
 				for(int i=0; i<chunks_sz; i++){
 					if(t.patches[i]) WOUT(i);

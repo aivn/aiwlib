@@ -36,7 +36,7 @@ namespace aiw{
 	// при необходимости рекурсивно спускается вниз по тайлу
 	// неоптимизировано, trmode не поддерживается, только для НЕПРЕРЫВНОГО ПОЛЯ
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::first(cell_t &C, int trmode, int start){ 
-		if(get_cell_usage(0, start)){ C.offset = start; C.ptr = cell(start); C.tile = this;	return true;  }
+		if(get_cell_usage(0, start)){ C.offset = start; C.ptr = cell(start); WASSERT(C.ptr, "", this, start, rank, bmin); C.tile = this;	return true;  }
 		int tid = cID2ctID(start); if(childs[tid]) return childs[tid]->first(C, trmode, (start<<D)&RDbits);
 		return false; 
 	}
@@ -66,7 +66,7 @@ namespace aiw{
 		T *res;
 		if(patches && patches[chID]) res = patches[chID]->data+(cID&Dbits);
 		else res = chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
-		// if(!res || size_t(res)==0xc000000000000) WOUT(res, cID, chID, bmin, rank, chunks[chID], this->get_cell_usage(0,cID), this->get_cell_usage(1,cID));
+		if(!res && bmin==ind(16,24) && rank==1) WOUT(this, cID, chID, chunks[chID], this->get_cell_usage(0,cID));
 		return res;
 	}
 	//--------------------------------------------------------------------------

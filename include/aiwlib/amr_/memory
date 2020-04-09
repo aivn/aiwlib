@@ -35,6 +35,7 @@ namespace aiw{
 		for(int i=0; i<(1<<D); i++) if(childs[i]){ childs[i]->parent = &other; childs[i] = nullptr; }
 		if(parent){ parent->childs[parent->find_child_ID(this)] = &other; parent = nullptr; }
 		else root->root = &other;
+		// rank = 0;  // этот тайл уже ненужен
 	}
 	// проверяет будет ли нужен еще тайл, если нет обнуляет все ссылки на этот тайл
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::will_need(){
@@ -90,11 +91,30 @@ namespace aiw{
 	// возвращает ID+1 аллоцированного чанка либо 0 в случае неудачи
 	template <typename T, int D, int R> uint16_t AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_far_chunk(bool in_commit){ 
 		// for(uint32_t i=first_free_chunk; i<chunks_sz; i++) if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return first_free_chunk = i+1; }
+#ifdef EBUG
+		int tmp_far_ch_sz = 0;
+		for(int i=0; i<chunks_sz; i++) tmp_far_ch_sz += bool(get_chunk_info(i)==2);
+		if(far_ch_sz!=tmp_far_ch_sz){
+			WOUT(this, root, parent, far_ch_sz, tmp_far_ch_sz);
+			for(int i=0; i<chunks_sz; i++) WOUT(i, get_chunk_usage(i), get_chunk_info(i));
+			abort();
+		}
+#endif //EBUG
 		for(uint32_t i=0; i<chunks_sz; i++)	if(!get_chunk_info(i)){ set_chunk_info(i, 2); far_ch_sz++; return i+1; }
 		if(in_commit){
+			WOUT(this, root, parent, rank);
 			for(uint32_t i=0; i<chunks_sz; i++) WOUT(i, get_chunk_info(i), get_chunk_usage(i));
-			WRAISE("", this);
+			abort();
 		}
+#ifdef EBUG
+		tmp_far_ch_sz = 0;
+		for(int i=0; i<chunks_sz; i++) tmp_far_ch_sz += bool(get_chunk_info(i)==2);
+		if(far_ch_sz!=tmp_far_ch_sz){
+			WOUT(this, root, parent, far_ch_sz, tmp_far_ch_sz);
+			for(int i=0; i<chunks_sz; i++) WOUT(i, get_chunk_usage(i), get_chunk_info(i));
+			abort();
+		}
+#endif //EBUG
 		return 0;
 	}
 	//--------------------------------------------------------------------------
@@ -102,7 +122,16 @@ namespace aiw{
 		// chID -= 1;
 		if(patches[chID] && get_chunk_usage(1, chID)){ copy_chunk(patches[chID]->data, data+(int(chID)<<D)); set_chunk_info(chID, 1); }
 		else { set_chunk_info(chID, 0);	/*if(first_free_chunk>chID) first_free_chunk = chID;*/ }
-		patches[chID] = nullptr; far_ch_sz--; 
+		patches[chID] = nullptr; far_ch_sz--;
+#ifdef EBUG
+		int tmp_far_ch_sz = 0;
+		for(int i=0; i<chunks_sz; i++) tmp_far_ch_sz += bool(get_chunk_info(i)==2);
+		if(far_ch_sz!=tmp_far_ch_sz){
+			WOUT(this, root, parent, far_ch_sz, tmp_far_ch_sz, chID);
+			for(int i=0; i<chunks_sz; i++) WOUT(i, get_chunk_usage(i), get_chunk_info(i));
+			abort();
+		}
+#endif //EBUG
 	}			
 	//--------------------------------------------------------------------------
 	// гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
@@ -122,13 +151,13 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> int AdaptiveMesh<T, D, R>::heavy_tile_t::alloc_chunks_sz() const {
 		int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(get_chunk_info(i));
-		if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
+		for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
 		return res;
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> int AdaptiveMesh<T, D, R>::light_tile_t::alloc_chunks_sz() const {
 		int res = 0; for(int i=0; i<chunks_sz; i++) res += bool(chunks[i]);
-		if(patches) for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
+		for(int i=0; i<chunks_sz; i++) res += bool(patches[i]);
 		return res;
 	}
 	//--------------------------------------------------------------------------
