@@ -21,7 +21,8 @@ aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::core_t::find(aiw::Ind<2> 
 	I.tile = tiles[T0]; I.offset = offset0>>(max_rank*D); I.mask = mask0>>(max_rank*D); // настраиваем I на тайл нулевого ранга
 	for(int i=0; i<2; i++){ I.imin[i] = I.tile->pos[I.axes[i]]+de_interleave_bits(D, I.offset>>I.axes[i], R)*(1<<max_rank); I.imax[i] = I.imin[i]+(1<<max_rank); }
 	// поиск внутри тайла
-	while(I.tile->split[I.offset]){ // пока есть разбитые ячейки
+	// while(I.tile->split[I.offset]){ // пока есть разбитые ячейки
+	while(!I.tile->usage[I.offset] && I.tile->childs[I.offset>>((R-1)*D)]){   // это работает только для непрерывного поля
 		int f = (offset0>>(D*(R+max_rank-I.tile->rank-1)))&maskD; // номер дочернего тайла
 		I.tile = I.tile->childs[f];	I.offset = (offset0>>((max_rank-I.tile->rank)*D))&maskRD; I.mask = (mask0>>((max_rank-I.tile->rank)*D))&maskRD;		
 		for(int i=0; i<2; i++){ if(I.offset&(1<<I.axes[i])) I.imin[i] = (I.imin[i]+I.imax[i])/2; else I.imax[i] = (I.imin[i]+I.imax[i])/2; }
@@ -225,14 +226,14 @@ AdaptiveMeshView aiw::AdaptiveMeshView::transpose(int, int){
 }
 //------------------------------------------------------------------------------
 AdaptiveMeshView aiw::AdaptiveMeshView::crop(aiw::Ind<2> a, aiw::Ind<2> b, Ind<2> d){
-	WOUT(a, b, d, off, bmin, bmax, step, box_, fbox);
+	// WOUT(a, b, d, off, bmin, bmax, step, box_, fbox);
 	// a = find(a).imin; b = find(b-ind(1)).imax;
 	// WOUT(a, b, d, off, bmin, bmax, step, box_, fbox);
 	AdaptiveMeshView amv = *this;
 	amv.off += a; amv.box_ = b-a;
 	amv.bmin = core->bmin(axes[0], axes[1])+(step&amv.off);
 	amv.bmax = amv.bmin + (amv.step&amv.box_); 
-	WOUT(amv.off, amv.bmin, amv.bmax, amv.step, amv.box_, amv.fbox);
+	// WOUT(amv.off, amv.bmin, amv.bmax, amv.step, amv.box_, amv.fbox);
 	return amv;
 }
 //------------------------------------------------------------------------------
