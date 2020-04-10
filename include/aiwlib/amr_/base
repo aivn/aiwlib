@@ -35,14 +35,18 @@ namespace aiw{
 	}			
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::heavy_tile_t::out_info() const {
 		char buf[2*rank+1]; for(int i=0; i<2*rank; i++) buf[i] = ' '; buf[2*rank] = 0;
-		printf("#%sH: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL first_free_chunk=%i far_ch_sz=%i\n",
-			   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], first_free_chunk, far_ch_sz);
+		// printf("#%sH: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL first_free_chunk=%i far_ch_sz=%i\n",
+		//	   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], first_free_chunk, far_ch_sz);
+		printf("#%sH: this=%p parent=%p rank=%hi root=%p usages[0]=%lXL usages[1]=%lXL alloc_ch=%i far_ch_sz=%i\n",
+			   buf, this, parent, rank, root, usages[0][0], usages[1][0], alloc_chunks_sz(), far_ch_sz);
 		for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
 	}
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::light_tile_t::out_info() const {
 		char buf[2*rank+1]; for(int i=0; i<2*rank; i++) buf[i] = ' '; buf[2*rank] = 0;
-		printf("#%sL: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL page=%p asz=%i\n",
-			   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], page, alloc_chunks_sz());
+		// printf("#%sL: this=%p parent=%p rank=%hi root=%p ch_use=%hi ch_alloc=%hi ch_free=%hi usages[0]=%XL usages[1]=%XL page=%p asz=%i\n",
+		//	   buf, this, parent, rank, root, ch_use, ch_alloc, ch_free, usages[0][0], usages[1][0], page, alloc_chunks_sz());
+		printf("#%sL: this=%p parent=%p rank=%hi root=%p usages[0]=%lXL usages[1]=%lXL page=%p asz=%i\n",
+			   buf, this, parent, rank, root, usages[0][0], usages[1][0], page, alloc_chunks_sz());
 		for(int i=0; i<(1<<D); i++) if(childs[i]) childs[i]->out_info();
 	}
 	//--------------------------------------------------------------------------
@@ -95,7 +99,7 @@ namespace aiw{
 				WOUT(i, this, childs[i], childs[i]->parent, root, childs[i]->root, rank, childs[i]->rank); res = false;
 			}
 		/* */
-		for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(i, usages[0][i], usages[1][i]); res = false; } 
+		for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ WOUT(this, i, usages[0][i], usages[1][i]); res = false; } 
 		for(int i=0; i<chunks_sz; i++){
 			if(bool(get_chunk_usage(i))!=bool(chunks[i])){ WOUT(i, get_chunk_usage(i), chunks[i]); res = false; }
 			if(chunks[i] && page->get_chunk_info(chunks[i]-1)!=2){ WOUT(i, chunks[i], page->get_chunk_info(chunks[i]-1), page->get_chunk_usage(chunks[i]-1)); res = false; }

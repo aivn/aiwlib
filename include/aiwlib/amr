@@ -97,7 +97,7 @@ namespace aiw{
 			bool first(cell_t &C, int trmode, int start=0); // при необходимости рекурсивно спускается вниз по тайлу			
 			bool next(cell_t &C, int trmode); // ходит вверх по тайлам, для спуска вызывает first				
 			tile_t* find_nb_tile(Ind<D> tpos, bool force=false) const; // ищет соседний тайл, tpos - относительная позиция, если тайла нет возвращает ноль
-			const T& get(uint64_t off0, int crank) const {
+			T& get(uint64_t off0, int crank){
 				uint64_t off = off0>>((crank-R)*D);	if(get_cell_usage(0, off)) return *cell(off);
 				tile_t *t = childs[off0>>(--crank*D)]; WASSERT(t, "", off0, bmin, rank, crank, this);
 				return t->get(off0&~(Dbits<<(D*crank)), crank);				
@@ -305,14 +305,20 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		T out_value;
 	protected:
-		const T& get(Ind<D> pos) const {
-			return check_out_pos(pos)? out_value: tiles[pos/(1<<(R+max_rank))].root->get(pos2zoff(pos%(1<<(R+max_rank)), 1<<(R+max_rank)), R+max_rank);
+		T& get(Ind<D> pos){
+			return this->check_out_pos(pos)? out_value: tiles[pos/(1<<(R+max_rank))].root->get(pos2zoff(pos%(1<<(R+max_rank)), 1<<(R+max_rank)), R+max_rank);
 		}
 	public:
-		const T& operator [](const Ind<D> &pos) const { return get(pos); }
+		// const T& operator [](const Ind<D> &pos) const { return get(pos); }
 		      T& operator [](const Ind<D> &pos)       { return (T&)get(pos); }
-		const T& operator ()(const Vec<D> &coord) const { return get(coord2pos(coord)); }
-		      T& operator ()(const Vec<D> &coord)       { return (T&)get(coord2pos(coord)); }		
+		// const T& operator ()(const Vec<D> &coord) const { return get(this->coord2pos(coord)); }
+		      T& operator ()(const Vec<D> &coord)       { return (T&)get(this->coord2pos(coord)); }		
+		//----------------------------------------------------------------------
+		//   всякие обходы
+		//----------------------------------------------------------------------
+		template <typename F> void foreach(F &&f, double dt, int level){ for(auto t: *this) for(auto C: t) if(!(level%(1<<C.rank()))) f(C, dt); }  // оптимизировать?
+		template <typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, double dt);
+		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
 };

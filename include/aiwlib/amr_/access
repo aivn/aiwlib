@@ -76,7 +76,7 @@ namespace aiw{
 		Cell res; res.offset = calc_nb_zoffset(dpos, offset|(Dbits<<(R*D)));
 		if(check_out_tile(res.offset)) res.tile = tile->find_nb_tile(zoff2pos<D>((res.offset>>(R*D)), 2)-ind(1)); // попали в другой тайл
 		else res.tile = tile;
-		res.offset &= RDbits; res.ptr = res.is_used()? res.tile->cell(res.offset): nullptr; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
+		res.offset &= RDbits; res.ptr = /*res.is_used()?*/ res.tile->cell(res.offset) /*: nullptr*/; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
 		return res;
 	}
 	//--------------------------------------------------------------------------
@@ -85,7 +85,7 @@ namespace aiw{
 		uint32_t childID = cID2ctID(off); t = t->childs[childID];
 		if(!t){ WRAISE("", bmin(), this->rank(), rank, axe); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
 		off = (off<<D)&RDbits;
-		double dS = 1./(1<<(D*(t->rank+1-rank)));
+		double dS = 1./(1<<((D-1)*(t->rank-rank)));
 		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
 				if(t->get_cell_usage(0, off+i)) f(*(t->cell(off+i)), dS, t->step[axe]*.5);
 				else deep2face(f, t, off+i, mask, res4cmp, axe, rank);
@@ -134,6 +134,14 @@ namespace aiw{
 		// подняться не удалось, идем вниз - много мелких соседей
 		if(nb_tile) deep2face(f, nb_tile, nb_off, 1<<a, bool(axe<0)<<a, a, tile->rank);
 		else f(*(T*)(nullptr), 1., tile->step[a]*sign*.5); 
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>  template <typename F1, typename F2> void AdaptiveMesh<T, D, R>::foreach2Xdt(F1 &&f1, F2 &&f2, double dt){
+		int mr = max_rank(); double dt_arr[mr] = {dt}; for(int i=1; i<mr; i++) dt_arr[i] = dt_arr[i-1]/2;
+		for(int i=0; i<(1<<mr); i++){
+			for(auto t: *this) for(auto C: t) if(!(i%(1<<(mr-C.rank())))) f1(C, dt_arr[C.rank()]);
+			for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(mr-C.rank())))) f2(C, dt_arr[C.rank()]);
+		}
 	}
 	//--------------------------------------------------------------------------
 };

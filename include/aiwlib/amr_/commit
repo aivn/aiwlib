@@ -11,9 +11,9 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::root_t::commit(){
 		// сортировать по размеру???
-		// for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()) ++I; else ltiles.erase(I++);
-		// for(auto I=htiles.begin(); I!=htiles.end();) if(I->commit()) ++I; else htiles.erase(I++);
-		/* */
+		for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()) ++I; else ltiles.erase(I++);
+		for(auto I=htiles.begin(); I!=htiles.end();) if(I->commit()) ++I; else htiles.erase(I++);
+		/* 
 		for(auto I=ltiles.begin(); I!=ltiles.end();) if(I->commit()){ I->selfcheck(); ++I; } else ltiles.erase(I++);
 		for(const light_tile_t& lt: ltiles){
 			if(!lt.page) continue;
@@ -28,12 +28,12 @@ namespace aiw{
 			for(const heavy_tile_t& ht: htiles) if(lt.page==&ht){ res = true; break; }
 			if(!res){ out_info(); WOUT(lt.page, lt.alloc_chunks_sz()); abort(); }
 		}
-		/* */
+		*/
 		patches.clear();
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::light_tile_t::commit(){
-		int patches_sz = 0; // число патчей 		
+		int patches_sz = 0; // число патчей
 		for(int i=0; i<chunks_sz; i++){
 			if(page && chunks[i] && page->patches[chunks[i]-1]){ //  сразу забираем к себе все конфликтные чанки  - это не очень эффективно но зато надежно
 				if(get_chunk_usage(1, i)){ 
@@ -62,11 +62,11 @@ namespace aiw{
 		// if(!page || page->alloc_chunks_sz()<chunks_sz/2   // это плохой тяжелый тайл который сейчас переделают в легкий 
 		//   || int(page->ch_use+page->ch_alloc)+free_chunks_sz()>chunks_sz || (!page->root && page->far_ch_sz<chunks_sz/2))
 		if(!page || page_sz+patches_sz<chunks_sz/2 || page_sz+patches_sz>chunks_sz) page2 = root->search_page(ac_sz); // меняем страницу если нужно
-
+		
 		if(page2!=page){ // переносим данные
 			for(int i=0; i<chunks_sz; i++){
 				if(get_chunk_usage(1, i)){
-					int chID = page2->alloc_far_chunk();
+					int chID = page2->alloc_far_chunk(true);
 					WASSERT(!(patches[i] && chunks[i]), "", i, get_chunk_usage(i), patches[i], chunks[i]);
 					if(patches[i]) copy_chunk(patches[i]->data, page2->data+((chID-1)<<D)); 
 					else { copy_chunk(page->data+((chunks[i]-1)<<D), page2->data+((chID-1)<<D)); page->free_far_chunk(chunks[i]-1); }
@@ -76,12 +76,13 @@ namespace aiw{
 			}
 			page = page2;  
 		} else { // остаемся на той же странице, самый частый вариант. Занулить весь patches[i]?
-			for(int i=0; i<usages_sz; i++) if(usages[0][i]!=usages[1][i]){ // цикл по 8ми байтным словам в usages, только для тех слов где было изменение
+			// цикл по 8ми байтным словам в usages, если есть патчи или только  для тех слов где было изменение 
+			for(int i=0; i<usages_sz; i++) if(patches_sz || usages[0][i]!=usages[1][i]){ 
 					for(int I=i<<(6-D); I<((i+1)<<(6-D)); I++){ // цикл по чанкам
 						int u = get_chunk_usage(I); if(!u) continue; // два бита, 1 - текущее использование, 2 - будущее
 						int chID = chunks[I]; chID--; // ID чанка на странице
 						if(chID>=0 && u==1){ page->free_far_chunk(chID); chunks[I] = 0; } // чанк был локально освобожден
-						else if(chID<0 && u==2 && patches[I]){ // если чанк не был выделен, но будет использоваться --- накатываем патч
+						else if(chID<0 && (u&2) && patches[I]){ // если чанк не был выделен, но будет использоваться --- накатываем патч							
 							chunks[I] = page->alloc_far_chunk(true); 
 							copy_chunk(patches[I]->data, page->data+((chunks[I]-1)<<D));
 							patches[I] = nullptr;
@@ -129,7 +130,7 @@ namespace aiw{
 	template <typename T, int D, int R> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 	void AdaptiveMesh<T, D, R>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
 		for(auto t: *this){
-			t.root->selfcheck(); // WOUT(t.root->pos);
+			t.root->selfcheck();  // WOUT(t.root->pos);
 			for(auto c: t){
 				if(!(c.offset%(1<<D)) && c.tile->rank>0 && c.tile->chunk_is_full(c.offset>>D)){ // возможно этот чанк потребует слияния
 					// if(false){ // возможно этот чанк потребует слияния
