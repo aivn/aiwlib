@@ -1,0 +1,27 @@
+// -*- C++ -*-
+#ifndef AIW__HPP
+#define AIW__HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// template <typename T, int D, int R>	int AdaptiveMesh<T, D, R>::conefold_complexity(Ind<D> pos) const {}  // в ячейках на шаг
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt){
+		dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
+		for(int i=0; i<(1<<max_rank); i++){ // это пока что пошаговый конефолд
+			for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, dt_arr[C.rank()]);
+			for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, dt_arr[C.rank()]);
+		}
+	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(F1 &&f1, F2 &&f2, dT dt){
+		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefold(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
+	} 
+	//--------------------------------------------------------------------------
+};
+#endif //AIW__HPP

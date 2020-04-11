@@ -316,8 +316,15 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//   всякие обходы
 		//----------------------------------------------------------------------
-		template <typename F> void foreach(F &&f, double dt, int level){ for(auto t: *this) for(auto C: t) if(!(level%(1<<C.rank()))) f(C, dt); }  // оптимизировать?
-		template <typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, double dt);
+		template <typename dT, typename F> void foreach(F &&f, dT dt, int level){
+			for(auto t: *this) for(auto C: t) if(!(level%(1<<C.rank()))) f(C, dt);  // оптимизировать?
+		}
+		template <typename dT, typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, dT dt);
+
+		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
+		int conefold_complexity(Ind<D> pos) const { return 0; }  // в ячейках на шаг, пока не работает
+		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, double dt); 
+		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, double dt); 
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
