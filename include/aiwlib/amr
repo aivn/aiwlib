@@ -235,9 +235,9 @@ namespace aiw{
 		public:
 			uint32_t bound(); // по два бита на каждую ось, слева/справа
 		protected:
-			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe, int rank);
+			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe);
 		public:
-			// f(Cell&, const T&, double доля_площади_грани, double расстояние_от_грани_ДО_центра_СОСЕДНЕЙ_ячейки_по_оси_СО_знаком)
+			// f(Cell&, const T&, double доля_площади_грани, int dR=f.rank-C.rank)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
 			template <typename F>  void face(F&& f, int axe);			// проверки является ли ячейка граничной?
 			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
@@ -322,9 +322,9 @@ namespace aiw{
 		template <typename dT, typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, dT dt);
 
 		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
-		int conefold_complexity(Ind<D> pos) const { return 0; }  // в ячейках на шаг, пока не работает
-		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, double dt); 
-		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, double dt); 
+		double conefold_complexity(Ind<D> pos) const;  // в ячейках X шаг
+		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
+		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, dT dt); 
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------
@@ -335,5 +335,6 @@ namespace aiw{
 #include "amr_/access"
 #include "amr_/commit"
 #include "amr_/dump_load"
+#include "amr_/LRnLA"
 
 #endif //AIW_AMR_HPP

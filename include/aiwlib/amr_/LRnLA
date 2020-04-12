@@ -1,6 +1,6 @@
 // -*- C++ -*-
-#ifndef AIW__HPP
-#define AIW__HPP
+#ifndef AIW_AMR_LRnLA_HPP
+#define AIW_AMR_LRnLA_HPP
 
 /**
  * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
@@ -13,15 +13,51 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt){
 		dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
-		for(int i=0; i<(1<<max_rank); i++){ // это пока что пошаговый конефолд
-			for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, dt_arr[C.rank()]);
-			for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, dt_arr[C.rank()]);
+
+		struct CF_cell_t: public Cell { Cell *up = nullptr; };
+		std::map<Vec<D>,  std::pair<CF_cell_t, int> > ctable;
+		for(Ind<D> dpos; dpos^=ind(2); ++dpos)
+			if(ind(0)<=pos+dpos && pos+dpos<tiles.bbox())
+				for(Cell C: get_tile(pos+dpos)){ std::pair<CF_cell_t, int> &p = ctable[C.bmin()]; (Cell&)(p.first) = C; }
+		{ int i=0; for(auto &I: ctable) I.second.second = ++i; }
+		std::vector<CF_cell_t> cells(ctable.size()); 
+		for(auto I: ctable){ // это нужно сделать через C[Ind<D>(1)] ???
+			CF_cell_t &C = cells[cells.size()-I.second.second]; C = I.second.first;  
+			auto J = ctable.find(I.first+C.step());
+			if(J!=ctable.end() && J->second.first.rank()==C.rank()) C.up = &(cells[cells.size()-J->second.second]);
 		}
+		ctable.clear();
+		// std::sort(cells.begin(), cells.end(), [](const CF_cell_t &a, const CF_cell_t &b){ return a.bmin()>b.bmin(); }); <== std::less<Vec<D> > !!!
+		Vec<D> a = bmin+(pos&tiles.step)-step/2, b = a+tiles.step;
+
+		for(CF_cell_t &C1: cells) for(CF_cell_t &C2: cells) if(&C1!=&C2 && C1.ptr==C2.ptr) WOUT(&C1, &C2, C1.ptr, C2.ptr);
+		
+		for(int i=0; i<(1<<(/*R+*/max_rank)); i++){ // это пока что пошаговый конефолд
+			for(CF_cell_t &C: cells) if(!(i%(1<<(max_rank-C.rank())))){ Vec<D> c = C.bmin(); if(a<=c && c<b) f1(C, dt_arr[C.rank()]); }			
+			a += step; b += step;
+			for(CF_cell_t &C: cells) if(!((i+1)%(1<<(max_rank-C.rank())))){ Vec<D> c = C.bmin();  if(a<=c && c<b) f2(C, dt_arr[C.rank()]); }
+				
+		}
+		// exit(0);
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(F1 &&f1, F2 &&f2, dT dt){
 		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefold(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
 	} 
 	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>	double AdaptiveMesh<T, D, R>::conefold_complexity(Ind<D> pos) const {   // в ячейках на шаг
+		double res = 0;  Vec<D> a0 = tiles.bmin+(pos&tiles.step), b0 = a0+tiles.step, places[D];
+		for(int i=0; i<D; i++) places[i][i] = 1./tiles.step[i];
+		for(Ind<D> dpos; dpos^=ind(2); ++dpos)
+			if(ind(0)<=pos+dpos && pos+dpos<tiles.bbox())
+				for(Cell C: get_tile(pos+dpos)){
+					Vec<D> c = C.bmin()+C.step()*.5; 
+					double a = 0., b = 1.;
+					for(int i=0; i<D; i++){ a = std::max(a, (c-b0)*places[i]); b = std::min(b, (c-a0)*places[i]); }
+					if(a<b) res += (b-a)*(1<<(R+C.rank())); 
+				}			
+		return res;
+	}
+	//--------------------------------------------------------------------------
 };
-#endif //AIW__HPP
+#endif //AIW_AMR_LRnLA_HPP
