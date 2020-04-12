@@ -30,13 +30,10 @@ namespace aiw{
 		// std::sort(cells.begin(), cells.end(), [](const CF_cell_t &a, const CF_cell_t &b){ return a.bmin()>b.bmin(); }); <== std::less<Vec<D> > !!!
 		Vec<D> a = bmin+(pos&tiles.step)-step/2, b = a+tiles.step;
 
-		for(CF_cell_t &C1: cells) for(CF_cell_t &C2: cells) if(&C1!=&C2 && C1.ptr==C2.ptr) WOUT(&C1, &C2, C1.ptr, C2.ptr);
-		
 		for(int i=0; i<(1<<(R+max_rank)); i++){ // это пока что пошаговый конефолд
 			for(CF_cell_t &C: cells) if(!(i%(1<<(max_rank-C.rank())))){ Vec<D> c = C.bmin(); if(a<=c && c<b) f1(C, dt_arr[C.rank()]); }			
 			a += step; b += step;
-			for(CF_cell_t &C: cells) if(!((i+1)%(1<<(max_rank-C.rank())))){ Vec<D> c = C.bmin();  if(a<=c && c<b) f2(C, dt_arr[C.rank()]); }
-				
+			for(CF_cell_t &C: cells) if(!((i+1)%(1<<(max_rank-C.rank())))){ Vec<D> c = C.bmin();  if(a<=c && c<b) f2(C, dt_arr[C.rank()]); }				
 		}
 		// exit(0);
 	}

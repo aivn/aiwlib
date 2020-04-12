@@ -22,10 +22,10 @@ namespace aiw{
 		UsingBaseMeshAttributes;
 		
 		static const int tile_rank = R;
-		static const uint64_t Dbits = ~((~0)<<D);
-		static const uint64_t CHbits = ~((~0)<<(1<<D));
-		static const uint64_t RDbits = ~((~0)<<(R*D));
-		static const int32_t R1Dbits = ~((~0)<<((R-1)*D));
+		static const uint64_t Dbits = ~((~uint64_t(0))<<D);
+		static const uint64_t CHbits = ~((~uint64_t(0))<<(1<<D));
+		static const uint64_t RDbits = ~((~uint64_t(0))<<(R*D));
+		static const int32_t R1Dbits = ~((~uint64_t(0))<<((R-1)*D));
 		static const int tile_sz = 1<<(D*R);       // число ячеек в тайле
 		static const int chunks_sz = 1<<(D*(R-1)); // число чанков
 		static const int usages_sz = 1<<(D*R-6);   // число 64х битных слов в массиве usages, должно быть R*D>=6

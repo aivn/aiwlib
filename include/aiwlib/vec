@@ -358,6 +358,11 @@ namespace aiw{
 		for(int i=0; i<D; i++){ r[i] = x%p[i]; x /= p[i]; }
 		return r;
 	}   	
+	template<int D> inline Ind<D> operator % (const Ind<D> &p, int x){
+		Ind<D> r;
+		for(int i=0; i<D; i++) r[i] = p[i]%x; 
+		return r;
+	}   	
 	//--------------------------------------------------------------------------
 	//  ostream operation
 	//--------------------------------------------------------------------------
