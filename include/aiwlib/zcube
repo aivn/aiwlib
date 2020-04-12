@@ -17,14 +17,15 @@ namespace aiw{
 								  0x1084210842108421, 0x1041041041041041, 0x8102040810204081, 0x0101010101010101,
 								  0x8040201008040201, 0x1004010040100401, 0x0080100200400801, 0x1001001001001001,
 								  0x0010008004002001, 0x0100040010004001, 0x1000200040008001, 0x0001000100010001 };
+	template <int D, typename T> T calc_nb_zoffset(int axe, int dist, T offset){  // при сдвиге в отриц. направлении offset должен иметь запас в старших битах
+		int lim = ::abs(dist), d = 1<<axe;
+		T omask = zmasks[D-1]<<axe, imask = ~omask, fix = offset&imask; 
+		if(dist<0) for(int k=0; k<lim; k++) offset = (offset&omask) - d;
+		else       for(int k=0; k<lim; k++) offset = (offset|imask) + d;
+		return (offset&omask) | fix;
+	}
 	template <int D, typename T> T calc_nb_zoffset(const Ind<D> &dpos, T offset){  // при сдвиге в отриц. направлении offset должен иметь запас в старших битах
-		for(int i=0; i<D; i++) if(dpos[i]){
-				int lim = ::abs(dpos[i]), d = 1<<i;
-				T omask = zmasks[D-1]<<i, imask = ~omask, fix = offset&imask; 
-				if(dpos[i]<0) for(int k=0; k<lim; k++) offset = (offset&omask) - d;
-				else          for(int k=0; k<lim; k++) offset = (offset|imask) + d;
-				offset = (offset&~imask) | fix;
-			}
+		for(int i=0; i<D; i++) if(dpos[i]) offset = calc_nb_zoffset<D>(i, dpos[i], offset);
 		return offset;
 	}
 	// вычисляет маску для итераций по Z-кривой, для соотвествующих осей из маски axes поднимаются раздвинутые биты вплоть до ранга R 
