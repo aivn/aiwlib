@@ -1,0 +1,48 @@
+// -*- C++ -*-
+#ifndef AIW_CONEFOLD_HPP
+#define AIW_CONEFOLD_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "vec"
+#include "zcube"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	//  итерирует conefold рамерности D ранга R
+	template <int D, int R> struct ConeFoldIter{
+		// private:
+		static const uint64_t Dbits = ~((~uint64_t(0))<<D);
+		Ind<R> I = ind(Dbits);  //<=== возможно в будущем удасться это убрать и оставить только offset и t
+
+	public:
+		int t = 0;                                   // общее время 
+		uint64_t offset = ~((~uint64_t(0))<<(R*D));  // смещение на плоскости данных (обход по Z-кривой)
+
+		operator uint64_t() const { return offset; } // можно просто привести итератор к числу
+
+		bool next(){  // рассчитано на работу в стиле  ConeFoldIter I; do{ ... } while(I.next());  можно итерировать повторно  
+			for(int i=0; i<R; i++){
+				// offset -= I[i]<<(i*D);
+				Ind<D> pos = zoff2pos<D>(offset, i+2) - zoff2pos<D>(I[i], 2)*(1<<i);
+				if(!(t&(1<<i))){ // это нижний слой по времени
+					I[i]--;
+					if(I[i]<0){ I[i] = Dbits*(1<<D); t |= 1<<i; } // нижний слой закончился, начался верхний слой
+				} else { // это верхний слой по времени
+					I[i] -= Dbits;
+					if(!I[i]){ I[i] = Dbits; t &= ~(1<<i); } // верхний слой закончился, вернулись на нижний слой
+				} 				
+				// offset += I[i]<<(i*D);
+				offset = pos2zoff(pos+zoff2pos<D>(I[i], 2)*(1<<i), i+2);
+				if(I[i]!=Dbits || (t&(1<<i))) return true;
+			}
+			return false;
+		}
+	};
+	// добавить сюда отсечку заведомо нулевых фрагментов по маске?
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_CONEFOLD_HPP
