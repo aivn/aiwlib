@@ -113,6 +113,8 @@ namespace aiw{
 
 			T* split_cell(int off);       // разбивает ячейку, возвращает указатель на данные чанка
 			cell_t join_chunk(int chID);  // объединяет чанк, возвращает родительскую ячейку
+
+			template<typename dT, typename F> void conefold(int offset, F&& f, dT dt);
 		}; // end of struct tile_t
 		//----------------------------------------------------------------------
 #define USING_TT_ATTRS using tile_t::root; using tile_t::bmin; using tile_t::step; \
@@ -237,7 +239,7 @@ namespace aiw{
 		protected:
 			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe);
 		public:
-			// f(Cell&, const T&, double доля_площади_грани, int dR=f.rank-C.rank)
+			// f(T* nb_cell, double доля_площади_грани, int dR=nb_cell->.rank-C.rank)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
 			template <typename F>  void face(F&& f, int axe);			// проверки является ли ячейка граничной?
 			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
@@ -323,6 +325,8 @@ namespace aiw{
 
 		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
 		double conefold_complexity(Ind<D> pos) const;  // в ячейках X шаг
+		template <typename dT, typename F> void conefold(Ind<D> pos, F &&f, dT dt); 
+		template <typename dT, typename F> void conefold(F &&f, dT dt); 
 		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
 		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, dT dt); 
 		//----------------------------------------------------------------------
