@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0'''
 from Tkinter import *
 from tkFileDialog import *
 from math import *
-import os, sys, time, PIL.Image, PIL.ImageTk, aiwlib.plot2D
+import os, sys, time, PIL.Image, PIL.ImageTk, PIL.ImageDraw, PIL.ImageFont, aiwlib.plot2D
 from aiwlib.plot2D import *
 #-------------------------------------------------------------------------------
 TkVar = lambda x: {bool: BooleanVar, int: IntVar, str: StringVar, float: DoubleVar}[type(x)](value=x)
@@ -156,6 +156,16 @@ class Plot2D(Canvas):
         self.bind('<Button-3>', self._mouse_right)
         self.bind('<Motion>', self._mouse_move)
         self._sel_sticky, self._sel_region = None, None
+        self._content = []
+    #--- wrap base func ---
+    def create_rectangle(self, *args, **kw_args): self._content.append(('rect', args, kw_args)); Canvas.create_rectangle(self, *args, **kw_args)
+    def create_line(self, *args, **kw_args): self._content.append(('line', args, kw_args)); Canvas.create_line(self, *args, **kw_args)
+    def create_text(self, *args, **kw_args): self._content.append(('text', args, kw_args)); Canvas.create_text(self, *args, **kw_args)
+    def delete(self, tag):
+        if tag=='all': self._content = []
+        else: self._content = filter(lambda i: i[2].get('tag')!=tag, self._content)
+        Canvas.delete(self, tag)
+    #----------------------
     def _add_pict(self, tag, xy0, xy1, border, plotter):
         if tag in self.picts: self.del_pict(tag)
         image = PIL.Image.new('RGB', (xy1[0]-xy0[0], xy1[1]-xy0[1]))
@@ -210,17 +220,37 @@ class Plot2D(Canvas):
         return max_tic_sz+tic_sz[0]+pal_sz
     def save_image(self, *args):
         'запрашивает имя файла и сохраняет изображение в форматах .ps, .pdf или .png'
-        fname = asksaveasfilename(defaultextension='.pdf', filetypes=['PDF {.pdf}', 'PostScript {.ps}', 'PNG {.png}'])
+        fname = asksaveasfilename(defaultextension='.png', filetypes=['PNG {.png}', 'PDF {.pdf}', 'PostScript {.ps}'])
         if not fname: return
         tmp = '/tmp/%s'%os.getpid()        
         if fname.endswith('.ps'): self.postscript(file=fname); return
-        self.postscript(file=tmp+'.ps')
-        if fname.endswith('.pdf'): os.system('epstopdf %s.ps && mv %s.pdf "%s"'%(tmp, tmp, fname))
+        #self.postscript(file=tmp+'.ps')
+        if fname.endswith('.pdf'): self.postscript(file=tmp+'.ps'); os.system('epstopdf %s.ps && mv %s.pdf "%s"'%(tmp, tmp, fname)); os.remove(tmp+'.ps')
         elif fname.endswith('.png'):
-            #os.system('convert -alpha off -density 600 %s.ps %s.png && convert -geometry %sx%s %s.png "%s" && rm %s.png'%(
-            #    (tmp, tmp)+self.wsize()+(tmp, fname, tmp)))
-            os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s.ps'%(fname, tmp))
-        os.remove(tmp+'.ps')
+            #os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s.ps'%(fname, tmp))
+            img = PIL.Image.new('RGB', self.wsize(), (255, 255, 255)) #2png
+            draw = PIL.ImageDraw.Draw(img)
+            for T, a, kw in self._content:
+                if kw.get('tag') in ('pal_move', 'msh_move'): continue
+                if T=='text':
+                    a, txt, font = list(a), kw['text'], kw['font'] # с т.з. draw a задано относительно верхнего левого угла
+                    font = PIL.ImageFont.truetype(font[0]+'.ttf', font[1])
+                    sz, anchor = draw.textsize(txt, font=font), kw.get('anchor', '')
+                    a[0] -= sz[0]/2; a[1] -= sz[1]/2 # центрируем текст относительно a
+                    if 'e' in anchor: a[0] -= sz[0]/2
+                    if 'w' in anchor: a[0] += sz[0]
+                    if 's' in anchor: a[1] -= sz[1]/2
+                    if 'n' in anchor: a[1] += sz[1]/2
+                    draw.text(a[:2], txt, fill=(0,0,0), font=font) 
+                elif T=='line': draw.line(a[:4], width=1, fill=(0,0,0)) 
+                elif T=='rect':
+                    draw.line((a[0], a[1], a[0], a[3]), width=1, fill=(0,0,0)) 
+                    draw.line((a[0], a[3], a[2], a[3]), width=1, fill=(0,0,0)) 
+                    draw.line((a[2], a[3], a[2], a[1]), width=1, fill=(0,0,0)) 
+                    draw.line((a[2], a[1], a[0], a[1]), width=1, fill=(0,0,0)) 
+            for xy0, xy1, image, cimage in self.picts.values(): img.paste(image, (xy0+xy1))        
+            img.save(fname)
+        #os.remove(tmp+'.ps')
     def mouse_move(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'move', action))
     def mouse_left(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'left', action))
     def mouse_right(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'right', action))
