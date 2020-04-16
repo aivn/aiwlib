@@ -87,53 +87,53 @@ namespace aiw{
 		off = (off<<D)&RDbits;
 		double dS = 1./(1<<((D-1)*(t->rank-tile->rank)));
 		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
-				if(t->get_cell_usage(0, off+i)) f(t->cell(off+i), dS, t->rank-tile->rank);
+				if(t->get_cell_usage(0, off+i)){ Cell nbC; nbC.tile = t; nbC.offset = off+i; nbC.ptr = t->cell(off+i); f(nbC); }
 				else deep2face(f, t, off+i, mask, res4cmp, axe);
 			}				
 	}
 	//--------------------------------------------------------------------------
-	// f(T* nb_cell, double доля_площади_грани, int dR=nb_cell->.rank-C.rank)
+	// f(Cell &nbC)
 	// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
-	template <typename T, int D, int R> template<typename F> void AdaptiveMesh<T, D, R>::Cell::face(F&& f, int axe){ 
+	// ifdR - допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
+	template <typename T, int D, int R> template<typename F> void AdaptiveMesh<T, D, R>::Cell::face(F&& f, int axe, int ifdR){ 
 		if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
+		Cell nbC; nbC.ptr = nullptr;
 		// считаем offset и тайл соседней ячейки
-		int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1, nb_off = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
-		if(bound()&(1<<(2*a+(axe>0)))){ f(nullptr, 1., 0); return; } // это граничная ячейка
-		Ind<D> nbt_pos; nbt_pos[a] = sign; tile_t *nb_tile = check_out_tile(nb_off)? tile->find_nb_tile(nbt_pos): tile;
+		int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1; nbC.offset = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
+		if(bound()&(1<<(2*a+(axe>0)))){ f(nbC); return; } // это граничная ячейка
+		Ind<D> nbt_pos; nbt_pos[a] = sign; nbC.tile = check_out_tile(nbC.offset)? tile->find_nb_tile(nbt_pos): tile;
 		
-		uint32_t old_nb_off = nb_off;
+		nbC.offset &= RDbits;
 		
-		nb_off &= RDbits;
-		
-		bool way_up = nb_tile && nb_tile->parent;
-		if(nb_tile){
-			if(nb_tile->get_cell_usage(0, nb_off)){ f(nb_tile->cell(nb_off), 1., nb_tile->rank-tile->rank); return; } // один сосед на том же уровне
-			if(nb_tile->get_cell_split(false, nb_off)) way_up = false; //  точно идем вниз, много мелких соседей
-		} else if(tile->parent) {  //  мы на границе тайла текущего уровня
-			tile_t *t = tile, *p = t->parent; uint32_t off = offset; // old_nb_off>>D;
+		bool way_up = nbC.tile && nbC.tile->parent;
+		if(nbC.tile){
+			if(nbC.tile->get_cell_usage(0, nbC.offset)){ if(ifdR<=1){ nbC.ptr = nbC.tile->cell(nbC.offset); }  f(nbC); return; } // один сосед на том же уровне
+			if(nbC.tile->get_cell_split(false, nbC.offset)){ if(ifdR){ return; } way_up = false; } //  точно идем вниз, много мелких соседей
+		} else if(tile->parent) {  //  мы на границе тайла текущего уровня, дальше только вверх
+			tile_t *t = tile, *p = t->parent; uint32_t off = offset;
 			while(p){
 				off = (p->find_child_ID(t)<<((R-1)*D))|(off>>D); // смещение родительской ячейки в тайле выше
-				nb_off = calc_nb_zoffset<D>(a, sign, off|(Dbits<<(R*D))); // соседняя ячейка уровнем выше
-				if(check_out_tile(nb_off)){ // попали в соседний тайл уровнем выше
-					nb_off &= RDbits;
-					tile_t* nbt = p->find_nb_tile(nbt_pos);
-					if(nbt && nbt->get_cell_usage(0, nb_off)){ f(nbt->cell(nb_off), 1., nbt->rank-tile->rank); return; }
-				} else if(p->get_cell_usage(0, nb_off&RDbits)){ f(p->cell(nb_off&RDbits), 1., p->rank-tile->rank); return; } // остались в верхнем тайле
+				uint32_t uoff = calc_nb_zoffset<D>(a, sign, off|(Dbits<<(R*D))); // соседняя ячейка уровнем выше
+				nbC.offset = uoff&RDbits;
+				if(check_out_tile(uoff)){ // попали в соседний тайл уровнем выше
+					nbC.tile = p->find_nb_tile(nbt_pos);
+					if(nbC.tile && nbC.tile->get_cell_usage(0, nbC.offset)){ nbC.ptr = nbC.tile->cell(nbC.offset); f(nbC); return; }
+				} else if(p->get_cell_usage(0, nbC.offset)){ nbC.tile = p; nbC.ptr = p->cell(nbC.offset); f(nbC); return; } // остались в верхнем тайле
 				t = p; p = t->parent;
 			}
 			WRAISE("", bmin(), rank());
 		}
 		if(way_up){  // пробуем подняться, один большой сосед по грани
-			tile_t *t = nb_tile, *p = t->parent; uint32_t uoff = nb_off;
+			tile_t *t = nbC.tile, *p = t->parent; uint32_t uoff = nbC.offset;
 			while(p){
 				uoff = (p->find_child_ID(t)<<((R-1)*D))|(uoff>>D);
-				if(p->get_cell_usage(0, uoff)){ f(p->cell(uoff), 1., p->rank-tile->rank); return; } // тут хорошо бы проверить расположение ячейки?
+				if(p->get_cell_usage(0, uoff)){ nbC.tile = p; nbC.offset = uoff; nbC.ptr = p->cell(uoff); f(nbC); return; } 
 				t = p; p = t->parent;
 			}
 		}
 		// подняться не удалось, идем вниз - много мелких соседей
-		if(nb_tile) deep2face(f, nb_tile, nb_off, 1<<a, bool(axe<0)<<a, a);
-		else f(nullptr, 1., 0); 
+		if(nbC.tile && !ifdR) deep2face(f, nbC.tile, nbC.offset, 1<<a, bool(axe<0)<<a, a);
+		// else f(nbC); // это граница сетки или переход в сторону более мелких соседей 
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::foreach2Xdt(F1 &&f1, F2 &&f2, dT dt){

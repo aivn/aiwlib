@@ -239,9 +239,10 @@ namespace aiw{
 		protected:
 			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe);
 		public:
-			// f(T* nb_cell, double доля_площади_грани, int dR=nb_cell->.rank-C.rank)
+			// f(Cell &nbC)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
-			template <typename F>  void face(F&& f, int axe);			// проверки является ли ячейка граничной?
+			// ifdR - допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
+			template <typename F>  void face(F&& f, int axe, int ifdR=0);	   // проверки является ли ячейка граничной?
 			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
 			// inline typename const meta_t<M>::meta_data_type& meta(int i) const {...}
 		}; // end of class Cell
