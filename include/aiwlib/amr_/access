@@ -61,13 +61,8 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> T* AdaptiveMesh<T, D, R>::light_tile_t::cell(int cID){  // если ПАМЯТЬ НЕ ВЫДЕЛЕНА возвращает nullptr
 		int chID = cID>>D;
-		// if(patches && patches[chID]) return patches[chID]->data+(cID&Dbits);
-		// return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
-		T *res;
-		if(patches && patches[chID]) res = patches[chID]->data+(cID&Dbits);
-		else res = chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
-		if(!res && bmin==ind(16,24) && rank==1) WOUT(this, cID, chID, chunks[chID], this->get_cell_usage(0,cID));
-		return res;
+		if(patches && patches[chID]) return patches[chID]->data+(cID&Dbits);
+		return chunks[chID] ? page->data+(int(chunks[chID]-1)<<D)+(cID&Dbits) : nullptr;
 	}
 	//--------------------------------------------------------------------------
 	//  Cell
@@ -76,7 +71,7 @@ namespace aiw{
 		Cell res; res.offset = calc_nb_zoffset(dpos, offset|(Dbits<<(R*D)));
 		if(check_out_tile(res.offset)) res.tile = tile->find_nb_tile(zoff2pos<D>((res.offset>>(R*D)), 2)-ind(1)); // попали в другой тайл
 		else res.tile = tile;
-		res.offset &= RDbits; res.ptr = /*res.is_used()?*/ res.tile->cell(res.offset) /*: nullptr*/; // нельзя зайти в неактивную ячейку сбоку даже посмотреть
+		res.offset &= RDbits; if(res.tile && res.tile->get_cell_usage(0, res.offset)) res.init();
 		return res;
 	}
 	//--------------------------------------------------------------------------
@@ -87,7 +82,7 @@ namespace aiw{
 		off = (off<<D)&RDbits;
 		double dS = 1./(1<<((D-1)*(t->rank-tile->rank)));
 		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
-				if(t->get_cell_usage(0, off+i)){ Cell nbC; nbC.tile = t; nbC.offset = off+i; nbC.ptr = t->cell(off+i); f(nbC); }
+				if(t->get_cell_usage(0, off+i)){ Cell nbC; nbC.init(t, off+i); f(nbC); }
 				else deep2face(f, t, off+i, mask, res4cmp, axe);
 			}				
 	}
@@ -96,7 +91,7 @@ namespace aiw{
 	// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
 	// ifdR - допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
 	template <typename T, int D, int R> template<typename F> void AdaptiveMesh<T, D, R>::Cell::face(F&& f, int axe, int ifdR){ 
-		if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i); face(f, i); } return; } // шаблон крест
+		if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i, ifdR); face(f, i, ifdR); } return; } // шаблон крест
 		Cell nbC; nbC.ptr = nullptr;
 		// считаем offset и тайл соседней ячейки
 		int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1; nbC.offset = calc_nb_zoffset<D>(a, sign, offset|(Dbits<<(R*D)));
@@ -107,7 +102,7 @@ namespace aiw{
 		
 		bool way_up = nbC.tile && nbC.tile->parent;
 		if(nbC.tile){
-			if(nbC.tile->get_cell_usage(0, nbC.offset)){ if(ifdR<=1){ nbC.ptr = nbC.tile->cell(nbC.offset); }  f(nbC); return; } // один сосед на том же уровне
+			if(nbC.tile->get_cell_usage(0, nbC.offset)){ if(ifdR<=1){ nbC.init(); f(nbC); } return; } // один сосед на том же уровне
 			if(nbC.tile->get_cell_split(false, nbC.offset)){ if(ifdR){ return; } way_up = false; } //  точно идем вниз, много мелких соседей
 		} else if(tile->parent) {  //  мы на границе тайла текущего уровня, дальше только вверх
 			tile_t *t = tile, *p = t->parent; uint32_t off = offset;
@@ -117,8 +112,8 @@ namespace aiw{
 				nbC.offset = uoff&RDbits;
 				if(check_out_tile(uoff)){ // попали в соседний тайл уровнем выше
 					nbC.tile = p->find_nb_tile(nbt_pos);
-					if(nbC.tile && nbC.tile->get_cell_usage(0, nbC.offset)){ nbC.ptr = nbC.tile->cell(nbC.offset); f(nbC); return; }
-				} else if(p->get_cell_usage(0, nbC.offset)){ nbC.tile = p; nbC.ptr = p->cell(nbC.offset); f(nbC); return; } // остались в верхнем тайле
+					if(nbC.tile && nbC.tile->get_cell_usage(0, nbC.offset)){ nbC.init(); f(nbC); return; }
+				} else if(p->get_cell_usage(0, nbC.offset)){ nbC.init(p); f(nbC); return; } // остались в верхнем тайле
 				t = p; p = t->parent;
 			}
 			WRAISE("", bmin(), rank());
@@ -127,7 +122,7 @@ namespace aiw{
 			tile_t *t = nbC.tile, *p = t->parent; uint32_t uoff = nbC.offset;
 			while(p){
 				uoff = (p->find_child_ID(t)<<((R-1)*D))|(uoff>>D);
-				if(p->get_cell_usage(0, uoff)){ nbC.tile = p; nbC.offset = uoff; nbC.ptr = p->cell(uoff); f(nbC); return; } 
+				if(p->get_cell_usage(0, uoff)){ nbC.init(p, uoff); f(nbC); return; } 
 				t = p; p = t->parent;
 			}
 		}
@@ -139,8 +134,8 @@ namespace aiw{
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::foreach2Xdt(F1 &&f1, F2 &&f2, dT dt){
 		dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
 		for(int i=0; i<(1<<max_rank); i++){
-			for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, dt_arr[C.rank()]);
-			for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, dt_arr[C.rank()]);
+			for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, i>>(max_rank-C.rank()), dt_arr[C.rank()]);
+			for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, (i+1)>>(max_rank-C.rank()), dt_arr[C.rank()]);
 		}
 	}
 	//--------------------------------------------------------------------------

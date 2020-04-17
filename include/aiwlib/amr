@@ -33,6 +33,9 @@ namespace aiw{
 		static int cID2ctID(int off){ return (off>>((R-1)*D))&Dbits; } //  смещение ячейки в номер дочернего тайла 
 		static int chID2ctID(int chID){ return (chID>>((R-2)*D))&Dbits; } //  смещение чанка в номер дочернего тайла
 		static bool check_out_tile(uint32_t nb_off){ return ((nb_off>>(R*D))&Dbits)!=Dbits; } // выходит ли смещение соседней ячейки за пределы тайла
+		static bool get_bm(const uint64_t *arr, int i){ return arr[i>>6] &  (uint64_t(1)<<(i&0x3f)); }
+		static void set_bm(      uint64_t *arr, int i){        arr[i>>6] |= (uint64_t(1)<<(i&0x3f)); }
+		static void unset_bm(    uint64_t *arr, int i){      arr[i>>6] &= ~((uint64_t(1)<<(i&0x3f))); }
 		// static_assert(D<=6);
 		//----------------------------------------------------------------------
 		// template <typename MM> struct meta_t{ MM data[1<<(R*D)]; typedef MM meta_data_type;  static const bool is_meta = true;  };
@@ -40,9 +43,9 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		struct tile_t;
 		struct cell_t { // данные интерфейса для доступа к ячейке
-			T* ptr;        // указатель на ячейку
-			tile_t *tile;  // тайл в котором лежит ячейка
-			int offset;    // позиция ячейки в тайле 
+			T* ptr = nullptr;        // указатель на ячейку
+			tile_t *tile = nullptr;  // тайл в котором лежит ячейка
+			int offset = 0;          // позиция ячейки в тайле
 		};
 		//----------------------------------------------------------------------
 		//  базовый тайл, интерфейс для работы с флагами, выделением памяти, обхода и пр.
@@ -69,23 +72,23 @@ namespace aiw{
 			//------------------------------------------------------------------
 			uint64_t usages[3][usages_sz] = {{0}};  // флаги текущего [0] и будущего [1] использования (этого достаточно для обхода), ghost  
 
-			bool get_cell_usage(bool future, int off) const { return usages[future][off>>6]&(uint64_t(1)<<(off&0x3f)); }
-			void set_cell_usage_on(int off)  { usages[1][off>>6] |=   uint64_t(1)<<(off&0x3f);  }
-			void set_cell_usage_off(int off) { usages[1][off>>6] &= ~(uint64_t(1)<<(off&0x3f)); }
+			bool not_empty() const { for(int i=0; i<usages_sz; i++){ if(usages[0][i]) return true; } return false; }
+			bool get_cell_usage(bool future, int off) const { return get_bm(usages[future], off); } // [off>>6]&(uint64_t(1)<<(off&0x3f)); }
+			void set_cell_usage_on(int off)  { set_bm(usages[1], off); } //[off>>6] |=   uint64_t(1)<<(off&0x3f);  }
+			void set_cell_usage_off(int off) { unset_bm(usages[1], off); } //[off>>6] &= ~(uint64_t(1)<<(off&0x3f)); }
 
 			bool get_chunk_usage(bool future, int chID) const { return usages[future][chID>>(6-D)]&(CHbits<<((chID<<D)&0x3f)); } 
 			int get_chunk_usage(int chID) const { int i = chID>>(6-D); uint64_t m = CHbits<<((chID<<D)&0x3f); return bool(usages[0][i]&m) + 2*bool(usages[1][i]&m); } 
 			bool chunk_is_full(int chID) const { uint64_t mask = CHbits<<((chID<<D)&0x3f); return (usages[0][chID>>(6-D)]&mask)==mask; }
 			void set_chunk_usage_on(int chID)  { usages[1][chID>>(6-D)] |=   CHbits<<((chID<<D)&0x3f);  }
 			void set_chunk_usage_off(int chID) { usages[1][chID>>(6-D)] &= ~(CHbits<<((chID<<D)&0x3f)); }
+			bool get_cell_split(bool future, int off) const;
 			
 			uint16_t rank = 0, ch_use = 0, ch_alloc = 0, ch_free = 0;  //  уровень вложения, число занятых, аллоцированных и освобожденных чанков
 			virtual int alloc_chunks_sz() const = 0; // это можно потом оптимизировать через счетчики как ch_use+ch_alloc-ch_free
 			virtual void alloc_chunk(int chID) = 0; // гарантированно аллоцирует чанк, если чанк уже аллоцирован ничего не происходит
 
 			void commit_usages(){ ch_use += ch_alloc; ch_alloc = 0; ch_use -= ch_free; for(int i=0; i<usages_sz; i++) usages[0][i] = usages[1][i]; }
-
-			bool get_cell_split(bool future, int off) const { int tid = cID2ctID(off); return childs[tid] && childs[tid]->get_chunk_usage(future, off&R1Dbits); }
 
 			void replace_me(tile_t &other);   // заменяет все связи (parent, childs, root) с this на связи с other, копирует *this в other
 			bool will_need();                 // проверяет будет ли нужен еще тайл, если нет обнуляет все ссылки на этот тайл
@@ -212,11 +215,19 @@ namespace aiw{
 		//  основной интерфейс доступа к ячейкам
 		//----------------------------------------------------------------------
 		struct Cell: protected cell_t{
+		protected:			
+			void init(){ if(tile && tile->get_cell_usage(0, offset)) ptr = tile->cell(offset); else ptr = nullptr; } // <== это можно оптимизировать?
+			void init(tile_t *tile_, int offset_){ tile = tile_; offset = offset_; init(); }
+			void init(tile_t *tile_){ tile = tile_;  init(); }
+			void init(int offset_){ offset = offset_;  init(); }
+			friend class AdaptiveMesh;
+		public:
 			using cell_t::ptr; using cell_t::tile; using cell_t::offset;
 			
 			friend class Tile;
 			operator bool () const { return ptr; }  
 			bool operator !() const { return !ptr; }
+			bool is_splitted() const { return tile && tile->get_cell_split(0, offset); }
 
 			Vec<D> bmin() const { return tile->bmin + (zoff2pos<D>(offset, R)&tile->step); }
 			Vec<D> step() const { return tile->step; }
@@ -232,10 +243,7 @@ namespace aiw{
 
 			T* split(){ return tile->split_cell(offset); } // разбивает ячейку, активирует все подъячейки и возвращает указатель на chunk
 
-		protected:
-			uint32_t bound_ = ~0;
-		public:
-			uint32_t bound(); // по два бита на каждую ось, слева/справа
+			uint32_t bound() const; // по два бита на каждую ось, слева/справа
 		protected:
 			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe);
 		public:
@@ -326,10 +334,15 @@ namespace aiw{
 
 		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
 		double conefold_complexity(Ind<D> pos) const;  // в ячейках X шаг
-		template <typename dT, typename F> void conefold(Ind<D> pos, F &&f, dT dt); 
-		template <typename dT, typename F> void conefold(F &&f, dT dt); 
 		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
 		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, dT dt); 
+	private:
+		template <typename dT, typename F1, typename F2> void conefold(Cell &C1, Cell &C2, F1 &&f1, F2 &&f2, dT dt); // рекурсивный вызов 
+		template <typename dT, typename F1, typename F2> void conefold1(tile_t** ground, F1 &&f1, F2 &&f2, dT dt); // рекурсивный вызов 
+		template <typename dT, typename F1, typename F2> void conefold2(tile_t** ground, F1 &&f1, F2 &&f2, dT dt); // замыкание рекурсии
+	public:
+		template <typename dT, typename F1, typename F2> void conefoldR(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
+		template <typename dT, typename F1, typename F2> void conefoldR(F1 &&f1, F2 &&f2, dT dt); 
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//-------------------------------------------------------------------------

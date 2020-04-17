@@ -11,6 +11,10 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//   tile_t
 	//--------------------------------------------------------------------------
+	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::get_cell_split(bool future, int off) const {
+		int tid = cID2ctID(off); off &= R1Dbits;
+		return childs[tid] && (childs[tid]->get_chunk_usage(future, off) || childs[tid]->get_cell_split(future, off));
+	}
 	// устанавливает bmin и step (в т.ч. для потомков), tID --- позиция тайла у родителя
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::set_coords(int tID){ 
 		if(parent){ step = parent->step/2; for(int i=0; i<D; i++) bmin[i] = parent->bmin[i]+bool(tID&(1<<i))*(1<<R)*step[i]; }
@@ -165,9 +169,8 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//  Cell
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R> uint32_t AdaptiveMesh<T, D, R>::Cell::bound(){ // по два бита на каждую ось, слева/справа
-		if(bound_!=~0) return bound_;
-		bound_ = 0; uint64_t goff = (uint64_t(tile->get_tile_pos())<<(R*D))|offset, mask = (~uint64_t(0))>>(64-D*(R+tile->rank));
+	template <typename T, int D, int R> uint32_t AdaptiveMesh<T, D, R>::Cell::bound() const { // по два бита на каждую ось, слева/справа
+		uint32_t bound_ = 0; uint64_t goff = (uint64_t(tile->get_tile_pos())<<(R*D))|offset, mask = (~uint64_t(0))>>(64-D*(R+tile->rank));
 		for(int i=0; i<D; i++){
 			uint64_t omask = zmasks[D-1]<<i, gm = goff&omask;
 			if(tile->root->pos[i]==0 && !gm) bound_ |= 1<<(i*2);

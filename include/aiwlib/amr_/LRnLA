@@ -11,33 +11,94 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R>  template <typename dT, typename F> void AdaptiveMesh<T, D, R>::tile_t::conefold(int offset, F &&f, dT dt){
-		//WASSERT(0<=offset && offset<(1<<(R*D)), "", offset);
-		if(get_cell_usage(0, offset)){ AdaptiveMesh<T, D, R>::Cell C; C.offset = offset; C.tile = this; C.ptr = cell(offset); f(C, dt); return; } // замыкание рекурсии
-		ConeFoldIter<D, 1> I;  Ind<2> pos0 = zoff2pos<D>(offset<<D, R+1); dt /= 2;
-		do {
-			int off = pos2zoff(pos0+zoff2pos<D>(I.offset, 2), R+3); // off0 + I.offset;
-			int t_off = off>>(R*D), c_off = off&RDbits;
-			
-			if(t_off<(1<<D)){ if(childs[t_off]) childs[t_off]->conefold(c_off, f, dt); }
-			else {
-				tile_t *chld = childs[t_off&Dbits], *nbt = nullptr;
-				if(chld) nbt = chld->find_nb_tile(zoff2pos<D>(t_off, 3)-zoff2pos<D>(t_off&Dbits, 1));
-				if(nbt) nbt->conefold(c_off, f, dt);
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2>
+	void AdaptiveMesh<T, D, R>::conefold(Cell &C1, Cell &C2, F1 &&f1, F2 &&f2, dT dt0){
+		if(C1) f1(C1, dt0); // нижнее основание, выполняется всегда первым если это возможно
+		const int sz = 1<<D; Cell gr0[sz]; gr0[0] = C1; gr0[sz-1] = C2; // 2^D ячеек текущего ранга
+		if(C1.tile) for(int i=1; i<sz-1; i++) gr0[i] = C1[zoff2pos<D>(i, 1)];
+		else for(int i=1; i<sz-1; i++) gr0[i] = C2[zoff2pos<D>(i, 1)-ind(1)];
+		Cell gr1[1<<(2*D)]; // 2^(2*D) ячеек рангом ниже
+		for(int i=0; i<sz; i++){
+			tile_t *t = gr0[i].tile? gr0[i].tile->childs[gr0[i].offset>>(D*(R-1))]: nullptr; int off0 = (gr0[i].offset<<D)&RDbits;
+			for(int j=0; j<sz; j++) gr1[i*sz+j].init(t, off0+j);
+		}
+		uint64_t deep[1<<(2*D-6>0? 2*D-6: 1)] = {0}; // конефолды требующие рекурсивного вызова
+		for(int i=0; i<(1<<(2*D)); i++){
+			bool cf_deep = false; for(int j=0; j<sz; j++){
+				int k = pos2zoff(zoff2pos<D>(i, 2)+zoff2pos<D>(j, 1), 3);
+				if(k<(1<<(D*2)) && gr1[k].is_splitted()){ cf_deep = true; break; }
 			}
-		} while(I.next());
+			if(cf_deep) set_bm(deep, i);
+		}
+		dT dt1 = dt0/2;
+		for(int off0=sz-1; off0>=0; off0--){ // обратный цикл по Z-кривой
+			int off1 = off0;
+			for(int ti=0; ti<2; ti++){ // строим башню
+				int  off2 = zoff_diag_shift<D>(off1); 
+				if(get_bm(deep, off1)) conefold(gr1[off1], gr1[off2], f1, f2, dt1); // это сложный конефолд
+				else{
+					if(gr1[off1]) f1(gr1[off1], dt1);
+					if(gr1[off2]) f2(gr1[off2], dt1);					
+				}
+				off1 = off2;
+				// dump(amrlog);
+			} // конец башни
+		} // конец обратного цикл по Z-кривой
+		if(C2) f2(C2, dt0); // верхнее основание, выполняется всегда последним если это возможно 
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R>  template <typename dT, typename F> void AdaptiveMesh<T, D, R>::conefold(Ind<D> pos, F &&f, dT dt){
-		tile_t *ground[1<<D] = {nullptr};
-		for(Ind<D> dpos; dpos^=ind(2); ++dpos) if(ind(0)<=pos+dpos && pos+dpos<tiles.bbox()) ground[pos2zoff(dpos, 1)] = tiles[pos+dpos].root;
-		
-		ConeFoldIter<D, R> I; do {
-			// if(I.t>1) continue;
-			// WASSERT((I.offset>>(R*D))<(1<<D), "", I.offset, I.t);
-			tile_t *t = ground[I.offset>>(R*D)]; if(t) t->conefold(I.offset&RDbits, f, dt);
-		} while(I.next());
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold2(tile_t **ground, F1 &&f1, F2 &&f2, dT dt){
+		// раз мы тут значит в ground есть активные ячейки
+		dT dt0 = dt;  for(int i=0; i<(1<<D); i++) if(ground[i]){ dt0 /= 1<<ground[i]->rank; break; }
+		uint64_t usages[2][usages_sz<<D] = {0},  easyCF[usages_sz<<D] = {0};  // использование ячеек и простые конефолды, зачем usages[1]???
+		for(int i=0; i<(1<<(D*(R+1))); i++){
+			if(!ground[i>>(R*D)]) set_bm(usages[0], i);
+			else if(ground[i>>(R*D)]->get_cell_usage(0, i&RDbits)){ set_bm(usages[0], i); set_bm(usages[1], i); }
+		}
+		for(int i=0; i<(1<<(D*(R+1))); i++){
+			bool cf_ok = true; for(int j=0; j<(1<<D); j++){
+				int k = pos2zoff(zoff2pos<D>(i, D*(R+1))+zoff2pos<D>(j, 1), D*(R+2));
+				if(k<(1<<(D*(R+1))) && !get_bm(usages[0], k)){ cf_ok = false; break; }
+			}
+			if(cf_ok) set_bm(easyCF, i);
+		}
+		// здесь можно сделать проверку по тайлам основания (usages[0]/[1]) и повызывать conefold1
+		for(int off0=(1<<(R*D))-1; off0>=0; off0--){ // обратный цикл по Z-кривой
+			int off1 = off0, off2 = zoff_diag_shift<D>(off1); Cell C1, C2;
+			C1.init(ground[0], off1); 
+			for(int ti=0; ti<(1<<R); ti++){ // строим башню
+				C2.init(ground[off2>>(R*D)], off2&RDbits);
+				if(get_bm(easyCF, off1)){
+					if(C1){ f1(C1, dt0); }
+					if(C2){ f2(C2, dt0); }
+				}
+				else conefold(C1, C2, f1, f2, dt0);   // это сложный конефолд
+				off1 = off2; off2 = zoff_diag_shift<D>(off1);
+				C1 = C2;
+			} // конец башни
+		} // конец обратного цикл по Z-кривой
 	}
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2>
+	void AdaptiveMesh<T, D, R>::conefold1(tile_t **ground, F1 &&f1, F2 &&f2, dT dt){
+		for(int i=0; i<(1<<D); i++) if(ground[i] && ground[i]->not_empty()){ conefold2(ground, f1, f2, dt); return; }
+		tile_t *childs[1<<(2*D)] = {nullptr}, *sground[1<<D];
+		for(int i=0; i<(1<<D); i++) if(ground[i]) memcpy(childs+(i<<D), ground[i]->childs, sizeof(tile_t*)<<D);
+		for(int sg0=(1<<D)-1; sg0>=0; sg0--){ // цикл по под-основаниям
+			for(int st=0; st<2; st++){ // цикл по времени, строим башню из двух конефолдов
+				int sg = st? zoff_diag_shift<D>(sg0): sg0; bool run = false;
+				for(int i=0; i<(1<<D); i++){ sground[i] = childs[pos2zoff(zoff2pos<D>(sg, 2)+zoff2pos<D>(i, 1), 3)]; if(sground[i]) run = true; }
+				if(run) conefold1(sground, f1, f2, dt); 
+			}
+		}
+	}
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefoldR(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt){
+		tile_t *ground[1<<D] = {nullptr};
+		for(Ind<D> dpos; dpos^=ind(2); ++dpos)
+			if(ind(0)<=pos+dpos && pos+dpos<tiles.bbox()){ int off = pos2zoff(dpos, 1); ground[off] = tiles[pos+dpos].root;	}
+		conefold1(ground, f1, f2, dt);
+	}
+	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt){
 		std::vector<Cell> cells;
 		for(Ind<D> dpos; dpos^=ind(2); ++dpos)
@@ -60,11 +121,11 @@ namespace aiw{
 		}
 	}
 	//--------------------------------------------------------------------------
-	template <typename T, int D, int R>  template <typename dT, typename F> void AdaptiveMesh<T, D, R>::conefold(F &&f, dT dt){
-		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefold(tiles.bbox()-pos-ind(1), f, dt);  // это наивный построчный обход
-	} 
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(F1 &&f1, F2 &&f2, dT dt){
 		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefold(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
+	} 
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefoldR(F1 &&f1, F2 &&f2, dT dt){
+		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefoldR(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
 	} 
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>	double AdaptiveMesh<T, D, R>::conefold_complexity(Ind<D> pos) const {   // в ячейках на шаг
