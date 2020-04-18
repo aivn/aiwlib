@@ -13,7 +13,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> bool AdaptiveMesh<T, D, R>::tile_t::get_cell_split(bool future, int off) const {
 		int tid = cID2ctID(off); off &= R1Dbits;
-		return childs[tid] && (childs[tid]->get_chunk_usage(future, off) || childs[tid]->get_cell_split(future, off));
+		return childs[tid] && (childs[tid]->get_chunk_usage(future, off) || childs[tid]->get_cell_split(future, off<<D));
 	}
 	// устанавливает bmin и step (в т.ч. для потомков), tID --- позиция тайла у родителя
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::tile_t::set_coords(int tID){ 

@@ -245,7 +245,7 @@ namespace aiw{
 
 			uint32_t bound() const; // по два бита на каждую ось, слева/справа
 		protected:
-			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp, int axe);
+			template <typename F> void deep2face(F&& f, tile_t *t, uint32_t off, int mask, int res4cmp);
 		public:
 			// f(Cell &nbC)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа

@@ -76,14 +76,15 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> template<typename F>
-	void AdaptiveMesh<T, D, R>::Cell::deep2face(F&& f, typename AdaptiveMesh<T, D, R>::tile_t *t, uint32_t off, int mask, int res4cmp, int axe){
+	void AdaptiveMesh<T, D, R>::Cell::deep2face(F&& f, typename AdaptiveMesh<T, D, R>::tile_t *t, uint32_t off, int mask, int res4cmp){
 		uint32_t childID = cID2ctID(off); t = t->childs[childID];
-		if(!t){ WRAISE("", bmin(), this->rank(), axe); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
+		if(!t){ WRAISE("", bmin(), this->rank(), off, offset, mask, res4cmp); return; } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
+		// if(!t){ WERR(bmin(), this->rank(), off, offset, mask, res4cmp); abort(); } // <<< что то пошло не так, такого быть не должно - разрыв в поле ячеек
 		off = (off<<D)&RDbits;
 		double dS = 1./(1<<((D-1)*(t->rank-tile->rank)));
 		for(int i=0; i<(1<<D); i++) if((i&mask)==res4cmp){
 				if(t->get_cell_usage(0, off+i)){ Cell nbC; nbC.init(t, off+i); f(nbC); }
-				else deep2face(f, t, off+i, mask, res4cmp, axe);
+				else deep2face(f, t, off+i, mask, res4cmp);
 			}				
 	}
 	//--------------------------------------------------------------------------
@@ -101,6 +102,7 @@ namespace aiw{
 		nbC.offset &= RDbits;
 		
 		bool way_up = nbC.tile && nbC.tile->parent;
+
 		if(nbC.tile){
 			if(nbC.tile->get_cell_usage(0, nbC.offset)){ if(ifdR<=1){ nbC.init(); f(nbC); } return; } // один сосед на том же уровне
 			if(nbC.tile->get_cell_split(false, nbC.offset)){ if(ifdR){ return; } way_up = false; } //  точно идем вниз, много мелких соседей
@@ -127,7 +129,7 @@ namespace aiw{
 			}
 		}
 		// подняться не удалось, идем вниз - много мелких соседей
-		if(nbC.tile && !ifdR) deep2face(f, nbC.tile, nbC.offset, 1<<a, bool(axe<0)<<a, a);
+		if(nbC.tile && !ifdR) deep2face(f, nbC.tile, nbC.offset, 1<<a, bool(axe<0)<<a); // mask, res4cmp, axe
 		// else f(nbC); // это граница сетки или переход в сторону более мелких соседей 
 	}
 	//--------------------------------------------------------------------------
