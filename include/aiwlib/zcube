@@ -39,6 +39,13 @@ namespace aiw{
 		uint64_t izmask = ~zmask, fix = offset&izmask;
 		return (((offset|izmask)+1)&zmask)|fix;
 	}
+	template <int D, typename T> T zoff_diag_shift(T offset){  // возвращает сдвинутый вперед по диагонали offset
+		for(int i=0; i<D; i++){
+			T omask = zmasks[D-1]<<i, imask = ~omask, fix = offset&imask;
+			offset = (((offset|imask)+1)&omask)|fix;
+		}
+		return offset;
+	}
 	//--------------------------------------------------------------------------
 	inline uint64_t interleave_bits_any(int D, int32_t x, int R){
 		uint64_t f = 0;
