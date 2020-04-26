@@ -7,124 +7,13 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#ifndef AIW_NO_PIL
-#   include <Python.h>
-#   include <Imaging.h>
-#endif // AIW_NO_PIL
-
-#ifndef AIW_NO_PNG
-#   define PNG_SKIP_SETJMP_CHECK 1
-#   include <png.h>
-#endif // AIW_NO_PNG
-
 #include "mesh"
 #include "sphere"
 #include "amrview"
+#include "view/color"
+#include "view/images"
 
 namespace aiw{
-    //--------------------------------------------------------------------------
-    //  calc color
-	//--------------------------------------------------------------------------
-    const float grey_pal[7] = {0,0,0, 1,1,1, -1}, 
-		inv_grey_pal[7]     = {1,1,1, 0,0,0, -1}, 
-		black_red_pal[10]   = {0,0,0, 1,1,1, 1,0,0, -1}, 
-		green_blue_pal[10]  = {0,1,0, 1,1,1, 0,0,1, -1}, 
-		neg_pos1_pal[28]    = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 1,1,1, 1,0,1, 0,0,1, 0,1,1, 0,1,0, -1},
-    	neg_pos2_pal[28]    = {0,0,0, 1,1,0, 1,.5,0, 1,0,0, 1,1,1, 0,1,0, 0,1,1, 0,0,1, 1,0,1, -1},
-    	positive_pal[28]    = {1,1,1, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 0,0,0, -1},
-    	rainbow_pal[28]     = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 1,1,1, -1},
-    	color_pal[22]       = {       1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1,        -1},
-    	inv_rainbow_pal[28] = {1,1,1, 1,0,1, 0,0,1,  0,1,1, 0,1,0, 1,1,0, 1,.5,0, 1,0,0, 0,0,0, -1},
-    	cyclic_pal[31]      = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 1,1,1, 0,0,0, -1};
-	//--------------------------------------------------------------------------
-	void magn_pal_init(int max_rgb=255);
-	class CalcColor{
-	protected:
-		static Ind<3> *magn_pal;
-		friend void aiw::magn_pal_init(int);
-	public:
-		int max_rgb = 255;
-		float const *pal = nullptr;
-		int len_pal = 0;
-		float min = 0, mul = 1.;
-		aiw::Ind<3> nan_color = ind(127, 127, 127); // grey
-		bool cyclic = false;
-		bool logscale = false;
-		bool modulus = false;
-		bool invert = false;
-		bool magn = false;
-		
-		void init(float const *pal_, float min_, float max_);
-		// void init(const char *pal_, float min_, float max_); for Python?
-		inline aiw::Ind<3> operator ()(float f) const {
-			if(magn){
-				if(!(0<=f && f<sph_cells_num(5))) return nan_color;
-				if(!magn_pal) WRAISE("Call 'magn_pal_init()' from plot2D module before plot spins field!", 1);
-				return magn_pal[int(f)]; 
-			}
-			if(invert) f = -f;
-			if(modulus) f = fabs(f);
-			f = logscale? log(f/min)*mul :(f-min)*mul;
-			if(std::isnan(f)) return nan_color;
-			if(!cyclic){
-				if(f<0.) f = 0.;
-				else if(f>1.) f = 1.;
-			}
-			if(f){
-				if(f==::floor(f)) f = 1.;
-				else f -= ::floor(f);
-			}			
-			float w = f*len_pal; int i = ::floor(w); w -= i;
-			return Ind<3>((pal[3*i]  *(1-w) + pal[3*i+3]*w)*max_rgb, 
-						  (pal[3*i+1]*(1-w) + pal[3*i+4]*w)*max_rgb, 
-						  (pal[3*i+2]*(1-w) + pal[3*i+5]*w)*max_rgb);
-		}
-	};
-	//--------------------------------------------------------------------------
-#ifndef AIW_NO_PIL
-	struct ImagePIL {
-		ImagingMemoryInstance* im;
-		PyObject* pil_ptr;
-
-		void construct(PyObject*);
-		ImagePIL(PyObject* p);
-		ImagePIL(aiw::Ind<2> size_);
-
-		aiw::Ind<2> size;
-		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
-			char* ptr = im->image[size[1]-pos[1]-1] + pos[0]*im->pixelsize;
-			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
-		}
-   };	
-#endif // AIW_NO_PIL
-	//--------------------------------------------------------------------------
-#ifndef AIW_NO_PNG
-	class ImagePNG{
-		FILE * fp; 	png_structp png_ptr; png_infop info_ptr; png_bytep* rows;
-		void init(const char* fname, aiw::Ind<2> size_);
-	public:
-		ImagePNG(const char* fname, aiw::Ind<2> size_){ init(fname, size_); }
-#ifndef SWIG
-		template <typename ... Args> ImagePNG(const char *format, aiw::Ind<2> size_, Args ... args){
-			std::stringstream buf; format2stream(buf, format, args...);
-			init(buf.str().c_str(), size_);
-		}
-#endif //SWIG
-		~ImagePNG();
-
-		aiw::Ind<2> size;
-		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
-			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
-			png_byte *ptr = rows[size[1]-pos[1]-1] + 3*pos[0];
-			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
-		}
-    };
-#endif // AIW_NO_PNG
-	//--------------------------------------------------------------------------
-	template <typename P> void plot_paletter(float const *pal, P& image, bool orient, int max_rgb=255){
-		float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
-		for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
-	}
 	//--------------------------------------------------------------------------
 	template <typename T, typename P> void plot2D(const aiw::Mesh<T, 2> &f, const CalcColor &color, P& image, int bounds=0){
 		Vec<2> step = (f.bmax-f.bmin)/image.size; Vec<2> bmin = f.bmin + .5*step;
@@ -155,9 +44,11 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	template <typename P> void plot2D(AdaptiveMeshView &f, const CalcColor &color, P& image, int bounds=0){
-		Vec<2> step = Vec<2>(image.size)/f.bbox(); 
+		Vec<2> step = Vec<2>(image.size)/f.bbox();
+		// for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, ind(255,255,255));
 		for(auto I=f.begin(); I!=f.end(); ++I){
 			Ind<2> imin = ((I.imin&step)+vec(.5))<<(image.size-ind(1))>>ind(0), sz = (((I.imax&step)+vec(.5))<<image.size)-imin; Ind<3> c = color(*I);
+			// Ind<2> imin = ((I.imin&step)+vec(1.5))<<(image.size-ind(1))>>ind(0), sz = (((I.imax&step)-vec(.5))<<image.size)-imin; Ind<3> c = color(*I);
 			for(Ind<2> pos; pos^=sz; ++pos) image.set_pixel(imin+pos, c);
 			if(bounds&1){
 				for(int i=0; i<sz[0]; i++) image.set_pixel(imin+ind(i,0), ind(255,0,0));

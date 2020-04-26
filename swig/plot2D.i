@@ -9,6 +9,8 @@
 %include "../include/aiwlib/mesh"
 %include "../include/aiwlib/sphere"
 %include "../include/aiwlib/amrview"
+%include "../include/aiwlib/view/images"
+%include "../include/aiwlib/view/color"
 %include "../include/aiwlib/plot2D"
 
 #ifndef AIW_NO_PNG

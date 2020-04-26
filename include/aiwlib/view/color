@@ -1,0 +1,80 @@
+// -*- C++ -*-
+#ifndef AIW_VIEW_COLOR_HPP
+#define AIW_VIEW_COLOR_HPP
+
+/**
+ * Copyright (C) 2015, 2017 Antov V. Ivanov  <aiv.racs@gmail.com> and Sergey Khilkov <ezz666@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "../vec"
+#include "../sphere"
+
+namespace aiw{
+    //--------------------------------------------------------------------------
+    //  calc color
+	//--------------------------------------------------------------------------
+    const float grey_pal[7] = {0,0,0, 1,1,1, -1}, 
+		inv_grey_pal[7]     = {1,1,1, 0,0,0, -1}, 
+		black_red_pal[10]   = {0,0,0, 1,1,1, 1,0,0, -1}, 
+		green_blue_pal[10]  = {0,1,0, 1,1,1, 0,0,1, -1}, 
+		neg_pos1_pal[28]    = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 1,1,1, 1,0,1, 0,0,1, 0,1,1, 0,1,0, -1},
+    	neg_pos2_pal[28]    = {0,0,0, 1,1,0, 1,.5,0, 1,0,0, 1,1,1, 0,1,0, 0,1,1, 0,0,1, 1,0,1, -1},
+    	positive_pal[28]    = {1,1,1, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 0,0,0, -1},
+    	rainbow_pal[28]     = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 1,1,1, -1},
+    	color_pal[22]       = {       1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1,        -1},
+    	inv_rainbow_pal[28] = {1,1,1, 1,0,1, 0,0,1,  0,1,1, 0,1,0, 1,1,0, 1,.5,0, 1,0,0, 0,0,0, -1},
+    	cyclic_pal[31]      = {0,0,0, 1,0,0, 1,.5,0, 1,1,0, 0,1,0, 0,1,1, 0,0,1, 1,0,1, 1,1,1, 0,0,0, -1};
+	//--------------------------------------------------------------------------
+	void magn_pal_init(int max_rgb=255);
+
+	class CalcColor{
+	protected:
+		static Ind<3> *magn_pal;
+		friend void aiw::magn_pal_init(int);
+	public:
+		int max_rgb = 255;
+		float const *pal = nullptr;
+		int len_pal = 0;
+		float min = 0, mul = 1.;
+		aiw::Ind<3> nan_color = ind(127, 127, 127); // grey
+		bool cyclic = false;
+		bool logscale = false;
+		bool modulus = false;
+		bool invert = false;
+		bool magn = false;
+		
+		void init(float const *pal_, float min_, float max_);
+		// void init(const char *pal_, float min_, float max_); for Python?
+		aiw::Ind<3> operator ()(float f) const {
+			if(magn){
+				if(!(0<=f && f<sph_cells_num(5))) return nan_color;
+				if(!magn_pal) WRAISE("Call 'magn_pal_init()' from plot2D module before plot spins field!", 1);
+				return magn_pal[int(f)]; 
+			}
+			if(invert) f = -f;
+			if(modulus) f = fabs(f);
+			f = logscale? log(f/min)*mul :(f-min)*mul;
+			if(std::isnan(f)) return nan_color;
+			if(!cyclic){
+				if(f<0.) f = 0.;
+				else if(f>1.) f = 1.;
+			}
+			if(f){
+				if(f==::floor(f)) f = 1.;
+				else f -= ::floor(f);
+			}			
+			float w = f*len_pal; int i = ::floor(w); w -= i;
+			return Ind<3>((pal[3*i]  *(1-w) + pal[3*i+3]*w)*max_rgb, 
+						  (pal[3*i+1]*(1-w) + pal[3*i+4]*w)*max_rgb, 
+						  (pal[3*i+2]*(1-w) + pal[3*i+5]*w)*max_rgb);
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <typename P> void plot_paletter(float const *pal, P& image, bool orient, int max_rgb=255){
+		float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
+		for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
+	}
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif // AIW_VIEW_COLOR_HPP

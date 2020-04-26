@@ -1,0 +1,66 @@
+// -*- C++ -*-
+#ifndef AIW_VIEW_IMAGES_HPP
+#define AIW_VIEW_IMAGES_HPP
+
+/**
+ * Copyright (C) 2015, 2017 Antov V. Ivanov  <aiv.racs@gmail.com> and Sergey Khilkov <ezz666@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#ifndef AIW_NO_PIL
+#   include <Python.h>
+#   include <Imaging.h>
+#endif // AIW_NO_PIL
+
+#ifndef AIW_NO_PNG
+#   define PNG_SKIP_SETJMP_CHECK 1
+#   include <png.h>
+#endif // AIW_NO_PNG
+
+#include "../vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+#ifndef AIW_NO_PIL
+	struct ImagePIL {
+		ImagingMemoryInstance* im;
+		PyObject* pil_ptr;
+
+		void construct(PyObject*);
+		ImagePIL(PyObject* p);
+		ImagePIL(aiw::Ind<2> size_);
+
+		aiw::Ind<2> size;
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
+			char* ptr = im->image[size[1]-pos[1]-1] + pos[0]*im->pixelsize;
+			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+		}
+   };	
+#endif // AIW_NO_PIL
+	//--------------------------------------------------------------------------
+#ifndef AIW_NO_PNG
+	class ImagePNG{
+		FILE * fp; 	png_structp png_ptr; png_infop info_ptr; png_bytep* rows;
+		void init(const char* fname, aiw::Ind<2> size_);
+	public:
+		ImagePNG(const char* fname, aiw::Ind<2> size_){ init(fname, size_); }
+#ifndef SWIG
+		template <typename ... Args> ImagePNG(const char *format, aiw::Ind<2> size_, Args ... args){
+			std::stringstream buf; format2stream(buf, format, args...);
+			init(buf.str().c_str(), size_);
+		}
+#endif //SWIG
+		~ImagePNG();
+
+		aiw::Ind<2> size;
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
+			png_byte *ptr = rows[size[1]-pos[1]-1] + 3*pos[0];
+			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+		}
+    };
+#endif // AIW_NO_PNG
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif // AIW_VIEW_IMAGES_HPP
