@@ -150,7 +150,7 @@ namespace aiw{
 						} else { section[sec_sz++] = tetr[i]; center += tetr[i]; }
 					center /= 2;
 				} else {  // в плоскости лежит грань
-					int vi = -1, pi[3] = {-1}, npi = 0;
+					int vi = -1, pi[3] = {-1, -1, -1}, npi = 0;
 					for(int i=0; i<4; i++){
 						if(wr[i]) vi = i;  // вершина НЕ лежащая в плоскости
 						else { pi[npi++] = i; section[sec_sz++] = tetr[i]; center += tetr[i]; }
