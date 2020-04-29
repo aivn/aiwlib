@@ -101,7 +101,8 @@ namespace aiw{
 			n /= n.abs();  // защита от дурака?
 			T V0 = fabs((tetr[1]-tetr[0])%(tetr[2]-tetr[0])*(tetr[3]-tetr[0]))/6;  // объем тетраэдра		
 			// int n_cr = 0, nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
-			n_cr = 0; int nu[4] = {0}; Vec<3> cr[6]; int vid[6][2];  // число пересечений с ребрами, число использований вершин, точки пересечений и ID вершин ребер
+			n_cr = 0; int  n_ccr = 0, nu[4] = {0}; // число пересечений с ребрами (в т.ч. чистых), число использований вершин,
+			Vec<3> cr[6], ccr[6]; int vid[6][2];   // точки пересечений с ребрами (в т.ч. чистые), ID вершин ребер
 			T nr = n*r, wr[4]; for(int i=0; i<4; i++) wr[i] = tetr[i]*n-nr;  // расстояние от вершин до плоскости, со знаком
 			
 			for(int i=0; i<4; i++) in_plane[i] = false;
@@ -119,7 +120,7 @@ namespace aiw{
 						if(in_plane[i] && in_plane[j]) cr[n_cr++] = (tetr[i]+tetr[j]) *.5; // округление
 						else if(in_plane[i]) cr[n_cr++] = tetr[i]; // округление
 						else if(in_plane[j]) cr[n_cr++] = tetr[j]; // округление
-						else { T wi = fabs(wr[i]), wj = fabs(wr[j]);  cr[n_cr++] = (tetr[i]*wj + tetr[j]*wi)/(wi+wj); } // тут может быть nan?
+						else { T wi = fabs(wr[i]), wj = fabs(wr[j]);  cr[n_cr++] = ccr[n_ccr++] = (tetr[i]*wj + tetr[j]*wi)/(wi+wj); } // тут может быть nan?
 					}
 				}  // конец цикла по ребрам тетраэдра
 
@@ -149,14 +150,21 @@ namespace aiw{
 							if(wr[i]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }
 						} else { section[sec_sz++] = tetr[i]; center += tetr[i]; }
 					center /= 2;
-				} else {  // в плоскости лежит грань
-					int vi = -1, pi[3] = {-1, -1, -1}, npi = 0;
+				} else {  // в плоскости лежит ОДНА вершина  и разрезаны две грани
+					/*
+					int vi = -1, pi[3] = {-1, -1, -1}, npi = 0, sign = 0; // номер этой вершины и номера всего остального
 					for(int i=0; i<4; i++){
-						if(wr[i]) vi = i;  // вершина НЕ лежащая в плоскости
-						else { pi[npi++] = i; section[sec_sz++] = tetr[i]; center += tetr[i]; }
+						if(in_plane[i]){ vi = i; section[sec_sz++] = tetr[i]; center += tetr[i]; }  // вершина лежащая в плоскости
+						else{ pi[npi++] = i; sign += wr[i]<0?-1:1; }
 					}
+					int vj = -1, pj[2] = {-1,-1}; npi = 0; // вторая выделенная вершина  и две остальные
+					for(int i=0; i<3; i++) if((sign<0 && wr[pi[i]]>0)||(sign>0 && wr[pi[i]]<0)) vj = pi[i]; else pj[npi++] = pi[i];
+					*/
+					int vi = -1; // номер вершины в плоткости 
+					for(int i=0; i<4; i++) if(in_plane[i]){ vi = i; section[sec_sz++] = tetr[i]; center += tetr[i]; break; }  // вершина лежащая в плоскости
+					for(int i=0; i<2; i++){ section[sec_sz++] = ccr[i]; center += ccr[i]; }
 					center /= 3;
-					S = ((tetr[pi[1]]-tetr[pi[0]])%(tetr[pi[2]]-tetr[pi[0]])).abs()*.5;
+					S = ((section[1]-section[0])%(section[2]-section[0])).abs()*.5;
 					if(wr[vi]>0){ Vt = V0; Vb = 0; } else { Vb = V0; Vt = 0; }					
 				}
 			} else if(n_cr==6){  // в плоскости лежит грань
