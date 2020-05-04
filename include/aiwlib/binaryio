@@ -39,7 +39,7 @@ namespace aiw{
 #undef BIOP
 	//--------------------------------------------------------------------------
 	inline IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}	
-	inline IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz; S>sz; x.resize(sz); S.read(&x[0], sz); return S;	}
+	inline IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz=0; S>sz; x.resize(sz); S.read(&x[0], sz); return S; }
 	//--------------------------------------------------------------------------
 	template <typename T> inline aiw::IOstream& //typename std::enable_if<T::dump, aiw::IOstream&>::type
 	operator <(IOstream &S, const T &X){ X.dump(S); return S; }
@@ -70,7 +70,7 @@ namespace aiw{
 		return S;
 	}		
 	template<typename T> inline IOstream& operator > (aiw::IOstream& S, std::vector<T>& X){
-		uint64_t sz; S>sz; X.resize(sz);
+		uint64_t sz=0; S>sz; X.resize(sz);
 		if(__has_trivial_copy(T) && X.size()) S.read(X.data(), sizeof(T)*X.size());
 		else for(size_t i=0; i<X.size(); i++) S>X[i];
 		return S;
@@ -84,7 +84,7 @@ namespace aiw{
 		return S;
 	}		
 	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& X){
-		uint64_t sz; S>sz; X.resize(sz); uint64_t cursor=64, buf=0;
+		uint64_t sz=0; S>sz; X.resize(sz); uint64_t cursor=64, buf=0;
 		for(auto i=X.begin(); i!=X.end(); ++i){
 			if(cursor==64){ S>buf; cursor = 0; }
 			*i = buf&(1<<cursor++);
@@ -99,7 +99,7 @@ namespace aiw{
 		S<uint64_t(X.size()); for(auto I=X.begin(); I!=X.end(); ++X) S<*I; return S;
 	}		
 	template<typename T> inline IOstream& operator > (IOstream& S, std::list<T>& X){
-		uint64_t sz; S>sz; T v; for(size_t i=0; i<sz; i++){ S>v; X.push_back(v); } return S;
+		uint64_t sz = 0; S>sz; T v; for(size_t i=0; i<sz; i++){ S>v; X.push_back(v); } return S;
 	}
 // #endif //_GLIBCXX_LIST
 	//--------------------------------------------------------------------------
@@ -111,7 +111,7 @@ namespace aiw{
 		return S;
 	}		
 	template<typename K, typename V> inline IOstream& operator > (IOstream& S, std::map<K, V>& X){
-		uint64_t sz; S>sz; K k; V v;
+		uint64_t sz = 0; S>sz; K k; V v;
 		for(size_t i=0; i<sz; i++){ S>k>v; X[k] = v; }
 		return S;
 	}		
