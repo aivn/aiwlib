@@ -13,7 +13,7 @@
 include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 ifeq (on,$(swig)) 
-all: iostream swig plot2D MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 MeshUS2-uint16_t-2 MeshUS3-uint16_t-3 SphereD-double SphereF-float SphereUS-uint16_t $(shell if [ -f TARGETS ]; then cat TARGETS; fi)
+all: iostream swig view MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 MeshUS2-uint16_t-2 MeshUS3-uint16_t-3 SphereD-double SphereF-float SphereUS-uint16_t $(shell if [ -f TARGETS ]; then cat TARGETS; fi)
 endif
 
 ifneq (off,$(mpi)) 
@@ -23,7 +23,7 @@ endif
 endif
 
 ifeq (on,$(bin)) 
-all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice})
+all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice,aiw-diff})
 endif
 
 ifeq (on,$(ezz))
@@ -32,10 +32,11 @@ endif
 
 all: libaiw.a;
 
-iostream swig mpi4py plot2D amrview: %: python/aiwlib/%.py python/aiwlib/_%.so;
+iostream swig mpi4py view: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield,amrview}.o); rm -f libaiw.a; ar -csr libaiw.a $^
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,view/{images,color,mesh,amr}}.o); rm -f libaiw.a; ar -csr libaiw.a $^
+#libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,amrview,view/{images,color,mesh}}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #-------------------------------------------------------------------------------
 #   run SWIG
@@ -43,7 +44,8 @@ libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mix
 swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream include/aiwlib/gzstream 
 swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
-swig/plot2D.py swig/plot2D_wrap.cxx: $(shell echo include/aiwlib/{vec,mesh,sphere,amrview,plot2D})
+#swig/plot2D.py swig/plot2D_wrap.cxx: $(shell echo include/aiwlib/{vec,mesh,sphere,amrview,plot2D,view/{images,color}})
+swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,view/{images,color,base,mesh,sphere,amr}})
 
 python/aiwlib/%.py: swig/%.py
 	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
@@ -107,7 +109,7 @@ endif
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
 #bin/arr2seg-Y: src/segy.o
 #bin/isolines: src/isolines.o
-bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------

@@ -1,0 +1,151 @@
+// -*- C++ -*-
+#ifndef AIW_AMR_VIEW_HPP
+#define AIW_AMR_VIEW_HPP
+
+/**
+ * Copyright (C) 2019-20 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * For read and view AMR data only!
+ **/
+
+#include <string>
+#include <vector>
+#include "../vec"
+#include "../iostream"
+#include "../zcube"
+#include "base"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class AdaptiveMeshView{
+		// AdaptiveMeshView(const AdaptiveMeshView&) = delete;       // поддержка этих операторов при 
+		void  operator = (const AdaptiveMeshView&) = delete;  // такой структуре данных довольно сложна
+
+		//----------------------------------------------------------------------
+		struct arr_bool_t{
+			uint64_t* arr;
+			bool operator[](int i) const { return arr[i>>6] &  (uint64_t(1)<<(i&0x3f));  }
+			void set(int i, bool v){ if(v) arr[i>>6] |= (uint64_t(1)<<(i&0x3f)); else  arr[i>>6] &= ~((uint64_t(1)<<(i&0x3f)));	}
+		};
+		//----------------------------------------------------------------------
+		struct tile_t{
+			uint16_t rank;        // ранг (степень вложенности) тайла
+			int* pos;             // позиция нижнего левого угла тайла на мелкой сетке
+			arr_bool_t usage;     // длины 1<<(D*R) для ячеек.
+			// arr_bool_t ghost;  // длины 1<<(D*R) для ячеек.
+			arr_bool_t split;     // длины 1<<(D*R) для ячеек.
+
+			tile_t *parent = nullptr, **childs = {0}; // родительский и дочерние тайлы
+			tile_t* root(){ return parent? parent->root(): this; }
+			int find_child_ID(tile_t *t, int D) const { for(int i=0; i<(1<<D); i++){ if(childs[i]==t) return i; } return -1; }
+				
+			virtual float get(const ConfView &conf, int offset, const AdaptiveMeshView *msh) const = 0; // доступ к ячейке
+			void set_child_pos(int D, int dR2max){
+				for(int i=0; i<(1<<D); i++) if(childs[i]){
+						for(int j=0; j<D; j++) childs[i]->pos[j] = pos[j] + bool(i&(1<<j))*(1<<dR2max);
+						childs[i]->set_child_pos(D, dR2max-1);
+					}
+				}
+			int max_subtile_runk(int off, int D, int R) const { tile_t *t = childs[off>>(D*(1-R))]; return t? t->max_subtile_runk((off<<D)&((~0)>>(32-R*D)), D, R): rank; }
+		}; // end of struct tile_t
+		//----------------------------------------------------------------------
+		struct heavy_tile_t: public tile_t{
+			char* data; // длины 1<<(D*R) для ячеек, сами данные размещены в root?
+			
+			float get(const ConfView &conf, int offset, const AdaptiveMeshView *msh) const {
+				int oic = conf.offset_in_cell;
+				return usage[offset]? (oic>=0? conf.get_f(data+offset*msh->szT+conf.offset_in_cell) :
+									   float(oic==-2? max_subtile_runk(offset, msh->D, msh->R): rank)): nanf("");
+			}
+		}; // end of struct heavy_tile_t		
+		//----------------------------------------------------------------------
+		struct light_tile_t: public tile_t{
+			heavy_tile_t *page;
+			uint16_t* chunks; // длины 1<<(D*(R-1)) для чанков, содержит смещения чанков
+			float get(const ConfView &conf, int offset, const AdaptiveMeshView *msh) const {
+				int D = msh->D, c = 1<<D, oic = conf.offset_in_cell;
+				// WOUT(offset, usage[offset], chunks[offset>>msh->D], (chunks[offset>>msh->D]-1)*c+offset%c);
+				return usage[offset]? (oic>=0? conf.get_f(page->data+((chunks[offset>>D]-1)*c+offset%c)*msh->szT+conf.offset_in_cell) :
+									   float(oic==-1? rank: (oic==-2? max_subtile_runk(offset, D, msh->R) :rank-.5))): nanf("");
+			}
+		}; // end of struct light_tile_t
+		//----------------------------------------------------------------------
+		struct root_t{  // здесь выделяется вся память под тайлы данной ячейки
+			// std::shared_ptr<BaseAlloc> mem; // со временем перевести на мапирование?
+			std::vector<tile_t*> childs;
+			std::vector<int> pos;
+			std::vector<uint64_t> flags;
+			std::vector<uint16_t> chunks;
+			std::vector<char> data;
+			
+			std::vector<heavy_tile_t> htiles; 
+			std::vector<light_tile_t> ltiles;
+		};
+		//----------------------------------------------------------------------
+		int D, R, szT, max_rank; // размерность, ранг тайла, размер ячейки
+		Ind<16> box;  // размер сетки нулевого ранга В ТАЙЛАХ
+		Vec<16> bmin, bmax, step, rstep;
+		int logscale;
+		int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
+
+		std::vector<tile_t*> tiles;  // сетка нулевого уровня
+		std::vector<root_t> data;    // данные тайлов
+		//----------------------------------------------------------------------
+		struct iterator{
+			uint32_t offset = 0, mask = 0;  // смещение внутри тайла и маска (для построения среза), содержит 1 на позициях которые могут меняться
+			tile_t *tile = nullptr;
+			AdaptiveMeshView *msh = nullptr;
+			const ConfView *conf = nullptr;
+			int axes[2] = {0};  // номера осей по которым происходит итерирование
+			Ind<2> imin, imax;  // границы ячейки на мелкой сетке  на обрезанном изображении
+			Ind<2> boff, bbox;  // смещение и размер обрезанного изображения на мелкой сетке
+			
+			float operator * () const {  return tile? tile->get(*conf, offset, msh): nanf("");	}
+			
+			void next();
+			bool check_bbox() const { for(int i=0; i<2; i++) if(imax[i]<0 || imin[i]>=bbox[i]) return false; return true; }
+			void operator ++ (){ next();  while(tile && !check_bbox()) next(); }
+			bool operator == (const iterator &) const { return !tile; }
+			bool operator != (const iterator &) const { return tile; }
+			int rank() const { return tile->rank; }
+			// bool tile_bound(int axe) const; // axe - номер оси + 1 со знаком (-слева, +справа) т.е. -/+1, -/+2 
+		}; // end of struct iterator
+		//------------------------------------------------------------------
+		iterator find(const ConfView &conf, Ind<2> pos);  // произвольный доступ по срезу
+		iterator begin(const ConfView &conf) { iterator I = find(conf, ind(0, 0));  while(I.tile && !I.check_bbox()) I.next(); return I; }
+	    iterator end() { return iterator(); }
+	public:
+		std::string head;
+		
+		bool load(aiw::IOstream& S);
+		int dim() const { return D; }
+		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf);                // вычисляет min-max, как это делать для preview?
+
+		
+		float get(const ConfView& conf, Vec<2> r){ return  *find(conf, ind(coord2pos(r[0], conf.axes[0]), coord2pos(r[1], conf.axes[1]))); }
+
+		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color){ // const 
+			iterator I = begin(conf); Vec<2> step = Vec<2>(image.size)/I.bbox;
+			// for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, ind(255,255,255));
+			for(; I!=end(); ++I){
+				Ind<2> imin = ((I.imin&step)+vec(.5))<<(image.size-ind(1))>>ind(0), sz = (((I.imax&step)+vec(.5))<<image.size)-imin; Ind<3> c = color(*I);
+				for(int i=0; i<2; i++) if(conf.get_flip(i)) imin[i] = image.size[i]-imin[i]-sz[i];
+				// Ind<2> imin = ((I.imin&step)+vec(1.5))<<(image.size-ind(1))>>ind(0), sz = (((I.imax&step)-vec(.5))<<image.size)-imin; Ind<3> c = color(*I);
+				for(Ind<2> pos; pos^=sz; ++pos) image.set_pixel(imin+pos, c);
+				if(conf.cell_bound){
+					for(int i=0; i<sz[0]; i++) image.set_pixel(imin+ind(i,0), ind(255,0,0));
+					for(int i=1; i<sz[1]; i++) image.set_pixel(imin+ind(0,i), ind(255,0,0));
+				}
+			}
+		}		
+		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color){  // рассчитан на маленькое изображение, учитывает только flip
+			ConfView conf = conf0; conf.uncrop();
+			plot(conf, image, color);
+		}
+
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_AMR_VIEW_HPP

@@ -1,0 +1,90 @@
+// -*- C++ -*-
+#ifndef AIW_MESH_VIEW_HPP
+#define AIW_MESH_VIEW_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <omp.h>
+#include <utility>
+#include "../alloc"
+#include "../interpolations"
+#include "base"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class MeshView { //: public BaseView {
+		int D = 0, szT = 0, box[16] = {0};
+		std::shared_ptr<BaseAlloc> mem;
+		Vec<16> bmin, bmax, step, rstep;
+		int logscale = 0;
+		bool sgy = false;  // транспонирует оси и делает flip по вертикали
+
+		int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
+		
+		struct access_t: public CellFieldView {
+			static const int dim = 2;
+			typedef float cell_type; 
+			const char *ptr;
+			Ind<2> box, mul;
+			Vec<2> bmin, step, rstep;
+			int logscale, interp;
+			
+			access_t(const MeshView &data, const ConfView &conf);
+			float operator[](Ind<2> pos) const { pos >>= ind(0, 0); pos <<= box-ind(1); return get_f(ptr+mul*pos); }
+			void mod_coord(int axe, double r, int &pos, double &x) const { // вычисляет pos и  x на основе r
+				if(interp&(0xF<<(4*(1-axe)))){
+					pos = std::floor(logscale&1<<axe ? log(r/bmin[axe])*rstep[axe]-.5 :(r-bmin[axe])*rstep[axe]-.5); // ???
+					x = logscale&1<<axe ? log(r/(bmin[axe]*pow(step[axe], pos)))*rstep[axe]-.5 : (r-bmin[axe])*rstep[axe]-pos-.5;
+				} else pos = logscale&1<<axe ? log(r/bmin[axe])*rstep[axe] :(r-bmin[axe])*rstep[axe];
+			}
+			float operator()(const Vec<2> &r) const {
+				Ind<2> pos; Vec<2> x; mod_coord(0, r[0], pos[0], x[0]); mod_coord(1, r[1], pos[1], x[1]);
+				return interpolate(*this, pos, x, interp);
+			}
+		};
+		
+	public:
+		std::string head;
+
+	    bool load(aiw::IOstream &S);
+		bool load_as_sgy(aiw::IOstream &S);
+		bool load_from_sgy(aiw::IOstream &S);
+
+		int dim() const { return D; }
+		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf) const;          // вычисляет min-max, как это делать для preview?
+
+		float get(const ConfView& conf, Vec<2> r) const { return access_t(*this, conf)(r); }
+
+		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
+			// double t0 = omp_get_wtime();
+			access_t f(*this, conf); int xsz = image.size[0], ysz = image.size[1];
+			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
+
+			// WOUT(conf.min_xy(), conf.max_xy());			
+			// if(f.box==image.size) for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f[pos])); // <<< так не бывает
+			// else for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(f(im_bmin+(pos&im_step))));
+
+			// обходим изображение всегда "по шерсти", выигрыш от openMP примерно вдвое
+#pragma omp parallel for 
+			for(int y=0; y<ysz; y++){
+				Ind<2> pos; Vec<2> X, r; r[1] = im_bmin[1]+y*im_step[1]; f.mod_coord(1, r[1], pos[1], X[1]);
+				for(int x=0; x<xsz; x++){
+					r[0] = im_bmin[0]+x*im_step[0]; f.mod_coord(0, r[0], pos[0], X[0]);
+					image.set_pixel(ind(x,y), color(interpolate(f, pos, X, f.interp)));
+				}
+			}
+			// printf("MeshView::plot image=%ix%i, mesh=%ix%i, plottime=%g\n", image.size[0], image.size[1], f.box[0], f.box[1], omp_get_wtime()-t0);
+			// cell_bound ???
+		}
+		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color) const{  // рассчитан на маленькое изображение, учитывает только flip
+			ConfView conf = conf0; conf.uncrop();
+			plot(conf, image, color);
+		}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_MESH_VIEW_HPP

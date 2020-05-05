@@ -45,7 +45,7 @@ namespace aiw{
 									F        | крайняя ячейка | крайняя ячейка 
 								 */   
 	protected:
-		inline bool check_out_pos(Ind<D>& pos) const { // ==> false --- OK, true --- out_value
+		bool check_out_pos(Ind<D>& pos) const { // ==> false --- OK, true --- out_value
 			bool out_value = false;
 			for(int i=0; i<D; i++){
 				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }

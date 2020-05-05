@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2016, 2017-18 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017-18, 2020 Sergey Khilkov <ezz666@gmail.com> and Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -90,6 +90,31 @@ size_t aiw::sph_vertex_num(int rank){
 size_t aiw::sph_edges_num(int rank){ 
 	if(rank>=0 && rank<30) return 90l<<2*rank; //30 не влезает в uint64_t
 	else return 0;
+}
+//------------------------------------------------------------------------------
+// возвращает число точек, максимум 13? Для ответа надо свернуть IDs*weights
+int aiw::sph_interp_weights(const aiw::Vec<3> &r, int R, int mode, uint64_t* IDs, double *weights){ 
+	size_t cid = sph_cellInd(r, R); // ячейка сетки куда попал r
+	const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R); // ID вершин ячейки сетки куда попал r
+	Vec<3> n[3]; for(int i=0; i<3; i++) n[i] = sph_vert(vid[i], R); // координаты вершин ячейки сетки куда попал r
+	if(mode){ // по граням не интреполируем?
+		Vec<3> w = barecentr(r, n); // веса вершин ячейки сетки куда попал r
+		for(int i=0; i<3; i++){ IDs[i] = vid[i]; weights[i] = w[i]; }
+		return 3;
+	}
+	Vec<3> cXn[3], c = sph_cell(cid, R); for(int i=0; i<3; i++) cXn[i] = c%n[i];  // центр ячейки и векторные произведения центра с вершинами
+	int sz = 0, tr;  // число ячеек и номер треугольника (дальней от r вершины)?
+	for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
+	if(tr==3) WRAISE("oops...", r, cid, vid, n, cXn, c);
+	n[tr] = c; Vec<3> w = barecentr(r, n); // веса вершин 1/3 ячейки сетки куда попал r
+	IDs[sz] = cid; weights[sz++] = w[tr];
+	for(int i=0; i<3; i++){
+		if(i==tr) continue;
+		const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
+		int m = 6 - (nbid[5]==uint64_t(-1)); // число соседних ячеек
+		for(int j=0; j<m; j++){ IDs[sz] = nbid[j]; weights[sz++] = w[i]/m; }
+	}
+	return sz; 
 }
 //------------------------------------------------------------------------------
 void aiw::sph_free_table(int rank){ // освобождает таблицы старше ранга rank (включительно)

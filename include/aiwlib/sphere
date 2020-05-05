@@ -49,6 +49,8 @@ namespace aiw{
 	double sph_vert_area(size_t ID, int rank);  // площади ячеек при разбиении по вершинам
 	double sph_edge_area(size_t ID, int rank);  // площади ячеек при разбиении по ребрам
 	const aiw::Vec<3>& sph_edge(size_t ID, int rank); // координаты центров ребер
+	// возвращает число точек, максимум 13? Для ответа надо свернуть IDs*weights
+	int sph_interp_weights(const aiw::Vec<3> &r, int R, int mode, uint64_t* IDs, double *weights); 
 	//--------------------------------------------------------------------------
 	//   доступ к произвольному рангу, C++-style
 	//--------------------------------------------------------------------------	
@@ -232,23 +234,9 @@ namespace aiw{
 		bool interp=false;
 		T operator()(const aiw::Vec<3> &r) const {
 			if(!interp || mode>1) return (*this)[r];
-			size_t cid = sph_cellInd(r, R); Vec<3, T> v;
-			const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R);
-			Vec<3> n[3]; for(int i=0; i<3; i++) n[i] = sph_vert(vid[i], R);
-			if(mode) for(int i=0; i<3; i++) v[i] = ptr[vid[i]];
-			else {
-				Vec<3> cXn[3], c = sph_cell(cid, R);
-				for(int i=0; i<3; i++) cXn[i] = c%n[i]; 
-				int tr; for(tr=0; tr<3; tr++) if((cXn[(tr+1)%3]*r)*(cXn[(tr+1)%3]*n[(tr+2)%3])>=0 && (cXn[(tr+2)%3]*r)*(cXn[(tr+2)%3]*n[(tr+1)%3])>=0) break;
-				if(tr==3) WRAISE("oops...", r, cid, vid, n, cXn, c);
-				for(int i=0; i<3; i++){
-					if(i==tr) continue;
-					const aiw::Vec<6, uint64_t>& nbid = sph_vert_cell(vid[i], R); // ячейки, к которым относится вершина
-					v[i] = ptr[nbid[0]]; int m; for(m=1; m<6 && m!=-1; ++m){ v[i] += ptr[nbid[m]]; } v[i] /= m;				
-				}
-				v[tr] = ptr[cid]; n[tr] = c;
-			} 
-			return v*barecentr(r, n);
+			uint64_t IDs[13]; double weights[13]; int sz = sph_interp_weights(r, R, mode, IDs, weights);
+			T v = ptr[IDs[0]]*weights[0]; for(int i=1; i<sz; i++) v += ptr[IDs[i]]*weights[i];
+			return v;
 		}
 		T operator()(const aiw::Vec<2> &r) const { return (*this)(polar(r[1], r[0])); }
 		

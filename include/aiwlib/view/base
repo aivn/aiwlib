@@ -1,0 +1,140 @@
+// -*- C++ -*-
+#ifndef AIW_BASE_VIEW_HPP
+#define AIW_BASE_VIEW_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <string>
+#include <algorithm>
+#include "../iostream"
+#include "../vec"
+#include "color"
+#include "images"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct CellFieldView{
+		int offset_in_cell=0, type_in_cell=0;  // <==
+		float get_f(const char *ptr) const { return  type_in_cell==0?*(float*)ptr: float(*(double*)ptr); }
+	};
+	//--------------------------------------------------------------------------
+	// эта структура содержит все возможные настройки контейнера и его визуализации
+	// предназначена для передачи настроек визуализации между срезами/фреймами/файлами
+	// и получения настроек для отрисовки зарамочного офрмления и пр.
+	// некоторые из настроек могут быть зафиксированы 
+	// обновляется при вызове msh.get_conf(ConfView &conf);
+	// поля являющиеся ведущими (управляющие настройкой) отмечены вот так <==
+	struct ConfView: public CellFieldView {
+		int dim;               // размерность пространства
+		Vec<16> bmin0, bmax0;  // исходные размеры изображения
+		Vec<16> bmin, bmax;    // отображаемые размеры изображения БЕЗ учета флипов, если они отличаются от bmin0/bmax0 то значит сделан crop
+		Vec<16> slice, step;   // <== позиция среза (значения [axes[0, 1]] игнорируются) и шаг
+		Ind<16> size;          // размер в ячейках,  может использоваться для настройки ползунков управления срезами
+		bool mod_crop;         // делать размеры области кратными размеру ячейки при crop
+#ifndef SWIG
+		std::string anames[16];  // имена осей
+#endif // SWIG
+		aiw::Ind<2> axes = ind(0, 1);  // <==, номера осей для отображения, для транспонирования их нужно поменять местами. Это и slice полностью задают срез.
+		// void transpose(){ axes = axes(1, 0); }
+
+		int flipped = 0;  //<== маска осей по которым был произведен флип
+		bool get_flip(int ixy) const { return flipped&1<<axes[ixy]; }
+		void set_flip(int ixy, bool v){ int a = axes[ixy]; if(v) flipped |= 1<<a; else flipped &= ~(1<<a); }
+
+		aiw::Vec<2> lim(int ixy) const { int a = axes[ixy]; return get_flip(ixy)? vec(bmax[a], bmin[a]): vec(bmin[a], bmax[a]); }
+		aiw::Vec<2> get_step() const { return step(axes); }
+		aiw::Vec<2> min_xy0() const { return vec((get_flip(0)? bmax0[axes[0]]: bmin0[axes[0]]), (get_flip(1)? bmax0[axes[1]]: bmin0[axes[1]])); }
+		aiw::Vec<2> min_xy()  const { return vec((get_flip(0)? bmax[axes[0]]:  bmin[axes[0]]),  (get_flip(1)? bmax[axes[1]]:  bmin[axes[1]]));  }
+		aiw::Vec<2> max_xy0() const { return vec((get_flip(0)? bmin0[axes[0]]: bmax0[axes[0]]), (get_flip(1)? bmin0[axes[1]]: bmax0[axes[1]])); }
+		aiw::Vec<2> max_xy()  const { return vec((get_flip(0)? bmin[axes[0]]:  bmax[axes[0]]),  (get_flip(1)? bmin[axes[1]]:  bmax[axes[1]]));  }
+		
+		void crop(aiw::Vec<2> a_xy, aiw::Vec<2> b_xy){  // 0<= a_xy, b_xy <=1 (в размерах окна)
+			for(int ai=0; ai<2; ai++){
+				int a = axes[ai]; Vec<2> lim = get_flip(ai)? vec(1-b_xy[ai], 1-a_xy[ai]): vec(a_xy[ai], b_xy[ai]);
+				for(int i=0; i<2; i++) lim[i] = logscale&1<<a? pow(bmin[a], 1+(log(bmax[a])/log(bmin[a])-1)*lim[i]) : bmin[a] + (bmax[a]-bmin[a])*lim[i];
+				if(mod_crop){
+					int d = bmin0[a]<bmax0[a];
+					lim[0] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[0]/bmin0[a])/step[a]+1-d)) : bmin0[a]+::floor((lim[0]-bmin0[a])/step[a]+1-d)*step[a];
+					lim[1] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[1]/bmin0[a])/step[a]+d))   : bmin0[a]+::floor((lim[1]-bmin0[a])/step[a]+d)*step[a];
+				}
+				if(bmin0[a]<bmax0[a]){ bmin[a] = std::max(lim[0], bmin0[a]); bmax[a] = std::min(lim[1], bmax0[a]); }
+				else                 { bmin[a] = std::min(lim[0], bmin0[a]); bmax[a] = std::max(lim[1], bmax0[a]); }
+			}
+		}
+		void uncrop(){ for(int i=0; i<2; i++){ int a = axes[i]; bmin[a] = bmin0[a]; bmax[a] = bmax0[a]; } }
+		
+		int logscale = 0; // маска логмасштабов, нельзя включить/выключить логмасштаб по оси?
+		bool get_logscale(int ixy) const { return logscale&(1<<axes[ixy]); }
+		
+		std::string name(int axe) const { return anames[axe]; }
+		std::string name_x() const { return anames[axes[0]]; }
+		std::string name_y() const { return anames[axes[1]]; }
+
+		bool mollweide = false;
+		bool sph_interp = false;
+		double sph_phi0 = 0.;
+		
+		bool cell_bound = false;
+		
+		int interp = 0;
+		void set_interp(int ixy, int itype){ interp &= ~(0xF<<(4*(dim-axes[ixy]-1))); interp |= (itype&0xF)<<(4*(dim-axes[ixy]-1)); }
+		int get_interp(int ixy) const { return (interp&(0xF<<(4*(dim-axes[ixy]-1))))>>(4*(dim-axes[ixy]-1)); }
+
+		void set_slice_pos(const char *axe, int pos){
+			for(int i=0; i<dim; i++) if(axe==anames[i]){
+					slice[i] = logscale&1<<i? bmin0[i]*pow(step[i], pos+.5): bmin0[i]+step[i]*(pos+.5);
+					return;
+				}
+			WRAISE("incorrect name ", axe);
+		}
+		int get_slice_pos(int axe) const {
+			return (logscale&1<<axe? log(slice[axe]/bmin0[axe])/log(step[axe]) : (slice[axe]-bmin0[axe])/step[axe]) + .5;
+		}
+
+		aiw::Vec<2> xy2r(aiw::Vec<2> xy) const { // принимает относительные координаты в окне, для моллвейде должно быть как то по другому
+			Vec<2> res, a = min_xy(), b = max_xy();
+			for(int i=0; i<2; i++) res[i] = get_logscale(i)? pow(a[i], (1+(log(b[i])/log(a[i])-1)*xy[i])) : a[i]+(b[i]-a[i])*xy[i];
+			return res;
+		}
+
+		// slice доступен если dim>2 ???
+		enum { opt_axes = 1,
+			   opt_flip = 2,
+			   opt_crop = 4,
+			   opt_mollweide = 8,
+			   opt_cell_bound = 16,
+			   opt_interp = 32,
+			   // opt_line_interp = 32,
+			   // opt_cubic_interp = 64,
+			   // opt_bspline_interp = 128,
+			   opt_step_size = 256
+		};
+		//all: ConfView::opt_transpose|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_mollweide|ConfView::opt_cell_bound
+		//     |ConfView::opt_line_interp|ConfView::opt_cubic_interp|ConfView::opt_bspline_interp
+
+		int features = 0;
+	};
+	//--------------------------------------------------------------------------
+	/*
+	struct BaseView{
+		std::string head;
+
+		virtual bool load(aiw::IOstream &) = 0;
+
+		virtual int dim() const = 0;
+		virtual void get_conf(ConfView &conf, bool firstcall=false) const = 0;   // настраивает conf (с учетом crop)
+		virtual aiw::Vec<2> f_min_max(const ConfView &conf) const = 0;           // вычисляет min-max, как это делать для preview?
+
+		virtual float get(const ConfView& conf, aiw::Vec<2> r) const = 0;
+		virtual aiw::Vec<2> xy2r(const ConfView& conf, aiw::Vec<2> xy) const {
+			return conf.bmin(conf.axes)+(xy&(conf.bmax(conf.axes)-conf.bmin(conf.axes)));
+		}		
+		virtual ~BaseView(){}
+		};
+	*/
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_BASE_VIEW_HPP
