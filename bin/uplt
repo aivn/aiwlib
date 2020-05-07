@@ -209,7 +209,32 @@ wroot.bind('[', lambda e: content.color.scale_limits(-1))
 wroot.bind(']', lambda e: content.color.scale_limits(1))
 wroot.bind('\\', lambda e: content.color.scale_limits(0))
 wroot.bind('a', lambda e: (content.color.autoscale.set(not content.color.autoscale.get()), content.color.replot()))
+wroot.bind('l', lambda e: (content.color.logscale.set(not content.color.logscale.get()), content.color.replot()))
+#wroot.bind('i', lambda e: (content.color.invert.set(not content.color.invert.get()), content.color.replot()))
+wroot.bind('s', content.animate.save_image)
+wroot.bind('r', lambda e: (content.animate.run.set(not content.animate.run.get()), content.animate.run_animate()))
+wroot.bind('<Up>', content.animate.prev_scroll) 
+wroot.bind('<Down>', content.animate.next_scroll) 
+wroot.bind('<Left>', lambda e: content.animate.move_scroll(-1)) 
+wroot.bind('<Right>', lambda e: content.animate.move_scroll(1)) 
+wroot.bind('<Prior>', lambda e: content.animate.move_scroll(-10)) #PgUp
+wroot.bind('<Next>', lambda e: content.animate.move_scroll(10))   #PgDown
+wroot.bind('x', lambda e: content.main.next_axe(0)) 
+wroot.bind('<Alt-x>', lambda e: content.main.prev_axe(0)) 
+wroot.bind('c', lambda e: content.main.next_axe(1)) 
+wroot.bind('<Alt-c>', lambda e: content.main.prev_axe(1)) 
+wroot.bind('q', lambda e: content.main.next_interp(0)) 
+wroot.bind('<Alt-q>', lambda e: content.main.prev_interp(0)) 
+wroot.bind('w', lambda e: content.main.next_interp(1)) 
+wroot.bind('<Alt-w>', lambda e: content.main.prev_interp(1)) 
+wroot.bind('f', lambda e: (content.main.flip[0].set(not content.main.flip[0].get()), content.main.flip_replot())) 
+wroot.bind('<Alt-f>', lambda e: (content.main.flip[1].set(not content.main.flip[1].get()), content.main.flip_replot())) 
+wroot.bind('b', lambda e: (content.main.cell_bound.set(not content.main.cell_bound.get()), content.main.cell_bound_replot())) 
+wroot.bind('i', lambda e: (content.main.sph_interp.set(not content.main.sph_interp.get()), content.main.sph_replot())) 
+wroot.bind('m', lambda e: (content.main.mollweide.set(not content.main.mollweide.get()), content.main.sph_replot())) 
+#wroot.bind('<space>', lambda e: content.main.axes_menu[0].focus_set()) 
 content.canvas.bind('<Configure>', lambda e: content.plot_canvas((e.width, e.height)))
+
 
 #def on_left(e): print e.__dict__, repr(wroot.focus_displayof())
 #wroot.bind('<Left>', on_left)
@@ -218,6 +243,31 @@ childs = '/tmp/uplt-%s.childs'%os.getpid()
 #-------------------------------------------------------------------------------
 if os.path.exists('.uplt'): print 'load configfile ./.uplt ...'; execfile('.uplt')
 elif os.path.exists(os.path.expanduser('~/.uplt')): print 'load configfile ~/.uplt ...'; execfile(os.path.expanduser('~/.uplt'))
+
+print '''
+горячие клавиши:
+   <+>,<=>/<-> --- расширить/сжать пределы по значению
+       <[>/<]> --- установить верхний/нижний предел нулем 
+          <\\> --- симметризовать пределы относительно нуля
+           <a> --- включить/выключить автошкалирование по значению
+           <i> --- включить/выключить логарифмический масштаб
+           <s> --- сохранить изображение
+           <r> --- запустить/остановить анимацию
+   <Up>/<Down> --- выбрать ползунок для анимации
+<Left>/<Right> --- подвинуть выбранный ползунок на +/-1 пункт
+<PgUp>/<PgDwn> --- подвинуть выбранный ползунок на +/-10 пунктов
+   <x>/<Alt-x> --- выбор оси X для отображения
+   <c>/<Alt-c> --- выбор оси Y для отображения
+   <q>/<Alt-q> --- выбор интерполяции по оси X
+   <w>/<Alt-w> --- выбор интерполяции по оси Y
+   <f>/<Alt-f> --- разворот изображения по осям X/Y
+           <b> --- показать/скрыть границы ячеек
+           <i> --- включить/выключить интерполяцию для сферы
+           <m> --- включить/выключить проекцию Моллвейде для сферы
+
+можно выбрать мышью область для отображения/пределы на изображении/палитре
+двойной щелчек сбрасывает выбор области/возвращает автошкалирование по значению
+'''
 
 try: content.file_replot(); wroot.mainloop()
 finally:

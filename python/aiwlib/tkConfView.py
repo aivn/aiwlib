@@ -23,7 +23,7 @@ class SaveAnimate:
         self.amin, self.astep, self.amax = [aiwEntry(self._frame2, (0,1,0)[i], label=('', ':', ':')[i], pack={'side':LEFT}, width=[4,3,5][i]) for i in (0,1,2)]
         self.content = content
     def config_scrolls(self):
-        'определяет scrollbar-ов и настраивает меню'
+        'определяет словарь scrolls и настраивает меню'
         self.scrolls, scrolls = {}, []
         if len(self.content.data)>1: scrolls.append('file'); self.scrolls['file'] = self.content.main.file_num
         if len(self.content.data[self.content.ifile])>2: scrolls.append('frame'); self.scrolls['frame'] = self.content.main.frame_num
@@ -33,6 +33,18 @@ class SaveAnimate:
         else: self._frame2.show(); self.asave.state(1)
         OptionMenu.__init__(self.menu, self._frame1, self.atype, *(scrolls if scrolls else ['---'])); self.menu.pack(side=RIGHT)
         if not self.atype.get() in scrolls: self.atype.set((scrolls+['---'])[0])
+        self.scrolls_list = scrolls
+    def next_scroll(self, *args):
+        if self.scrolls_list: self.atype.set(self.scrolls_list[(self.scrolls_list.index(self.atype.get())+1)%len(self.scrolls_list)])
+    def prev_scroll(self, *args):
+        if self.scrolls_list: self.atype.set(self.scrolls_list[(self.scrolls_list.index(self.atype.get())-1)%len(self.scrolls_list)])
+    def move_scroll(self, d):
+        if self.scrolls:
+            sc = self.scrolls[self.atype.get()]
+            sc.set((sc.get()+d)%sc.cget('to'))
+            if self.atype.get()=='file': self.content.file_replot()
+            elif self.atype.get()=='frame': self.content.frame_replot()
+            else: self.content.main.slice_replot()
     def run_animate(self):
         if self.run.get(): self.content.replot()
     def on_replot(self):
@@ -49,7 +61,7 @@ class SaveAnimate:
                 if self.asave.get():
                     dstfile = asksaveasfilename(defaultextension='.avi', filetypes=['AVI {.avi}', 'MPEG {.mpeg}'])
                     if dstfile: os.system('ffmpeg -i %s/%%06d.png -qscale 1 -y '%self.tmpdir+dstfile)
-    def save_image(self):
+    def save_image(self, *args):
         'запрашивает имя файла и сохраняет изображение в форматах .ps, .pdf или .png'
         fname = asksaveasfilename(defaultextension='.png', filetypes=['PNG {.png}', 'PDF {.pdf}', 'PostScript {.ps}'])
         if not fname: return
@@ -182,6 +194,18 @@ class MainConf:
                 sc = self.slices[isc]; isc += 1
                 sc.config(to=conf.size[i]-1, label='%s [%i](%g:%g)'%(conf.name(i), conf.size[i], conf.bmin0[i], conf.bmax0[i]))
                 sc.set(conf.get_slice_pos(i))
+    def next_axe(self, axe):
+        axes = map(self.content.conf.name, range(self.content.conf.dim))
+        self.axes[axe].set(axes[(axes.index(self.axes[axe].get())+1)%len(axes)])
+    def prev_axe(self, axe):
+        axes = map(self.content.conf.name, range(self.content.conf.dim))
+        self.axes[axe].set(axes[(axes.index(self.axes[axe].get())-1)%len(axes)])
+    def next_interp(self, axe):
+        L = ['const',  'linear', 'cubic', 'betas']
+        self.interp[axe].set(L[(L.index(self.interp[axe].get())+1)%len(L)])
+    def prev_interp(self, axe):
+        L = ['const',  'linear', 'cubic', 'betas']
+        self.interp[axe].set(L[(L.index(self.interp[axe].get())-1)%len(L)])        
     def update(self, conf):
         'настраивает все элементы согласно conf и content'
         self.ss_frame.set_visible(conf.features&conf.opt_step_size)
@@ -239,7 +263,7 @@ class PlotConf: # шрифт и размеры тиков, скрывать их
     def __init__(self, panel, content, row=14, column=0):
         frame = Frame(panel); frame.grid(row=row, column=column)
         self.frame = aiwFrame(panel, row=row+1, column=column) 
-        self.settings = aiwCheck(frame, 'show settings      ', True, command=self.frame.switch, pack={'side':LEFT, 'anchor':W})
+        self.settings = aiwCheck(frame, 'show settings      ', False, command=self.frame.switch, pack={'side':LEFT, 'anchor':W})
         Button(frame, text='replot', command=content.file_replot).pack(side=RIGHT, anchor=E)
 
         self.title = aiwEntry(self.frame, '%(head)s', content.plot_canvas, 'title', width=19, pack={'side':TOP, 'anchor':E})
@@ -251,6 +275,7 @@ class PlotConf: # шрифт и размеры тиков, скрывать их
         frame = Frame(self.frame); frame.pack(side=TOP) 
         self.tic_len, self.tic_width, self.border, self.pal_xsz = [aiwEntry(frame, v, content.plot_canvas, l, width=w, pack={'side':LEFT}) for v, l, w in
                                                                    [(10, 'tic sz', 2), (1, '', 1), (1, ' border', 1), (30, ' pal.sz', 2)]]
+        self.frame.hide()
     def get_font(self): tfont = self.font.get().split(); tfont[1] = int(tfont[1]); return tfont 
     def get(self): return {'font': self.get_font(), 'tic_sz': (self.tic_len.get(), self.tic_width.get()), 'border': self.border.get()}
 #-------------------------------------------------------------------------------
