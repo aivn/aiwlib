@@ -83,10 +83,10 @@ namespace aiw{
 		void set_interp(int ixy, int itype){ interp &= ~(0xF<<(4*(dim-axes[ixy]-1))); interp |= (itype&0xF)<<(4*(dim-axes[ixy]-1)); }
 		int get_interp(int ixy) const { return (interp&(0xF<<(4*(dim-axes[ixy]-1))))>>(4*(dim-axes[ixy]-1)); }
 
-		void set_slice_pos(const char *axe, int pos){
+		double set_slice_pos(const char *axe, int pos){
 			for(int i=0; i<dim; i++) if(axe==anames[i]){
 					slice[i] = logscale&1<<i? bmin0[i]*pow(step[i], pos+.5): bmin0[i]+step[i]*(pos+.5);
-					return;
+					return slice[i];
 				}
 			WRAISE("incorrect name ", axe);
 		}
