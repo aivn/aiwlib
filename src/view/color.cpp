@@ -3,7 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#include "../include/aiwlib/view/color"
+#include "../../include/aiwlib/view/color"
 using namespace aiw;
 
 //------------------------------------------------------------------------------
