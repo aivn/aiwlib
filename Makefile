@@ -23,7 +23,7 @@ endif
 endif
 
 ifeq (on,$(bin)) 
-all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice,aiw-diff})
+all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice})
 endif
 
 ifeq (on,$(ezz))
