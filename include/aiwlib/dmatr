@@ -230,5 +230,5 @@ namespace aiw{
 	// }
 	//--------------------------------------------------------------------------
 	// using DMatr = aiw::DynMatr<double>;
-}; // end of namespace aiw
+}   // end of namespace aiw
 #endif //AIW_DYNAMIC_MATRIX_HPP

@@ -16,7 +16,14 @@ struct slot_t{
 };
 typedef std::pair<Vecf<2>, Vecf<2> > segment_t;
 //------------------------------------------------------------------------------
+void aiw::IsoLines::clear(){
+	plines.clear();
+	lines.clear();
+	levels.clear();
+}
+//------------------------------------------------------------------------------
 void aiw::IsoLines::init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale){
+	clear();
 	std::map<int, std::list<segment_t> > table;
 	double _dz = logscale?1./log(dz):1./dz;
 

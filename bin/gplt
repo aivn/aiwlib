@@ -120,8 +120,9 @@ class curve(Parser) :
 #-------------------------------------------------------------------------------
 aiwlib.bindopt._opt, gp, _label_table, _tics_table, _range_table, _last_dict = '-', os.popen( 'gnuplot', 'w' ), {}, {}, {}, {}
 aiwlib.bindopt._is_name = lambda a : a and ( a=='2d' or a=='3d' or a[0].isalpha() and a.replace('_','').isalnum() )
-#print>>gp,'set colors classic\nset style data lines\nset grid front\nset ticslevel 0\nNone=""'
+print>>gp,'set colors classic\nset style data lines\nset grid front\nset ticslevel 0\nNone=""'
 print>>gp,'set style data lines\nset grid front\nset ticslevel 0\nNone=""'
+#print>>gp,'set style data lines\nset ticslevel 0\nNone=""'
 _opt_symbol, _opt_list = '#', 'linecolor linewidth axes with title'.split()
 
 _colors = [ l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l ]

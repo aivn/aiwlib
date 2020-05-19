@@ -11,6 +11,7 @@
 #include <utility>
 #include "../sphere"
 #include "../interpolations"
+#include "../binary_format"
 #include "base"
 
 namespace aiw{
@@ -18,15 +19,15 @@ namespace aiw{
 	class SphereView { 
 		int R = 0, szT = 0, mode = 0, sz = 0;
 		std::shared_ptr<BaseAlloc> mem;
+		std::vector<CellFieldAccess> cfa_list;
 	public:
 		std::string head;
 
 	    bool load(aiw::IOstream &S){
-			std::string h; int D=-1, szT_ = -1; size_t s = S.tell(); S>h>D>szT_;
-			if(D!=0){ S.seek(s); return false; }
-			szT = szT_; head = h; S>R; mode = R>>29; R &= ~(7<<29);  sph_init_table(R);
+			BinaryFormat bf; bf.D = 0; bf.R = -1; if(!bf.load(S)) return false;
+			head = bf.head; szT = bf.szT; R = bf.R; mode = R>>29; R &= ~(7<<29);  sph_init_table(R);
 			sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
-			mem = S.mmap(sz*szT, 0);
+			mem = S.mmap(sz*szT, 0); cfa_list = bf.tinfo.get_access();
 			return true;
 		}
 
@@ -34,13 +35,14 @@ namespace aiw{
 		void get_conf(ConfView &conf, bool firstcall=false) const {  // настраивает conf (с учетом crop)
 			conf.dim = 2; conf.features = ConfView::opt_mollweide|ConfView::opt_cell_bound;
 			conf.bmin0 = conf.bmin = vec(0.); conf.bmax0[0] = conf.bmax[0] = 360; conf.bmax0[1] =  conf.bmax[1] = 180; conf.axes = ind(0, 1);
-			conf.anames[0] = "phi"; conf.anames[1] = "theta";			
+			conf.anames[0] = "phi"; conf.anames[1] = "theta";
+			conf.cfa_list = cfa_list;
 		}
 		aiw::Vec<2> f_min_max(const ConfView &conf) const {
-			const char *ptr = (const char*)(mem->get_addr())+conf.offset_in_cell;
-			float f_min, f_max; f_min = f_max = conf.get_f(ptr);
+			const char *ptr = (const char*)(mem->get_addr());
+			float f_min, f_max; f_min = f_max = conf.cfa.get_f(ptr);
 			for(int i=1; i<sz; i++){
-				float f = conf.get_f(ptr+i*szT);
+				float f = conf.cfa.get_f(ptr+i*szT);
 				if(f_min>f) f_min = f;
 				if(f_max<f) f_max = f;
 			}
@@ -48,13 +50,13 @@ namespace aiw{
 		}
 
 		float get(const ConfView& conf, const Vec<3>& r) const {
-			const char *ptr = (const char*)(mem->get_addr())+conf.offset_in_cell;			
+			const char *ptr = (const char*)(mem->get_addr());
 			if(!conf.sph_interp || mode>1){
 				size_t ID = mode==0? sph_cellInd(r, R): (mode==1? sph_vertInd(r, R): sph_edgeInd(r, R));
-				return conf.get_f(ptr + ID*szT);
+				return conf.cfa.get_f(ptr + ID*szT);
 			}			
 			uint64_t IDs[13]; double weights[13]; int szw = sph_interp_weights(r, R, mode, IDs, weights);
-			float v = 0; for(int i=0; i<szw; i++) v += conf.get_f(ptr + IDs[i]*szT)*weights[i];
+			float v = 0; for(int i=0; i<szw; i++) v += conf.cfa.get_f(ptr + IDs[i]*szT)*weights[i];
 			return v;
 		}
 		float get(const ConfView& conf, const Vec<2>& r) const { return get(conf, polar(r[1], r[0])*(M_PI/180)); }

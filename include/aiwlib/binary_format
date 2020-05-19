@@ -1,0 +1,36 @@
+// -*- C++ -*-
+#ifndef AIW_BINARY_FORMAT_HPP
+#define AIW_BINARY_FORMAT_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "typeinfo"
+#include "base_mesh"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct BinaryFormat{
+		static const int unused = 1<<16;                       // важно что бы это значение не кофликтовало с возможными значениями R
+		std::string head, *axes = nullptr;             
+		int D = -1, szT = -1, R = unused, logscale = unused;   // при чтении -1 - свободное значение, unused - не используется, иначе проверка прочитанного
+		void* box  = nullptr;                         
+		void* bmin = nullptr;
+		void* bmax = nullptr;
+		void* out_value = nullptr;
+		TypeInfo tinfo;
+
+		template <int DM> void init(BaseMesh<DM> &bm){
+			head = bm.head; axes = bm.anames;
+			D = DM; logscale = bm.logscale;
+			box = &bm.box; bmin = &bm.bmin; bmax = &bm.bmax;
+		}
+		
+		void dump(IOstream& S) const; // полностью пишет заголовок
+		bool load(IOstream& S);       // полностью читает заголовок, по возомжности (и необходимости) инициализирует пределы и пр.
+	};
+	//--------------------------------------------------------------------------
+};  // end of namespace aiw
+#endif //AIW_BINARY_FORMAT_HPP

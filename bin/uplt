@@ -91,6 +91,8 @@ class Content:
             else: print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
         if not self.data: print 'not input files\n', __doc__; sys.exit()
         self.conf = ConfView(); self.data[0][1].get_conf(self.conf, True)
+        if self.conf.cfa_list: self.conf.cfa = self.conf.cfa_list[0]
+        else: self.conf.cfa.typeID, self.conf.cfa.offset = 0, 0
     def f_min_max(self): return tuple(self.data[self.ifile][self.iframe+1].f_min_max(self.conf))
     def replot(self, *args):
         if self.color.autoscale.get(): self.color.calc_min_max()
@@ -180,8 +182,10 @@ class Content:
         #    v, cid = self.msh[r3], self.msh.find(r3)            
         #v, cid = self.data[self.ifile][self.iframe+1].get(self.conf, r), self.data[self.ifile][self.iframe+1].coord2pos(self.conf, r)
         #C.create_text(xy[0], xy[1], text='%g\n[%s]'%(v, cid), anchor='e', font=tfont, tag='msh_move', fill='gray')
-        v = self.data[self.ifile][self.iframe+1].get(self.conf, r)
-        C.create_text(xy[0], xy[1], text='%g'%v, anchor='e', font=tfont, tag='msh_move', fill='gray')
+        v = '%g'%self.data[self.ifile][self.iframe+1].get(self.conf, r)
+        #C.create_text(xy[0], xy[1], text='%g'%v, anchor='e', font=tfont, tag='msh_move', fill='gray')
+        C.create_rectangle(xy[0]-int(len(v)*tfont[1]*.8), xy[1], xy[0], xy[1]+int(tfont[1]*1.3),  tag='msh_move', fill='white') #, alpha=.5)
+        C.create_text(xy[0], xy[1], text=v, anchor='ne', font=tfont, tag='msh_move')
 #-------------------------------------------------------------------------------
 #  main widgets
 #-------------------------------------------------------------------------------
@@ -248,9 +252,9 @@ print '''
 горячие клавиши:
    <+>,<=>/<-> --- расширить/сжать пределы по значению
        <[>/<]> --- установить верхний/нижний предел нулем 
-          <\\> --- симметризовать пределы относительно нуля
+           <\\> --- симметризовать пределы относительно нуля
            <a> --- включить/выключить автошкалирование по значению
-           <i> --- включить/выключить логарифмический масштаб
+           <l> --- включить/выключить логарифмический масштаб
            <s> --- сохранить изображение
            <r> --- запустить/остановить анимацию
    <Up>/<Down> --- выбрать ползунок для анимации

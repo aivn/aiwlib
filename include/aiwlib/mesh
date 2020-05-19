@@ -3,7 +3,7 @@
 #define AIW_MESH_HPP
 
 /**
- * Copyright (C) 2016, 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -15,6 +15,7 @@
 #include "binaryio"
 #include "interpolations"
 #include "base_mesh"
+#include "binary_format"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -56,14 +57,43 @@ namespace aiw{
 		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D>(), box_, 0, align); }
 		//----------------------------------------------------------------------		
 #ifndef SWIG
+		/*
 		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
 			int h_sz = head.size()+5+D*16+sizeof(T); if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
 			char h[h_sz]; for(int i=0; i<h_sz; i++) h[i] = 0; // for old gcc versions
 			memcpy(h, head.c_str(), head.size()); memcpy(h+h_sz-4-D*16-sizeof(T), &out_value, sizeof(T));
 			memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
 			S<h_sz; S.write(h, h_sz); S<D<int(sizeof(T))<box;
-			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));  
+			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));
+			S.flush();
 		}
+		*/
+		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
+			BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T);  bf.out_value = (void*)&out_value;
+			bf.tinfo.root = T()^bf.tinfo; 
+			bf.dump(S); for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos];
+			S.flush(); 
+		}
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
+			size_t s0 = S.tell();  BinaryFormat bf; bf.init(*this); bf.szT = sizeof(T);  bf.out_value = &out_value; 
+			if(!bf.load(S)){
+				if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, bf.D, sizeof(T), bf.szT, S.name, S.tell(), bf.head); }
+				return false;
+			}
+			head = bf.head; logscale = bf.logscale; box.prod(sz); size_t s = S.tell(); 
+			if(__has_trivial_copy(T)){
+				if(use_mmap){ sz_init(box); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+				else { init(box, align); S.read(ptr, sz*sizeof(T)); }
+			} else { init(box, align); for(Ind<D> pos; pos^=box; ++pos) S>(*this)[pos]; }
+			if(!use_mmap && S.tell()-s!=sizeof(T)*sz){ S.seek(s0); WRAISE("incorrect Mesh::load() ", D, sizeof(T), S.name, head, box, S.tell()-s, sizeof(T)*sz); }
+
+			s = S.tell(); int32_t sz2 = 0; S>sz2;  // try read old aivlib mesh format (deprecated)
+			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))){ S>bmin>bmax>step>out_value; logscale = 0; } 
+			else  S.seek(s); 
+			for(int i=0; i<D; i++) this->set_step(i);
+			return true;
+		}
+		/*
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
 			std::string h; int rD=-1, szT=-1;  size_t s = S.tell(); S>h>rD>szT;
 			if(S.tell()-s!=12+h.size()){ S.seek(s); return false; }
@@ -98,6 +128,8 @@ namespace aiw{
 			this->set_axes(bmin_, bmax_, logscale_);
 			return true;
 		}
+		*/
+
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 

@@ -22,7 +22,7 @@ frac_table = dict( sum([ [ ( float(i)/j, '\\frac{%i}{%i}'%(i,j) ), ( -float(i)/j
                          for j in range(10,1,-1) for i in range(9,0,-1) if float(i)/j!=i/j ], [] ) )
 _N2T = lambda x: frac_table.get( x, '{\\rm nan}' if x is nan else _n2f( x, '{%s\\cdot 10^{%s}}' ) ) if x.__class__==float else str(x) 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
-psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial'''.split()
+psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel'''.split()
 #-------------------------------------------------------------------------------
 def _split_alpha_digit(S):
     b, e, L = 0, 0, []

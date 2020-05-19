@@ -266,5 +266,5 @@ namespace aiw{
 		return M; 
 	}
 	//--------------------------------------------------------------------------
-};
+}   // end of namespace aiw
 #endif //AIW_MATRIX_HPP

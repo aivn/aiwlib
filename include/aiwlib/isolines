@@ -20,6 +20,7 @@ namespace aiw{
 		std::vector<float> levels;
 	public:
 		void init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale=false);
+		void clear();
 		
 		int count() const { return plines.size(); }
 		size_t size(int l) const { return plines.at(l)->size(); }

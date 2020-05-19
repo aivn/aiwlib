@@ -11,15 +11,11 @@
 #include <algorithm>
 #include "../iostream"
 #include "../vec"
+#include "../typeinfo"
 #include "color"
 #include "images"
 
 namespace aiw{
-	//--------------------------------------------------------------------------
-	struct CellFieldView{
-		int offset_in_cell=0, type_in_cell=0;  // <==
-		float get_f(const char *ptr) const { return  type_in_cell==0?*(float*)ptr: float(*(double*)ptr); }
-	};
 	//--------------------------------------------------------------------------
 	// эта структура содержит все возможные настройки контейнера и его визуализации
 	// предназначена для передачи настроек визуализации между срезами/фреймами/файлами
@@ -27,7 +23,7 @@ namespace aiw{
 	// некоторые из настроек могут быть зафиксированы 
 	// обновляется при вызове msh.get_conf(ConfView &conf);
 	// поля являющиеся ведущими (управляющие настройкой) отмечены вот так <==
-	struct ConfView: public CellFieldView {
+	struct ConfView {
 		int dim;               // размерность пространства
 		Vec<16> bmin0, bmax0;  // исходные размеры изображения
 		Vec<16> bmin, bmax;    // отображаемые размеры изображения БЕЗ учета флипов, если они отличаются от bmin0/bmax0 то значит сделан crop
@@ -116,6 +112,9 @@ namespace aiw{
 		//     |ConfView::opt_line_interp|ConfView::opt_cubic_interp|ConfView::opt_bspline_interp
 
 		int features = 0;
+
+		std::vector<aiw::CellFieldAccess> cfa_list;
+		aiw::CellFieldAccess cfa;
 	};
 	//--------------------------------------------------------------------------
 	/*

@@ -2,7 +2,9 @@
 %exception { try{ $action }catch( const char *e ){ PyErr_SetString( PyExc_RuntimeError, e ); return NULL; }catch(...){ return NULL; } }
 %feature("autodoc", "1");
 %include "std_string.i"
+%include "std_vector.i"
 %{
+#include "../include/aiwlib/typeinfo"
 #include "../include/aiwlib/view/color"
 #include "../include/aiwlib/view/images"
 #include "../include/aiwlib/view/base"
@@ -11,12 +13,15 @@
 #include "../include/aiwlib/view/amr"
 %}
 %include "../include/aiwlib/vec"
+%include "../include/aiwlib/typeinfo"
 %include "../include/aiwlib/view/color"
 %include "../include/aiwlib/view/images"
 %include "../include/aiwlib/view/base"
 %include "../include/aiwlib/view/mesh"
 %include "../include/aiwlib/view/sphere"
 %include "../include/aiwlib/view/amr"
+
+%template(access_vector) std::vector<aiw::CellFieldAccess>;
 
 #ifndef AIW_NO_PNG
 %template(plot_paletter) aiw::plot_paletter<aiw::ImagePNG>;

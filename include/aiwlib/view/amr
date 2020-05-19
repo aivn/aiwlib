@@ -54,9 +54,10 @@ namespace aiw{
 			char* data; // длины 1<<(D*R) для ячеек, сами данные размещены в root?
 			
 			float get(const ConfView &conf, int offset, const AdaptiveMeshView *msh) const {
-				int oic = conf.offset_in_cell;
-				return usage[offset]? (oic>=0? conf.get_f(data+offset*msh->szT+conf.offset_in_cell) :
-									   float(oic==-2? max_subtile_runk(offset, msh->D, msh->R): rank)): nanf("");
+				// int oic = conf.offset_in_cell;
+				// return usage[offset]? (oic>=0? conf.get_f(data+offset*msh->szT+conf.offset_in_cell) :
+				//					   float(oic==-2? max_subtile_runk(offset, msh->D, msh->R): rank)): nanf("");
+				return usage[offset]? conf.cfa.get_f(data+offset*msh->szT): nanf("");
 			}
 		}; // end of struct heavy_tile_t		
 		//----------------------------------------------------------------------
@@ -64,10 +65,11 @@ namespace aiw{
 			heavy_tile_t *page;
 			uint16_t* chunks; // длины 1<<(D*(R-1)) для чанков, содержит смещения чанков
 			float get(const ConfView &conf, int offset, const AdaptiveMeshView *msh) const {
-				int D = msh->D, c = 1<<D, oic = conf.offset_in_cell;
-				// WOUT(offset, usage[offset], chunks[offset>>msh->D], (chunks[offset>>msh->D]-1)*c+offset%c);
-				return usage[offset]? (oic>=0? conf.get_f(page->data+((chunks[offset>>D]-1)*c+offset%c)*msh->szT+conf.offset_in_cell) :
-									   float(oic==-1? rank: (oic==-2? max_subtile_runk(offset, D, msh->R) :rank-.5))): nanf("");
+				// int D = msh->D, c = 1<<D, oic = conf.offset_in_cell;
+				// return usage[offset]? (oic>=0? conf.get_f(page->data+((chunks[offset>>D]-1)*c+offset%c)*msh->szT+conf.offset_in_cell) :
+				//					   float(oic==-1? rank: (oic==-2? max_subtile_runk(offset, D, msh->R) :rank-.5))): nanf("");
+				int D = msh->D, c = 1<<D; 
+				return usage[offset]? conf.cfa.get_f(page->data+((chunks[offset>>D]-1)*c+offset%c)*msh->szT): nanf("");
 			}
 		}; // end of struct light_tile_t
 		//----------------------------------------------------------------------
@@ -115,6 +117,8 @@ namespace aiw{
 		iterator find(const ConfView &conf, Ind<2> pos);  // произвольный доступ по срезу
 		iterator begin(const ConfView &conf) { iterator I = find(conf, ind(0, 0));  while(I.tile && !I.check_bbox()) I.next(); return I; }
 	    iterator end() { return iterator(); }
+
+		std::vector<CellFieldAccess> cfa_list;
 	public:
 		std::string head;
 		

@@ -13,14 +13,13 @@ from tkWidgets import *
 #-------------------------------------------------------------------------------
 class SaveAnimate:
     def __init__(self, panel, content, row=0, column=0):  
-        self._frame1 = Frame(panel); self._frame1.grid(row=row, column=column, sticky=W) 
-        Button(self._frame1, text='save', command=self.save_image).pack(side=LEFT)
-        self.asave, self.atype = aiwCheck(self._frame1, 'by:', False, pack={'side':LEFT}), TkVar('---')
-        self.menu = OptionMenu(self._frame1, self.atype, '---'); self.menu.pack(side=RIGHT)
+        frame = Frame(panel); frame.grid(row=row, column=column, sticky=W) 
+        Button(frame, text='save', command=self.save_image).pack(side=LEFT)
+        self.asave, self.atype = aiwCheck(frame, 'by:', False, pack={'side':LEFT}), aiwOptionMenu(frame, pack={'side': RIGHT})
 
-        self._frame2 = aiwFrame(panel, row=row+1, column=column, sticky=W)
-        self.run, self.counter = aiwCheck(self._frame2, 'movie', False, command=self.run_animate, pack={'side':LEFT}), 0
-        self.amin, self.astep, self.amax = [aiwEntry(self._frame2, (0,1,0)[i], label=('', ':', ':')[i], pack={'side':LEFT}, width=[4,3,5][i]) for i in (0,1,2)]
+        self.aframe = aiwFrame(panel, row=row+1, column=column, sticky=W)
+        self.run, self.counter = aiwCheck(self.aframe, 'movie', False, command=self.run_animate, pack={'side':LEFT}), 0
+        self.amin, self.astep, self.amax = [aiwEntry(self.aframe, (0,1,0)[i], label=('', ':', ':')[i], pack={'side':LEFT}, width=[4,3,5][i]) for i in (0,1,2)]
         self.content = content
     def config_scrolls(self):
         'определяет словарь scrolls и настраивает меню'
@@ -29,10 +28,9 @@ class SaveAnimate:
         if len(self.content.data[self.content.ifile])>2: scrolls.append('frame'); self.scrolls['frame'] = self.content.main.frame_num
         for s in self.content.main.slices[:self.content.conf.dim-2]: scrolls.append(s.cget('label').split()[0]); self.scrolls[scrolls[-1]] = s
         if self.run.get() and not self.atype.get() in scrolls: self.run.set(False) # надо остановить анимацию
-        if not scrolls: self._frame2.hide(); self.asave['state'] = 'disabled'; self.run.set(False)
-        else: self._frame2.show(); self.asave.state(1)
-        OptionMenu.__init__(self.menu, self._frame1, self.atype, *(scrolls if scrolls else ['---'])); self.menu.pack(side=RIGHT)
-        if not self.atype.get() in scrolls: self.atype.set((scrolls+['---'])[0])
+        if not scrolls: self.aframe.hide(); self.asave.state(0); self.run.set(False)
+        else: self.aframe.show(); self.asave.state(1)
+        self.atype.set_items(scrolls if scrolls else ['---'])
         self.scrolls_list = scrolls
     def next_scroll(self, *args):
         if self.scrolls_list: self.atype.set(self.scrolls_list[(self.scrolls_list.index(self.atype.get())+1)%len(self.scrolls_list)])
@@ -74,15 +72,14 @@ class SaveAnimate:
 #-------------------------------------------------------------------------------
 class ColorConf:
     paletters = dict((k[:-4], getattr(aiwlib.view, k)) for k in dir(aiwlib.view) if k.endswith('_pal'))
-    def __init__(self, panel, content, row=2, column=0):
+    def __init__(self, panel, content, row=2, column=0):        
         frame = Frame(panel); frame.grid(row=row, column=column, sticky=E)
         self.f_min = aiwEntry(frame, 0., self.replot, label='f', pack={'side':LEFT, 'anchor':E}, width=10)
         self.f_max = aiwEntry(frame, 0., self.replot, label=':', pack={'side':RIGHT, 'anchor':E}, width=10)
 
         frame = Frame(panel); frame.grid(row=row+1, column=column, sticky=W)        
         self.autoscale, self.old_autoscale = aiwCheck(frame, 'autoscale', True, command=self.replot, pack={'side':LEFT}), False
-        self.pal = TkVar('rainbow'); OptionMenu(frame, self.pal, *self.paletters.keys()).pack(side=RIGHT)
-        self.pal.trace('w', self.replot)
+        self.pal = aiwOptionMenu(frame, items=self.paletters.keys(), trace=self.replot, default='rainbow', pack={'side':RIGHT})
 
         frame = Frame(panel); frame.grid(row=row+2, column=column, sticky=W)        
         self.logscale = aiwCheck(frame, 'logsc.', command=self.replot, grid={'row':0, 'column':0})
@@ -126,50 +123,50 @@ class ColorConf:
         if self.autoscale.get()!=self.old_autoscale: self.old_autoscale = self.autoscale.get(); self.calc_min_max()
         self.content.plot_preview(); self.content.plot_canvas()
 #-------------------------------------------------------------------------------
-class MainConf:        
+class MainConf:
+    ctypes = 'float double bool char uint8_t int8_t uint16_t int16_t uint32_t int32_t  uint64_t int64_t'.split()
     def __init__(self, panel, panel_sz, content, row=5, column=0):
-        self.content = content
-        frame = Frame(panel); frame.grid(row=row, column=column)  # access to cell field
-        self.offset_in_cell = aiwEntry(frame, 0, self.access_replot, 'offset in cell', pack={'side':LEFT}, width=3)
-        self.type_in_cell = TkVar('float'); self.type_in_cell.trace('w', self.access_replot)
-        OptionMenu(frame, self.type_in_cell, 'float', 'double').pack(side=RIGHT)
+        self.raw_access_frame = aiwFrame(panel, row=row, column=column)  # access to cell field
+        self.offset_in_cell = aiwEntry(self.raw_access_frame, 0, self.access_replot, 'offset in cell', pack={'side':LEFT}, width=3)
+        self.type_in_cell = aiwOptionMenu(self.raw_access_frame, items=self.ctypes, pack={'side':RIGHT}, trace=self.access_replot)
 
-        self.ss_frame = aiwFrame(panel, row=row+1, column=column)  # show size & step
+        self.cfa_frame = aiwFrame(panel, row=row+1, column=column)
+        self.cfa_pos = [aiwEntry(self.cfa_frame, 0, self.access_replot, '', pack={'side':LEFT}, width=2) for i in (0,1)]
+        self.cfa_menu = aiwOptionMenu(self.cfa_frame, trace=self.access_replot, pack={'side':RIGHT})
+
+        self.ss_frame = aiwFrame(panel, row=row+3, column=column)  # show size & step
         self.size = [aiwEntry(self.ss_frame, 0,  label=('size', '')[i], grid={'row':0, 'column':i}, width=9, state='readonly') for i in (0, 1)]
         self.step = [aiwEntry(self.ss_frame, 0., label=('step', '')[i], grid={'row':1, 'column':i}, width=9, state='readonly') for i in (0, 1)]
 
-        frame = Frame(panel); frame.grid(row=row+2, column=0)
+        frame = Frame(panel); frame.grid(row=row+4, column=0)
         self.flip = [aiwCheck(frame, ('X', 'Y flip   ')[i], command=self.flip_replot, grid={'row':0, 'column':i}) for i in (0,1)]
         self.cell_bound = aiwCheck(frame, 'show cells', command=self.cell_bound_replot, grid={'row':0, 'column':3, 'sticky':E})
 
-        self.interp_frame, self.interp = aiwFrame(panel, row=row+3, column=0), [TkVar('const'), TkVar('const'), 'const', 'const']
-        Label(self.interp_frame, text='interp').pack(side=LEFT)
-        for i in (0,1):
-            OptionMenu(self.interp_frame, self.interp[i], *'const linear cubic betas'.split()).pack(side=LEFT)
-            self.interp[i].trace('w', self.interp_replot)
+        self.interp_frame = aiwFrame(panel, row=row+5, column=0); Label(self.interp_frame, text='interp').pack(side=LEFT)
+        self.interp = [aiwOptionMenu(self.interp_frame, trace=self.interp_replot, items='const linear cubic betas'.split(), pack={'side':RIGHT})
+                       for i in (0,1)]+['const']*2
 
-        self.axes_frame = aiwFrame(panel, row=row+4, column=column)  # show axes <<<
-        self.axes = [TkVar('X'), TkVar('Y'), 'X', 'Y']; Label(self.axes_frame, text='axes').pack(side=LEFT) # значения осей и их старые значения
-        for i in (0, 1): self.axes[i].trace('w', self.change_axes)        
-        self.axes_menu, self.axes_list = [OptionMenu(self.axes_frame, self.axes[i], *'XYZ') for i in (0, 1)], ['X', 'Y', 'Z']
-        for om in self.axes_menu: om.pack(side=LEFT)
+        self.axes_frame, self.axes_list = aiwFrame(panel, row=row+6, column=column), ['X', 'Y', 'Z']  # show axes <<<
+        self.axes = [aiwOptionMenu(self.axes_frame, items='XYZ', trace=self.change_axes, default=i,
+                                   pack={'side':LEFT}) for i in 'XY']+['X', 'Y']  # значения осей и их старые значения
+        Label(self.axes_frame, text='axes').pack(side=LEFT)  
         
-        self.sph_frame = aiwFrame(panel, row=row+5, column=column, sticky=E)  # show sphere
+        self.sph_frame = aiwFrame(panel, row=row+7, column=column, sticky=E)  # show sphere
         self.sph_phi0 = aiwEntry(self.sph_frame, 0, self.sph_replot, 'sphere phi0', grid={'row':0, 'column':0}, width=3)
         self.sph_rank = aiwEntry(self.sph_frame, 0,  label='rank', grid={'row':0, 'column':1}, width=1, state='readonly')
         self.mollweide, self.sph_interp = [aiwCheck(self.sph_frame, ('mollweide', 'interp')[i], False,
                                                     command=self.sph_replot, grid={'row':1, 'column':i}) for i in (0,1)]
 
-        self.file_num = aiwScaleSH(panel, 'file number', command=self.content.file_replot, length=panel_sz-2, showvalue=YES, #<<<
-                                   orient='horizontal', to=0, grid={'row':row+6, 'column': column}) # relief=RAISED, ) 
-        self.frame_num = aiwScaleSH(panel, 'frame number', command=self.content.frame_replot, length=panel_sz-2, showvalue=YES,
-                                    orient='horizontal', to=0, grid={'row':row+7, 'column': column}) #relief=RAISED, )
-        frame = Frame(panel); frame.grid(row=row+8, column=column)   # slices
+        self.file_num = aiwScaleSH(panel, 'file number', command=content.file_replot, length=panel_sz-2, showvalue=YES, #<<<
+                                   orient='horizontal', to=0, grid={'row':row+8, 'column': column}) # relief=RAISED, ) 
+        self.frame_num = aiwScaleSH(panel, 'frame number', command=content.frame_replot, length=panel_sz-2, showvalue=YES,
+                                    orient='horizontal', to=0, grid={'row':row+9, 'column': column}) #relief=RAISED, )
+        frame = Frame(panel); frame.grid(row=row+10, column=column)   # slices
         self.slices = [aiwScaleSH(frame, '', command=self.slice_replot, length=panel_sz-2, showvalue=YES,
                                   orient='horizontal', to=0, grid={'row':i, 'column': 0}) for i in range(content.max_dim)]
         for s in self.slices: s.hide()
 
-        #self._update_mode =  False
+        self.content = content
     def change_axes(self, *args):
         #if self._update_mode: return # блокировка настройки из self.update
         axe = int(args[0]==self.axes[1]._name)   # номер оси которая была изменена
@@ -192,7 +189,7 @@ class MainConf:
                 self.interp[j].set(['const',  'linear', 'cubic', 'betas'][conf.get_interp(j)])
             else:
                 sc = self.slices[isc]; isc += 1
-                sc.config(to=conf.size[i]-1, label='%s [%i](%g:%g)'%(conf.name(i), conf.size[i], conf.bmin0[i], conf.bmax0[i]))
+                sc.config(to=conf.size[i]-1, label='%s %i [%g:%g] %g'%(conf.name(i), conf.size[i], conf.bmin0[i], conf.bmax0[i], conf.slice[i]))
                 sc.set(conf.get_slice_pos(i))
     def next_axe(self, axe):
         axes = map(self.content.conf.name, range(self.content.conf.dim))
@@ -229,13 +226,31 @@ class MainConf:
             for s in self.slices[conf.dim-2:]: s.hide()
             
             axes = [conf.name(i) for i in range(conf.dim)]
-            for a, m in zip(self.axes, self.axes_menu): OptionMenu.__init__(m, self.axes_frame, a, *axes); m.pack(side=LEFT)
+            for m in self.axes[:2]: m.set_items(axes)
             # что делать если в новой сетке другой набор осей?
         self.config_axes(conf)
+        
+        if self.content.conf.cfa_list: 
+            self.raw_access_frame.hide(); self.cfa_frame.show()
+            cfaL = [i.label for i in self.content.conf.cfa_list]
+            self.cfa_menu.set_items(cfaL)
+            self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
+            if self.content.conf.cfa.xfem_field==-1: self.cfa_pos[0].state(0); self.cfa_pos[1].state(0)
+            else: self.cfa_pos[0].state(1); self.cfa_pos[1].state(1)
+        else: 
+            self.raw_access_frame.show(); self.cfa_frame.hide()
+            self.offset_in_cell.set(self.content.conf.cfa.offset)
+            self.type_in_cell.set(self.ctypes[self.content.conf.cfa.typeID])
     #--- простые перерисовки ---
     def access_replot(self, *args):
-        self.content.conf.offset_in_cell = int(self.offset_in_cell.get())
-        self.content.conf.type_in_cell = {'float':0, 'double':1}[self.type_in_cell.get()]
+        cfaL = [i.label for i in self.content.conf.cfa_list]
+        if self.content.conf.cfa_list:
+            self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
+            if self.content.conf.cfa.xfem_field==-1: self.cfa_pos[0].state(0); self.cfa_pos[1].state(0)
+            else: self.cfa_pos[0].state(1); self.cfa_pos[1].state(1)
+        else:            
+            self.content.conf.cfa.offset = int(self.offset_in_cell.get())
+            self.content.conf.cfa.typeID = self.ctypes.index(self.type_in_cell.get())
         self.content.replot()
     def flip_replot(self):
         for i in (0,1): self.content.conf.set_flip(i, self.flip[i].get())
@@ -247,20 +262,21 @@ class MainConf:
         self.content.plot_preview(); self.content.plot_canvas()
     def cell_bound_replot(self): self.content.conf.cell_bound = self.cell_bound.get(); self.content.plot_canvas()
     def sph_replot(self, *args):
-        try:
-            print self.content.conf.sph_phi0, repr(self.sph_phi0.get())
-            self.content.conf.sph_phi0 = float(self.sph_phi0.get())
+        try: self.content.conf.sph_phi0 = float(self.sph_phi0.get())
         except: pass
         self.content.conf.mollweide, self.content.conf.sph_interp  = self.mollweide.get(), self.sph_interp.get()
         self.content.replot()
     def slice_replot(self, *args):
-        for i in range(self.content.conf.dim-2): self.content.conf.set_slice_pos(self.slices[i].cget('label').split()[0], self.slices[i].get())
+        conf = self.content.conf
+        for sc in self.slices[:conf.dim-2]:
+            lbl = sc.cget('label'); coord = conf.set_slice_pos(lbl.split()[0], sc.get())
+            sc.config(label=lbl.rsplit(' ', 1)[0]+' %g'%coord)
         #if self.content.color.autoscale.get(): self.content.color.calc_min_max()
         #self.content.plot_preview(); self.content.plot_canvas()
         self.content.replot()
 #-------------------------------------------------------------------------------
 class PlotConf: # шрифт и размеры тиков, скрывать их по умолчанию, показывать по какой то кнопке?
-    def __init__(self, panel, content, row=14, column=0):
+    def __init__(self, panel, content, row=16, column=0):
         frame = Frame(panel); frame.grid(row=row, column=column)
         self.frame = aiwFrame(panel, row=row+1, column=column) 
         self.settings = aiwCheck(frame, 'show settings      ', False, command=self.frame.switch, pack={'side':LEFT, 'anchor':W})

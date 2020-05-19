@@ -255,7 +255,7 @@ namespace aiw{
 		}
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { 
-			S<head<int(0)<int(sizeof(T))<((mode<<29)|R);
+			S<head<int32_t(0)<int32_t(sizeof(T))<((mode<<29)|R);
 			S.write(this->ptr, sizeof(T)*sz);
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // 0 - not use, 1 - readonly, 2 - rw

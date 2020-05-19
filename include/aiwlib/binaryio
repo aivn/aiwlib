@@ -123,6 +123,11 @@ namespace aiw{
 	template<int D, typename T> inline IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
 #endif //AIW_VEC_HPP
 	//--------------------------------------------------------------------------
+	inline void dump_to_iostream(aiw::IOstream&) {}							
+	template <typename T, typename ... Args>  void dump_to_iostream(aiw::IOstream &S, const T& x, const Args&... args){ dump_to_iostream(S<x, args...); }
+	inline void load_from_iostream(aiw::IOstream&) {}							
+	template <typename T, typename ... Args>  void load_from_iostream(aiw::IOstream &S, T& x, Args&... args){ load_from_iostream(S>x, args...); }
+	//--------------------------------------------------------------------------
 };
 #endif //SWIG		
 #endif //AIW_BINARY_IO_HPP

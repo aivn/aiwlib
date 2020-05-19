@@ -296,10 +296,10 @@ namespace aiw{
 	template <typename T> inline bool is_bad_value(const DynVec<T> &v){ return v.cknan() || v.ckinf(); }
 	template <typename T> inline T fabsV(const DynVec<T> &v){ return v.abs(); }
 	//--------------------------------------------------------------------------
-}; // end of namespace aiw
+}   // end of namespace aiw
 
 namespace std{
-//---------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 	template<typename T> struct less<aiw::DynVec<T> > {
 		bool operator()(const aiw::DynVec<T> &x, const aiw::DynVec<T> &y ) const { 
 			if(x.size()!=y.size()) WRAISE("", x.size(), y.size());
@@ -311,7 +311,7 @@ namespace std{
 			return false;
 		} 
 	};	
-//---------------------------------------------------------------------------
-}; // end of namespace std
+	//--------------------------------------------------------------------------
+}   // end of namespace std
 
 #endif //AIW_DYNAMIC_VECTOR_HPP

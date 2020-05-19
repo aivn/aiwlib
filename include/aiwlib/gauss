@@ -68,7 +68,8 @@ namespace aiw{
 		return vec(s_th*c_ph, s_th*s_ph, c_th);
 	}
 	template <typename T> inline aiw::Vec<2, double> polar(const aiw::Vec<3, T> &n){ //==> theta, phi
-		return vec(acos(n[2]/n.abs()), atan2(n[1], n[0]));
+		T n_z = n[2]/n.abs(); if(n_z<-1){ n_z = -1; } else if(n_z>1) n_z = 1;
+		return vec(acos(n_z), atan2(n[1], n[0]));
 	}
 	//--------------------------------------------------------------------------
 	template <typename T> inline aiw::Vec<2, T> perp(const aiw::Vec<2, T> &a){ return Vec<2, T>(-a[1], a[0]); } 

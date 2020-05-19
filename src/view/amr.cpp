@@ -74,27 +74,17 @@ void aiw::AdaptiveMeshView::iterator::next(){
 }
 //------------------------------------------------------------------------------
 bool aiw::AdaptiveMeshView::load(aiw::IOstream& S){
-	std::string h; int rD=-1, rszT, rR;  size_t s = S.tell(); S>h>rD;
-	// if(S.tell()-s!=16+h.size()){ S.seek(s); return false; }
-	// if(!(rD&(1<<31))){ S.seek(s);  return false; }
-	if(rD==-1 || !(rD&(1<<31))){  S.seek(s);  return false; }
-	head = h.c_str(); D = rD&~(1<<31); S>szT>R;
-	box = ind(0); S.read(&box, D*4);
-
-	for(int i=0; i<D; i++){ bmin[i] = 0; bmax[i] = box[i]; }  logscale = 0;
-	if(h.size()>head.size()+4+D*16){
-		int i = this->head.size(), i0 = h.size()-(4+D*16); while(i<i0 && h[i]==0) i++;
-		if(i==i0){
-			memcpy(&bmin, h.c_str()+i0, D*8); i0 += D*8;
-			memcpy(&bmax, h.c_str()+i0, D*8); i0 += D*8;
-			memcpy(&this->logscale, h.c_str()+i0, 4);
-		}
-	}
+	size_t s = S.tell();  BinaryFormat bf; bf.R = -1; bf.logscale = 0;
+	bf.bmin = &bmin; bf.bmax = &bmax; bf.box = &box;
+	if(!bf.load(S)) return false;
+	if(!(bf.D&(1<<31))) {  S.seek(s);  return false; }	
+	head = bf.head; D = bf.D&~(1<<31); szT = bf.szT; R = bf.R; logscale = bf.logscale; cfa_list = bf.tinfo.get_access();
 	
 	int tiles_sz = box[0]; for(int i=1; i<D; i++) tiles_sz *= box[i];
 	tiles.resize(tiles_sz); data.resize(tiles_sz); max_rank = 0;
 	int flags_sz = 64/(1<<(R*D)); if(flags_sz==0) flags_sz = 1; // по одному биту на ячейку
 	for(int Ti=0; Ti<tiles_sz; Ti++){ // цикл по тайлам нулевого ранга
+		int rD = -1, rszT = -1, rR = -1;
 		size_t stell = S.tell();  S>rD>rszT>rR; if(rD!=D || rszT!=szT || rR!=R){
 			S.seek(stell); WERR(rD, D, rszT, szT, rR, R);
 			return false;
@@ -181,6 +171,7 @@ void aiw::AdaptiveMeshView::get_conf(ConfView &conf, bool firstcall) const {  //
 	conf.anames[2] = "Z";
 
 	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_step_size;
+	conf.cfa_list = cfa_list;
 }
 //------------------------------------------------------------------------------
 aiw::Vec<2> aiw::AdaptiveMeshView::f_min_max(const ConfView &conf) {  // вычисляет min-max, как это делать для preview?

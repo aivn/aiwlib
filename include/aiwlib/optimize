@@ -78,7 +78,7 @@ namespace aiw{
 			// printf("%g %g 0\n", start[0], start[1]);
 			old_start = start;
 			T c = f(start); Vec<D, T> g;
-			// printf("%g %g %g\n", start[0], start[1], c);
+			//			printf("%g %g %g %g\n", start[0], start[1], start[2], c);
 			for(int i=0; i<D; i++){ Vec<D> x = start; x[i] += acc[i]; g[i] = (f(x)-c)/acc[i]; }
 			g /= g.abs(); if(is_bad_value(g)) break; // нулевой градиент, что то нашли
 			Vec<D> a = shoot_box_out(start, -g, bmin, bmax), b = shoot_box_out(start, g, bmin, bmax);

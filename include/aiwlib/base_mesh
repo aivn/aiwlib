@@ -16,9 +16,10 @@ namespace aiw{
 	protected:
 		size_t sz;  // общее число элементов
 		Ind<D> box; // размеры сетки в ячейках
+		friend class BinaryFormat;
 	public:
 		static const int dim = D;
-		std::string head;
+		std::string head, anames[D];
 		aiw::Vec<D> bmin, bmax, step, rstep;
 		int logscale=0;     // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
 		int periodic=0;     // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
@@ -63,23 +64,24 @@ namespace aiw{
 		}
 		
 	public:		
-		inline      size_t size() const { return sz; }
-		inline aiw::Ind<D> bbox() const { return box; }
+		size_t size() const { return sz; }
+		aiw::Ind<D> bbox() const { return box; }
 
+		void set_step(int axe){
+			// axes[axe] = axe; ???
+			step[axe] = logscale&1<<axe? exp(log(bmax[axe]/bmin[axe])/box[axe]) :(bmax[axe]-bmin[axe])/box[axe];
+			rstep[axe] = logscale&1<<axe? 1./log(step[axe]) : 1./step[axe];
+		}
 		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
-			for(int i=0; i<D; i++){
-				step[i] = logscale&1<<i? exp(log(bmax[i]/bmin[i])/box[i]) :(bmax[i]-bmin[i])/box[i];
-				// axes[i] = i; ???
-				rstep[i] = logscale&1<<i? 1./log(step[i]) : 1./step[i];
-			}
+			for(int i=0; i<D; i++) set_step(i); 
 		}
 
-		inline int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
-		inline aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
-		inline double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
-		inline aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
-		inline aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
+		int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
+		aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
+		double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
+		aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
+		aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
 			Vec<D> r;
 			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
 			return r;
@@ -94,6 +96,7 @@ protected:  									\
 	using BaseMesh<D>::box;						\
 public:											\
 	using BaseMesh<D>::head;					\
+	using BaseMesh<D>::anames;					\
 	using BaseMesh<D>::bmin;					\
 	using BaseMesh<D>::bmax;					\
 	using BaseMesh<D>::step;					\

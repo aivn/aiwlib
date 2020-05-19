@@ -51,6 +51,22 @@ class aiwEntry(VarWidget):
     def config(self, **kw_args): self.entry.config(**kw_args)
     def state(self, state): self.entry.config(state=['disabled', 'normal', 'readonly'][state])
 #-------------------------------------------------------------------------------
+class aiwOptionMenu:
+    def __init__(self, root, items=['---'], pack=None, grid=None, trace=None, default=None):
+        self.var, self.root, self.pack, self.grid = StringVar(), root, pack, grid
+        self.menu = OptionMenu(root, self.var, *items)
+        self.var.set(default if default else items[0])
+        if self.pack: self.menu.pack(**self.pack)
+        else: self.menu.grid(**self.grid)
+        if trace: self.var.trace('w', trace) # это должно вызываться самым последним
+    def get(self): return self.var.get()
+    def set(self, val): self.var.set(val)
+    def set_items(self, L): 
+        OptionMenu.__init__(self.menu, self.root, self.var, *L)
+        if self.pack: self.menu.pack(**self.pack)
+        else: self.menu.grid(**self.grid)
+        if not self.var.get() in L: self.var.set(L[0])
+#-------------------------------------------------------------------------------
 #  show/hide
 #-------------------------------------------------------------------------------
 class aiwShowHide:

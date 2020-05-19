@@ -3,148 +3,240 @@
 #define AIW_TYPEINFO_HPP
 
 /**
- * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017,2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <type_traits>
 #include <map>
 #include <vector>
 #include <string>
 #include <iostream>
-#include <typeinfo>
+// #include <typeinfo>
 #include <complex>
-#include "binaryio"
 #include "vec"
+#include "dvec"
+#include "matr"
+#include "dmatr"
+#include "iostream"
+#include "binaryio"
+#include "packer"
 
+// эти макросы перегружают внутри и снаружи оператор obj^TypeInfo
+// (оператор --- именно потому что его можно перегрузить как внутри, так и снаружи)
+// при этом необходимо перечислить поля структуры для которых будет собрана информация
+// предполагается, что имя типа передаваемое  пользователем более информативно чем RTTI typeid(T).name()
+// этот же  макроc определяет функции dump/load что обеспечивает сохранение информации на диcк в том же виде что и TypeInfo
+// ДОЛЖНА (как???) проводится проверка типа на POD - он должен иметь такой же размер и порядок следования полей
+// для POD-типов память просто копируется и смещения не изменяются, иначе
+// в TypeInfo после записи/чтения в packer ДОЛЖНЫ лежать смещения полей согласно  dump/load!!!
 
-// перегружают внутри и снаружи оператор obj^TypeInfoObj
-#define TYPEINFO(ARGS...) aiw::TypeInfo operator ^ (aiw::TypeInfoObj& tio) const { return tio(typeid(*this).name(), false, #ARGS, this, ARGS); }
-#define TYPEINFOX(T, ARGS...) inline aiw::TypeInfo operator ^ (const T& X, aiw::TypeInfoObj& tio){ return tio(#T, true, #ARGS, &X, ARGS); }
+#define TYPEINFO(TNAME, ARGS...)										\
+	aiw::TypeInfo::field_t operator ^ (aiw::TypeInfo& ti) const {		\
+		return ti.add(TNAME,  #ARGS, this, ARGS);						\
+	}																	\
+    void dump(aiw::IOstream &S) const {									\
+		if(std::is_trivially_copy_constructible<decltype(*this)>::value) \
+			S.write(this, sizeof(*this));								\
+		else aiw::dump_to_iostream(S, ARGS);							\
+	}																	\
+    void load(aiw::IOstream &S){										\
+		if(std::is_trivially_copy_constructible<decltype(*this)>::value) \
+			S.read(this, sizeof(*this));								\
+		else aiw::load_from_iostream(S, ARGS);							\
+	}
+
+#define TYPEINFO_X(T, ARGS...)											\
+	inline aiw::TypeInfo::field_t operator ^ (const T& X,				\
+											  aiw::TypeInfo& ti){		\
+		return ti.add(#T,  #ARGS, &X, ARGS);							\
+	}																	\
+	aiw::IOstream& operator < (aiw::IOstream& S, const T&X){			\
+		if(std::is_trivially_copy_constructible<T>::value)				\
+			S.write(&X, sizeof(X));										\
+		else aiw::dump_to_iostream(S, ARGS);							\
+		return S;														\
+	}																	\
+	aiw::IOstream& operator > (aiw::IOstream& S, T&X){					\
+		if(std::is_trivially_copy_constructible<T>::value)				\
+			S.read(&X, sizeof(X));										\
+		else aiw::load_from_iostream(S, ARGS);							\
+		return S;														\
+	}																	
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	struct TypeInfo{
-		std::string Tname;  // имя типа RTTI
-		int szT;            // размер типа
-		int pdim;           // позиция для включения новых размерностей (для Vec)
-		
-		TypeInfo(): pdim(0){}
-		TypeInfo(const char* Tname_, int szT_):Tname(Tname_), szT(szT_), pdim(0) {}
-		operator bool (){ return true; }
-	private:
-		std::vector<int> dim; // размерности массива в обратном порядке
+	struct CellFieldAccess{ // это структура доступа к ячейке
+		std::string label;     // для отображения в общем списке
+		int xfem_field = -1;   // номер xfem-поля в xfem-блобе (-1 --- обычная структура)		
+		int typeID = -1;       // 0 - float, 1 - double и т.д., см ниже
+		int offset = 0;        // смещение в ячейке
+		int dyn_off = 0;       // смещение начала текущего динамического массива в  структуре
+		int dyn_szT = 0;       // размер ячейки текущего динамического массива или ячейки xfem-блоба
+		int dyn_dim = 0;       // размерность текущего динамического массива
+		aiw::Ind<2> dyn_pos;   // позиция в текущем динамическом массиве или xfem-блобе, (если отрицательны обратная индексация с конца)
+		// int dim;     // размерность  целевого вектора, пока мы этого не умеем
 
-	public:
-		int get_rank() const { return dim.size(); }
-		int get_dim(int i) const { return dim.at(i); }
-		// TypeInfo& add_dim_back(int D){ dim.push_back(D); return *this; }
-		TypeInfo& add_dim(int D){
-			dim.push_back(0);
-			for(size_t i=dim.size()-1; i>pdim; i--) dim[i] = dim[i-1];
-			dim[pdim] = D;
-			return *this;
-		}
-		TypeInfo& add_dim0(int D){ add_dim(D); pdim++; return *this; }
+		std::vector<Ind<3> > dyn_arrs;  // динамические массивы перед данным полем (szT, D, offset)
 
-		int type_size() const { int res = szT; for(size_t i=0; i<dim.size(); i++) res *= dim[i]; return res; }
-
-		int dump_size() const { return 12+Tname.size()+4*dim.size(); }
-		void dump(IOstream& S) const { S<Tname<szT<dim; }
-		void load(IOstream& S){ S>Tname>szT>dim; }
-	};
-	inline std::ostream& operator << (std::ostream& S, const TypeInfo &ti){
-		S<<"/* "<<ti.type_size()<<"B */ "<<ti.Tname;
-		for(int i=0; i<ti.get_rank(); i++) S<<"["<<ti.get_dim(i)<<"]";
-		return S;
-	}
-	//--------------------------------------------------------------------------
-	class StructTypeInfo{  // описание структуры
-		struct field_t{			
-			std::string name;  // имя поля
-			int offset;        // смещение в стуктуре 
-			TypeInfo tinfo;    // информация о типе
-			
-			void dump(IOstream& S) const { S<name<offset<tinfo; }
-			void load(IOstream& S){ S>name>offset>tinfo; }
-		};
-		std::vector<field_t> fields; 
-		friend std::ostream& operator << (std::ostream&, const StructTypeInfo&);
-	public:		
-		int szT;            // размер структуры
-		void add_field(const std::string& name, int offset, const TypeInfo &ti){ field_t F; F.tinfo = ti; F.name = name; F.offset = offset; fields.push_back(F); }
-
-		int dump_size() const {
-			int res = 8;
-			for(auto i=fields.begin(); i!=fields.end(); ++i) res += 8+i->name.size()+i->tinfo.dump_size();
-			return res;
-		}
-		void dump(IOstream& S) const { S<szT<fields; }
-		void load(IOstream& S){ S>szT>fields; }
-	};
-	inline std::ostream& operator << (std::ostream& S, const StructTypeInfo &sti){
-		S<<"{\n";
-		for(auto i=sti.fields.begin(); i!=sti.fields.end(); ++i) S<<"\t"<<i->tinfo<<" "<<i->name<<"; // offset="<<i->offset<<"\n";
-		return S<<"}; // "<<sti.szT<<"B\n";		
-	}
-	//--------------------------------------------------------------------------
-	struct TypeInfoObj{
-		TypeInfo root;                                // описание корня
-		std::map<std::string, StructTypeInfo> table;  // таблица зависимых типов ???
-
-		int dump_size() const {
-			int res = 4+root.dump_size();
-			for(auto i=table.begin(); i!=table.end(); ++i) res += 4+i->first.size()+i->second.dump_size();
-			return res;
-		}
-		void dump(IOstream& S) const { S<dump_size()<root<table; }
-		void load(IOstream& S){ int sz; S>sz>root>table; }
-
-	private:
-		void mk_struct(StructTypeInfo&, bool, const char*, const char*){ } // замыкание рекурсии
-		template <typename T, typename ... Args>
-		void mk_struct(StructTypeInfo &sti, bool Xmode, const char* names, const char* start, const T& arg0, const Args& ... args){
-			int i=0; while(names[i] and names[i]!=' ' and names[i]!=',' and names[i]!='\t') i++;
-			sti.add_field(std::string(names+2*Xmode, i), ((const char*)&arg0)-start, arg0^*this);
-			while(names[i] and (names[i]==' ' or names[i]==',' or names[i]=='\t')) i++;
-			mk_struct(sti, Xmode, names+i, start, args...); 
-		}
-	public:
-		template <typename T, typename ... Args>
-		TypeInfo operator ()(const char *Tname, bool Xmode, const char* names, const T* start, const Args& ... args){
-			if(table.find(Tname)==table.end()){ 
-				StructTypeInfo &sti = table[Tname]; sti.szT = sizeof(T);
-				mk_struct(sti, Xmode, names, (const char*)start, args...);
+		template <typename T> float get(const char *cell) const {  // принимает указатель на ячейку
+			const char *f;  int mul = dyn_szT;
+			if(xfem_field>=0){ // это xfem-блоб
+				int bsz = *(const int*)cell; if(!bsz) return nanf(""); // общий размер блоба
+				f = cell+4+*(const uint16_t*)(cell+4+bsz+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+bsz+6+xfem_field*4);
+				for(int i=0; i<2; i++){
+					int p = dyn_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
+					f += mul*(p<0? int(sz[i])+p: p); mul *= sz[i];
+				}
+			} else { // это обычная структура
+				for(const Ind<3> &I: dyn_arrs){ // обрабатываем динамические массивы идущие перед полем
+					int sz = I[0]; for(int i=0; i<I[1]; i++) sz *= ((const int*)(cell+I[2]))[i];
+					cell += sz;
+				}
+				cell += offset; f = cell;  // проверять границы диапазона, возвращать nan?
+				for(int i=0; i<dyn_dim; i++){
+					int p = dyn_pos[i],  sz = *(const int*)(cell); if(p<-sz || sz<=p) return nanf(""); 
+					f += mul*(p<0? sz+p: p)+4; mul *= sz; cell += 4;
+				}
 			}
-			StructTypeInfo &sti = table[Tname];
-			return TypeInfo(Tname, sti.szT);
+			return *(const T*)f;
 		}
+		float get_f(const char *cell) const {  // принимает указатель на ячейку		
+			switch(typeID){
+			case 0: return get<float>(cell);
+			case 1: return get<double>(cell);
+			case 2: return get<bool>(cell); 
+			case 3: return get<char>(cell); 
+			case 4: return get<uint8_t>(cell);
+			case 5: return get<int8_t>(cell); 
+			case 6: return get<uint16_t>(cell);
+			case 7: return get<int16_t>(cell); 
+			case 8: return get<uint32_t>(cell);
+			case 9: return get<int32_t>(cell); 
+			case 10: return get<uint64_t>(cell);
+			case 11: return get<int64_t>(cell); 
+			}
+			return nanf("");
+		}		
 	};
-	inline std::ostream& operator << (std::ostream& S, const TypeInfoObj &tio){
-		S<<"ROOT="<<tio.root<<"\n";
-		for(auto i=tio.table.begin(); i!=tio.table.end(); ++i) S<<"struct "<<i->first<<i->second;
-		return S;
-	}
+#ifndef SWIG
 	//--------------------------------------------------------------------------
-	template <typename T, int D> TypeInfo operator ^ (T const (&p)[D], TypeInfoObj& tio){ return (p[0]^tio).add_dim(D); } 
-#define ADD_BASE_TYPE(T) inline TypeInfo operator ^ (T, TypeInfoObj&){ return TypeInfo(#T, sizeof(T)); }
-	ADD_BASE_TYPE(bool)
-	ADD_BASE_TYPE(char)
-	ADD_BASE_TYPE(uint8_t)
-	ADD_BASE_TYPE(int8_t)
-	ADD_BASE_TYPE(uint16_t)
-	ADD_BASE_TYPE(int16_t)
-	ADD_BASE_TYPE(uint32_t)
-	ADD_BASE_TYPE(int32_t)
-	ADD_BASE_TYPE(uint64_t)
-	ADD_BASE_TYPE(int64_t)
-	ADD_BASE_TYPE(float)
-	ADD_BASE_TYPE(double)
-	template <typename T> ADD_BASE_TYPE(std::complex<T>)
+	struct TypeInfo{
+		//----------------------------------------------------------------------
+		struct field_t { // описание поля структуры
+			std::string Tname;     // пользовательское имя типа
+			int typeID = -1;       // -1 --- какой то тип пользователя
+			std::vector<int> dim;  // размерность (если это массив), -1 означает свободную размерность определенную в самом поле, быстрая ось в конце
+			int szT = 0;           // размер типа, это некое дублирование информации но так проще
+			std::string fname;      // имя поля
+
+			field_t& add_dim(int D){ dim.insert(dim.begin(), D); return *this; }
+			field_t& add_dimV(int D){ dim.push_back(D); return *this; }
+		};
+		//----------------------------------------------------------------------
+		struct struct_info_t{  // описание структуры 
+			int szT;                         // общий размер структуры
+			std::map<int, field_t>  fields;  // таблица вида смещение: поле, автоматическая сортировка по смещениям
+		};
+		//----------------------------------------------------------------------
+		std::map<std::string, struct_info_t> table;  // таблица типов
+		field_t root;  // корень (то, что было получено на вход)
+		std::vector<field_t> xfem_root; // корни полей для xfem_blob-а
+
+		operator bool () const { return root.szT || xfem_root.size(); }
+		
+		//----   методы заполнения  --------------------------------------------
+	private:
+		void mk_struct(struct_info_t&, const char*, const char*){} // замыкание рекурсии
+		template <typename T, typename ... Args> // эта функция обрабатывает поля одной структуры и создает (если раньше не было) описание структуры в table
+		void mk_struct(struct_info_t &si, const char* names, const char* ptr0, const T& arg0, const Args& ... args){
+			if(names[0] && names[0]=='X' && names[1] && names[1]=='.') names += 2;  // X-mode
+			int i=0; while(names[i] and names[i]!=' ' and names[i]!=',' and names[i]!='\t') i++; // ищем конец имени для поля
+			int offset = (const char*)&arg0-ptr0;
+			if(si.fields.find(offset)==si.fields.end()){ field_t &f = si.fields[offset]; f = arg0^*this;  f.fname = std::string(names, i); }
+		    while(names[i] and (names[i]==' ' or names[i]==',' or names[i]=='\t')) i++;  // ищем начало следующего имени
+			mk_struct(si, names+i, ptr0, args...);   // обрабатываем следующее поле
+		}
+	public:
+		template <typename T, typename ... Args> field_t add(const char *Tname, const char* names, const T* ptr0, const Args& ... args){
+			if(table.find(Tname)==table.end()){ // если такой тип (структура) еще не зарегистрирована 
+				struct_info_t &si = table[Tname]; si.szT = sizeof(T);
+				mk_struct(si, names, (const char*)ptr0, args...);
+			}
+			field_t f; f.Tname = Tname; f.szT = sizeof(T); // смещение и имя поля остаются неопределены
+			return f; 
+		}
+		//----------------------------------------------------------------------
+		//  интерфейс доступа (должно быть два режима работы - доступ к памяти и к блобу на диске)
+		//  доступ к динамическим массивам в памяти пока не имеет смысла:
+		//   1. онлайн визуализация таких структур не востребована
+		//   2. вариантов организации таких структур слишком много
+		//  доступ к POD типам на диске и в памяти эквивалентен (если не так то все плохо).
+		//  есть две возможности:
+		//   1. структура возможно содержит динамические массивы (к часть стат. массивов и содержащие POD-типы)
+		//   2. xfem-blob (размер блоба, сам блоб и размеры массивов) содежащий POD-типы
+		//  ввести возможность объединения разнесенных по памяти величин в вектор или матрицу?
+	private:
+		void add_field(std::vector<aiw::CellFieldAccess>& res, const field_t &f, CellFieldAccess cfa) const;
+		void add_array(std::vector<aiw::CellFieldAccess>& res, const field_t &f, CellFieldAccess cfa, int idim) const;
+	public:
+		std::vector<aiw::CellFieldAccess> get_access() const;
+		//----------------------------------------------------------------------
+	};  // end of class TypeInfo
+	//--------------------------------------------------------------------------	
+	inline std::ostream& operator << (std::ostream &S, const TypeInfo::field_t &f){
+		S<<f.Tname; for(int x: f.dim) S<<'['<<x<<']';
+		return S<<"; // szT="<<f.szT<<", fname="<<f.fname<<'\n';
+	}
+	inline std::ostream& operator << (std::ostream &S, const TypeInfo::struct_info_t &s){
+		S<<"struct {\n";
+		for(auto f: s.fields) S<<'\t'<<f.first<<" : "<<f.second;
+		return S<<"}; // "<<s.szT<<" bytes\n";
+	}
+	inline std::ostream& operator << (std::ostream &S, const TypeInfo &ti){
+		for(auto I: ti.table) S<<I.first<<' '<<I.second;
+		return S<<ti.root;
+	}
+	// inline std::ostream& operator << (std::ostream &S, const TypeInfo::access_t &a){
+	//	S<<a.Tname; for(int x: a.dim) S<<'['<<x<<']';
+	//	return S<<"; // szT="<<a.szT<<", offset="<<a.offset<<'\n';
+	// }
+	//--------------------------------------------------------------------------
+	inline Packer& operator < (Packer &P, const TypeInfo::field_t &f) { return P<f.Tname<f.typeID<f.szT<f.dim<f.fname; }
+	inline Packer& operator > (Packer &P,       TypeInfo::field_t &f) { return P>f.Tname>f.typeID>f.szT>f.dim>f.fname; }
+	inline Packer& operator < (Packer &P, const TypeInfo::struct_info_t &S) { return P<S.szT<S.fields; }
+	inline Packer& operator > (Packer &P,       TypeInfo::struct_info_t &S) { return P>S.szT>S.fields; }
+	inline Packer& operator < (Packer &P, const TypeInfo &ti) { return P<ti.table<ti.root<ti.xfem_root; }
+	inline Packer& operator > (Packer &P,       TypeInfo &ti) { return P>ti.table>ti.root>ti.xfem_root; }
+	//--------------------------------------------------------------------------
+	template <typename T, int D> TypeInfo::field_t operator ^ (T const (&p)[D], TypeInfo& ti){ return (p[0]^ti).add_dim(D); } 
+
+#define ADD_BASE_TYPE(T, TID) inline TypeInfo::field_t operator ^ (T, TypeInfo&){ TypeInfo::field_t f; f.Tname = #T; f.typeID = TID; f.szT = sizeof(T); return f; }
+	ADD_BASE_TYPE(float,    0)
+	ADD_BASE_TYPE(double,   1)
+	ADD_BASE_TYPE(bool,     2)
+	ADD_BASE_TYPE(char,     3)
+	ADD_BASE_TYPE(uint8_t,  4)
+	ADD_BASE_TYPE(int8_t,   5)
+	ADD_BASE_TYPE(uint16_t, 6)
+	ADD_BASE_TYPE(int16_t,  7)
+	ADD_BASE_TYPE(uint32_t, 8)
+	ADD_BASE_TYPE(int32_t,  9)
+	ADD_BASE_TYPE(uint64_t, 10)
+	ADD_BASE_TYPE(int64_t,  11)
 #undef ADD_BASE_TYPE
-	template <int D, typename T> inline TypeInfo operator ^ (const Vec<D, T> &X, TypeInfoObj &tio){ return (X[0]^tio).add_dim0(D); }
-	template <typename T> void operator ^ (T, TypeInfoObj&){
-		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, use macros TYPEINFO or TYPEINFOX for your type! ***\033[0m\n");
-	}
+	
+	template <typename T> TypeInfo::field_t operator ^ (std::complex<T>, TypeInfo& ti){ return (T()^ti).add_dimV(2); }
+	
+	template <int D, typename T> inline TypeInfo::field_t operator ^ (const Vec<D, T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(D); }
+	template <int Y, int X, typename T> inline TypeInfo::field_t operator ^ (const Matr<Y, X, T> &M, TypeInfo &tio){ return (T()^tio).add_dimV(X).add_dimV(Y); }
+	// template <typename T> inline TypeInfo::field_t operator ^ (const DynVec<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1); }
+	// template <typename T> inline TypeInfo::field_t operator ^ (const DynMatr<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1).add_dimV(-1); }
+
+	template <typename T> void operator ^ (T, TypeInfo&){
+		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, use macros TYPEINFO or TYPEINFO_X for your type! ***\033[0m\n");
+	} 
 	//--------------------------------------------------------------------------
-};
+#endif //SWIG
+}   // end of namespace aiw
 #endif //AIW_TYPEINFO_HPP
