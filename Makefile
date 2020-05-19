@@ -130,9 +130,9 @@ include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 clean:; rm -rf swig/*.o src/*.o src/bin/*.o python/aiwlib/_*.so 
 cleanall: clean 
-	for i in swig/*.py; do rm -f $$i python/aiwlib/$$(basename $$i){,c}; done 
+	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python/aiwlib/$$(basename $$i){,c}; rm -f $$i python/aiwlib/$$(basename $$i){,c}; done
 	rm -f swig/*_wrap.cxx 
-	-for i in $$(cat TARGETS); do rm -f swig/$${i%%-*}.i; done
+	-@for i in $$(cat TARGETS); do echo rm -f swig/$${i%%-*}.i; rm -f swig/$${i%%-*}.i; done
 clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python/aiwlib/_$${n:6}.so
 cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python/aiwlib/$${n:9}.py{,c}
 #-------------------------------------------------------------------------------
