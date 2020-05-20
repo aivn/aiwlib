@@ -81,10 +81,11 @@ class Content:
             else: continue
             fin, t0 = File(fname, 'r'), time.time()
             while 1:
-                msh, sph, amr = MeshView(), SphereView(), AdaptiveMeshView() # ...
+                msh, sph, amr, zcb = MeshView(), SphereView(), AdaptiveMeshView(), ZCubeView() # ...
                 if   msh.load(fin): self.data[-1].append(msh)
                 elif sph.load(fin): self.data[-1].append(sph)
                 elif amr.load(fin): self.data[-1].append(amr)
+                elif zcb.load(fin): self.data[-1].append(zcb)
                 else: break
                 self.max_dim = max(self.max_dim, self.data[-1][-1].dim()) 
             if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'

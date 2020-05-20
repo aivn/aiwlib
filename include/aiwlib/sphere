@@ -12,7 +12,7 @@
 #endif //SWIG		
 #include "vec"
 #include "iostream"
-#include "binaryio"
+#include "binary_format"
 #include "gauss"
 
 namespace aiw{
@@ -255,11 +255,21 @@ namespace aiw{
 		}
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { 
-			S<head<int32_t(0)<int32_t(sizeof(T))<((mode<<29)|R);
-			S.write(this->ptr, sizeof(T)*sz);
+			// S<head<int32_t(0)<int32_t(sizeof(T))<((mode<<29)|R);
+			BinaryFormat bf; bf.head = head; bf.szT = sizeof(T); bf.D = 0; bf.R = (mode<<29)|R;	bf.tinfo.root = T()^bf.tinfo; 
+			bf.dump(S); S.write(this->ptr, sizeof(T)*sz);
+			S.flush(); 
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // 0 - not use, 1 - readonly, 2 - rw
-			std::string h; int D=-1, szT=-1; size_t s = S.tell(); S>h>D>szT;
+			BinaryFormat bf; bf.szT = sizeof(T); bf.D = 0; bf.R = -1;  
+			if(!bf.load(S)){
+				if(raise_on_error){ WRAISE("incorrect Sphere::load(): ", bf.D, bf.R, sizeof(T), bf.szT, S.name, S.tell(), bf.head); }
+				return false;
+			}			
+			head = bf.head;  mode = bf.R>>29; R = bf.R&~(7<<29); sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
+			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
+			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); }
+			/* std::string h; int D=-1, szT=-1; size_t s = S.tell(); S>h>D>szT;
 			if(D!=0 || szT!=sizeof(T)){ 
 				S.seek(s); 
 				if(raise_on_error) WRAISE("incorrect Sphere::load() ", D, sizeof(T), szT, S.name, S.tell(), h);
@@ -267,7 +277,7 @@ namespace aiw{
 			}
 			head = h; S>R; mode = R>>29; R &= ~(7<<29); sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
 			if(use_mmap){ mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = (T*)(mem->get_addr()); }
-			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); }
+			else{ ptr = init_mem_ptr<T>(mem, sz, align); S.read(ptr, sizeof(T)*sz); } */
 			return true;
 		}
 #endif //SWIG

@@ -10,8 +10,9 @@
 using namespace aiw;
 //------------------------------------------------------------------------------
 bool aiw::MeshView::load(IOstream &S){
-	BinaryFormat bf; bf.init(*this); bf.D = -1; if(!bf.load(S)) return false;
-	head = bf.head; D = bf.D; szT = bf.szT; logscale = bf.logscale;  size_t s = S.tell(); 
+	size_t s = S.tell(); BinaryFormat bf; bf.init(*this); bf.D = -1;
+	if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
+	head = bf.head; D = bf.D; szT = bf.szT; logscale = bf.logscale; 
 	sz = 1; for(int i=0; i<D; i++) sz *= box[i];
 	mem = S.mmap(sz*szT, 0);
  
@@ -39,9 +40,7 @@ void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // нас�
 	conf.crop(vec(0.,0.), vec(1.,1.));  // для приведения к границам ячеек
 	if(sgy && firstcall){ conf.axes = ind(1,0); conf.set_flip(0, true); }
 
-	conf.anames[0] = "X";
-	conf.anames[1] = "Y";
-	conf.anames[2] = "Z";
+	for(int i=0; i<D; i++) if(anames[i].size()) conf.anames[i] = anames[i]; else conf.anames[i] = "XYZABCDEFGHIJKLM"[i];
 
 	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_interp|ConfView::opt_step_size;
 	conf.cfa_list = cfa_list;
@@ -70,7 +69,9 @@ aiw::MeshView::access_t::access_t(const MeshView &data, const ConfView &conf){
 }
 //------------------------------------------------------------------------------
 Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисляет min-max, как это делать для preview?
+#ifdef EBUG
 	double t0 = omp_get_wtime();
+#endif //EBUG
 	access_t access(*this, conf);
 	float f_min = access[ind(0,0)], f_max = f_min; int xsz = access.box[0], ysz = access.box[1];
 	if(abs(access.mul[0])<abs(access.mul[1])){		

@@ -13,7 +13,7 @@ using namespace aiw;
 //------------------------------------------------------------------------------
 void aiw::BinaryFormat::dump(IOstream& S) const {
 	int DD = D&15;  // реальная размерность
-	if(DD<=0 || szT<=0 || (bool(bmin)^bool(bmax))) WRAISE("incorrect dump parametrs ", D, DD, szT, bmin, bmax);
+	if(DD<0 || szT<=0 || (bool(bmin)^bool(bmax))) WRAISE("incorrect dump parametrs ", D, DD, szT, bmin, bmax);
 	Packer buf; buf.push_str(head); buf<uint8_t(0); 
 	if(axes) for(int i=0; i<DD; i++) buf<axes[i];
 	if(tinfo) buf<tinfo;
@@ -34,7 +34,7 @@ bool aiw::BinaryFormat::load(IOstream& S){
 	if(buf.size()) head = (const char*)buf.data();  else head = "";
 
 	int rD = -2, rszT = -2, rR = -2; S>rD>rszT; if(R!=unused) S>rR;
-	if((D!=-1 && D!=rD)||(szT!=-1 && rszT!=szT)||(rszT<=0)||(R!=unused && rR!=R)){ S.seek(s); return false; }
+	if((D!=-1 && D!=rD)||(szT!=-1 && rszT!=szT)||(rszT<=0)||(R!=unused && R!=-1 && rR!=R)){ S.seek(s); return false; }
 	D = rD; szT = rszT; int DD = D&15; if(R!=unused) R = rR;	
 	if(box && int(S.read(box, DD*4))!=DD*4){  S.seek(s);  return false;  }
 	

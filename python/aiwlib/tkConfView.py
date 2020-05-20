@@ -143,7 +143,7 @@ class MainConf:
         self.cell_bound = aiwCheck(frame, 'show cells', command=self.cell_bound_replot, grid={'row':0, 'column':3, 'sticky':E})
 
         self.interp_frame = aiwFrame(panel, row=row+5, column=0); Label(self.interp_frame, text='interp').pack(side=LEFT)
-        self.interp = [aiwOptionMenu(self.interp_frame, trace=self.interp_replot, items='const linear cubic betas'.split(), pack={'side':RIGHT})
+        self.interp = [aiwOptionMenu(self.interp_frame, trace=self.interp_replot, items='const linear cubic betas'.split(), pack={'side':LEFT})
                        for i in (0,1)]+['const']*2
 
         self.axes_frame, self.axes_list = aiwFrame(panel, row=row+6, column=column), ['X', 'Y', 'Z']  # show axes <<<
@@ -168,14 +168,13 @@ class MainConf:
 
         self.content = content
     def change_axes(self, *args):
-        #if self._update_mode: return # блокировка настройки из self.update
-        axe = int(args[0]==self.axes[1]._name)   # номер оси которая была изменена
-        old, self.axes[2+axe] = self.axes[2+axe], self.axes[axe].get()  # запоминаем последнее значение
-        if self.axes[0].get()==self.axes[1].get(): self.axes[1-axe].set(old)
-        elif self.axes[axe].get()!=old:
+        axe = int(args[0]==self.axes[1].var._name)   # номер оси которая была изменена
+        if self.axes[0].get()==self.axes[1].get():  axe = 1-axe; self.axes[axe].set(self.axes[2] if self.axes[0].get()==self.axes[3] else self.axes[3])
+        elif self.axes[axe].get()!=self.axes[2+axe]:
             self.config_axes(self.content.conf)
             if self.content.color.autoscale.get(): self.content.color.calc_min_max()
             self.content.plot_preview(); self.content.plot_canvas()
+        self.axes[axe+2] = self.axes[axe].get()
     def config_axes(self, conf):
         'вызывается при изменении осей для того же объекта сетки'
         axes, isc = [a.get() for a in self.axes[:2]], 0
@@ -224,7 +223,6 @@ class MainConf:
             self.axes_frame.show()
             for s in self.slices[:conf.dim-2]: s.show()
             for s in self.slices[conf.dim-2:]: s.hide()
-            
             axes = [conf.name(i) for i in range(conf.dim)]
             for m in self.axes[:2]: m.set_items(axes)
             # что делать если в новой сетке другой набор осей?

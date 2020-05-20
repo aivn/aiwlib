@@ -62,11 +62,14 @@ namespace aiw{
 		float get(const ConfView& conf, const Vec<2>& r) const { return get(conf, polar(r[1], r[0])*(M_PI/180)); }
 		
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
+#ifdef EBUG
+			double t0 = omp_get_wtime();
+#endif //EBUG
 			double phi0 = conf.sph_phi0*M_PI/180;
 			if(conf.mollweide){
 				int x_max = image.size[0]/2, y_max = image.size[1]/2, x; 
 				double h = 1./y_max, hx = 2./x_max; double alpha = x_max*h;
-				//#pragma omp parallel for	
+#pragma omp parallel for	
 				for(int y=-y_max; y<y_max; y++){
 					for(x=-x_max; x<=-sqrt(y_max*y_max-y*y)*alpha; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 					double Y = y*h, a1 = sqrt(1.-Y*Y), b1 = M_PI/(2.*a1), z1 = 2*(asin(Y)+Y*a1)/M_PI, c1 = sqrt(1-z1*z1);  
@@ -79,9 +82,12 @@ namespace aiw{
 				}
 			} else {				
 				Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(phi0-M_PI, M_PI) + .5*step;
-				//#pragma omp parallel for	
-				for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(get(conf, bmin+(pos&step))));
+				int sz_x = image.size[0], sz_y = image.size[1];
+#pragma omp parallel for	
+				for(int iy=0; iy<sz_y; iy++) for(int ix=0; ix<sz_x; ix++) image.set_pixel(ind(ix, iy), color(get(conf, bmin+vec(ix*step[0], iy*step[1]))));
+				// for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(get(conf, bmin+(pos&step))));
 			}
+			WOUT(omp_get_wtime()-t0);
 		}
 		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color) const{  // рассчитан на маленькое изображение, учитывает только flip
 			ConfView conf = conf0; conf.uncrop();

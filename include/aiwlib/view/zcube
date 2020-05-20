@@ -1,6 +1,6 @@
 // -*- C++ -*-
-#ifndef AIW_MESH_VIEW_HPP
-#define AIW_MESH_VIEW_HPP
+#ifndef AIW_ZCUBE_VIEW_HPP
+#define AIW_ZCUBE_VIEW_HPP
 
 /**
  * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
@@ -11,27 +11,31 @@
 #include <utility>
 #include "../alloc"
 #include "../interpolations"
-#include "../base_mesh"
+#include "../zcube"
 #include "base"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class MeshView: public BaseMesh<16> { //: public BaseView {
-		int D = 0, szT = 0;
+	class ZCubeView: public BaseMesh<16> { //: public BaseView {
+		int D = 0, szT = 0, R = 0;
 		std::shared_ptr<BaseAlloc> mem;
-		bool sgy = false;  // транспонирует оси и делает flip по вертикали
 		
 		struct access_t { // public BaseMesh<2> ???
 			static const int dim = 2;
 			typedef float cell_type; 
 			const char *ptr;
-			Ind<2> box, mul;
+			int D, R, szT, flip[2]; 
+			Ind<2> box, off, axes;  
 			Vec<2> bmin, step, rstep;
 			int logscale, interp;
 			CellFieldAccess cfa;
 			
-			access_t(const MeshView &data, const ConfView &conf);
-			float operator[](Ind<2> pos) const { pos >>= ind(0, 0); pos <<= box-ind(1); return cfa.get_f(ptr+mul*pos); }
+			access_t(const ZCubeView &data, const ConfView &conf);
+			float operator[](Ind<2> pos) const {
+				pos >>= ind(0, 0); pos <<= box-ind(1);
+				return cfa.get_f(ptr + ((interleave_bits(D, off[0]+pos[0]*flip[0], R)<<axes[0])+
+										(interleave_bits(D, off[1]+pos[1]*flip[1], R)<<axes[1]))*szT);
+			}
 			void mod_coord(int axe, double r, int &pos, double &x) const { // вычисляет pos и  x на основе r
 				if(interp&(0xF<<(4*(1-axe)))){
 					pos = std::floor(logscale&1<<axe ? log(r/bmin[axe])*rstep[axe]-.5 :(r-bmin[axe])*rstep[axe]-.5); // ???
@@ -49,8 +53,6 @@ namespace aiw{
 		std::string head;
 
 	    bool load(aiw::IOstream &S);
-		bool load_as_sgy(aiw::IOstream &S);
-		bool load_from_sgy(aiw::IOstream &S);
 
 		int dim() const { return D; }
 		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
@@ -62,7 +64,6 @@ namespace aiw{
 #ifdef EBUG
 			double t0 = omp_get_wtime();
 #endif //EBUG
-			// WOUT(conf.axes);
 			access_t f(*this, conf); int xsz = image.size[0], ysz = image.size[1];
 			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
 
@@ -86,4 +87,4 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 };
-#endif //AIW_MESH_VIEW_HPP
+#endif //AIW_ZCUBE_VIEW_HPP

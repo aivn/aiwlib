@@ -71,35 +71,39 @@ namespace aiw{
 		int xfem_field = -1;   // номер xfem-поля в xfem-блобе (-1 --- обычная структура)		
 		int typeID = -1;       // 0 - float, 1 - double и т.д., см ниже
 		int offset = 0;        // смещение в ячейке
-		int dyn_off = 0;       // смещение начала текущего динамического массива в  структуре
+		// int dyn_off = 0;       // смещение начала текущего динамического массива в  структуре
 		int dyn_szT = 0;       // размер ячейки текущего динамического массива или ячейки xfem-блоба
-		int dyn_dim = 0;       // размерность текущего динамического массива
+		// int dyn_dim = 0;       // размерность текущего динамического массива
 		aiw::Ind<2> dyn_pos;   // позиция в текущем динамическом массиве или xfem-блобе, (если отрицательны обратная индексация с конца)
 		// int dim;     // размерность  целевого вектора, пока мы этого не умеем
 
 		std::vector<Ind<3> > dyn_arrs;  // динамические массивы перед данным полем (szT, D, offset)
 
 		template <typename T> float get(const char *cell) const {  // принимает указатель на ячейку
-			const char *f;  int mul = dyn_szT;
 			if(xfem_field>=0){ // это xfem-блоб
-				int bsz = *(const int*)cell; if(!bsz) return nanf(""); // общий размер блоба
-				f = cell+4+*(const uint16_t*)(cell+4+bsz+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+bsz+6+xfem_field*4);
+				int bsz = *(const int*)cell, mul = dyn_szT; if(!bsz) return nanf(""); // общий размер блоба
+				const char* f = cell+4+*(const uint16_t*)(cell+4+bsz+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+bsz+6+xfem_field*4);
 				for(int i=0; i<2; i++){
 					int p = dyn_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
 					f += mul*(p<0? int(sz[i])+p: p); mul *= sz[i];
 				}
-			} else { // это обычная структура
+				return *(const T*)f;
+			} else return *(const T*)(cell+offset);
+				/*
+				{ // это обычная структура
+				int mul = dyn_szT;
 				for(const Ind<3> &I: dyn_arrs){ // обрабатываем динамические массивы идущие перед полем
 					int sz = I[0]; for(int i=0; i<I[1]; i++) sz *= ((const int*)(cell+I[2]))[i];
 					cell += sz;
 				}
-				cell += offset; f = cell;  // проверять границы диапазона, возвращать nan?
+				cell += offset; const char* f = cell;  // проверять границы диапазона, возвращать nan?
 				for(int i=0; i<dyn_dim; i++){
 					int p = dyn_pos[i],  sz = *(const int*)(cell); if(p<-sz || sz<=p) return nanf(""); 
 					f += mul*(p<0? sz+p: p)+4; mul *= sz; cell += 4;
 				}
-			}
-			return *(const T*)f;
+				return *(const T*)f;
+				}
+				*/
 		}
 		float get_f(const char *cell) const {  // принимает указатель на ячейку		
 			switch(typeID){
