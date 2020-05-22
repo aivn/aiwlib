@@ -160,7 +160,8 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream& S){
 void aiw::AdaptiveMeshView::get_conf(ConfView &conf, bool firstcall) const {  // настраивает conf (с учетом crop)
 	conf.dim = D; // че делать если пришел dim!=D?!
 	for(int i=0; i<D; i++){
-		if(firstcall || (conf.bmin[i]==conf.bmin0[i] && conf.bmax[i]==conf.bmax0[i])){ conf.slice[i] = conf.bmin[i] = bmin[i]; conf.bmax[i] = bmax[i]; }
+		if(firstcall || (conf.bmin[i]==conf.bmin0[i] && conf.bmax[i]==conf.bmax0[i])){ conf.bmin[i] = bmin[i]; conf.bmax[i] = bmax[i]; }
+		if(firstcall) conf.slice[i] = conf.bmin[i] = bmin[i];
 		conf.bmin0[i] = bmin[i]; conf.bmax0[i] = bmax[i]; conf.step[i] = step[i]; conf.size[i] = box[i]*(1<<(R+max_rank));
 	}
 	conf.logscale = logscale; conf.mod_crop = true;
