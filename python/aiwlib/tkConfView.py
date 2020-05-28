@@ -131,9 +131,13 @@ class MainConf:
         self.type_in_cell = aiwOptionMenu(self.raw_access_frame, items=self.ctypes, pack={'side':RIGHT}, trace=self.access_replot)
 
         self.cfa_frame = aiwFrame(panel, row=row+1, column=column)
-        self.cfa_pos = [aiwEntry(self.cfa_frame, 0, self.access_replot, '', pack={'side':LEFT}, width=2) for i in (0,1)]
-        self.cfa_menu = aiwOptionMenu(self.cfa_frame, trace=self.access_replot, pack={'side':RIGHT})
+        self.cfa_menu = aiwOptionMenu(self.cfa_frame, trace=self.access_replot, pack={'side':LEFT})
 
+        self.xfem_frame = aiwFrame(panel, row=row+2, column=column); Label(self.xfem_frame, text='xfem').pack(side=LEFT)
+        self.xfem_pos = [aiwEntry(self.xfem_frame, 0, self.access_replot, '', pack={'side':RIGHT}, width=2) for i in (0,1)]
+        self.xfem_mode = aiwOptionMenu(self.xfem_frame, trace=self.access_replot, items='node cell face phys'.split(), pack={'side':RIGHT})
+        
+        
         self.ss_frame = aiwFrame(panel, row=row+3, column=column)  # show size & step
         self.size = [aiwEntry(self.ss_frame, 0,  label=('size', '')[i], grid={'row':0, 'column':i}, width=9, state='readonly') for i in (0, 1)]
         self.step = [aiwEntry(self.ss_frame, 0., label=('step', '')[i], grid={'row':1, 'column':i}, width=9, state='readonly') for i in (0, 1)]
@@ -228,24 +232,34 @@ class MainConf:
             # что делать если в новой сетке другой набор осей?
         self.config_axes(conf)
         
-        if self.content.conf.cfa_list: 
-            self.raw_access_frame.hide(); self.cfa_frame.show()
+        if self.content.conf.cfa_xfem_list: self.xfem_frame.show()
+        else: self.xfem_frame.hide()
+        if self.content.conf.cfa_list or self.content.conf.cfa_xfem_list: self.raw_access_frame.hide(); self.cfa_frame.show()
+        if self.content.conf.cfa_xfem_list and self.xfem_mode.get()!='phys': 
+            cfaL = [i.label for i in self.content.conf.cfa_xfem_list]
+            self.cfa_menu.set_items(cfaL)
+            self.content.conf.cfa = self.content.conf.cfa_xfem_list[cfaL.index(self.cfa_menu.get())]
+        elif self.content.conf.cfa_list: 
             cfaL = [i.label for i in self.content.conf.cfa_list]
             self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
-            if self.content.conf.cfa.xfem_field==-1: self.cfa_pos[0].state(0); self.cfa_pos[1].state(0)
-            else: self.cfa_pos[0].state(1); self.cfa_pos[1].state(1)
         else: 
-            self.raw_access_frame.show(); self.cfa_frame.hide()
+            self.raw_access_frame.show(); self.cfa_frame.hide(); self.xfem_frame.hide()
             self.offset_in_cell.set(self.content.conf.cfa.offset)
             self.type_in_cell.set(self.ctypes[self.content.conf.cfa.typeID])
     #--- простые перерисовки ---
     def access_replot(self, *args):
-        cfaL = [i.label for i in self.content.conf.cfa_list]
-        if self.content.conf.cfa_list:
+        if self.content.conf.cfa_xfem_list and self.xfem_mode.get()!='phys': 
+            cfaL = [i.label for i in self.content.conf.cfa_xfem_list]
+            self.cfa_menu.set_items(cfaL)
+            self.content.conf.cfa = self.content.conf.cfa_xfem_list[cfaL.index(self.cfa_menu.get())]
+            self.content.conf.cfa.xfem_pos[0], self.content.conf.cfa.xfem_pos[1] = self.xfem_pos[0].get(), self.xfem_pos[1].get()
+            self.content.conf.xfem_mode = 'node cell face phys'.split().index(self.xfem_mode.get())
+        elif self.content.conf.cfa_list:
+            cfaL = [i.label for i in self.content.conf.cfa_list]
+            self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
-            if self.content.conf.cfa.xfem_field==-1: self.cfa_pos[0].state(0); self.cfa_pos[1].state(0)
-            else: self.cfa_pos[0].state(1); self.cfa_pos[1].state(1)
+            self.content.conf.xfem_mode = 'node cell face phys'.split().index(self.xfem_mode.get())
         else:            
             self.content.conf.cfa.offset = int(self.offset_in_cell.get())
             self.content.conf.cfa.typeID = self.ctypes.index(self.type_in_cell.get())

@@ -1,0 +1,152 @@
+// -*- C++ -*-
+#ifndef AIW_UNORDERED_MESH_3D_VIEW_HPP
+#define AIW_UNORDERED_MESH_3D_VIEW_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <omp.h>
+#include <utility>
+#include "../alloc"
+#include "../interpolations"
+#include "../base_mesh"
+#include "base"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class UnorderedMesh3DHead {
+		//----------------------------------------------------------------------
+		struct cell_t{
+			const char *phys;
+			const Vec<3> *coords[4];
+			int nodes[4];
+			int faces[4];
+
+			Vec<3> bmin, bmax, _h[4]; // bbox  и обратные высоты
+
+			void init(const std::vector<Vec<3> > &coord_table);
+			bool weights(const Vec<3>& r, float *w) const { // проверяет попала ли точка внутрь тетраэдра, вычисляет веса
+				for(int i=0; i<4; i++){
+					w[i] = 1+(r-*coords[i])*_h[i];
+					if(w[i]<0 /*|| 1<w[i]*/ ) return false;
+				}
+				return true;
+			}
+			Vecf<4> weights(const Vec<3>& r) const { Vecf<4> w;	for(int i=0; i<4; i++)	w[i] = 1+(r-*coords[i])*_h[i]; return w; }  // вычисляет веса в точке r
+			Vecf<4> wgrads(int axe) const { Vecf<4> g;  for(int i=0; i<4; i++)  g[i] = _h[i][axe];  return g; }  // вычисляет градиенты весов
+		};
+		//----------------------------------------------------------------------
+		std::vector<char> phys;
+		std::vector<Vec<3> > nodes;
+		std::vector<cell_t> cells;
+		int faces_sz;
+		
+		Vec<3> bmin, bmax;		
+		std::vector<CellFieldAccess> cfa_list, cfa_xfem_list;
+		std::string anames[3];
+
+		friend class UnorderedMesh3DView;
+	public:
+		std::string head;
+		bool load(aiw::IOstream &);
+	};
+	//--------------------------------------------------------------------------
+	class UnorderedMesh3DView {
+		const UnorderedMesh3DHead *mesh;
+		std::shared_ptr<BaseAlloc> mem;
+		const int *nodes=nullptr, *cells=nullptr, *faces=nullptr; // массивы оффсетов для блобов
+		const char *data=nullptr;
+	public:
+		std::string head;
+
+	    bool load(aiw::IOstream &S, const UnorderedMesh3DHead &mesh_);
+
+		int dim() const { return 3; }
+		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf) const;          // вычисляет min-max, как это делать для preview?
+
+		float get(const ConfView& conf, aiw::Vec<2> r) const; 
+
+		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
+#ifdef EBUG
+			double t0 = omp_get_wtime();
+#endif //EBUG
+			WOUT(conf.cfa.xfem_field, conf.cfa.xfem_dim, conf.cfa.xfem_pos, conf.cfa.offset, conf.cfa.xfem_szT, conf.cfa.typeID);
+			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size, im_bmin = conf.min_xy() + .5*im_step, _im_step = 1./im_step;
+			int si; for(si=0; si<3; si++) if(si!=conf.axes[0] && si!=conf.axes[1]) break; // номер оси по которой строится срез
+			double s = conf.slice[si]; int c_sz = mesh->cells.size();
+#pragma omp parallel for schedule(dynamic)
+			for(int cid=0; cid<c_sz; cid++){
+				const UnorderedMesh3DHead::cell_t &cell = mesh->cells[cid];
+				if(cell.bmin[si]<=s && s<=cell.bmax[si]){
+
+					Ind<2> a = (cell.bmin(conf.axes)-im_bmin)&_im_step, b = ((cell.bmax(conf.axes)-im_bmin)&_im_step);
+					for(int i=0; i<2; i++) if(conf.get_flip(i)){ int k = a[i]; a[i] = b[i]; b[i] = k; }
+					Vec<3> r0 = cell.bmin; r0[si] = s;
+					Vecf<4> gx = cell.wgrads(conf.axes[0]), gy = cell.wgrads(conf.axes[1]) /*, _gx = 1./gx*/, dwy = im_step[1]*gy, dwx = im_step[0]*gx, ff;
+					Vecf<4> wy = cell.weights(r0) + gy*float(im_bmin[1]-r0[conf.axes[1]]) + gx*float(im_bmin[0]-r0[conf.axes[0]]) + a[0]*dwx + a[1]*dwy;
+					
+					if(conf.xfem_mode==0) for(int i=0; i<4; i++) ff[i] = conf.cfa.get_f(data+nodes[cell.nodes[i]]);
+					else if(conf.xfem_mode==1) ff[0] = conf.cfa.get_f(data+cells[cid]);
+					else if(conf.xfem_mode==3) ff[0] = conf.cfa.get_f(cell.phys);
+					else for(int i=0; i<4; i++) ff[i] = conf.cfa.get_f(data+faces[cell.faces[i]]);
+
+					for(int y=a[1]; y<=b[1]; y++){
+						Vecf<4> w = wy;   bool started = false;
+						/*
+						for(int i=0; i<4; i++){
+						   // int a2 = a[0] + w[i]*_gx[i]; if(w[i]<1e-5 && a[0]<a2) a[0] = a2;
+						   int a2 = a[0] + w[i]*_gx[i], b2 = b[0] + w[i]*_gx[i];
+						   if(w[i]<1e-5){
+							   if(a[0]<a2) a[0] = a2;
+							   if(b[0]>b2) b[0] = b2;
+						   }
+						   }*/
+						for(int x=a[0]; x<=b[0]; x++){
+							if(w>Vecf<4>(-1e-5f)){
+								float f = 0; started = true;
+								if(conf.xfem_mode==0) f = ff*w;
+								else if(conf.xfem_mode&1) f = ff[0];
+								else f = ff[w.imax()];  // ищем ближайшую к r грань
+								image.set_pixel(ind(x,y), color(f));
+							} else if(started) break;
+							w += dwx;
+						}
+						wy += dwy;
+					}
+					
+					/* 					
+					Ind<2> a = (cell.bmin(conf.axes)-im_bmin)&_im_step, b = ((cell.bmax(conf.axes)-im_bmin)&_im_step);
+					for(int i=0; i<2; i++) if(conf.get_flip(i)){ int k = a[i]; a[i] = b[i]; b[i] = k; }
+					Vec<3> r; r[si] = s; float w[4], ff[4];
+					if(conf.xfem_mode==0) for(int i=0; i<4; i++) ff[i] = conf.cfa.get_f(data+nodes[cell.nodes[i]]);
+					else if(conf.xfem_mode==1) ff[0] = conf.cfa.get_f(data+cells[cid]);
+					else for(int i=0; i<4; i++) ff[i] = conf.cfa.get_f(data+faces[cell.faces[i]]);
+					for(int y=a[1]; y<=b[1]; y++){
+						r[conf.axes[1]] = im_bmin[1] + y*im_step[1];
+						for(int x=a[0]; x<=b[0]; x++){
+							r[conf.axes[0]] = im_bmin[0] + x*im_step[0];
+							if(cell.weights(r, w)){
+								float f = 0;
+								if(conf.xfem_mode==0) for(int i=0; i<4; i++) f += w[i]*ff[i];
+								else if(conf.xfem_mode==1) f = ff[0];
+								else { int i=0; for(int j=1; j<4; j++){ if(w[i]>w[j]) i = j; } f = ff[i]; } // ищем ближайшую к r грань
+								image.set_pixel(ind(x,y), color(f));
+							}
+						}
+					}
+					*/
+				}					
+			}
+			WOUT(omp_get_wtime()-t0);
+		}
+		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color) const{  // рассчитан на маленькое изображение, учитывает только flip
+			ConfView conf = conf0; conf.uncrop();
+			plot(conf, image, color);
+		}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_UNORDERED_MESH_3D_VIEW_HPP

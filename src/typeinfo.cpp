@@ -9,11 +9,17 @@ using namespace aiw;
 //------------------------------------------------------------------------------
 std::vector<aiw::CellFieldAccess> aiw::TypeInfo::get_access() const {
 	std::vector<aiw::CellFieldAccess> res;
-	if(xfem_root.size()) for(int i=0; i<int(xfem_root.size()); i++){
-			CellFieldAccess cfa; cfa.xfem_field = i; cfa.label = xfem_root[i].fname; cfa.label += "[][]"; 
-			add_array(res, xfem_root[i], cfa, 0);
-		}
-	else if(root.Tname.size()) add_array(res, root, CellFieldAccess(), 0); 
+	if(root.Tname.size()) add_array(res, root, CellFieldAccess(), 0); 
+	return res;
+}
+//------------------------------------------------------------------------------
+std::vector<aiw::CellFieldAccess> aiw::TypeInfo::get_xfem_access() const {
+	std::vector<aiw::CellFieldAccess> res;
+	for(int i=0; i<int(xfem_root.size()); i++){
+		CellFieldAccess cfa; cfa.xfem_field = i; cfa.label = xfem_root[i].fname; // cfa.label += "[][]";
+		cfa.xfem_szT = xfem_szT[i]; cfa.xfem_dim = xfem_root.size();
+		add_array(res, xfem_root[i], cfa, 0);
+	}
 	return res;
 }
 //------------------------------------------------------------------------------

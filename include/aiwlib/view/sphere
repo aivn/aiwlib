@@ -36,7 +36,7 @@ namespace aiw{
 			conf.dim = 2; conf.features = ConfView::opt_mollweide|ConfView::opt_cell_bound;
 			conf.bmin0 = conf.bmin = vec(0.); conf.bmax0[0] = conf.bmax[0] = 360; conf.bmax0[1] =  conf.bmax[1] = 180; conf.axes = ind(0, 1);
 			conf.anames[0] = "phi"; conf.anames[1] = "theta";
-			conf.cfa_list = cfa_list;
+			conf.cfa_list = cfa_list;  conf.cfa_xfem_list.clear();
 		}
 		aiw::Vec<2> f_min_max(const ConfView &conf) const {
 			const char *ptr = (const char*)(mem->get_addr());

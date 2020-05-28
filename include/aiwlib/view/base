@@ -113,8 +113,10 @@ namespace aiw{
 
 		int features = 0;
 
-		std::vector<aiw::CellFieldAccess> cfa_list;
+		std::vector<aiw::CellFieldAccess> cfa_list, cfa_xfem_list;
 		aiw::CellFieldAccess cfa;
+
+		int xfem_mode = 0; // 0 узел, 1 ячейка, 2 грань
 	};
 	//--------------------------------------------------------------------------
 	/*

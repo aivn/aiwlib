@@ -12,6 +12,7 @@
 #include "../include/aiwlib/view/sphere"
 #include "../include/aiwlib/view/amr"
 #include "../include/aiwlib/view/zcube"
+#include "../include/aiwlib/view/umesh3D"
 %}
 %include "../include/aiwlib/vec"
 %include "../include/aiwlib/typeinfo"
@@ -22,6 +23,7 @@
 %include "../include/aiwlib/view/sphere"
 %include "../include/aiwlib/view/amr"
 %include "../include/aiwlib/view/zcube"
+%include "../include/aiwlib/view/umesh3D"
 
 %template(access_vector) std::vector<aiw::CellFieldAccess>;
 
@@ -35,6 +37,8 @@
 %template(plot) aiw::AdaptiveMeshView::plot<aiw::ImagePNG>;
 %template(preview) aiw::ZCubeView::preview<aiw::ImagePNG>;
 %template(plot) aiw::ZCubeView::plot<aiw::ImagePNG>;
+%template(preview) aiw::UnorderedMesh3DView::preview<aiw::ImagePNG>;
+%template(plot) aiw::UnorderedMesh3DView::plot<aiw::ImagePNG>;
 #endif
 
 #ifndef AIW_NO_PIL 
@@ -47,6 +51,8 @@
 %template(plot) aiw::AdaptiveMeshView::plot<aiw::ImagePIL>;
 %template(preview) aiw::ZCubeView::preview<aiw::ImagePIL>;
 %template(plot) aiw::ZCubeView::plot<aiw::ImagePIL>;
+%template(preview) aiw::UnorderedMesh3DView::preview<aiw::ImagePIL>;
+%template(plot) aiw::UnorderedMesh3DView::plot<aiw::ImagePIL>;
 #endif
 
 

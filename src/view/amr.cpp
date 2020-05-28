@@ -172,7 +172,7 @@ void aiw::AdaptiveMeshView::get_conf(ConfView &conf, bool firstcall) const {  //
 	conf.anames[2] = "Z";
 
 	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_step_size;
-	conf.cfa_list = cfa_list;
+	conf.cfa_list = cfa_list;    conf.cfa_xfem_list.clear();
 }
 //------------------------------------------------------------------------------
 aiw::Vec<2> aiw::AdaptiveMeshView::f_min_max(const ConfView &conf) {  // вычисляет min-max, как это делать для preview?

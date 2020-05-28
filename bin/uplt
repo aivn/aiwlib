@@ -75,19 +75,26 @@ def mouse_right_sph(self, xy, xy0, xy1): # плагин для расширен�
 #-------------------------------------------------------------------------------
 class Content:
     def __init__(self, flist):
-        self.data, self.ifile, self.iframe, self.max_dim = [], 0, 0, 0
+        self.data, self.ifile, self.iframe, self.max_dim, self.umeshes = [], 0, 0, 0, []
         for fname in flist:
             if os.path.exists(fname): self.data.append([fname])
             else: continue
-            fin, t0 = File(fname, 'r'), time.time()
-            while 1:
-                msh, sph, amr, zcb = MeshView(), SphereView(), AdaptiveMeshView(), ZCubeView() # ...
-                if   msh.load(fin): self.data[-1].append(msh)
-                elif sph.load(fin): self.data[-1].append(sph)
-                elif amr.load(fin): self.data[-1].append(amr)
-                elif zcb.load(fin): self.data[-1].append(zcb)
-                else: break
-                self.max_dim = max(self.max_dim, self.data[-1][-1].dim()) 
+            fin, t0, umsh = File(fname, 'r'), time.time(), UnorderedMesh3DHead()
+            if umsh.load(fin):
+                self.umeshes.append(umsh)
+                while 1:
+                    umsd = UnorderedMesh3DView()
+                    if umsd.load(fin, umsh): self.data[-1].append(umsd)
+                    else: break
+            else:
+                while 1:
+                    msh, sph, amr, zcb = MeshView(), SphereView(), AdaptiveMeshView(), ZCubeView()  # ...
+                    if   msh.load(fin): self.data[-1].append(msh)
+                    elif sph.load(fin): self.data[-1].append(sph)
+                    elif amr.load(fin): self.data[-1].append(amr)
+                    elif zcb.load(fin): self.data[-1].append(zcb)
+                    else: break
+            self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
             if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
             else: print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
         if not self.data: print 'not input files\n', __doc__; sys.exit()

@@ -35,7 +35,7 @@ all: libaiw.a;
 iostream swig mpi4py view: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{images,color,mesh,amr,zcube}}.o)
+libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{images,color,mesh,amr,zcube,umesh3D}}.o)
 	rm -f libaiw.a; ar -csr libaiw.a $^
 #libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,amrview,view/{images,color,mesh}}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield}.o); rm -f libaiw.a; ar -csr libaiw.a $^
@@ -46,7 +46,7 @@ swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
 swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream include/aiwlib/gzstream 
 swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
 #swig/plot2D.py swig/plot2D_wrap.cxx: $(shell echo include/aiwlib/{vec,mesh,sphere,amrview,plot2D,view/{images,color}})
-swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,typeinfo,view/{images,color,base,mesh,sphere,amr,zcube}})
+swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,typeinfo,view/{images,color,base,mesh,sphere,amr,zcube,umesh3D}})
 
 python/aiwlib/%.py: swig/%.py
 	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@

@@ -71,20 +71,22 @@ namespace aiw{
 		int xfem_field = -1;   // номер xfem-поля в xfem-блобе (-1 --- обычная структура)		
 		int typeID = -1;       // 0 - float, 1 - double и т.д., см ниже
 		int offset = 0;        // смещение в ячейке
-		// int dyn_off = 0;       // смещение начала текущего динамического массива в  структуре
-		int dyn_szT = 0;       // размер ячейки текущего динамического массива или ячейки xfem-блоба
+		int xfem_szT = 0;      // размер текущей ячейки xfem-блоба
+		int xfem_dim = 0;      // число полей в xfem-блобе
+		aiw::Ind<2> xfem_pos;  // позиция в текущем динамическом массиве или xfem-блобе, (если отрицательны обратная индексация с конца)
+
 		// int dyn_dim = 0;       // размерность текущего динамического массива
-		aiw::Ind<2> dyn_pos;   // позиция в текущем динамическом массиве или xfem-блобе, (если отрицательны обратная индексация с конца)
+		// int dyn_off = 0;       // смещение начала текущего динамического массива в  структуре
 		// int dim;     // размерность  целевого вектора, пока мы этого не умеем
 
-		std::vector<Ind<3> > dyn_arrs;  // динамические массивы перед данным полем (szT, D, offset)
+		// std::vector<Ind<3> > dyn_arrs;  // динамические массивы перед данным полем (szT, D, offset)
 
 		template <typename T> float get(const char *cell) const {  // принимает указатель на ячейку
-			if(xfem_field>=0){ // это xfem-блоб
-				int bsz = *(const int*)cell, mul = dyn_szT; if(!bsz) return nanf(""); // общий размер блоба
-				const char* f = cell+4+*(const uint16_t*)(cell+4+bsz+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+bsz+6+xfem_field*4);
+			if(xfem_field>=0){ // это xfem-блоб, это работает тольок если блоб не пустой --- проверка на пустой блоб должны выполняться выше!!!
+				int mul = xfem_szT; 
+				const char* f = cell+xfem_dim*4+*(const uint16_t*)(cell+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+xfem_field*4+2);
 				for(int i=0; i<2; i++){
-					int p = dyn_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
+					int p = xfem_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
 					f += mul*(p<0? int(sz[i])+p: p); mul *= sz[i];
 				}
 				return *(const T*)f;
@@ -146,6 +148,7 @@ namespace aiw{
 		std::map<std::string, struct_info_t> table;  // таблица типов
 		field_t root;  // корень (то, что было получено на вход)
 		std::vector<field_t> xfem_root; // корни полей для xfem_blob-а
+		std::vector<int> xfem_szT;      // размеры структур в  xfem_blob-е
 
 		operator bool () const { return root.szT || xfem_root.size(); }
 		
@@ -185,6 +188,7 @@ namespace aiw{
 		void add_array(std::vector<aiw::CellFieldAccess>& res, const field_t &f, CellFieldAccess cfa, int idim) const;
 	public:
 		std::vector<aiw::CellFieldAccess> get_access() const;
+		std::vector<aiw::CellFieldAccess> get_xfem_access() const;
 		//----------------------------------------------------------------------
 	};  // end of class TypeInfo
 	//--------------------------------------------------------------------------	
@@ -210,8 +214,16 @@ namespace aiw{
 	inline Packer& operator > (Packer &P,       TypeInfo::field_t &f) { return P>f.Tname>f.typeID>f.szT>f.dim>f.fname; }
 	inline Packer& operator < (Packer &P, const TypeInfo::struct_info_t &S) { return P<S.szT<S.fields; }
 	inline Packer& operator > (Packer &P,       TypeInfo::struct_info_t &S) { return P>S.szT>S.fields; }
-	inline Packer& operator < (Packer &P, const TypeInfo &ti) { return P<ti.table<ti.root<ti.xfem_root; }
-	inline Packer& operator > (Packer &P,       TypeInfo &ti) { return P>ti.table>ti.root>ti.xfem_root; }
+	inline Packer& operator < (Packer &P, const TypeInfo &ti) {
+		P<ti.table<ti.root<ti.xfem_root;
+		if(ti.xfem_root.size()) P.write(ti.xfem_szT.data(), ti.xfem_szT.size()*4);
+		return P;
+	}
+	inline Packer& operator > (Packer &P, TypeInfo &ti) {
+		P>ti.table>ti.root>ti.xfem_root;
+		if(ti.xfem_root.size()){ ti.xfem_szT.resize(ti.xfem_root.size()); P.read(ti.xfem_szT.data(), ti.xfem_szT.size()*4); }
+		return P;
+	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D> TypeInfo::field_t operator ^ (T const (&p)[D], TypeInfo& ti){ return (p[0]^ti).add_dim(D); } 
 

@@ -44,7 +44,7 @@ void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // нас�
 	for(int i=0; i<D; i++) if(anames[i].size()) conf.anames[i] = anames[i]; else conf.anames[i] = "XYZABCDEFGHIJKLM"[i];
 
 	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_interp|ConfView::opt_step_size;
-	conf.cfa_list = cfa_list;
+	conf.cfa_list = cfa_list;  conf.cfa_xfem_list.clear();
 }
 //------------------------------------------------------------------------------
 aiw::MeshView::access_t::access_t(const MeshView &data, const ConfView &conf){
