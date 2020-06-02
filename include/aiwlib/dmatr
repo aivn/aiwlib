@@ -135,6 +135,15 @@ namespace aiw{
 		return R; 
 	}
 	//--------------------------------------------------------------------------
+	template <typename Q> DynMatr<Q>& operator /= (DynMatr<Q> &M, const Q &v){
+		int sz = M.bbox().prod(); for(int i=0; i<sz; i++) M.data()[i] /= v;
+		return M; 
+	}
+	template <typename Q> DynMatr<Q> operator / (const DynMatr<Q> &M, const Q &v){
+		DynMatr<Q> R(M.bbox()); int sz = M.bbox().prod(); for(int i=0; i<sz; i++) R.data()[i] = M.data()[i]/v;
+		return R; 
+	}
+	//--------------------------------------------------------------------------
 #define MATR_BIN_OP(OP, ROP)											\
 	template <typename Q> DynMatr<Q> operator OP (const DynMatr<Q> &A,	\
 												  const DynMatr<Q> &B){	\
@@ -180,7 +189,6 @@ namespace aiw{
 	MATR_BIN_OP(-, -)
 	MATR_BIN_OP(+, +)
 	MATR_BIN_OP(&, *)
-	MATR_BIN_OP(/, /)
 #undef MATR_BIN_OP
 	//--------------------------------------------------------------------------
 #define BODY															\

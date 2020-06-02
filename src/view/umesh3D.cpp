@@ -63,7 +63,7 @@ void aiw::UnorderedMesh3DView::get_conf(ConfView &conf, bool firstcall) const { 
 }
 //------------------------------------------------------------------------------
 void set_ff(Vec<2> &ff, float f, bool &first){
-	if(first && !::isnan(f)){ ff[0] = ff[1] = f; first = false; }
+	if(first && !std::isnan(f)){ ff[0] = ff[1] = f; first = false; }
 	else{
 		if(ff[0]>f) ff[0] = f;
 		if(ff[1]<f) ff[1] = f;
