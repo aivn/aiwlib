@@ -180,6 +180,7 @@ namespace aiw{
 	MATR_BIN_OP(-, -)
 	MATR_BIN_OP(+, +)
 	MATR_BIN_OP(&, *)
+	MATR_BIN_OP(/, /)
 #undef MATR_BIN_OP
 	//--------------------------------------------------------------------------
 #define BODY															\
