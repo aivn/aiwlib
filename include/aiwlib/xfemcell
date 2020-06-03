@@ -1,0 +1,101 @@
+// -*- C++ -*-
+#ifndef AIW_XFEM_CELL_HPP
+#define AIW_XFEM_CELL_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>, Boris Kritskiy <boris.v.kritskiy@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cstring>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include "debug"
+#include "binaryio"
+#include "typeinfo"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct xfem_cell_field_t {
+		uint16_t off = 0; uint8_t sz[2] = {0};
+		BINARYIO4POD;
+	};
+	//--------------------------------------------------------------------------
+	// тут надо учесть выравнивание на szT ???
+	inline void xfem_cell_field_resize(std::vector<char> &blob, xfem_cell_field_t *fields, int szT, int N, int ID, int sz0, int sz1, const void* val){
+		int n0 = fields[ID].sz[0], n1 = fields[ID].sz[1], off1 = fields[ID].off, esz = (sz0*sz1-n0*n1)*szT, mid = std::min(n0, sz0);;				
+		std::vector<char> blob2(blob.size()+esz);						   
+		if(off1) std::memcpy(blob2.data(), blob.data(), off1);				
+		char* src = blob.data()+off1, *dst = blob2.data()+off1;
+		for(int i=0; i<sz0*sz1; i++) std::memcpy(dst+i*szT, val, szT); // забиваем всю новую область значением val
+		if(mid){ for(int y=0; y<std::min(n1, sz1); y++) std::memcpy(dst+y*sz0*szT, src+y*n0*szT, mid*szT); } // копируем поверх старые данные
+		int off2 = ID+1<N? int(fields[ID+1].off): -1;			
+		if(off2>=0 && blob.size()-off2)	std::memcpy(blob2.data()+off1+sz0*sz1*szT, blob.data()+off2, blob.size()-off2); // копируем хвост				
+		for(int i=ID+1; i<N; i++) fields[i].off += esz;			
+		fields[ID].sz[0] = sz0; fields[ID].sz[1] = sz1;						
+		blob.swap(blob2);														
+	}
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+//------------------------------------------------------------------------------
+#define XFEM_CELL_TABLE(N)												\
+private:    															\
+    std::vector<char> xfem_blob;										\
+    aiw::xfem_cell_field_t xfem_fields[N];								\
+	static const int xfem_fields_count = N;								\
+	template <int I> struct xfem_tinfo_dummy_t{};						\
+	static void dump_tinfo(aiw::TypeInfo&, xfem_tinfo_dummy_t<0>){}		\
+public:																	\
+    int dump_size() const {												\
+	    return xfem_blob.size()? xfem_blob.size()+N*4: 0;				\
+	}																	\
+    void dump(aiw::IOstream &S) const {									\
+		if(xfem_blob.size()){											\
+			S<xfem_fields;												\
+			S.write(xfem_blob.data(), xfem_blob.size());				\
+		}																\
+	}																	\
+	void load(aiw::IOstream &S, int sz){								\
+		if(sz){															\
+			xfem_blob.resize(sz-N*4);									\
+			S>xfem_fields; S.read(xfem_blob.data(), sz-N*4); 			\
+		} else { xfem_blob.clear(); std::memset(xfem_fields, 0, N*4); }	\
+	}																	\
+    aiw::TypeInfo::field_t operator ^ (aiw::TypeInfo& ti){				\
+	    ti.xfem_root.resize(N);  ti.xfem_szT.resize(N);					\
+		dump_tinfo(ti, xfem_tinfo_dummy_t<N>());						\
+		return aiw::TypeInfo::field_t();								\
+	}
+//------------------------------------------------------------------------------
+#define XFEM_CELL_FIELD(ID, TYPE, NAME)									\
+	int get_sz0_##NAME() const { return xfem_fields[ID].sz[0]; }		\
+	int get_sz1_##NAME() const { return xfem_fields[ID].sz[1]; }		\
+	void resize_##NAME(int sz0, int sz1, TYPE val=TYPE()){				\
+		xfem_cell_field_resize(xfem_blob, xfem_fields, sizeof(TYPE),	\
+							   xfem_fields_count, ID, sz0, sz1, &val);	\
+	}																	\
+	TYPE& NAME(uint8_t x=0, uint8_t y=0){								\
+		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1], #NAME, \
+				int(x), int(y), int(xfem_fields[ID].sz[0]),				\
+				int(xfem_fields[ID].sz[1]));							\
+		return *(TYPE*)(xfem_blob.data()+xfem_fields[ID].off+			\
+						(x+y*xfem_fields[ID].sz[0])*sizeof(TYPE));		\
+	}																	\
+private:																\
+   static void dump_tinfo(aiw::TypeInfo& ti, xfem_tinfo_dummy_t<ID+1>){	\
+		dump_tinfo(ti, xfem_tinfo_dummy_t<ID>());						\
+		ti.xfem_root[ID] = TYPE()^ti;									\
+		ti.xfem_root[ID].fname = #NAME;									\
+		ti.xfem_szT[ID] = sizeof(TYPE);									\
+	}																	\
+public:
+/*
+ti.xfem_root[ID] = TYPE()^ti.szT = sizeof(TYPE);						\
+		ti.xfem_root[ID].Tname = #TYPE;									\
+		ti.xfem_root[ID].fname = #NAME;									\
+	}																	\
+public:
+*/
+//------------------------------------------------------------------------------
+#endif //AIW_XFEM_CELL_HPP
