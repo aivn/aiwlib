@@ -106,7 +106,9 @@ namespace aiw{
 			   // opt_line_interp = 32,
 			   // opt_cubic_interp = 64,
 			   // opt_bspline_interp = 128,
-			   opt_step_size = 256
+			   opt_step_size = 256,
+			   opt_segy = 512,
+			   opt_3D = 1024
 		};
 		//all: ConfView::opt_transpose|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_mollweide|ConfView::opt_cell_bound
 		//     |ConfView::opt_line_interp|ConfView::opt_cubic_interp|ConfView::opt_bspline_interp
@@ -117,6 +119,8 @@ namespace aiw{
 		aiw::CellFieldAccess cfa;
 
 		int xfem_mode = 0; // 0 узел, 1 ячейка, 2 грань
+
+		bool segy = false;
 	};
 	//--------------------------------------------------------------------------
 	/*

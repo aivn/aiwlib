@@ -247,6 +247,7 @@ void aiw::SegyFileHead::load(aiw::IOstream &S){
 	profile_sz = get_int16(12); // chislo trass v seysmogramme (ne v faile!) 12-13
 	dt = get_int16(16)*1e-6;    // shag diskretizacii, mks 16-17
 	trace_sz = get_int16(20);   // chislo otschetov v trasse 21-22
+	segy_ibm_format = get_int16(24)!=5; // попытка задать формат автоматически
 }
 //------------------------------------------------------------------------------
 //   trace head

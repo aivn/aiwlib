@@ -34,6 +34,8 @@ namespace aiw{
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
 		template <typename T2, int D2> friend class Mesh;
 		UsingBaseMeshAttributes;
+
+		friend class MeshView;
 	public:
 		
 		typedef T cell_type;

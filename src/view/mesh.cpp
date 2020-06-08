@@ -6,6 +6,7 @@
 #include "../../include/aiwlib/view/images"
 #include "../../include/aiwlib/view/mesh"
 #include "../../include/aiwlib/binary_format"
+#include "../../include/aiwlib/segy"
 
 using namespace aiw;
 //------------------------------------------------------------------------------
@@ -23,12 +24,24 @@ bool aiw::MeshView::load(IOstream &S){
 
 	// for(auto i: bf.tinfo.get_access()) std::cout<<i.label<<' '<<i.offset<<'\n';
 	cfa_list = bf.tinfo.get_access();
-	sgy = false;	
+	segy = false;	
 	return true;
 }
-
-bool aiw::MeshView::load_as_sgy(IOstream &S){ if(load(S)){ sgy = true; return true; } else return false; }
-bool aiw::MeshView::load_from_sgy(IOstream &S){ return false; }
+//------------------------------------------------------------------------------
+//bool aiw::MeshView::load_as_sgy(IOstream &S){ if(load(S)){ sgy = true; return true; } else return false; }
+bool aiw::MeshView::load_from_segy(IOstream &S){
+	Mesh<float, 3> data; Mesh<float, 3> geometry = segy_read(S, data);
+	D = 3; szT = 4; sz = 1; for(int i=0; i<D; i++){ box[i] = data.bbox()[i]; sz *= box[i]; }
+	bmin[0] = 0; bmax[0] = geometry[ind(6,0,0)]*data.bbox()[0]; this->set_step(0);
+	for(int i=0; i<2; i++){
+		bmin[i+1] = (geometry[ind(i,0,0)]+geometry[ind(3+i,0,0)])/2;
+		bmax[i+1] = (geometry[i|(geometry.bbox()(1,2)-ind(1))]+geometry[(3+i)|(geometry.bbox()(1,2)-ind(1))])/2;
+		this->set_step(i+1);
+	}
+	mem = data.mem;
+	segy = true;
+	return true;
+}
 //------------------------------------------------------------------------------
 void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // настраивает conf (с учетом crop)
 	conf.dim = D; // че делать если пришел dim!=D?!
@@ -39,11 +52,12 @@ void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // нас�
 	}
 	conf.logscale = logscale; conf.mod_crop = true;
 	conf.crop(vec(0.,0.), vec(1.,1.));  // для приведения к границам ячеек
-	if(sgy && firstcall){ conf.axes = ind(1,0); conf.set_flip(0, true); }
+	// if(segy && firstcall){ conf.axes = ind(1,0); conf.set_flip(0, true); conf.segy = true; }
 
 	for(int i=0; i<D; i++) if(anames[i].size()) conf.anames[i] = anames[i]; else conf.anames[i] = "XYZABCDEFGHIJKLM"[i];
 
-	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_interp|ConfView::opt_step_size;
+	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_interp|ConfView::opt_step_size|
+		ConfView::opt_segy|ConfView::opt_3D;
 	conf.cfa_list = cfa_list;  conf.cfa_xfem_list.clear();
 }
 //------------------------------------------------------------------------------
@@ -67,6 +81,7 @@ aiw::MeshView::access_t::access_t(const MeshView &data, const ConfView &conf){
 		}
 	}
 	cfa = conf.cfa;
+	if(conf.segy && !data.segy && conf.axes[1]==0 && conf.get_flip(1)){ powZ2 = true; Z0 = data.box[0]; }
 }
 //------------------------------------------------------------------------------
 Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисляет min-max, как это делать для preview?
@@ -74,22 +89,42 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 	double t0 = omp_get_wtime();
 #endif //EBUG
 	access_t access(*this, conf);
-	float f_min = access[ind(0,0)], f_max = f_min; int xsz = access.box[0], ysz = access.box[1];
-	if(abs(access.mul[0])<abs(access.mul[1])){		
-#pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
-		for(int y=0; y<ysz; y++) for(int x=0; x<xsz; x++){
-				float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y);
-				if(f_min>f) f_min = f;
-				if(f_max<f) f_max = f;
-			}
+	float f_min = 0, f_max = 0; int xsz = access.box[0], ysz = access.box[1];
+	if(access.powZ2){
+		if(abs(access.mul[0])<abs(access.mul[1])){		
+#pragma omp parallel for reduction(+:f_min,f_max)
+			for(int y=0; y<ysz; y++) for(int x=0; x<xsz; x++){
+					float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y)*(access.Z0-y)*(access.Z0-y);
+					if(f<0) f_min += f*f; 
+					if(f>0) f_max += f*f; 
+				}
+		} else {
+#pragma omp parallel for reduction(+:f_min,f_max)
+			for(int x=0; x<xsz; x++) for(int y=0; y<ysz; y++){
+					float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y)*(access.Z0-y)*(access.Z0-y);
+					if(f<0) f_min += f*f; 
+					if(f>0) f_max += f*f; 
+				}
+		}
+		f_min = -3*sqrt(f_min/(xsz*ysz)); f_max = 3*sqrt(f_max/(xsz*ysz));
 	} else {
+		f_min = f_max = access[ind(0,0)]; 
+		if(abs(access.mul[0])<abs(access.mul[1])){		
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
-		for(int x=0; x<xsz; x++) for(int y=0; y<ysz; y++){
-				float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y);
-				if(f_min>f) f_min = f;
-				if(f_max<f) f_max = f;
-			}
-	}
+			for(int y=0; y<ysz; y++) for(int x=0; x<xsz; x++){
+					float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y);
+					if(f_min>f) f_min = f; 
+					if(f_max<f) f_max = f; 
+				}
+		} else {
+#pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
+			for(int x=0; x<xsz; x++) for(int y=0; y<ysz; y++){
+					float f = conf.cfa.get_f(access.ptr+access.mul[0]*x+access.mul[1]*y);
+					if(f_min>f) f_min = f; 
+					if(f_max<f) f_max = f; 
+				}
+		}
+	}	
 	WOUT(omp_get_wtime()-t0);
 	return Vec<2>(f_min, f_max);
 }

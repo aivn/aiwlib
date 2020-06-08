@@ -80,7 +80,8 @@ class Content:
             if os.path.exists(fname): self.data.append([fname])
             else: continue
             fin, t0, umsh = File(fname, 'r'), time.time(), UnorderedMesh3DHead()
-            if umsh.load(fin):
+            if fname.endswith('.sgy'): msh = MeshView(); msh.load_from_segy(fin); self.data[-1].append(msh)
+            elif umsh.load(fin):
                 self.umeshes.append(umsh)
                 while 1:
                     umsd = UnorderedMesh3DView()

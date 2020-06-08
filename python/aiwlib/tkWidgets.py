@@ -58,10 +58,12 @@ class aiwOptionMenu:
         self.var.set(default if default else items[0])
         if self.pack: self.menu.pack(**self.pack)
         else: self.menu.grid(**self.grid)
-        if trace: self.var.trace('w', trace) # это должно вызываться самым последним
+        self._items = items
+        if trace: self.var.trace('w', trace) # это должно вызываться самым последним        
     def get(self): return self.var.get()
     def set(self, val): self.var.set(val)
     def set_items(self, L): 
+        self._items = L
         OptionMenu.__init__(self.menu, self.root, self.var, *L)
         if self.pack: self.menu.pack(**self.pack)
         else: self.menu.grid(**self.grid)

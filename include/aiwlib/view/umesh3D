@@ -93,6 +93,8 @@ namespace aiw{
 					else if(conf.xfem_mode==3) ff[0] = conf.cfa.get_f(cell.phys);
 					else for(int i=0; i<4; i++) ff[i] = conf.cfa.get_f(data+faces[cell.faces[i]]);
 
+					
+					
 					for(int y=a[1]; y<=b[1]; y++){
 						Vecf<4> w = wy;   bool started = false;
 						/*

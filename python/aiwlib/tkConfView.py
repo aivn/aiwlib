@@ -161,11 +161,16 @@ class MainConf:
         self.mollweide, self.sph_interp = [aiwCheck(self.sph_frame, ('mollweide', 'interp')[i], False,
                                                     command=self.sph_replot, grid={'row':1, 'column':i}) for i in (0,1)]
 
+        frame = Frame(panel); frame.grid(row=row+8, column=column)   # seg-Y, 3D etc
+        self.segy = aiwCheck(frame, 'seg-Y   ', command=self.segy_replot, grid={'row':0, 'column':0})
+        self.plot3D = aiwCheck(frame, '3D', command=self.plot3D_replot, grid={'row':0, 'column':1})
+        self.alpha = aiwEntry(frame, 0.5,  label='alpha', grid={'row':0, 'column':2}, width=5)
+        
         self.file_num = aiwScaleSH(panel, 'file number', command=content.file_replot, length=panel_sz-2, showvalue=YES, #<<<
-                                   orient='horizontal', to=0, grid={'row':row+8, 'column': column}) # relief=RAISED, ) 
+                                   orient='horizontal', to=0, grid={'row':row+9, 'column': column}) # relief=RAISED, ) 
         self.frame_num = aiwScaleSH(panel, 'frame number', command=content.frame_replot, length=panel_sz-2, showvalue=YES,
-                                    orient='horizontal', to=0, grid={'row':row+9, 'column': column}) #relief=RAISED, )
-        frame = Frame(panel); frame.grid(row=row+10, column=column)   # slices
+                                    orient='horizontal', to=0, grid={'row':row+10, 'column': column}) #relief=RAISED, )
+        frame = Frame(panel); frame.grid(row=row+11, column=column)   # slices
         self.slices = [aiwScaleSH(frame, '', command=self.slice_replot, length=panel_sz-2, showvalue=YES,
                                   orient='horizontal', to=0, grid={'row':i, 'column': 0}) for i in range(content.max_dim)]
         for s in self.slices: s.hide()
@@ -247,6 +252,10 @@ class MainConf:
             self.raw_access_frame.show(); self.cfa_frame.hide(); self.xfem_frame.hide()
             self.offset_in_cell.set(self.content.conf.cfa.offset)
             self.type_in_cell.set(self.ctypes[self.content.conf.cfa.typeID])
+
+        self.segy.state(bool(conf.features&conf.opt_segy))
+        self.plot3D.state(bool(conf.features&conf.opt_3D))
+        self.alpha.state(bool(conf.features&conf.opt_3D))
     #--- простые перерисовки ---
     def access_replot(self, *args):
         if self.content.conf.cfa_xfem_list and self.xfem_mode.get()!='phys': 
@@ -286,9 +295,17 @@ class MainConf:
         #if self.content.color.autoscale.get(): self.content.color.calc_min_max()
         #self.content.plot_preview(); self.content.plot_canvas()
         self.content.replot()
+    def segy_replot(self, *args):
+        if self.segy.get():
+            self.axes[1].set(self.axes[1]._items[0])
+            self.content.conf.segy = True;
+            self.flip[1].set(True); self.content.conf.set_flip(1, True)
+        else: self.content.conf.segy = False 
+        self.content.replot()
+    def plot3D_replot(self, *args): pass
 #-------------------------------------------------------------------------------
 class PlotConf: # шрифт и размеры тиков, скрывать их по умолчанию, показывать по какой то кнопке?
-    def __init__(self, panel, content, row=16, column=0):
+    def __init__(self, panel, content, row=17, column=0):
         frame = Frame(panel); frame.grid(row=row, column=column)
         self.frame = aiwFrame(panel, row=row+1, column=column) 
         self.settings = aiwCheck(frame, 'show settings      ', False, command=self.frame.switch, pack={'side':LEFT, 'anchor':W})
