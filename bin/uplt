@@ -111,6 +111,8 @@ class Content:
                                                       else self.main.slice_replot)
         self.plot_preview(); self.plot_canvas()
     def plot_preview(self): #<<< считаем что все уже настроено, просто перерисовываем
+        new_panel_sz = wroot.bbox()[2]-self.canvas.wsize()[0]-5
+        if new_panel_sz>0: global panel_sz;  panel_sz = new_panel_sz; self.preview.configure(width=panel_sz, height=panel_sz)
         self.preview.delete('all')
         self.preview.mouse_clear()
         if self.conf.features&self.conf.opt_mollweide: return
