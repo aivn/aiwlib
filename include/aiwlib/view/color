@@ -36,7 +36,7 @@ namespace aiw{
 		int max_rgb = 255;
 		float const *pal = nullptr;
 		int len_pal = 0;
-		float min = 0, mul = 1.;
+		float min = 0, max = 0, mul = 1.;
 		aiw::Ind<3> nan_color = ind(127, 127, 127); // grey
 		bool cyclic = false;
 		bool logscale = false;

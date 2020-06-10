@@ -21,8 +21,8 @@ bool aiw::MeshView::load(IOstream &S){
 	if(S.tell()-s==4 && sz2==-int(D*24+4+szT)){ S.read(&bmin, D*8); S.read(&bmax, D*8); S.read(&step, D*8); S.seek(szT, 1); logscale = 0;  } 
 	else  S.seek(s); 
 	for(int i=0; i<D; i++) this->set_step(i);
-
 	// for(auto i: bf.tinfo.get_access()) std::cout<<i.label<<' '<<i.offset<<'\n';
+	// std::cout<<bf.tinfo;	
 	cfa_list = bf.tinfo.get_access();
 	segy = false;	
 	return true;
@@ -59,6 +59,7 @@ void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // нас�
 	conf.features =  ConfView::opt_axes|ConfView::opt_flip|ConfView::opt_crop|ConfView::opt_cell_bound|ConfView::opt_interp|ConfView::opt_step_size|
 		ConfView::opt_segy|ConfView::opt_3D;
 	conf.cfa_list = cfa_list;  conf.cfa_xfem_list.clear();
+	if(cfa_list.size()==1) conf.cfa = cfa_list[0];
 }
 //------------------------------------------------------------------------------
 aiw::MeshView::access_t::access_t(const MeshView &data, const ConfView &conf){

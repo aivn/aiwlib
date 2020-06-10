@@ -14,6 +14,7 @@
 #include "../typeinfo"
 #include "color"
 #include "images"
+#include "vtexture"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -121,6 +122,10 @@ namespace aiw{
 		int xfem_mode = 0; // 0 узел, 1 ячейка, 2 грань
 
 		bool segy = false;
+
+		bool plot3D = false;
+		VTexture vtx;
+		float alpha = .5; // прозрачность
 	};
 	//--------------------------------------------------------------------------
 	/*

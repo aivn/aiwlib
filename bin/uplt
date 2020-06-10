@@ -19,7 +19,7 @@ class NameSpace:
         self.__dict__.update(kw_args)
     def __getitem__(self, key): return eval(key, math.__dict__, self.__dict__)
 #-------------------------------------------------------------------------------
-eps2val = lambda V, v, logscale: (V[0]**(1+(log(V[1])/log(V[0])-1)*v) if logscale else V[0]+(V[1]-V[0])*v) # это дублирование кода, надо ее куда то убратьп60
+eps2val = lambda V, v, logscale: (V[0]**(1+(log(V[1])/log(V[0])-1)*v) if logscale else V[0]+(V[1]-V[0])*v) # это дублирование кода, надо ее куда то убрать
 def hide_on_pal_move(self): self.delete('pal_move')
 def hide_on_msh_move(self): self.delete('msh_move')
 def show_on_pal_move(self, xy, xy0, xy1):
@@ -126,10 +126,12 @@ class Content:
         self.preview.create_rectangle(rect[0][0], panel_sz-rect[0][1], rect[1][0], panel_sz-rect[1][1],  outline='gray', tag='select')
 
         if not self.conf.features&self.conf.opt_mollweide: self.preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)
+    def plot_canvas_e(self, *args): self.plot_canvas()
     def plot_canvas(self, csz=None): #<<< считаем что все уже настроено, просто перерисовываем
         t0 = time.time()
         tfont = self.settings.get_font()
-        sz, pw, th, xh = csz if csz else self.canvas.wsize(), self.settings.pal_xsz.get(), 2*tfont[1], 2*tfont[1]+5
+        sz, pw = csz if csz else self.canvas.wsize(), self.settings.pal_xsz.get()
+        th, xh = int(2*tfont[1]*self.settings.font_scale.get()), int(2*tfont[1]*self.settings.font_scale.get())+5
         self.canvas.delete('all')
         #if color.magn: msh0.interp = msh.interp = 0; pw = 0
 
@@ -137,7 +139,7 @@ class Content:
         pw = int(self.canvas.plot_pal(tag='pal', paletter=self.color.get_pal(), orient=1, xyN=(sz[0], th, sz[1]-th-xh), side=1, pal_sz=pw,
                                       limits=self.color.get_limits(), logscale=self.color.logscale.get(),
                                       **self.settings.get())*1.1) if pw else 10
-        pw = max(pw, len(self.settings.x_label.get())*tfont[1])
+        pw = max(pw, int(len(self.settings.x_label.get())*tfont[1]*self.settings.font_scale.get()))
         yw = self.canvas.add_tics(tag='Y', orient=1, xyN=(0,th, sz[1]-th-xh), side=0, limits=self.conf.lim(1),
                                   logscale=self.conf.get_logscale(1), **self.settings.get())
         

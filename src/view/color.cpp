@@ -12,7 +12,7 @@ void aiw::CalcColor::init(float const *pal_, float min_, float max_){
 	for(len_pal=0; pal[len_pal]>=0.; ++len_pal){}
 	len_pal /= 3; len_pal--; // ???
 	if(logscale && min_<=0) min_ = 1e-16;
-	min = min_; mul = logscale? 1./log(max_/min_) : 1./(max_-min_);
+	min = min_; max = max_; mul = logscale? 1./log(max_/min_) : 1./(max_-min_);
 }
 //------------------------------------------------------------------------------
 Ind<3> *aiw::CalcColor::magn_pal = nullptr;

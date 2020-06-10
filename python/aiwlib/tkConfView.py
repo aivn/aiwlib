@@ -244,18 +244,19 @@ class MainConf:
             cfaL = [i.label for i in self.content.conf.cfa_xfem_list]
             self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_xfem_list[cfaL.index(self.cfa_menu.get())]
-        elif self.content.conf.cfa_list: 
+        elif len(self.content.conf.cfa_list)>1: 
             cfaL = [i.label for i in self.content.conf.cfa_list]
             self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
+        elif len(self.content.conf.cfa_list)==1:  self.raw_access_frame.hide(); self.cfa_frame.hide(); self.xfem_frame.hide()
         else: 
             self.raw_access_frame.show(); self.cfa_frame.hide(); self.xfem_frame.hide()
             self.offset_in_cell.set(self.content.conf.cfa.offset)
             self.type_in_cell.set(self.ctypes[self.content.conf.cfa.typeID])
 
         self.segy.state(bool(conf.features&conf.opt_segy))
-        self.plot3D.state(bool(conf.features&conf.opt_3D))
-        self.alpha.state(bool(conf.features&conf.opt_3D))
+        self.plot3D.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
+        self.alpha.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
     #--- простые перерисовки ---
     def access_replot(self, *args):
         if self.content.conf.cfa_xfem_list and self.xfem_mode.get()!='phys': 
@@ -302,7 +303,9 @@ class MainConf:
             self.flip[1].set(True); self.content.conf.set_flip(1, True)
         else: self.content.conf.segy = False 
         self.content.replot()
-    def plot3D_replot(self, *args): pass
+    def plot3D_replot(self, *args):
+        self.content.conf.plot3D = self.plot3D.get()
+        self.content.replot()
 #-------------------------------------------------------------------------------
 class PlotConf: # шрифт и размеры тиков, скрывать их по умолчанию, показывать по какой то кнопке?
     def __init__(self, panel, content, row=17, column=0):
@@ -311,17 +314,18 @@ class PlotConf: # шрифт и размеры тиков, скрывать их
         self.settings = aiwCheck(frame, 'show settings      ', False, command=self.frame.switch, pack={'side':LEFT, 'anchor':W})
         Button(frame, text='replot', command=content.file_replot).pack(side=RIGHT, anchor=E)
 
-        self.title = aiwEntry(self.frame, '%(head)s', content.plot_canvas, 'title', width=19, pack={'side':TOP, 'anchor':E})
-        self.x_label, self.y_label, self.z_label = [aiwEntry(self.frame, '', content.plot_canvas, 'XYZ'[i]+' label', width=17,
+        self.title = aiwEntry(self.frame, '%(head)s', content.plot_canvas_e, 'title', width=19, pack={'side':TOP, 'anchor':E})
+        self.x_label, self.y_label, self.z_label = [aiwEntry(self.frame, '', content.plot_canvas_e, 'XYZ'[i]+' label', width=17,
                                                              pack={'side':TOP, 'anchor':E}) for i in (0,1,2)]
 
-        self.font = aiwEntry(self.frame, 'FreeMono 14', content.plot_canvas, 'font', width=19, pack={'side':TOP, 'anchor':E})
+        self.font = aiwEntry(self.frame, 'FreeMono 14', content.plot_canvas_e, 'font', width=19, pack={'side':TOP, 'anchor':E})
 
         frame = Frame(self.frame); frame.pack(side=TOP) 
-        self.tic_len, self.tic_width, self.border, self.pal_xsz = [aiwEntry(frame, v, content.plot_canvas, l, width=w, pack={'side':LEFT}) for v, l, w in
+        self.tic_len, self.tic_width, self.border, self.pal_xsz = [aiwEntry(frame, v, content.plot_canvas_e, l, width=w, pack={'side':LEFT}) for v, l, w in
                                                                    [(10, 'tic sz', 2), (1, '', 1), (1, ' border', 1), (30, ' pal.sz', 2)]]
+        self.font_scale = aiwEntry(self.frame, 1., content.plot_canvas_e, 'canvas font scale', width=5, pack={'side':TOP, 'anchor':E})
         self.frame.hide()
     def get_font(self): tfont = self.font.get().split(); tfont[1] = int(tfont[1]); return tfont 
-    def get(self): return {'font': self.get_font(), 'tic_sz': (self.tic_len.get(), self.tic_width.get()), 'border': self.border.get()}
+    def get(self): return {'font': self.get_font(), 'tic_sz': (self.tic_len.get(), self.tic_width.get()), 'border': self.border.get(), 'font_scale': self.font_scale.get()}
 #-------------------------------------------------------------------------------
 # как то оптимизировать replot в заивисмости от того кто его вызывал?

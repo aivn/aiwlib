@@ -132,33 +132,34 @@ class Plot2D(Canvas):
         self._add_pict(tag, xy0, xy1, border, plotter)
         return tag
     def del_pict(self, tag): self.delete(tag); del self.picts[tag]
-    def _add_tics(self, tag, orient, xy0, xy1, tics, stics, font, tic_sz):
+    def _add_tics(self, tag, orient, xy0, xy1, tics, stics, font, tic_sz, font_scale):
         'orient=0|1, tics=[(tic_pos, tic_text)... ], font=("...", sz, [...])'
+        fsz = font[1] #int(font[1]*font_scale)
         for p, t in tics:
             if orient:
                 self.create_line(xy1[0]-tic_sz[0], xy1[1]-p, xy1[0], xy1[1]-p, width=tic_sz[1], tag=tag)
-                y = min(xy1[1]-p, xy1[1]-font[1]/2) if p==tics[0][0] else max(xy1[1]-p, xy0[1]+font[1]/2) if p==tics[-1][0] else xy1[1]-p
+                y = min(xy1[1]-p, xy1[1]-fsz/2) if p==tics[0][0] else max(xy1[1]-p, xy0[1]+fsz/2) if p==tics[-1][0] else xy1[1]-p
                 self.create_text(xy1[0]-tic_sz[0], y, text=t, anchor='e', font=font, tag=tag)
             else:
                 self.create_line(xy0[0]+p, xy0[1], xy0[0]+p, xy0[1]+tic_sz[0], width=tic_sz[1], tag=tag)
-                #x = min(xy0[0]+p, xy1[0]-len(t)*font[1]/2) if p==tics[-1][0] else xy0[0]+p
+                #x = min(xy0[0]+p, xy1[0]-len(t)*fsz/2) if p==tics[-1][0] else xy0[0]+p
                 #if p==tics[-1][0]: continue
                 self.create_text(xy0[0]+p, xy0[1]+tic_sz[0], text=t, anchor='n', font=font, tag=tag)
         for p in stics:
             if orient: self.create_line(xy1[0]-tic_sz[0]/2, xy1[1]-p, xy1[0], xy1[1]-p, width=tic_sz[1], tag=tag)
             else: self.create_line(xy0[0]+p, xy0[1], xy0[0]+p, xy0[1]+tic_sz[0]/2, width=tic_sz[1], tag=tag)
-    def add_tics(self, tag, orient, xyN, side, limits, logscale=False, font=('FreeMono', 14), tic_sz=(5,1), border=None):
+    def add_tics(self, tag, orient, xyN, side, limits, logscale=False, font=('FreeMono', 14), tic_sz=(5,1), border=None, font_scale=1.):
         'orient=0|1, xyN=(x0,y0,N), side=0|1, (левее/правее или выше/ниже линии xyN), limits=(min,max), возвращает толщину'
-        tics, max_tic_sz, stics = make_tics(limits, logscale, xyN[2], orient, font[1])
+        tics, max_tic_sz, stics = make_tics(limits, logscale, xyN[2], orient, int(font[1]*font_scale))
         xy0, xy1 = [xyN[0], xyN[1]], [xyN[0]+xyN[2]*(1-orient), xyN[1]+xyN[2]*orient]
         if side: xy0[1-orient] -= max_tic_sz+tic_sz[0]
         else: xy1[1-orient] += max_tic_sz+tic_sz[0]
-        self._add_tics(tag, orient, xy0, xy1, tics, stics, font, tic_sz)
+        self._add_tics(tag, orient, xy0, xy1, tics, stics, font, tic_sz, font_scale)
         return max_tic_sz+tic_sz[0]
-    def plot_pal(self, tag, paletter, orient, xyN, side, pal_sz, limits, logscale=False, font=('FreeMono', 14), tic_sz=(5,1), border=1):
+    def plot_pal(self, tag, paletter, orient, xyN, side, pal_sz, limits, logscale=False, font=('FreeMono', 14), tic_sz=(5,1), border=1, font_scale=1.):
         'рисует палитру и проставляет тики, orient=0|1, xyN=(x0,y0,N), side=0|1, (левее/правее или выше/ниже линии xyN), limits=(min,max), возвращает толщину'
         if tag in self.picts: self.del_pict(tag)
-        tics, max_tic_sz, stics = make_tics(limits, logscale, xyN[2], orient, font[1])
+        tics, max_tic_sz, stics = make_tics(limits, logscale, xyN[2], orient, int(font[1]*font_scale))
         # формируем bbox для картинки, прилегающий к линии
         xyp0, xyp1 = [xyN[0], xyN[1]], [xyN[0]+xyN[2]*(1-orient), xyN[1]+xyN[2]*orient]
         if side: xyp0[1-orient] -= pal_sz
@@ -168,7 +169,7 @@ class Plot2D(Canvas):
         xyt0, xyt1 = (([xyp0[0], xyp1[1]], list(xyp1)), (list(xyp0), [xyp0[0], xyp1[1]]))[orient] 
         if side: xyt0[1-orient] -= max_tic_sz+tic_sz[0]
         else: xyt1[1-orient] += max_tic_sz+tic_sz[0]
-        self._add_tics(tag, orient, xyt0, xyt1, tics, stics, font, tic_sz)
+        self._add_tics(tag, orient, xyt0, xyt1, tics, stics, font, tic_sz, font_scale)
         return max_tic_sz+tic_sz[0]+pal_sz
     def dump2png(self, fname):        
         #os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s.ps'%(fname, tmp))
