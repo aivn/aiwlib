@@ -18,7 +18,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class Packer{
 		std::vector<char> buf;
-		size_t rpos = 0;
+		size_t rpos; // = 0;
 
 		void pack_sz(uint32_t sz){ if(sz<128) *this<char(sz); else *this<((1<<31)|sz); }
 		uint32_t unpack_sz(){
@@ -26,6 +26,10 @@ namespace aiw{
 			rpos--; uint32_t sz2 = 0; *this>sz2; return sz2&(~(1<<31));
 		}
 	public:
+		Packer(): rpos(0){}
+		Packer(const std::string &S): buf(S.size()), rpos(0) { memcpy(buf.data(), S.c_str(), S.size()); }
+		operator std::string () const { return std::string(buf.data(), buf.size()); }
+
 		size_t size() const { return buf.size(); }
 		const char* data() { return buf.data(); }
 
@@ -60,7 +64,7 @@ namespace aiw{
 			size_t s = S.tellg(); int32_t sz = -1;  if(!S.read((char*)&sz, 4) || sz<0){ S.seekg(s); return false; }
 			buf.resize(sz); rpos = 0; if(!sz || S.read((char*)buf.data(), sz)) return true;
 			S.seekg(s); return false;
-		}
+		}		
 
 		void seek(int pos){ rpos = pos; }
 		int tell() const { return rpos; };

@@ -43,6 +43,9 @@ namespace aiw{
 		bool modulus = false;
 		bool invert = false;
 		bool magn = false;
+
+		std::string pack() const;
+		void unpack(const std::string &S);
 		
 		void init(float const *pal_, float min_, float max_);
 		// void init(const char *pal_, float min_, float max_); for Python?
@@ -69,7 +72,7 @@ namespace aiw{
 						  (pal[3*i+1]*(1-w) + pal[3*i+4]*w)*max_rgb, 
 						  (pal[3*i+2]*(1-w) + pal[3*i+5]*w)*max_rgb);
 		}
-	};
+	};  // end of struc CalcColor
 	//--------------------------------------------------------------------------
 	template <typename P> void plot_paletter(float const *pal, P& image, bool orient, int max_rgb=255){
 		float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;

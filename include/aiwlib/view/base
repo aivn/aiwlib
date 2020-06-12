@@ -126,6 +126,15 @@ namespace aiw{
 		bool plot3D = false;
 		VTexture vtx;
 		float alpha = .5; // прозрачность
+
+		std::string pack() const {
+			return Packer()<dim<bmin0<bmax0<bmin<bmax<slice<step<size<mod_crop<anames<axes<flipped<logscale<mollweide<sph_interp<sph_phi0<cell_bound<
+						  interp<cfa_list<cfa_xfem_list<cfa<xfem_mode<segy<plot3D<vtx<alpha;
+		}
+		void unpack(const std::string &S){
+			Packer(S)>dim>bmin0>bmax0>bmin>bmax>slice>step>size>mod_crop>anames>axes>flipped>logscale>mollweide>sph_interp>sph_phi0>cell_bound>
+						  interp>cfa_list>cfa_xfem_list>cfa>xfem_mode>segy>plot3D>vtx>alpha;
+		}
 	};
 	//--------------------------------------------------------------------------
 	struct BaseView{

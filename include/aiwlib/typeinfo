@@ -125,8 +125,10 @@ namespace aiw{
 			}
 			return nanf("");
 		}		
-	};
+	}; // end of structure CellFieldAccess
 #ifndef SWIG
+	inline Packer& operator < (Packer &P, const CellFieldAccess &cfa){ return P<cfa.label<cfa.xfem_field<cfa.typeID<cfa.offset<cfa.xfem_szT<cfa.xfem_dim<cfa.xfem_pos; }
+	inline Packer& operator > (Packer &P,       CellFieldAccess &cfa){ return P>cfa.label>cfa.xfem_field>cfa.typeID>cfa.offset>cfa.xfem_szT>cfa.xfem_dim>cfa.xfem_pos; }
 	//--------------------------------------------------------------------------
 	struct TypeInfo{
 		//----------------------------------------------------------------------
