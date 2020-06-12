@@ -16,12 +16,11 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class SphereView { 
+	class SphereView: public BaseView { 
 		int R = 0, szT = 0, mode = 0, sz = 0;
 		std::shared_ptr<BaseAlloc> mem;
 		std::vector<CellFieldAccess> cfa_list;
 	public:
-		std::string head;
 
 	    bool load(aiw::IOstream &S){
 			BinaryFormat bf; bf.D = 0; bf.R = -1; if(!bf.load(S)) return false;
@@ -31,14 +30,14 @@ namespace aiw{
 			return true;
 		}
 
-		int dim() const { return 2; }
-		void get_conf(ConfView &conf, bool firstcall=false) const {  // настраивает conf (с учетом crop)
+		int dim() const override { return 2; }
+		void get_conf(ConfView &conf, bool firstcall=false) const override {  // настраивает conf (с учетом crop)
 			conf.dim = 2; conf.features = ConfView::opt_mollweide|ConfView::opt_cell_bound;
 			conf.bmin0 = conf.bmin = vec(0.); conf.bmax0[0] = conf.bmax[0] = 360; conf.bmax0[1] =  conf.bmax[1] = 180; conf.axes = ind(0, 1);
 			conf.anames[0] = "phi"; conf.anames[1] = "theta";
 			conf.cfa_list = cfa_list;  conf.cfa_xfem_list.clear();
 		}
-		aiw::Vec<2> f_min_max(const ConfView &conf) const {
+		aiw::Vec<2> f_min_max(const ConfView &conf) const override {
 			const char *ptr = (const char*)(mem->get_addr());
 			float f_min, f_max; f_min = f_max = conf.cfa.get_f(ptr);
 			for(int i=1; i<sz; i++){
@@ -49,7 +48,7 @@ namespace aiw{
 			return Vec<2>(f_min, f_max);
 		}
 
-		float get(const ConfView& conf, const Vec<3>& r) const {
+		float get(const ConfView& conf, aiw::Vec<3> r) const {
 			const char *ptr = (const char*)(mem->get_addr());
 			if(!conf.sph_interp || mode>1){
 				size_t ID = mode==0? sph_cellInd(r, R): (mode==1? sph_vertInd(r, R): sph_edgeInd(r, R));
@@ -59,7 +58,7 @@ namespace aiw{
 			float v = 0; for(int i=0; i<szw; i++) v += conf.cfa.get_f(ptr + IDs[i]*szT)*weights[i];
 			return v;
 		}
-		float get(const ConfView& conf, const Vec<2>& r) const { return get(conf, polar(r[1], r[0])*(M_PI/180)); }
+		float get(const ConfView& conf, aiw::Vec<2> r) const override { return get(conf, polar(r[1], r[0])*(M_PI/180)); }
 		
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
 #ifdef EBUG

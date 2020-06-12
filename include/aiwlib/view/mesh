@@ -16,7 +16,8 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class MeshView: public BaseMesh<16> { //: public BaseView {
+	class MeshView: public BaseView, BaseMesh<16> { //: public BaseView {
+		using BaseView::head;
 		int D = 0, szT = 0;
 		std::shared_ptr<BaseAlloc> mem;
 		bool segy = false;  // транспонирует оси и делает flip по вертикали
@@ -48,17 +49,17 @@ namespace aiw{
 
 		std::vector<CellFieldAccess> cfa_list;
 	public:
-		std::string head;
+		// std::string head;
 
 	    bool load(aiw::IOstream &S);
 		// bool load_as_segy(aiw::IOstream &S);
 		bool load_from_segy(aiw::IOstream &S);
 
-		int dim() const { return D; }
-		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
-		aiw::Vec<2> f_min_max(const ConfView &conf) const;          // вычисляет min-max, как это делать для preview?
+		int dim() const override { return D; }
+		void get_conf(ConfView &conf, bool firstcall=false) const override;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf) const override;          // вычисляет min-max, как это делать для preview?
 
-		float get(const ConfView& conf, Vec<2> r) const { return access_t(*this, conf)(r); }
+		float get(const ConfView& conf, aiw::Vec<2> r) const override { return access_t(*this, conf)(r); }
 
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
 #ifdef EBUG

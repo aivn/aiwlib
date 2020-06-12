@@ -18,7 +18,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class AdaptiveMeshView{
+	class AdaptiveMeshView: public BaseView{
 		// AdaptiveMeshView(const AdaptiveMeshView&) = delete;       // поддержка этих операторов при 
 		void  operator = (const AdaptiveMeshView&) = delete;  // такой структуре данных довольно сложна
 
@@ -97,7 +97,7 @@ namespace aiw{
 		struct iterator{
 			uint32_t offset = 0, mask = 0;  // смещение внутри тайла и маска (для построения среза), содержит 1 на позициях которые могут меняться
 			tile_t *tile = nullptr;
-			AdaptiveMeshView *msh = nullptr;
+			const AdaptiveMeshView *msh = nullptr;
 			const ConfView *conf = nullptr;
 			int axes[2] = {0};  // номера осей по которым происходит итерирование
 			Ind<2> imin, imax;  // границы ячейки на мелкой сетке  на обрезанном изображении
@@ -114,21 +114,20 @@ namespace aiw{
 			// bool tile_bound(int axe) const; // axe - номер оси + 1 со знаком (-слева, +справа) т.е. -/+1, -/+2 
 		}; // end of struct iterator
 		//------------------------------------------------------------------
-		iterator find(const ConfView &conf, Ind<2> pos);  // произвольный доступ по срезу
-		iterator begin(const ConfView &conf) { iterator I = find(conf, ind(0, 0));  while(I.tile && !I.check_bbox()) I.next(); return I; }
-	    iterator end() { return iterator(); }
+		iterator find(const ConfView &conf, Ind<2> pos) const;  // произвольный доступ по срезу
+		iterator begin(const ConfView &conf) const { iterator I = find(conf, ind(0, 0));  while(I.tile && !I.check_bbox()) I.next(); return I; }
+	    iterator end() const { return iterator(); }
 
 		std::vector<CellFieldAccess> cfa_list;
-	public:
-		std::string head;
-		
+
+	public:		
 		bool load(aiw::IOstream& S);
-		int dim() const { return D; }
-		void get_conf(ConfView &conf, bool firstcall=false) const;  // настраивает conf (с учетом crop)
-		aiw::Vec<2> f_min_max(const ConfView &conf);                // вычисляет min-max, как это делать для preview?
+		int dim() const override { return D; }
+		void get_conf(ConfView &conf, bool firstcall=false) const override;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf) const override;          // вычисляет min-max, как это делать для preview?
 
 		
-		float get(const ConfView& conf, Vec<2> r){ return  *find(conf, ind(coord2pos(r[0], conf.axes[0]), coord2pos(r[1], conf.axes[1]))); }
+		float get(const ConfView& conf, aiw::Vec<2> r) const override { return  *find(conf, ind(coord2pos(r[0], conf.axes[0]), coord2pos(r[1], conf.axes[1]))); }
 
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color){ // const 
 			iterator I = begin(conf); Vec<2> step = Vec<2>(image.size)/I.bbox;

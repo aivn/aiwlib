@@ -145,7 +145,6 @@ namespace aiw{
 #endif //EBUG
 				if(this->check_out_pos(pos)) return out_value;
 			return *((const T*)((const char*)ptr+mul*pos));
-
 		}
 		inline const T& get(const aiw::Vec<D> &r) const { return get(this->coord2pos(r)); }
 

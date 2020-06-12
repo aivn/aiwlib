@@ -51,11 +51,11 @@ namespace aiw{
 			for(int i=0; i<D; i++){
 				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
 				if(pos[i]<0){
-					int mask = (bounds>>(4*(D-i-1)))&3;
+					int mask = (bounds>>(4*(D-i-1)))&3; // два бита для проверки слева
 					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
 					else{ if(mask==1) out_value = true;	else pos[i] = 0; }
 				} else if(pos[i]>=box[i]){
-					int mask = (bounds>>(4*(D-i-1)+2))&3;
+					int mask = (bounds>>(4*(D-i-1)+2))&3; // два бита для проверки справа
 					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
 					else{ if(mask==1) out_value = true;	else pos[i] = box[i]-1; }
 				}

@@ -36,7 +36,7 @@ bool aiw::MeshView::load_from_segy(IOstream &S){
 	for(int i=0; i<2; i++){
 		bmin[i+1] = (geometry[ind(i,0,0)]+geometry[ind(3+i,0,0)])/2;
 		bmax[i+1] = (geometry[i|(geometry.bbox()(1,2)-ind(1))]+geometry[(3+i)|(geometry.bbox()(1,2)-ind(1))])/2;
-		this->set_step(i+1);
+		this->set_step(i+1);		
 	}
 	mem = data.mem;
 	segy = true;

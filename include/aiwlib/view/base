@@ -128,23 +128,15 @@ namespace aiw{
 		float alpha = .5; // прозрачность
 	};
 	//--------------------------------------------------------------------------
-	/*
 	struct BaseView{
 		std::string head;
-
-		virtual bool load(aiw::IOstream &) = 0;
 
 		virtual int dim() const = 0;
 		virtual void get_conf(ConfView &conf, bool firstcall=false) const = 0;   // настраивает conf (с учетом crop)
 		virtual aiw::Vec<2> f_min_max(const ConfView &conf) const = 0;           // вычисляет min-max, как это делать для preview?
-
 		virtual float get(const ConfView& conf, aiw::Vec<2> r) const = 0;
-		virtual aiw::Vec<2> xy2r(const ConfView& conf, aiw::Vec<2> xy) const {
-			return conf.bmin(conf.axes)+(xy&(conf.bmax(conf.axes)-conf.bmin(conf.axes)));
-		}		
 		virtual ~BaseView(){}
-		};
-	*/
+	};
 	//--------------------------------------------------------------------------
 };
 #endif //AIW_BASE_VIEW_HPP

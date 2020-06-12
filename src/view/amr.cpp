@@ -8,7 +8,7 @@ using namespace aiw;
 
 
 //------------------------------------------------------------------------------
-aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::find(const ConfView &conf, aiw::Ind<2> pos){  // произвольный доступ по срезу
+aiw::AdaptiveMeshView::iterator aiw::AdaptiveMeshView::find(const ConfView &conf, aiw::Ind<2> pos) const {  // произвольный доступ по срезу
 	if(!(Ind<2>()<=pos && pos<conf.size(conf.axes))) return iterator();
 	iterator I; I.msh = this; I.conf = &conf; I.mask = I.offset = 0;  I.axes[0] = conf.axes[0]; I.axes[1] = conf.axes[1];
 	// ищем тайл сетки нулевого ранга T0 и позицию P внутри него (на самой мелкой сетке)
@@ -175,7 +175,7 @@ void aiw::AdaptiveMeshView::get_conf(ConfView &conf, bool firstcall) const {  //
 	conf.cfa_list = cfa_list;    conf.cfa_xfem_list.clear();
 }
 //------------------------------------------------------------------------------
-aiw::Vec<2> aiw::AdaptiveMeshView::f_min_max(const ConfView &conf) {  // вычисляет min-max, как это делать для preview?
+aiw::Vec<2> aiw::AdaptiveMeshView::f_min_max(const ConfView &conf) const {  // вычисляет min-max, как это делать для preview?
 	auto I = begin(conf); double a = *I, b = a;
 	for(; I!=end(); ++I){
 		double f = *I;
