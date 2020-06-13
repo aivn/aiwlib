@@ -80,7 +80,7 @@ class Content:
         for fname in flist:
             if ':' in fname:
                 host, name = fname.split(':', 1); t0 = time.time()
-                remote = uplt_remote(host, 'uplt-remote')
+                remote = uplt_remote(host, 'aiwlib/bin/uplt-remote')
                 self.data.append([fname]+remote.open(name))
                 self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
                 if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
