@@ -11,7 +11,7 @@ PYTHONDIR=/usr/lib/python2.7
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
-BIN_LIST=racs approx isolines gplt uplt splt mplt fplt
+BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 

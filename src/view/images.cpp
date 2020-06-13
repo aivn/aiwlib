@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <omp.h>
 #include "../../include/aiwlib/view/images"
 using namespace aiw;
 
@@ -23,7 +24,15 @@ aiw::ImagePIL::ImagePIL(Ind<2> size_){
 										 PyString_FromString("new"), PyString_FromString("RGB"), 
 										 PyTuple_Pack(2, PyInt_FromLong(size_[0]), PyInt_FromLong(size_[1])), NULL)); 										 
 }
-
+void aiw::ImagePIL::load(PyObject *buf){
+	const char *src = PyString_AsString(buf);
+	//#pragma omp parallel for
+	for(int y=0; y<size[1]; y++)
+		for(int x=0; x<size[0]; x++){
+			char* ptr = im->image[y] + x*im->pixelsize; const char *color = src+(x+y*size[0])*3;
+			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+		}
+}
 #endif // AIW_NO_PIL
 //------------------------------------------------------------------------------
 #ifndef AIW_NO_PNG

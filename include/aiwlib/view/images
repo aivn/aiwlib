@@ -17,9 +17,24 @@
 #   include <png.h>
 #endif // AIW_NO_PNG
 
+#include <string>
+#include <vector>
 #include "../vec"
 
 namespace aiw{
+	//--------------------------------------------------------------------------
+	struct ImageBUF {
+		std::vector<char> buf;
+		aiw::Ind<2> size;
+
+		ImageBUF(aiw::Ind<2> size_): size(size_) { buf.resize(size.prod()*3); }
+
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
+			char* ptr = buf.data()+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
+			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+		}
+	};	
 	//--------------------------------------------------------------------------
 #ifndef AIW_NO_PIL
 	struct ImagePIL {
@@ -29,13 +44,14 @@ namespace aiw{
 		void construct(PyObject*);
 		ImagePIL(PyObject* p);
 		ImagePIL(aiw::Ind<2> size_);
-
+		
 		aiw::Ind<2> size;
 		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
 			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
 			char* ptr = im->image[size[1]-pos[1]-1] + pos[0]*im->pixelsize;
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
+		void load(PyObject *buf);
    };	
 #endif // AIW_NO_PIL
 	//--------------------------------------------------------------------------

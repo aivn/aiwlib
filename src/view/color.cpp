@@ -11,13 +11,12 @@ const float *all_paletters[] = {grey_pal, inv_grey_pal, black_red_pal, green_blu
 								neg_pos2_pal, positive_pal, rainbow_pal, color_pal, inv_rainbow_pal, cyclic_pal, nullptr};
 //------------------------------------------------------------------------------
 std::string aiw::CalcColor::pack() const {
-	Packer P; int pID = 0; while(all_paletters[pID] && all_paletters[pID]!=pal) pID++;
-	P<max_rgb<min<max<nan_color<cyclic<logscale<modulus<invert<magn<pID;
+	Packer P; P<max_rgb<min<max<nan_color<pal_ID<cyclic<logscale<modulus<invert<magn;
 	return P;
 }
 //------------------------------------------------------------------------------
 void aiw::CalcColor::unpack(const std::string &S){
-	Packer P(S); int pID = 0; P>max_rgb>min>max>nan_color>cyclic>logscale>modulus>invert>magn>pID;
+	Packer P(S); int pID = 0; P>max_rgb>min>max>nan_color>pID>cyclic>logscale>modulus>invert>magn;
 	if(magn) magn_pal_init(max_rgb);
 	init(all_paletters[pID], min, max);
 }
@@ -28,6 +27,12 @@ void aiw::CalcColor::init(float const *pal_, float min_, float max_){
 	len_pal /= 3; len_pal--; // ???
 	if(logscale && min_<=0) min_ = 1e-16;
 	min = min_; max = max_; mul = logscale? 1./log(max_/min_) : 1./(max_-min_);
+	for(pal_ID=0; all_paletters[pal_ID]; pal_ID++){
+		bool res = true;
+		for(int i=0; i<3+len_pal*3 && all_paletters[pal_ID][i]>=0; i++) if(pal[i]!=all_paletters[pal_ID][i]){
+				res = false; break; }
+		if(res && all_paletters[pal_ID][3+len_pal*3]==-1) break;
+	}
 }
 //------------------------------------------------------------------------------
 Ind<3> *aiw::CalcColor::magn_pal = nullptr;

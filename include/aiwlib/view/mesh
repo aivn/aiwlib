@@ -118,6 +118,8 @@ namespace aiw{
 			ConfView conf = conf0; conf.uncrop();
 			plot(conf, image, color);
 		}
+		void plot(const ConfView &conf, ImageBUF &image, const CalcColor &color) const override { plot<ImageBUF>(conf, image, color); }
+		void preview(const ConfView& conf0, ImageBUF &image, const CalcColor &color) const override { preview<ImageBUF>(conf0, image, color); }
 	};
 	//--------------------------------------------------------------------------
 };
