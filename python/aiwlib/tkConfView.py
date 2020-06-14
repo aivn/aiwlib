@@ -132,7 +132,8 @@ class MainConf:
 
         self.cfa_frame = aiwFrame(panel, row=row+1, column=column)
         self.cfa_menu = aiwOptionMenu(self.cfa_frame, trace=self.access_replot, pack={'side':LEFT})
-
+        self.cfa_ibit = aiwEntry(self.cfa_frame, -1, self.access_replot, label='ibit',pack={'side':RIGHT}, width=2)
+        
         self.xfem_frame = aiwFrame(panel, row=row+2, column=column); Label(self.xfem_frame, text='xfem').pack(side=LEFT)
         self.xfem_pos = [aiwEntry(self.xfem_frame, 0, self.access_replot, '', pack={'side':RIGHT}, width=2) for i in (0,1)]
         self.xfem_mode = aiwOptionMenu(self.xfem_frame, trace=self.access_replot, items='node cell face phys'.split(), pack={'side':RIGHT})
@@ -263,12 +264,14 @@ class MainConf:
             cfaL = [i.label for i in self.content.conf.cfa_xfem_list]
             self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_xfem_list[cfaL.index(self.cfa_menu.get())]
+            self.content.conf.cfa.ibit = self.cfa_ibit.get()
             self.content.conf.cfa.xfem_pos[0], self.content.conf.cfa.xfem_pos[1] = self.xfem_pos[0].get(), self.xfem_pos[1].get()
             self.content.conf.xfem_mode = 'node cell face phys'.split().index(self.xfem_mode.get())
         elif self.content.conf.cfa_list:
             cfaL = [i.label for i in self.content.conf.cfa_list]
             self.cfa_menu.set_items(cfaL)
             self.content.conf.cfa = self.content.conf.cfa_list[cfaL.index(self.cfa_menu.get())]
+            self.content.conf.cfa.ibit = self.cfa_ibit.get()
             self.content.conf.xfem_mode = 'node cell face phys'.split().index(self.xfem_mode.get())
         else:            
             self.content.conf.cfa.offset = int(self.offset_in_cell.get())

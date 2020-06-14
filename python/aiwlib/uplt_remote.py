@@ -21,7 +21,7 @@ def _recv(cin, types): # i, s or f
     return R
 #-------------------------------------------------------------------------------
 class UpltConnect:
-    def __init__(self, host, command): self.cout, self.cin = os.popen2('ssh %s %s'%(host, command)); self.sz = 0
+    def __init__(self, host, command): self.cout, self.cin = os.popen2('ssh -C %s %s'%(host, command)); self.sz = 0
     def open(self, fname):
         _send(self.cout, 'o', fname)
         count, L = _recv(self.cin, 'i')[0], []

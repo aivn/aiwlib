@@ -74,6 +74,7 @@ namespace aiw{
 		int offset = 0;        // смещение в ячейке
 		int xfem_szT = 0;      // размер текущей ячейки xfem-блоба
 		int xfem_dim = 0;      // число полей в xfem-блобе
+		int ibit = -1;         // какой бит показывать (для целых чисел, -1 --- не используется)
 		aiw::Ind<2> xfem_pos;  // позиция в текущем динамическом массиве или xfem-блобе, (если отрицательны обратная индексация с конца)
 
 		// int dyn_dim = 0;       // размерность текущего динамического массива
@@ -82,6 +83,17 @@ namespace aiw{
 
 		// std::vector<Ind<3> > dyn_arrs;  // динамические массивы перед данным полем (szT, D, offset)
 
+		template <typename T> float get_i(const char *cell) const {  // принимает указатель на ячейку
+			if(xfem_field>=0){ // это xfem-блоб, это работает тольок если блоб не пустой --- проверка на пустой блоб должны выполняться выше!!!
+				int mul = xfem_szT; 
+				const char* f = cell+xfem_dim*4+*(const uint16_t*)(cell+xfem_field*4)+offset; const uint8_t *sz = (const uint8_t*)(cell+xfem_field*4+2);
+				for(int i=0; i<2; i++){
+					int p = xfem_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
+					f += mul*(p<0? int(sz[i])+p: p); mul *= sz[i];
+				}
+				return ibit>=0? *(const T*)f & (T(1)<<ibit): *(const T*)f;
+			} else return ibit>=0? *(const T*)(cell+offset) & (T(1)<<ibit): *(const T*)(cell+offset);
+		}
 		template <typename T> float get(const char *cell) const {  // принимает указатель на ячейку
 			if(xfem_field>=0){ // это xfem-блоб, это работает тольок если блоб не пустой --- проверка на пустой блоб должны выполняться выше!!!
 				int mul = xfem_szT; 
@@ -113,22 +125,26 @@ namespace aiw{
 			case 0: return get<float>(cell);
 			case 1: return get<double>(cell);
 			case 2: return get<bool>(cell); 
-			case 3: return get<char>(cell); 
-			case 4: return get<uint8_t>(cell);
-			case 5: return get<int8_t>(cell); 
-			case 6: return get<uint16_t>(cell);
-			case 7: return get<int16_t>(cell); 
-			case 8: return get<uint32_t>(cell);
-			case 9: return get<int32_t>(cell); 
-			case 10: return get<uint64_t>(cell);
-			case 11: return get<int64_t>(cell); 
+			case 3: return get_i<char>(cell); 
+			case 4: return get_i<uint8_t>(cell);
+			case 5: return get_i<int8_t>(cell); 
+			case 6: return get_i<uint16_t>(cell);
+			case 7: return get_i<int16_t>(cell); 
+			case 8: return get_i<uint32_t>(cell);
+			case 9: return get_i<int32_t>(cell); 
+			case 10: return get_i<uint64_t>(cell);
+			case 11: return get_i<int64_t>(cell); 
 			}
 			return nanf("");
 		}		
 	}; // end of structure CellFieldAccess
 #ifndef SWIG
-	inline Packer& operator < (Packer &P, const CellFieldAccess &cfa){ return P<cfa.label<cfa.xfem_field<cfa.typeID<cfa.offset<cfa.xfem_szT<cfa.xfem_dim<cfa.xfem_pos; }
-	inline Packer& operator > (Packer &P,       CellFieldAccess &cfa){ return P>cfa.label>cfa.xfem_field>cfa.typeID>cfa.offset>cfa.xfem_szT>cfa.xfem_dim>cfa.xfem_pos; }
+	inline Packer& operator < (Packer &P, const CellFieldAccess &cfa){
+		return P<cfa.label<cfa.xfem_field<cfa.typeID<cfa.offset<cfa.xfem_szT<cfa.xfem_dim<cfa.xfem_pos<cfa.ibit;
+	}
+	inline Packer& operator > (Packer &P, CellFieldAccess &cfa){
+		return P>cfa.label>cfa.xfem_field>cfa.typeID>cfa.offset>cfa.xfem_szT>cfa.xfem_dim>cfa.xfem_pos>cfa.ibit;
+	}
 	//--------------------------------------------------------------------------
 	struct TypeInfo{
 		//----------------------------------------------------------------------
