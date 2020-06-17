@@ -82,9 +82,10 @@ class Content:
                 host, name = fname.split(':', 1); t0 = time.time()
                 remote = uplt_remote(host, 'aiwlib/bin/uplt-remote')
                 self.data.append([fname]+remote.open(name))
-                self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
                 if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
-                else: print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
+                else:
+                    self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
+                    print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
                 continue
             if os.path.exists(fname): self.data.append([fname])
             else: continue
@@ -104,9 +105,10 @@ class Content:
                     elif amr.load(fin): self.data[-1].append(amr)
                     elif zcb.load(fin): self.data[-1].append(zcb)
                     else: break
-            self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
             if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
-            else: print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
+            else:
+                self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
+                print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
         if not self.data: print 'not input files\n', __doc__; sys.exit()
         self.conf = ConfView(); self.data[0][1].get_conf(self.conf, True)
         if self.conf.cfa_list: self.conf.cfa = self.conf.cfa_list[0]

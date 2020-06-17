@@ -26,7 +26,7 @@ class UpltConnect:
         _send(self.cout, 'o', fname)
         count, L = _recv(self.cin, 'i')[0], []
         for i in range(count): L.append(_recv(self.cin, 'is'))
-        if L: self.sz +=1
+        if L: self.sz += 1
         return [UpltFrame(self, self.sz-1, i, dh[0], dh[1]) for i, dh in enumerate(L)]
 #-------------------------------------------------------------------------------
 class UpltFrame:
@@ -45,9 +45,7 @@ class UpltFrame:
     def preview(self, conf, image, color): 
         _send(self.connect.cout, 'p', self.dID, self.fID, conf.pack(), color.pack(), image.size[0], image.size[1])
         image.load(self.connect.cin.read(image.size.prod()*3))
-        print 'remote preview OK'
     def plot(self, conf, image, color):
         _send(self.connect.cout, 'P', self.dID, self.fID, conf.pack(), color.pack(), image.size[0], image.size[1])
         image.load(self.connect.cin.read(image.size.prod()*3))
-        print 'remote plot OK'
 #-------------------------------------------------------------------------------
