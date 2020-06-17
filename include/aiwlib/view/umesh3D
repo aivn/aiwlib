@@ -73,16 +73,18 @@ namespace aiw{
 #ifdef EBUG
 			double t0 = omp_get_wtime();
 #endif //EBUG
-			WOUT(conf.cfa.xfem_field, conf.cfa.xfem_dim, conf.cfa.xfem_pos, conf.cfa.offset, conf.cfa.xfem_szT, conf.cfa.typeID);
+			// WOUT(conf.cfa.xfem_field, conf.cfa.xfem_dim, conf.cfa.xfem_pos, conf.cfa.offset, conf.cfa.xfem_szT, conf.cfa.typeID);
 			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size, im_bmin = conf.min_xy() + .5*im_step, _im_step = 1./im_step;
 			int si; for(si=0; si<3; si++) if(si!=conf.axes[0] && si!=conf.axes[1]) break; // номер оси по которой строится срез
 			double s = conf.slice[si]; int c_sz = mesh->cells.size();
-#pragma omp parallel for schedule(dynamic)
-			for(int cid=0; cid<c_sz; cid++){
+			// WOUT(conf.bmin, conf.bmax, conf.bmin0, conf.bmax0);
+			// #pragma omp parallel for schedule(dynamic)
+			for(int cid=0; cid<c_sz; cid++){ 
 				const UnorderedMesh3DHead::cell_t &cell = mesh->cells[cid];
 				if(cell.bmin[si]<=s && s<=cell.bmax[si]){
 
 					Ind<2> a = (cell.bmin(conf.axes)-im_bmin)&_im_step, b = ((cell.bmax(conf.axes)-im_bmin)&_im_step);
+					a >>= ind(0); b <<= image.size-ind(1); if(!(a<b)) continue;
 					for(int i=0; i<2; i++) if(conf.get_flip(i)){ int k = a[i]; a[i] = b[i]; b[i] = k; }
 					Vec<3> r0 = cell.bmin; r0[si] = s;
 					Vecf<4> gx = cell.wgrads(conf.axes[0]), gy = cell.wgrads(conf.axes[1]) /*, _gx = 1./gx*/, dwy = im_step[1]*gy, dwx = im_step[0]*gx, ff;

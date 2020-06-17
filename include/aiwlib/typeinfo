@@ -91,8 +91,8 @@ namespace aiw{
 					int p = xfem_pos[i]; if(p<-int(sz[i]) || int(sz[i])<=p) return nanf("");
 					f += mul*(p<0? int(sz[i])+p: p); mul *= sz[i];
 				}
-				return ibit>=0? *(const T*)f & (T(1)<<ibit): *(const T*)f;
-			} else return ibit>=0? *(const T*)(cell+offset) & (T(1)<<ibit): *(const T*)(cell+offset);
+				return ibit>=0? T(bool(*(const T*)f & (T(1)<<ibit))): *(const T*)f;
+			} else return ibit>=0? T(bool(*(const T*)(cell+offset) & (T(1)<<ibit))): *(const T*)(cell+offset);
 		}
 		template <typename T> float get(const char *cell) const {  // принимает указатель на ячейку
 			if(xfem_field>=0){ // это xfem-блоб, это работает тольок если блоб не пустой --- проверка на пустой блоб должны выполняться выше!!!

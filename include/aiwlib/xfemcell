@@ -76,8 +76,8 @@ public:																	\
 							   xfem_fields_count, ID, sz0, sz1, &val);	\
 	}																	\
 	TYPE& NAME(uint8_t x=0, uint8_t y=0){								\
-		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1], #NAME, \
-				int(x), int(y), int(xfem_fields[ID].sz[0]),				\
+		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1],		\
+				#NAME"() ", int(x), int(y), int(xfem_fields[ID].sz[0]),	\
 				int(xfem_fields[ID].sz[1]));							\
 		return *(TYPE*)(xfem_blob.data()+xfem_fields[ID].off+			\
 						(x+y*xfem_fields[ID].sz[0])*sizeof(TYPE));		\

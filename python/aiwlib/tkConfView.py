@@ -39,7 +39,7 @@ class SaveAnimate:
     def move_scroll(self, d):
         if self.scrolls:
             sc = self.scrolls[self.atype.get()]
-            sc.set((sc.get()+d)%sc.cget('to'))
+            sc.set((sc.get()+d)%int(sc.cget('to')+1))
             if self.atype.get()=='file': self.content.file_replot()
             elif self.atype.get()=='frame': self.content.frame_replot()
             else: self.content.main.slice_replot()

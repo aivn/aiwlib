@@ -53,9 +53,12 @@ namespace aiw{
 				int a = axes[ai]; Vec<2> lim = get_flip(ai)? vec(1-b_xy[ai], 1-a_xy[ai]): vec(a_xy[ai], b_xy[ai]);
 				for(int i=0; i<2; i++) lim[i] = logscale&1<<a? pow(bmin[a], 1+(log(bmax[a])/log(bmin[a])-1)*lim[i]) : bmin[a] + (bmax[a]-bmin[a])*lim[i];
 				if(mod_crop){
-					int d = bmin0[a]<bmax0[a];
-					lim[0] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[0]/bmin0[a])/step[a]+1-d)) : bmin0[a]+::floor((lim[0]-bmin0[a])/step[a]+1-d)*step[a];
-					lim[1] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[1]/bmin0[a])/step[a]+d))   : bmin0[a]+::floor((lim[1]-bmin0[a])/step[a]+d)*step[a];
+					// int d = bmin0[a]<bmax0[a];
+					// lim[0] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[0]/bmin0[a])/step[a]+1-d)) : bmin0[a]+::floor((lim[0]-bmin0[a])/step[a]+1-d)*step[a];
+					// lim[1] = logscale&1<<a? bmin0[a]*pow(step[a], ::floor(log(lim[1]/bmin0[a])/step[a]+d))   : bmin0[a]+::floor((lim[1]-bmin0[a])/step[a]+d)*step[a];
+					lim[0] = logscale&1<<a? bmin0[a]*pow(step[a], ::round(log(lim[0]/bmin0[a])/step[a])) : bmin0[a]+::round((lim[0]-bmin0[a])/step[a])*step[a];
+					lim[1] = logscale&1<<a? bmin0[a]*pow(step[a], ::round(log(lim[1]/bmin0[a])/step[a])) : bmin0[a]+::round((lim[1]-bmin0[a])/step[a])*step[a];
+					if(lim[0]==lim[1]) lim[1] = logscale&1<<a? lim[0]*step[a] : lim[0]+step[a];
 				}
 				if(bmin0[a]<bmax0[a]){ bmin[a] = std::max(lim[0], bmin0[a]); bmax[a] = std::min(lim[1], bmax0[a]); }
 				else                 { bmin[a] = std::min(lim[0], bmin0[a]); bmax[a] = std::max(lim[1], bmax0[a]); }
