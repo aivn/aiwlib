@@ -69,6 +69,9 @@ public:																	\
 	}
 //------------------------------------------------------------------------------
 #define XFEM_CELL_FIELD(ID, TYPE, NAME)									\
+	bool use_##NAME(uint32_t x=0, uint32_t y=0) const {					\
+		return x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1];		\
+	}																	\
 	int get_sz0_##NAME() const { return xfem_fields[ID].sz[0]; }		\
 	int get_sz1_##NAME() const { return xfem_fields[ID].sz[1]; }		\
 	void resize_##NAME(int sz0, int sz1, TYPE val=TYPE()){				\
