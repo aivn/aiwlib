@@ -65,10 +65,11 @@ class Plot2D(Canvas):
         x, y = self.canvasx(e.x), self.canvasy(e.y); self._left_press = [x, y]
         for xy0, xy1, t, f in self.mouses:
             if t=='select' and xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]:
-                self._sel_region = xy0, xy1; self._on_move, self._on_release, sticky = f
+                self._sel_region = list(xy0), list(xy1); self._on_move, self._on_release, sticky, reg = f
                 if sticky:
-                    self._sel_sticky = (sticky, xy1[sticky=='y'])
-                    self._left_press[sticky=='y'] = xy0[sticky=='y']
+                    self._sel_sticky = (sticky, reg[1] if reg else xy1[sticky=='y'])
+                    self._left_press[sticky=='y'] = reg[0] if reg else xy0[sticky=='y']
+                    if reg: self._sel_region[0][sticky=='y'], self._sel_region[1][sticky=='y'] = reg
                 break
     def _mouse_move(self, e):
         x, y = self.canvasx(e.x), self.canvasy(e.y)
@@ -91,6 +92,9 @@ class Plot2D(Canvas):
             for xy0, xy1, t, f in self.mouses:
                 if t=='left' and xy0[0]<=x<=xy1[0] and xy0[1]<=y<=xy1[1]: f(self, x, y); break            
         elif self._on_release:
+            if self._sel_sticky:
+                if self._sel_sticky[0]=='x': x = self._sel_sticky[1]
+                else: y = self._sel_sticky[1]
             self._on_release(self, x, y); self._on_move, self._on_release, self._sel_sticky, self._sel_region = [None]*4
             return
     def _mouse_right(self, e): 
@@ -198,6 +202,6 @@ class Plot2D(Canvas):
     def mouse_move(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'move', action))
     def mouse_left(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'left', action))
     def mouse_right(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'right', action))
-    def mouse_select(self, xy0, xy1, move_act, final_act, sticky=None): self.mouses.append((xy0, xy1, 'select', (move_act, final_act, sticky)))
+    def mouse_select(self, xy0, xy1, move_act, final_act, sticky=None, reg=None): self.mouses.append((xy0, xy1, 'select', (move_act, final_act, sticky, reg)))
     def mouse_clear(self): del self.mouses[:]
 #-------------------------------------------------------------------------------

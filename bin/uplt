@@ -171,7 +171,10 @@ class Content:
         self.canvas.create_text(sz[0], th, text=self.settings.z_label.get()%ns, anchor='se', font=tfont)
 
         self.canvas.mouse_clear()
-        if not self.conf.features&self.conf.opt_mollweide:  self.canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
+        if not self.conf.features&self.conf.opt_mollweide:
+            self.canvas.mouse_select((yw,th),  (sz[0]-pw,sz[1]-xh), move_select, final_select_image)
+            self.canvas.mouse_select((0,th),  (yw,sz[1]-xh), move_select, final_select_image, 'x', (yw,sz[0]-pw))
+            self.canvas.mouse_select((yw,sz[1]-xh),  (sz[0]-pw,sz[1]), move_select, final_select_image, 'y', (th,sz[1]-xh))
         else: self.canvas.mouse_right((yw,th),  (sz[0]-pw,sz[1]-xh), mouse_right_sph) # это плагин для сферы, надо его сделать общим
         self.canvas.mouse_select((sz[0]-self.settings.pal_xsz.get(),th), (sz[0],sz[1]-xh), move_select, final_select_pal, 'x')
         self.canvas.mouse_move((sz[0]-self.settings.pal_xsz.get(),th), (sz[0],sz[1]-xh), (show_on_pal_move, hide_on_pal_move))
