@@ -75,8 +75,9 @@ public:																	\
 	int get_sz0_##NAME() const { return xfem_fields[ID].sz[0]; }		\
 	int get_sz1_##NAME() const { return xfem_fields[ID].sz[1]; }		\
 	void resize_##NAME(int sz0, int sz1, TYPE val=TYPE()){				\
-		xfem_cell_field_resize(xfem_blob, xfem_fields, sizeof(TYPE),	\
-							   xfem_fields_count, ID, sz0, sz1, &val);	\
+		aiw::xfem_cell_field_resize(xfem_blob, xfem_fields,				\
+									sizeof(TYPE), xfem_fields_count,	\
+									ID, sz0, sz1, &val);				\
 	}																	\
 	TYPE& NAME(uint8_t x=0, uint8_t y=0){								\
 		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1],		\
