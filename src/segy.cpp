@@ -183,7 +183,8 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 	for(Ind<3> pos; pos^=geometry.bbox(); ++pos) geometry[pos] = heads[pos[1]+pos[2]*H.profile_sz][pos[0]];
 	data.init(ind(max_sz, H.profile_sz, rdata.size()/H.profile_sz)); data.fill(0.f);
 	Ind<2> pos;
-	for(auto V=rdata.begin(); V!=rdata.end() and (pos^=data.bbox()(0,1));){
+	for(auto V=rdata.begin(); V!=rdata.end() and (pos^=data.bbox()(1,2));){
+		WASSERT(ind(0)<=pos && pos<data.bbox()(1,2), " ", pos, data.bbox());
 		for(int i=0; i<int(V->size()); i++) data[i|pos] = (*V)[i];
 		++pos; ++V;
 	}

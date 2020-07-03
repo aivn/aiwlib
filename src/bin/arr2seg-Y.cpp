@@ -63,7 +63,7 @@ int main(int argc, const char ** argv){
 		if(arr2D.load(File(src.c_str(), "rb"), 1, false)) dim = 2; 
 		else if(arr3D.load(File(src.c_str(), "rb"), 1, false)) dim = 3; 
 		else { printf("'%s' incorrect format\n", src.c_str()); return 1; } 
-
+		
 		if(dim==2){
 			mk_swaps(arr2D, swaps, sw_count);
 			if(use_step) for(int i=0; i<dim; i++) arr2D.step[i] = step[i]; else arr2D.step[0] *= 1e-3; // <=== to mks ???
@@ -75,6 +75,6 @@ int main(int argc, const char ** argv){
 			WOUT(arr3D.bbox(), arr3D.bmin, arr3D.bmax, arr3D.step);
 			segy_write(File(dst.c_str(), "wb"), arr3D, z_pow, PV(0,1), (use_PP0?PP0:arr3D.bmin));			
 		}
-		std::cout<<src<<" ===> "<<dst<<" [OK]\n";
+		std::cout<<dim<<"D: "<<src<<" ===> "<<dst<<" [OK]\n";
 	}
 }

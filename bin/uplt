@@ -20,7 +20,7 @@ class NameSpace:
         self.__dict__.update(kw_args)
     def __getitem__(self, key): return eval(key, math.__dict__, self.__dict__)
 #-------------------------------------------------------------------------------
-eps2val = lambda V, v, logscale: (V[0]**(1+(log(V[1])/log(V[0])-1)*v) if logscale else V[0]+(V[1]-V[0])*v) # это дублирование кода, надо ее куда то убрать
+eps2val = lambda V, v, logscale: (V[0]**(1+(log(V[1])/log(V[0])-1)*v) if logscale else V[0]+(V[1]-V[0])*v)  # это дублирование кода, надо ее куда то убрать
 def hide_on_pal_move(self): self.delete('pal_move')
 def hide_on_msh_move(self): self.delete('msh_move')
 def show_on_pal_move(self, xy, xy0, xy1):
@@ -135,6 +135,7 @@ class Content:
         # это     if self.conf.logscale_x(): self.preview.create_text(panel_sz/2,panel_sz-3, text='logscale', fill='grey', anchor=S)
         # лишнее? if self.conf.logscale_y(): self.preview.create_text(3,panel_sz/2, text='logscale', fill='grey', anchor=W)        
         box = (self.conf.max_xy0()-self.conf.min_xy0())/panel_sz
+        # print '*********', box, self.conf.max_xy0(), self.conf.min_xy0()
         rect = (self.conf.min_xy()-self.conf.min_xy0())/box, (self.conf.max_xy()-self.conf.min_xy0())/box
         self.preview.create_rectangle(rect[0][0], panel_sz-rect[0][1], rect[1][0], panel_sz-rect[1][1],  outline='gray', tag='select')
 
@@ -184,14 +185,14 @@ class Content:
         self.iframe = self.main.frame_num.get()
         wroot.title('uplt: %r[%i]'%(self.data[self.ifile][0], self.iframe))
         self.data[self.ifile][self.iframe+1].get_conf(self.conf)
-        self.main.update(self.conf)
+        self.main.update(self.conf); self.conf.cfa.ibit = self.main.cfa_ibit.get()
         self.replot()
     def file_replot(self, *args):
         self.ifile = self.main.file_num.get()
         if self.iframe>len(self.data[self.ifile])-2: self.iframe = len(self.data[self.ifile])-2
         wroot.title('uplt: %r[%i]'%(self.data[self.ifile][0], self.iframe))
         self.data[self.ifile][self.iframe+1].get_conf(self.conf)
-        self.main.update(self.conf)
+        self.main.update(self.conf); self.conf.cfa.ibit = self.main.cfa_ibit.get()
         self.replot()
     #---------------------------------------------------------------------------
     def show_on_msh_move(self, C, xy, xy0, xy1): #канвас, координаты и координаты углов?

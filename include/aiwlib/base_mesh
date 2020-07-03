@@ -44,7 +44,7 @@ namespace aiw{
 									D        | out_value      | крайняя ячейка 
 									E        | крайняя ячейка | крайняя ячейка 
 									F        | крайняя ячейка | крайняя ячейка 
-								 */   
+								 */
 	protected:
 		bool check_out_pos(Ind<D>& pos) const { // ==> false --- OK, true --- out_value
 			bool out_value = false;
