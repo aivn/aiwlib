@@ -10,6 +10,7 @@ const char *help = "usage: arr2seg-Y options and input arrfiles...\noptions:\n"
 	"    -h --- show this help and exit\n"
 	//	"    -2d|-3d --- set arrays dimention (default 2)\n"
 	"    -s dx,[dy,]dz --- steps (default from arrayfiles)\n"
+	"    -x scale --- scale signal\n"
 	"    -PV x,y --- PV coordinates (default 0,0)\n"
 	"    -PP0 x,[y,]z --- first PP coordinates (default from arrayfile)\n"
 	"    -t ij --- transpose axes i and j (for example -s 01), AS A RESULT OF THE TIME AXIS MUST BE ALONG THE X-AXIS!\n"
@@ -37,9 +38,9 @@ template <int D> void mk_swaps(Mesh<float, D> &arr, Ind<2> *swaps, int sw_count)
 
 int main(int argc, const char ** argv){
 	int dim = 2;
-	Vec<3> step, PV, PP0; bool use_step = false, use_PP0 = false;
+	Vec<3> step, PV, PP0; bool use_step = false, use_PP0 = false, use_scale = false;
 	Ind<2> swaps[1024]; int sw_count = 0;
-	double z_pow = 0.;
+	double z_pow = 0., scale = 1.;
 	std::string dstpath;
 	if(argc==1){ std::cout<<help; return 0; }
 	for(int i=1; i<argc; i++){
@@ -53,6 +54,7 @@ int main(int argc, const char ** argv){
 		if(opt=="-t" and i<argc-1){ i++; swaps[sw_count++] = ind(argv[i][0]-48, argv[i][1]-48); continue; }
 		if(opt=="-f" and i<argc-1){ i++; swaps[sw_count++] = ind(-1, argv[i][0]-48); continue; }
 		if(opt=="-Z" and i<argc-1){ z_pow = atof(argv[++i]); continue; }
+		if(opt=="-x" and i<argc-1){ scale = atof(argv[++i]); use_scale = true; continue; }
 		if(opt=="-ibm"){ segy_ibm_format = true; continue; }
 		if(opt=="-p" and i<argc-1){ dstpath = argv[++i]; continue; }
 
@@ -60,19 +62,21 @@ int main(int argc, const char ** argv){
 		std::string dst = dot>slash? src.substr(0, dot)+".sgy": src+".sgy"; 
 
 		Mesh<float, 2> arr2D; Mesh<float, 3> arr3D;
-		if(arr2D.load(File(src.c_str(), "rb"), 1, false)) dim = 2; 
-		else if(arr3D.load(File(src.c_str(), "rb"), 1, false)) dim = 3; 
+		if(arr2D.load(File(src.c_str(), "rb"), !use_scale, false)) dim = 2; 
+		else if(arr3D.load(File(src.c_str(), "rb"), !use_scale, false)) dim = 3; 
 		else { printf("'%s' incorrect format\n", src.c_str()); return 1; } 
 		
 		if(dim==2){
 			mk_swaps(arr2D, swaps, sw_count);
 			if(use_step) for(int i=0; i<dim; i++) arr2D.step[i] = step[i]; else arr2D.step[0] *= 1e-3; // <=== to mks ???
 			WOUT(arr2D.bbox(), arr2D.bmin, arr2D.bmax, arr2D.step);
+			if(use_scale) for(Ind<2> pos; pos^=arr2D.bbox(); ++pos) arr2D[pos] *= scale;
 			segy_write(File(dst.c_str(), "wb"), arr2D, z_pow, PV(0,1), (use_PP0?PP0:arr2D.bmin|0.));
 		} else {
 			mk_swaps(arr3D, swaps, sw_count);
 			if(use_step) for(int i=0; i<dim; i++) arr3D.step[i] = step[i]; else arr3D.step[0] *= 1e-3; // <=== to mks ???
 			WOUT(arr3D.bbox(), arr3D.bmin, arr3D.bmax, arr3D.step);
+			if(use_scale) for(Ind<3> pos; pos^=arr3D.bbox(); ++pos) arr3D[pos] *= scale;
 			segy_write(File(dst.c_str(), "wb"), arr3D, z_pow, PV(0,1), (use_PP0?PP0:arr3D.bmin));			
 		}
 		std::cout<<dim<<"D: "<<src<<" ===> "<<dst<<" [OK]\n";
