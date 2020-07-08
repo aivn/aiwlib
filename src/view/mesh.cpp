@@ -48,6 +48,10 @@ void aiw::MeshView::get_conf(ConfView &conf, bool firstcall) const {  // нас�
 	for(int i=0; i<D; i++){
 		if(firstcall || (conf.bmin[i]==conf.bmin0[i] && conf.bmax[i]==conf.bmax0[i])){ conf.bmin[i] = bmin[i]; conf.bmax[i] = bmax[i]; }
 		if(firstcall) conf.slice[i] = conf.bmin[i] = bmin[i];
+		else {
+			if((conf.slice[i]<bmin[i] && bmin[i]<=bmax[i]) || (conf.slice[i]>bmin[i] && bmin[i]>bmax[i])) conf.slice[i] = bmin[i];
+			if((conf.slice[i]>bmax[i] && bmin[i]<=bmax[i]) || (conf.slice[i]<bmax[i] && bmin[i]>bmax[i])) conf.slice[i] = bmax[i];
+		}
 		conf.bmin0[i] = bmin[i]; conf.bmax0[i] = bmax[i]; conf.step[i] = step[i]; conf.size[i] = box[i];
 	}
 	conf.logscale = logscale; conf.mod_crop = true;
