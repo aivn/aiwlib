@@ -69,6 +69,7 @@ public:																	\
 	}
 //------------------------------------------------------------------------------
 #define XFEM_CELL_FIELD(ID, TYPE, NAME)									\
+	typedef TYPE field_##NAME##_t;										\
 	bool use_##NAME(uint32_t x=0, uint32_t y=0) const {					\
 		return x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1];		\
 	}																	\
@@ -79,7 +80,12 @@ public:																	\
 									sizeof(TYPE), xfem_fields_count,	\
 									ID, sz0, sz1, &val);				\
 	}																	\
-	TYPE& NAME(uint8_t x=0, uint8_t y=0){								\
+	TYPE& NAME(uint8_t x=0, uint8_t y=0, bool force=false){				\
+		if(force){														\
+			uint8_t sz0 = get_sz0_##NAME(), sz1 = get_sz1_##NAME();		\
+			if(sz0<=x || sz1<=y)										\
+				resize_##NAME(std::max(x, sz0), std::max(y, sz1));		\
+		}																\
 		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1],		\
 				#NAME"() ", int(x), int(y), int(xfem_fields[ID].sz[0]),	\
 				int(xfem_fields[ID].sz[1]));							\
