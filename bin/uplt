@@ -81,11 +81,15 @@ class Content:
             if ':' in fname:
                 host, name = fname.split(':', 1); t0 = time.time()
                 remote = uplt_remote(host, 'aiwlib/bin/uplt-remote')
-                self.data.append([fname]+remote.open(name))
-                if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
-                else:
-                    self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
-                    print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
+                print 'open connect to %s, %g sec'%(host, time.time()-t0) 
+                t0 = time.time()
+                for res in remote.open(name):
+                    self.data.append(res)
+                    if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
+                    else:
+                        self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
+                        print res[0], 'load', len(self.data[-1])-1, 'frames'
+                print  'total %g sec'%(time.time()-t0)
                 continue
             if os.path.exists(fname): self.data.append([fname])
             else: continue

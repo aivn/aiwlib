@@ -21,13 +21,19 @@ def _recv(cin, types): # i, s or f
     return R
 #-------------------------------------------------------------------------------
 class UpltConnect:
-    def __init__(self, host, command): self.cout, self.cin = os.popen2('ssh -C %s %s'%(host, command)); self.sz = 0
+    def __init__(self, host, command):
+        self.cout, self.cin = os.popen2('ssh -C %s %s'%(host, command)); self.sz = 0
+        self.ls_cout, self.ls_cin = os.popen2('ssh %s bash'%host)
     def open(self, fname):
-        _send(self.cout, 'o', fname)
-        count, L = _recv(self.cin, 'i')[0], []
-        for i in range(count): L.append(_recv(self.cin, 'is'))
-        if L: self.sz += 1
-        return [UpltFrame(self, self.sz-1, i, dh[0], dh[1]) for i, dh in enumerate(L)]
+        self.ls_cout.write('echo %s\n'%fname); self.ls_cout.flush()
+        res = []
+        for fname in self.ls_cin.readline().split():
+            _send(self.cout, 'o', fname)
+            count, L = _recv(self.cin, 'i')[0], []
+            for i in range(count): L.append(_recv(self.cin, 'is'))
+            if L: self.sz += 1
+            res.append([fname]+[UpltFrame(self, self.sz-1, i, dh[0], dh[1]) for i, dh in enumerate(L)])
+        return res
 #-------------------------------------------------------------------------------
 class UpltFrame:
     def __init__(self, connect, dID, fID, dim, head):
