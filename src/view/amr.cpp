@@ -175,6 +175,12 @@ void aiw::AdaptiveMeshView::get_conf(ConfView &conf, bool firstcall) const {  //
 	conf.cfa_list = cfa_list;    conf.cfa_xfem_list.clear();
 }
 //------------------------------------------------------------------------------
+std::string aiw::AdaptiveMeshView::get(const ConfView& conf, aiw::Vec<2> r) const {
+	char buf[1024]; int i = coord2pos(r[0], conf.axes[0]), j = coord2pos(r[1], conf.axes[1]); double v =  *find(conf, ind(i, j));
+	snprintf(buf, 1023, "%g\n%i %i", v, i, j);
+	return buf;
+}
+//------------------------------------------------------------------------------
 aiw::Vec<2> aiw::AdaptiveMeshView::f_min_max(const ConfView &conf) const {  // вычисляет min-max, как это делать для preview?
 	auto I = begin(conf); double a = *I, b = a;
 	for(; I!=end(); ++I){

@@ -48,17 +48,24 @@ namespace aiw{
 			return Vec<2>(f_min, f_max);
 		}
 
-		float get(const ConfView& conf, aiw::Vec<3> r) const {
+		float get_f(const ConfView& conf, aiw::Vec<3> r) const {
 			const char *ptr = (const char*)(mem->get_addr());
 			if(!conf.sph_interp || mode>1){
 				size_t ID = mode==0? sph_cellInd(r, R): (mode==1? sph_vertInd(r, R): sph_edgeInd(r, R));
 				return conf.cfa.get_f(ptr + ID*szT);
-			}			
+			}
 			uint64_t IDs[13]; double weights[13]; int szw = sph_interp_weights(r, R, mode, IDs, weights);
 			float v = 0; for(int i=0; i<szw; i++) v += conf.cfa.get_f(ptr + IDs[i]*szT)*weights[i];
 			return v;
 		}
-		float get(const ConfView& conf, aiw::Vec<2> r) const override { return get(conf, polar(r[1], r[0])*(M_PI/180)); }
+		float get_f(const ConfView& conf, const aiw::Vec<2> &r) const { return get_f(conf, polar(r[1], r[0])*(M_PI/180)); }
+		std::string get(const ConfView& conf, aiw::Vec<2> r) const override {
+			Vec<3> r3 = polar(r[1], r[0])*(M_PI/180);
+			double v =  get_f(conf, r3);
+			size_t ID = mode==0? sph_cellInd(r3, R): (mode==1? sph_vertInd(r3, R): sph_edgeInd(r3, R));
+			char buf[1024]; snprintf(buf, 1023, "%g\n[%ld]", v, ID);
+			return buf;
+		}
 		
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
 #ifdef EBUG
@@ -75,7 +82,7 @@ namespace aiw{
 					for(; x<sqrt(y_max*y_max-y*y)*alpha; x++){
 						double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
 						Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
-						image.set_pixel(ind(x_max+x, y_max+y), color(get(conf, coord)));
+						image.set_pixel(ind(x_max+x, y_max+y), color(get_f(conf, coord)));
 					}
 					for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 				}
@@ -83,8 +90,8 @@ namespace aiw{
 				Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(phi0-M_PI, M_PI) + .5*step;
 				int sz_x = image.size[0], sz_y = image.size[1];
 #pragma omp parallel for	
-				for(int iy=0; iy<sz_y; iy++) for(int ix=0; ix<sz_x; ix++) image.set_pixel(ind(ix, iy), color(get(conf, bmin+vec(ix*step[0], iy*step[1]))));
-				// for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(get(conf, bmin+(pos&step))));
+				for(int iy=0; iy<sz_y; iy++) for(int ix=0; ix<sz_x; ix++) image.set_pixel(ind(ix, iy), color(get_f(conf, bmin+vec(ix*step[0], iy*step[1]))));
+				// for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color(get_f(conf, bmin+(pos&step))));
 			}
 			WOUT(omp_get_wtime()-t0);
 		}

@@ -214,9 +214,10 @@ class Content:
         #    v, cid = self.msh[r3], self.msh.find(r3)            
         #v, cid = self.data[self.ifile][self.iframe+1].get(self.conf, r), self.data[self.ifile][self.iframe+1].coord2pos(self.conf, r)
         #C.create_text(xy[0], xy[1], text='%g\n[%s]'%(v, cid), anchor='e', font=tfont, tag='msh_move', fill='gray')
-        v = '%g'%self.data[self.ifile][self.iframe+1].get(self.conf, r)
+        v = self.data[self.ifile][self.iframe+1].get(self.conf, r); Lv = v.split('\n')
+        v_len = max(map(str.__len__, Lv))
         #C.create_text(xy[0], xy[1], text='%g'%v, anchor='e', font=tfont, tag='msh_move', fill='gray')
-        C.create_rectangle(xy[0]-int(len(v)*tfont[1]*.8), xy[1], xy[0], xy[1]+int(tfont[1]*1.3),  tag='msh_move', fill='white') #, alpha=.5)
+        C.create_rectangle(xy[0]-int(v_len*tfont[1]*.8), xy[1], xy[0], xy[1]+int(tfont[1]*len(Lv)*1.3),  tag='msh_move', fill='white') #, alpha=.5)
         C.create_text(xy[0], xy[1], text=v, anchor='ne', font=tfont, tag='msh_move')
 #-------------------------------------------------------------------------------
 #  main widgets

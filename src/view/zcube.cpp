@@ -60,6 +60,12 @@ aiw::ZCubeView::access_t::access_t(const ZCubeView &data, const ConfView &conf){
 	cfa = conf.cfa;
 }
 //------------------------------------------------------------------------------
+std::string aiw::ZCubeView::get(const ConfView& conf, aiw::Vec<2> r) const {
+	char buf[1024]; Ind<2> pos; double x  = access_t(*this, conf)(r, &pos);
+	snprintf(buf, 1023, "%g\n[%i,%i]", x, pos[0], pos[1]);
+	return buf;
+}
+//------------------------------------------------------------------------------
 Vec<2> aiw::ZCubeView::f_min_max(const ConfView &conf) const { // вычисляет min-max, как это делать для preview?
 #ifdef EBUG
 	double t0 = omp_get_wtime();

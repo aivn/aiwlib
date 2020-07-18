@@ -47,7 +47,7 @@ class UpltFrame:
         return _recv(self.connect.cin, 'ff')
     def get(self, conf, r):
         _send(self.connect.cout, 'g', self.dID, self.fID, conf.pack(), r[0], r[1])
-        return _recv(self.connect.cin, 'f')[0]        
+        return _recv(self.connect.cin, 's')[0]        
     def preview(self, conf, image, color): 
         _send(self.connect.cout, 'p', self.dID, self.fID, conf.pack(), color.pack(), image.size[0], image.size[1])
         image.load(self.connect.cin.read(image.size.prod()*3))

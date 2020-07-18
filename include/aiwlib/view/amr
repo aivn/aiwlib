@@ -127,7 +127,7 @@ namespace aiw{
 		aiw::Vec<2> f_min_max(const ConfView &conf) const override;          // вычисляет min-max, как это делать для preview?
 
 		
-		float get(const ConfView& conf, aiw::Vec<2> r) const override { return  *find(conf, ind(coord2pos(r[0], conf.axes[0]), coord2pos(r[1], conf.axes[1]))); }
+		std::string get(const ConfView& conf, aiw::Vec<2> r) const override;
 
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const { // const 
 			iterator I = begin(conf); Vec<2> step = Vec<2>(image.size)/I.bbox;

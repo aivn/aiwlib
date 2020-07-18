@@ -68,7 +68,7 @@ int main(){
 			data[dID][fID]->get_conf(conf, fc); buf = conf.pack(); (std::cout<buf).flush();
 		} else if(A=='g'){  // get(conf, r)
 			int dID = 0, fID = 0; Vec<2> r; std::string buf; ConfView conf; std::cin>dID>fID>buf>r[0]>r[1]; conf.unpack(buf);
-			std::cout<double(data[dID][fID]->get(conf, r)); std::cout.flush();
+			std::cout<data[dID][fID]->get(conf, r); std::cout.flush();
 				// (std::cout<double(data[dID][fID]->get(conf, r))).flush();
 		} else if(A=='f'){  // получение пределов
 			int dID = 0, fID = 0; std::string buf; ConfView conf; std::cin>dID>fID>buf; conf.unpack(buf);

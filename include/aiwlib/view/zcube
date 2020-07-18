@@ -43,8 +43,9 @@ namespace aiw{
 					x = logscale&1<<axe ? log(r/(bmin[axe]*pow(step[axe], pos)))*rstep[axe]-.5 : (r-bmin[axe])*rstep[axe]-pos-.5;
 				} else pos = logscale&1<<axe ? log(r/bmin[axe])*rstep[axe] :(r-bmin[axe])*rstep[axe];
 			}
-			float operator()(const Vec<2> &r) const {
+			float operator()(const Vec<2> &r, Ind<2> *ppos=nullptr) const {
 				Ind<2> pos; Vec<2> x; mod_coord(0, r[0], pos[0], x[0]); mod_coord(1, r[1], pos[1], x[1]);
+				if(ppos) *ppos = pos;
 				return interpolate(*this, pos, x, interp);
 			}
 		};
@@ -57,7 +58,7 @@ namespace aiw{
 		void get_conf(ConfView &conf, bool firstcall=false) const override;  // настраивает conf (с учетом crop)
 		aiw::Vec<2> f_min_max(const ConfView &conf) const override;          // вычисляет min-max, как это делать для preview?
 
-		float get(const ConfView& conf, aiw::Vec<2> r) const override { return access_t(*this, conf)(r); }
+		std::string get(const ConfView& conf, aiw::Vec<2> r) const override;
 
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
 #ifdef EBUG

@@ -90,7 +90,7 @@ Vec<2> aiw::UnorderedMesh3DView::f_min_max(const ConfView &conf) const { // вы
 	return ff;
 }
 //------------------------------------------------------------------------------
-float aiw::UnorderedMesh3DView::get(const ConfView &conf, Vec<2> r) const {
+std::string aiw::UnorderedMesh3DView::get(const ConfView &conf, Vec<2> r) const {
 	int si; for(si=0; si<3; si++) if(si!=conf.axes[0] && si!=conf.axes[1]) break; // номер оси по которой строится срез
 	Vec<3> r3; r3[si] = conf.slice[si]; for(int i=0; i<2; i++) r3[conf.axes[i]] = r[i];
 	float w[4];
@@ -102,9 +102,10 @@ float aiw::UnorderedMesh3DView::get(const ConfView &conf, Vec<2> r) const {
 			else if(conf.xfem_mode==1) f = conf.cfa.get_f(data+cells[cid]);
 			else if(conf.xfem_mode==3) f = conf.cfa.get_f(cell.phys);
 			else { int i=0; for(int j=1; j<4; j++){ if(w[i]>w[j]) i = j; } f = conf.cfa.get_f(data+faces[cell.faces[i]]); } // ищем ближайшую к r грань
-			return f;
+			char buf[64]; snprintf(buf, 63, "%g", f);
+			return buf;
 		}
 	}
-	return nanf("");
+	return "nan";
 }
 //------------------------------------------------------------------------------
