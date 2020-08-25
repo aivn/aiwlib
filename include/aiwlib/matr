@@ -268,3 +268,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif //AIW_MATRIX_HPP
+
+#ifdef AIW_TYPEINFO_HPP
+#include "typeinfo"
+#endif //AIW_TYPEINFO_HPP

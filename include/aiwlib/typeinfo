@@ -16,9 +16,6 @@
 // #include <typeinfo>
 #include <complex>
 #include "vec"
-#include "dvec"
-#include "matr"
-#include "dmatr"
 #include "iostream"
 #include "binaryio"
 #include "packer"
@@ -258,22 +255,28 @@ namespace aiw{
 	ADD_BASE_TYPE(uint64_t, 10)
 	ADD_BASE_TYPE(int64_t,  11)
 #undef ADD_BASE_TYPE
-
+#endif //SWIG
+	//--------------------------------------------------------------------------
 	template <typename T, int D> TypeInfo::field_t operator ^ (T const (&p)[D], TypeInfo& ti){ return (p[0]^ti).add_dim(D); } 
 	template <typename T, size_t D> TypeInfo::field_t operator ^ (const std::array<T, D> &p, TypeInfo& ti){ return (p[0]^ti).add_dim(D); }
 	
 	template <typename T> TypeInfo::field_t operator ^ (std::complex<T>, TypeInfo& ti){ return (T()^ti).add_dimV(2); }
-	
 	template <int D, typename T> TypeInfo::field_t operator ^ (const Vec<D, T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(D); }
-	template <int Y, int X, typename T> TypeInfo::field_t operator ^ (const Matr<Y, X, T> &M, TypeInfo &tio){ return (T()^tio).add_dimV(X).add_dimV(Y); }
-	// template <typename T> inline TypeInfo::field_t operator ^ (const DynVec<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1); }
-	// template <typename T> inline TypeInfo::field_t operator ^ (const DynMatr<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1).add_dimV(-1); }
 
 	template <typename T> TypeInfo::field_t operator ^ (T, TypeInfo&){
 		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, use macros TYPEINFO or TYPEINFO_X for your type! ***\033[0m\n");
 		return TypeInfo::field_t();
 	} 
-	//--------------------------------------------------------------------------
-#endif //SWIG
 }   // end of namespace aiw
 #endif //AIW_TYPEINFO_HPP
+
+#if defined(AIW_MATRIX_HPP) && !defined(AIW_TYPEINFO_MATR)
+#define AIW_TYPEINFO_MATR
+namespace aiw{	
+	template <int Y, int X, typename T> TypeInfo::field_t operator ^ (const Matr<Y, X, T> &M, TypeInfo &tio){ return (T()^tio).add_dimV(X).add_dimV(Y); }
+}
+#endif // defined(AIW_MATRIX_HPP) && !defined(AIW_TYPEINFO_MATR)
+
+// template <typename T> inline TypeInfo::field_t operator ^ (const DynVec<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1); }
+// template <typename T> inline TypeInfo::field_t operator ^ (const DynMatr<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1).add_dimV(-1); }
+

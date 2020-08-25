@@ -90,8 +90,8 @@ aiw::MeshView::access_t::access_t(const MeshView &data, const ConfView &conf){
 }
 //------------------------------------------------------------------------------
 std::string aiw::MeshView::get(const ConfView& conf, aiw::Vec<2> r) const {
-	char buf[1024]; Ind<2> pos; double x  = access_t(*this, conf)(r, &pos);
-	snprintf(buf, 1023, "%g\n[%i,%i]", x, pos[0], pos[1]);
+	char buf[1024]; double x  = access_t(*this, conf)(r);
+	snprintf(buf, 1023, "%g\n[%i,%i]", x, coord2pos(r[0], conf.axes[0]), coord2pos(r[1], conf.axes[1]));
 	return buf;
 }
 //------------------------------------------------------------------------------

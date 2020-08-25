@@ -371,12 +371,12 @@ namespace aiw{
 	}
 	template <int D, typename T> std::istream& operator >> (std::istream &s, Vec<D, T> &v){	
 		for(int i=0; i<D; i++){ s>>v[i]; if(i<D-1 and s.get()!=',') s.unget(); } return s;
-	}
+	}	
 #ifdef AIW_IOSTREAM_HPP
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
-#endif //AIW_IOSTREAM_HPP
+#endif //AIW_IOSTREAM_HPP	
 	//--------------------------------------------------------------------------
 	//   other functions
 	//--------------------------------------------------------------------------
@@ -417,4 +417,10 @@ namespace std{
 //---------------------------------------------------------------------------
 }; // end of namespace std
 #endif //SWIG
-#endif //AIW_EUCLID_HPP
+#endif //AIW_VEC_HPP
+
+#ifdef AIW_BINARY_IO_HPP
+#include "binaryio"
+#endif //AIW_BINARY_IO_HPP
+
+

@@ -41,9 +41,8 @@ namespace aiw{
 					x = logscale&1<<axe ? log(r/(bmin[axe]*pow(step[axe], pos)))*rstep[axe]-.5 : (r-bmin[axe])*rstep[axe]-pos-.5;
 				} else pos = logscale&1<<axe ? log(r/bmin[axe])*rstep[axe] :(r-bmin[axe])*rstep[axe];
 			}
-			float operator()(const Vec<2> &r, Ind<2> *ppos=nullptr) const {
+			float operator()(const Vec<2> &r) const {
 				Ind<2> pos; Vec<2> x; mod_coord(0, r[0], pos[0], x[0]); mod_coord(1, r[1], pos[1], x[1]);
-				if(ppos) *ppos = pos;
 				return interpolate(*this, pos, x, interp);
 			}
 		};

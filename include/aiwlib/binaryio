@@ -7,8 +7,6 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#ifndef SWIG		
-
 #include "iostream"
 #include <complex>
 #include <vector>
@@ -50,6 +48,11 @@ namespace aiw{
 	inline IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }
 	template <typename T, int D> 
 	inline IOstream& operator > (IOstream& S, T (&p)[D]){ for(int i=0; i<D; i++) S>p[i]; return S; }
+	//--------------------------------------------------------------------------
+	inline void dump_to_iostream(aiw::IOstream&) {}							
+	template <typename T, typename ... Args>  void dump_to_iostream(aiw::IOstream &S, const T& x, const Args&... args){ dump_to_iostream(S<x, args...); }
+	inline void load_from_iostream(aiw::IOstream&) {}							
+	template <typename T, typename ... Args>  void load_from_iostream(aiw::IOstream &S, T& x, Args&... args){ load_from_iostream(S>x, args...); }
 	//--------------------------------------------------------------------------
 	//   complex numeric
 	//--------------------------------------------------------------------------
@@ -115,19 +118,15 @@ namespace aiw{
 		for(size_t i=0; i<sz; i++){ S>k>v; X[k] = v; }
 		return S;
 	}		
-// #endif //_GLIBCXX_MAP
+	// #endif //_GLIBCXX_MAP
+};
+#endif //AIW_BINARY_IO_HPP
 	//--------------------------------------------------------------------------
 #if defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
-// #define AIW_BINARY_IO_VEC
+#define AIW_BINARY_IO_VEC
+namespace aiw{
 	template<int D, typename T> inline IOstream& operator < (IOstream& S, const Vec<D, T>& x){ S.write(&x, sizeof(x)); return S; }
 	template<int D, typename T> inline IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
-#endif //AIW_VEC_HPP
+}
+#endif //defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
 	//--------------------------------------------------------------------------
-	inline void dump_to_iostream(aiw::IOstream&) {}							
-	template <typename T, typename ... Args>  void dump_to_iostream(aiw::IOstream &S, const T& x, const Args&... args){ dump_to_iostream(S<x, args...); }
-	inline void load_from_iostream(aiw::IOstream&) {}							
-	template <typename T, typename ... Args>  void load_from_iostream(aiw::IOstream &S, T& x, Args&... args){ load_from_iostream(S>x, args...); }
-	//--------------------------------------------------------------------------
-};
-#endif //SWIG		
-#endif //AIW_BINARY_IO_HPP
