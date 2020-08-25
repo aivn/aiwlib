@@ -51,8 +51,8 @@ class FrontViewer(ViewerGLUT):
         self.autoscale()
         self.autoscalecb()
         checkOpenGLerror()
-    def Bind(self):
-        ViewerGLUT.Bind(self)
+    #def Bind(self):
+    #    ViewerGLUT.Bind(self)
     def switch_spr(self, i):
         "Переключает шейдерную программу, служебная функция"
         self.spr = self._sprs[i]
@@ -84,8 +84,6 @@ class FrontViewer(ViewerGLUT):
         #    self.load_params(**self.saved_params[orts_item])
         #else:
         self.autoscale()
-    def plot(self,surf):
-        self.Surf = surf
     def using(self, o1, o2, o3, item):
         """Устанавливает данные для отображения, оси и цвет. Можно использовать названия или цифры"""
         #cl = self.Surf.Surf.get_cell_appends_len()
@@ -155,7 +153,7 @@ def start_gui(reader):
     uv = FrontViewer(reader,sys.argv)
     inp = File(sys.argv[1],"r")
     surf = Surf(inp)
-    uv.plot(surf)
+    uv.set_object(surf)
     uv.namespace = dict()
     uv.namespace.update(uv.__dict__)
     uv.namespace.update(UniversalViewer.__dict__)
