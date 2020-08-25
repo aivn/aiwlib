@@ -3,6 +3,9 @@
 #include "fv_interface.hpp"
 #include "../../AbstractViewer/plottable.hpp"
 #include <set>
+#define POS 0
+#define CLR 1
+#define NRM 2
 using namespace aiw;
 aiw::Vec<3,float> glmtoaiw(glm::vec3 v){
     aiw::Vec<3,float> res(0.f);
