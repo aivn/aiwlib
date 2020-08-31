@@ -93,7 +93,7 @@ namespace aiw{
 			if(cursor==64){ S>buf; cursor = 0; }
 			*i = buf&(uint64_t(1)<<cursor++);
 		}
-		return S;
+		return S; 
 	}
 // #endif //_GLIBCXX_VECTOR
 	//--------------------------------------------------------------------------
