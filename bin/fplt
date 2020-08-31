@@ -8,6 +8,10 @@ path_to_AV = "../AbstractViewer"
 try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
 except: launcher_dir = os.path.dirname(sys.argv[0])
 sys.path.append( os.path.join(launcher_dir,path_to_AV) )
+from async_input import rl_async_reader, async_process
+from ViewerGLUT import *
+from OpenGL import GL
+rl_reader = rl_async_reader(os.path.expanduser("~/.{}_history".format(os.path.basename(sys.argv[0]))))
 
 fragment_shader = '''
 #version 330 core
@@ -92,7 +96,6 @@ void main() {
     gl_Position = res;
 }
 '''
-from UniversalViewer import *
 
 forward_methods = ["next", "jump",
         "get_frame", "get_cbrange", "autoscalecb", 
@@ -108,29 +111,41 @@ params_dump_dict = { "ax":"ax", "get_pal":"set_pal", "get_brightness":"set_brigh
         "get_wire":"set_wire","bb_auto":"bb_auto", "get_cb_auto":"set_cb_auto",
         "get_opacity":"set_opacity"}
 colorkeys = [ ("autoscalecb()","a"), ("autoscalecb()","a",["Shift"])]
-class VolumeViewer(UniversalViewer):
-    def __init__(self, argv):
-        UniversalViewer.__init__(self,argv)
-        self._sprs = [self.spr,ShaderProg()]
-        self._cur_spr = 0
-        #self.instancebuffer=FrameBuffer(self.get_height(), self.get_width(),int(GL.GL_RGBA32I))
+class VolumeViewer(ViewerGLUT):
+    def __init__(self, reader, argv):
+        ViewerGLUT.__init__(self,reader,argv)
+        #UniversalViewer.__init__(self,argv)
+        self.title_template = "VolumeViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} frame={frame}"
+        self.image_name_template = "FR{frame}-SC{scale}.png"
         for method in forward_methods:
-            #print method, get_arglist(getattr(Surf,method), False)
-            setattr(self.__class__, method, ext_generator(method, *get_arglist(getattr(Volume,method), True)))
+            setattr(self.__class__, method, ext_generator(method, Volume, *get_arglist(getattr(Volume,method), True)))
+    def InitGL(self):
+        checkOpenGLerror()
+        self._sprs = [self.spr,Shader()]
+        self._cur_spr = 0
+        self.shader_load(vertex_shader, fragment_shader)
+        self.switch_spr(1)
+        self.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+        self.switch_spr(0)
+        self.V.MakeCurrent()
+        flushOpenGLerror()
+        self.LoadGL()
+        self.autoscale()
+        self.autoscalecb()
+        checkOpenGLerror()
     def switch_spr(self, i):
         "Переключает шейдерную программу, служебная функция"
         self.spr = self._sprs[i]
         self._cur_spr = i
         if i ==1: self.ax = False
         else: self.ax = True
-
     def execute(self, string, **kwargs):
         """выполняет функции в переменных вьюера, служебная функциия"""
         #kwargs["__builtins__"]=__builtins__
         kwargs.update(globals())
         if isinstance(string, str): exec(string,kwargs,self)
         else: exec(func2string(string), kwargs, self)
-        glutPostRedisplay()
+        self.V.update()
     def evaluate(self, string, **kwargs):
         "вычисляет выражение в переменных вьюера, служебная функциия"
         #kwargs["__builtins__"]=__builtins__
@@ -144,31 +159,31 @@ class VolumeViewer(UniversalViewer):
     def set_yrange(self, lower, upper):
         "Устанавливает диапазон значений по y, не меняет bb_auto"
         self.V.set_bounding_box(1, lower, False), self.V.set_bounding_box(1, upper, True)
-        self.Surf.adjust_cube(self.V)
+        self.Surf.adjust_cube(self.V.V)
     def set_zrange(self, lower, upper):
         "Устанавливает диапазон значений по z, не меняет bb_auto"
         self.V.set_bounding_box(2, lower, False), self.V.set_bounding_box(2, upper, True)
-        self.Surf.adjust_cube(self.V)
+        self.Surf.adjust_cube(self.V.V)
     def clip_plane_move(self, val, pl):
         '''Перемещает плоскости отсечения, эквивалентно перемещению соответствующих границ диапазонов значений
         на величину val внутрь диапазона. pl 0,1 и 2 нижние границы по x,y и z соответственно, 4,5,6 — верхние'''
         self.bb_auto = False
         self.V.clip_plane_move(val,pl)
-        self.Surf.adjust_cube(self.V)
+        self.Surf.adjust_cube(self.V.V)
     def autoscale(self):
         "Установить пределы по x,y,z чтобы отображаемые данные полностью помещались в окно, устанавливает bb_auto."
         bb_min, bb_max = self.Surf.autobox()
         self.set_xrange__(bb_min[0], bb_max[0])
         self.set_yrange__(bb_min[1], bb_max[1])
         self.set_zrange__(bb_min[2], bb_max[2])
-        self.Surf.adjust_cube(self.V)
+        self.Surf.adjust_cube(self.V.V)
         self.bb_auto = True
         self.V.automove()
     def switch_buffer(self,name, save = True,SD = params_dump_dict):
         '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
         под текущим именем, SaveDict — словарь созраняемых параметров'''
         UniversalViewer.switch_buffer(self,name,save, SD)
-        glutPostRedisplay()
+        self.V.update()
     def _display(self):
         "Заготовка для glut display, служебная функция"
         if self.bb_auto:
@@ -199,34 +214,28 @@ class VolumeViewer(UniversalViewer):
 #setattr(UniversalViewer,"set_orts", set_orts)
 #setattr(UniversalViewer,"using", using)
 #setattr(UniversalViewer,"execute", execute)
-uv = VolumeViewer(sys.argv)
-uv.shader_load(vertex_shader, fragment_shader)
-uv.switch_spr(1)
-uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
-uv.switch_spr(0)
-
-inp = File(sys.argv[1],"r")
-surf = Volume(inp)
-#uv.saved_params = {}
-uv.plot(surf)
-#uv.switch_buffer = switch_buffer
-uv.namespace = dict()
-uv.namespace.update(uv.__dict__)
-uv.namespace.update(UniversalViewer.__dict__)
-uv.namespace.update(VolumeViewer.__dict__)
-trans_vars = {}
-for k in uv.namespace:
-    if k.startswith("get_"):
-        trans_vars[k[4:]] = None
-uv.namespace.update(trans_vars)
-namespace = dict(uv.namespace)
-uv.rl_reader.set_completer(namespace)
-for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
-    uv.set_key(*km)
+@async_process
+def start_gui(reader):
+    uv = VolumeViewer(reader, sys.argv)
+    inp = File(sys.argv[1],"r")
+    surf = Volume(inp)
+    uv.set_object(surf)
+    uv.namespace = dict()
+    uv.namespace.update(uv.__dict__)
+    uv.namespace.update(UniversalViewer.__dict__)
+    uv.namespace.update(VolumeViewer.__dict__)
+    trans_vars = {}
+    for k in uv.namespace:
+        if k.startswith("get_"):
+            trans_vars[k[4:]] = None
+    uv.namespace.update(trans_vars)
+    namespace = dict(uv.namespace)
+    uv.update_completion(namespace)
+    for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
+        uv.set_key(*km)
 #uv.set_key("print get_instance(x,y)","g")
-uv.title_template = "VolumeViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} frame={frame}"
-uv.image_name_template = "FR{frame}-SC{scale}.png"
-uv.autoscale()
-uv.autoscalecb()
-uv()
+    uv.set_key("next()", " ")
+    uv.set_key("jump(-1)"," ", ["Shift"]),
+    uv()
+rl_reader(start_gui)
 

@@ -81,16 +81,17 @@ namespace aiw{
 	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& X){
 		S<uint64_t(X.size()); uint64_t cursor=0, buf=0;
 		for(auto i=X.begin(); i!=X.end(); ++i){
-			buf |= int(*i)<<cursor++; 
-			if(cursor==64){ S<buf; cursor = 0; }
+			buf |= uint64_t(*i)<<cursor++; 
+			if(cursor==64){ S<buf; cursor = 0; buf = 0; }
 		}
+		if(cursor) S<buf;
 		return S;
 	}		
 	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& X){
 		uint64_t sz=0; S>sz; X.resize(sz); uint64_t cursor=64, buf=0;
 		for(auto i=X.begin(); i!=X.end(); ++i){
 			if(cursor==64){ S>buf; cursor = 0; }
-			*i = buf&(1<<cursor++);
+			*i = buf&(uint64_t(1)<<cursor++);
 		}
 		return S;
 	}

@@ -9,8 +9,10 @@ path_to_AV = "../AbstractViewer"
 try: launcher_dir = os.path.dirname(os.readlink(sys.argv[0]))
 except: launcher_dir = os.path.dirname(sys.argv[0])
 sys.path.append( os.path.join(launcher_dir,path_to_AV) )
-
-from UniversalViewer import *
+from async_input import rl_async_reader, async_process
+from ViewerGLUT import *
+from OpenGL import GL
+rl_reader = rl_async_reader(os.path.expanduser("~/.{}_history".format(os.path.basename(sys.argv[0]))))
 
 forward_methods = ["next", "jump", "get_time",
         "get_frame", "get_item", "get_cbrange", "autoscalecb", 
@@ -25,15 +27,32 @@ params_dump_dict = { "ax":"ax", "get_pal":"set_pal",
 colorkeys = [ ("autoscalecb()","a"), ("autoscalecb()","a",["Shift"]),
         ("set_item((get_item()+1)%get_appends_len())",">",["Shift"]),
         ("set_item((get_item()+get_appends_len() -1)%get_appends_len())","<",["Shift"]) ]
-class FrontViewer(UniversalViewer):
-    def __init__(self, argv):
-        UniversalViewer.__init__(self,argv)
-        self._sprs = [self.spr, ShaderProg()]
-        self._cur_spr = 0
+class FrontViewer(ViewerGLUT):
+    def __init__(self, reader, argv):
+        ViewerGLUT.__init__(self,reader,argv)
         self.instancebuffer=FrameBuffer(self.get_height(), self.get_width(),int(GL.GL_RGBA32I))
+        self.title_template = "FrontViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} item={item_name} orts:{orts_names[0]}:{orts_names[1]}:{orts_names[2]} frame={frame}"
+        self.image_name_template = "FR{frame}-SC{scale}.png"
         for method in forward_methods:
             #print method, get_arglist(getattr(Surf,method), False)
-            setattr(self.__class__, method, ext_generator(method, *get_arglist(getattr(Surf,method), True)))
+            setattr(self.__class__, method, ext_generator(method, Surf, *get_arglist(getattr(Surf,method), True)))
+    def InitGL(self):
+        #ViewerGLUT.OnInit(self)
+        checkOpenGLerror()
+        self._sprs = [self.spr, Shader()]
+        self._cur_spr = 0
+        self.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
+        self.switch_spr(1)
+        self.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["vertex_index.shader","fragment_index.shader"])) )
+        self.switch_spr(0)
+        self.V.MakeCurrent()
+        flushOpenGLerror()
+        self.LoadGL()
+        self.autoscale()
+        self.autoscalecb()
+        checkOpenGLerror()
+    #def Bind(self):
+    #    ViewerGLUT.Bind(self)
     def switch_spr(self, i):
         "Переключает шейдерную программу, служебная функция"
         self.spr = self._sprs[i]
@@ -80,7 +99,7 @@ class FrontViewer(UniversalViewer):
         kwargs.update(globals())
         if isinstance(string, str): exec(string,kwargs,self)
         else: exec(func2string(string), kwargs, self)
-        glutPostRedisplay()
+        self.V.update()
     def evaluate(self, string, **kwargs):
         "вычисляет выражение в переменных вьюера, служебная функциия"
         #kwargs["__builtins__"]=__builtins__
@@ -92,7 +111,7 @@ class FrontViewer(UniversalViewer):
         '''Переключает текущее отображение на созраненное с именем name, если save — True созраняет текущие параметры отображения
         под текущим именем, SaveDict — словарь созраняемых параметров'''
         UniversalViewer.switch_buffer(self,name,save, SD)
-        glutPostRedisplay()
+        self.V.update()
     def get_item_name(self):
         "Возвращает название оси данных по её номеру"
         return self.Surf.items_to_names[self["item"]]
@@ -115,7 +134,7 @@ class FrontViewer(UniversalViewer):
         self.instancebuffer.bind_read()
         checkOpenGLerror()
         buffer = GL.glReadPixels(x,height-y, 1, 1, GL.GL_RGBA_INTEGER, GL.GL_INT)
-        mypixel = buffer[0][0]
+        mypixel = [buffer[i][0][0] for i in range(4)] # reverse order now!
         instanceID = mypixel[0]+128+ (mypixel[1]+128<<8)+(mypixel[2]+128<<16) if mypixel[3]==127 else -1##mypixel#int(mypixel[0])+((int(mypixel[1]))<<8) + ((int(mypixel[2]))<<16)
         self.instancebuffer.relax()
         del buffer
@@ -129,35 +148,29 @@ class FrontViewer(UniversalViewer):
 #setattr(UniversalViewer,"set_orts", set_orts)
 #setattr(UniversalViewer,"using", using)
 #setattr(UniversalViewer,"execute", execute)
-uv = FrontViewer(sys.argv)
-uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["v.shader","f.shader"])) )
-uv.switch_spr(1)
-uv.shader_extern_load(*map(lambda x: os.path.join(launcher_dir, x), map(lambda x: os.path.join(path_to_AV,x), ["vertex_index.shader","fragment_index.shader"])) )
-uv.switch_spr(0)
-
-inp = File(sys.argv[1],"r")
-surf = Surf(inp)
-#uv.saved_params = {}
-uv.plot(surf)
-#uv.switch_buffer = switch_buffer
-uv.namespace = dict()
-uv.namespace.update(uv.__dict__)
-uv.namespace.update(UniversalViewer.__dict__)
-uv.namespace.update(FrontViewer.__dict__)
-trans_vars = {}
-for k in uv.namespace:
-    if k.startswith("get_"):
-        trans_vars[k[4:]] = None
-uv.namespace.update(trans_vars)
-namespace = dict(uv.namespace)
-namespace.update(uv.Surf.app_names)
-uv.rl_reader.set_completer(namespace)
-for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
-    uv.set_key(*km)
-uv.set_key("print get_instance(x,y)","g")
-uv.title_template = "FrontViewer scale={scale} cb={cbrange[0]}:{cbrange[1]} item={item_name} orts:{orts_names[0]}:{orts_names[1]}:{orts_names[2]} frame={frame}"
-uv.image_name_template = "FR{frame}-SC{scale}.png"
-uv.autoscale()
-uv.autoscalecb()
-uv()
-
+@async_process
+def start_gui(reader):
+    uv = FrontViewer(reader,sys.argv)
+    inp = File(sys.argv[1],"r")
+    surf = Surf(inp)
+    uv.set_object(surf)
+    uv.namespace = dict()
+    uv.namespace.update(uv.__dict__)
+    uv.namespace.update(UniversalViewer.__dict__)
+    uv.namespace.update(FrontViewer.__dict__)
+    trans_vars = {}
+    for k in uv.namespace:
+        if k.startswith("get_"):
+            trans_vars[k[4:]] = None
+    uv.namespace.update(trans_vars)
+    namespace = dict(uv.namespace)
+    namespace.update(uv.Surf.app_names)
+    uv.update_completion(namespace)
+    for km in DefaultKeyMapping + SurfTemplateKeys + colorkeys:
+        uv.set_key(*km)
+    uv.set_key("print get_instance(x,y)","g")
+    uv.set_key("next()", " ")
+    uv.set_key("jump(-1)"," ", ["Shift"]),
+#    uv.InitGL()
+    uv()
+rl_reader(start_gui)

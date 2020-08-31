@@ -20,7 +20,7 @@ swig=on
 png=on
 pil=on
 bin=on
-ezz=off
+ezz=on
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
 # раскомментируйте одну из этих строк для ПОСТОЯННОГО использования (или отказа от) MPI
 # mpi=on

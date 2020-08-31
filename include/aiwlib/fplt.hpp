@@ -94,7 +94,7 @@ class Mplt:public Plottable, public Mesh<float, 3>{
             bb_min = Mesh<float, 3>::bmin;
             bb_max = Mesh<float, 3>::bmax-step;
         }
-        void adjust_cube(const Viewer & V){
+        void adjust_cube(const Viewer3D & V){
             get_auto_box(*reinterpret_cast<aiw::Vec<3, float>*>(&cubemin), *reinterpret_cast<aiw::Vec<3, float>*>(&cubemax));
             auto vmin = V.get_vmin();
             auto vmax = V.get_vmax();
