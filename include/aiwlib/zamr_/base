@@ -1,0 +1,68 @@
+// -*- C++ -*-
+#ifndef AIW_ZIP_AMR_BASE_HPP
+#define AIW_ZIP_AMR_BASE_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * ZipAdaptiveMesh base methods implementation.
+ * !!! DO NOT INCLUDE THIS FILE MANUALLY !!!
+ **/
+
+//------------------------------------------------------------------------------
+template <typename T, int D> T& ZipAdaptiveMesh<T, D>::get(Ind<D> pos){
+	int r = 1<<max_rank; Cell c;
+	if(this->check_out_pos(pos) || !forest[pos/r].get(c, pos2zoff(pos%r, max_rank), max_rank)) return out_value;
+	return *c;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> void ZipAdaptiveMesh<T, D>::set_max_rank_box_step(){ // устанавливает max_rank, box и шаги
+	max_rank = 0; for(auto &t: forest) max_rank = std::max(t.max_rank, max_rank);
+	box = forest.bbox()*(1<<max_rank); this->set_axes(bmin, bmax);
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0){
+	box = tbox*(1<<R0); this->set_axes(bmin_, bmax_); max_rank = R0;
+	forest.init(tbox, bmin_, bmax_);
+	for(Ind<D> pos; pos^=tbox; ++pos){
+		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&step);
+		t.max_rank = R0; t.tree.clear(); t.data.resize(1<<(R0*D)); t.root = ptile_t(0, R0);
+	}
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> size_t ZipAdaptiveMesh<T, D>::memsz() const { // размер памяти в байтах
+	size_t res = sizeof(*this) + sizeof(tree_t)*forest.bbox().prod();
+	for(auto &t: forest) res += sizeof(T)*t.data.size() + 4*t.tree.size();
+	return res;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> void ZipAdaptiveMesh<T, D>::dump(IOstream&& S) const {
+	BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<30; bf.box = nullptr;
+	bf.tinfo.root = T()^bf.tinfo; bf.dump(S); S<forest.bbox(); for(auto &t: forest) t.dump(S);
+	S.flush();
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> bool ZipAdaptiveMesh<T, D>::load(IOstream&& S, int use_mmap, bool raise_on_error){ // mmap пока игнорируется
+	BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<30;  bf.box = nullptr;
+	if(!bf.load(S)){
+		if(raise_on_error){ WRAISE("incorrect ZipAdaptiveMesh::load(): ", D, bf.D, sizeof(T), bf.szT, S.name, S.tell(), bf.head); }
+		return false;
+	}
+	head = bf.head; logscale = bf.logscale;
+	Ind<D> box_; S>box_;  init(box_, bmin, bmax);
+	for(auto &t: forest) t.load(S);
+	set_max_rank_box_step();
+	return true;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D>  template <typename dT, typename F1, typename F2> void ZipAdaptiveMesh<T, D>::foreach2Xdt(F1 &&f1, F2 &&f2, dT dt){
+	dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
+	for(int i=0; i<(1<<max_rank); i++){
+		for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, i>>(max_rank-C.rank()), dt_arr[C.rank()]);
+		for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, (i+1)>>(max_rank-C.rank()), dt_arr[C.rank()]);
+	}
+}
+//------------------------------------------------------------------------------
+
+#endif //AIW_ZIP_AMR_BASE_HPP

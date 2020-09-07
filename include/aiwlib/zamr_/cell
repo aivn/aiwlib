@@ -1,0 +1,91 @@
+// -*- C++ -*-
+#ifndef AIW_ZIP_AMR_CELL_HPP
+#define AIW_ZIP_AMR_CELL_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * ZipAdaptiveMesh::Cell methods implementation.
+ * !!! DO NOT INCLUDE THIS FILE MANUALLY !!!
+ **/
+
+//------------------------------------------------------------------------------
+template <typename T, int D>  Vec<D> ZipAdaptiveMesh<T, D>::Cell::step() const { return tree->msh->steps[R]; }
+template <typename T, int D>  Vec<D> ZipAdaptiveMesh<T, D>::Cell::bmin() const { return tree->bmin + (zoff2pos<D>(poff, R)&step()); }
+//------------------------------------------------------------------------------
+// ищет ячейку со смещением off на Z-кривой ранга rank,
+// возвращает false при выходе за пределы дерева, при этом ячейка не меняется
+// может найти как более крупную так и более мелкую ячейки
+template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::tree_t::get(ZipAdaptiveMesh<T, D>::Cell &cell, uint32_t off, int rank){  // доступ к ячейке
+	if(off>=tile_sz(rank)) return false;
+	cell.tree = this;  cell.R = cell.tR = root.get_rank();  ptile_t cursor = root;
+	if(rank<max_rank) off <<= D*(max_rank-rank);  else off >>= D*(rank-max_rank); // приводим off к max_rank
+	while(cursor.get_flag(0)){  // спускаемся по дереву 
+		uint32_t shift = D*(max_rank-cell.R); 
+		cursor = tree[cursor.get_off() + ((off>>shift) & RDbits(cell.tR))]; // [+фрагмент off длиной D*tR бит]
+		cell.tR = cursor.get_rank(); cell.R += cell.tR;
+	} // тут нужна проверка что ячейка такого ранга и правда сущеcтвует?
+ 	cell.poff = off>>(D*(max_rank-cell.R));
+	cell.toff = cell.poff & RDbits(cell.tR);
+	cell.ptr = data.data()+cursor.get_off()+cell.toff;
+	cell.toff |= Dbits<<(D*(cell.tR+1));  // запас в старших битах для отрицательных смещений к соседям
+	return true;
+}
+//------------------------------------------------------------------------------
+// если нет соседней ячейки на этом уровне возвращаемая ячейка неактивна
+template <typename T, int D>  const typename ZipAdaptiveMesh<T, D>::Cell ZipAdaptiveMesh<T, D>::Cell::operator [](const Ind<D> &dpos) const {  // доступ к соседям
+	Cell res = *this;  res.toff = calc_nb_zoffset(dpos, toff); // новое смещение внутри тайла с учетом запаса в старших битах
+	int32_t doff = int64_t(res.toff)-int64_t(toff); // разница в смещениях на ранге tR, поскольку R>=tR можно не приводить ее к R
+	if(((res.toff>>(D*res.tR))&Dbits)==Dbits){ res.ptr += doff; res.poff += doff; } // остались внутри тайла
+	else if(int64_t(poff)+doff<0 || !tree->get(res, poff+doff, R)){ // вышли за пределы дерева
+		Ind<D> tree_pos = tree->pos; res.ptr = nullptr;
+		uint64_t off0 = (uint64_t(Dbits)<<(D*(R+1)))|poff, off1 = calc_nb_zoffset<D>(dpos, off0);		
+		for(int i=0; i<D; i++) if(!(off1&(uint64_t(1)<<(R*D+i)))){ if(off1&(uint64_t(1)<<((R+1)*D+i))) tree_pos[i]++; else tree_pos[i]--; }
+		if(ind(0)<=tree_pos && tree_pos<tree->msh->forest.bbox()){
+			tree->msh->forest[tree_pos].get(res, off1&RDbits(R), R);
+			if(res.R!=R) res.ptr = nullptr;
+		}
+	}
+	return res;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::bound(int axe) const {  // принимает номер оси со знаком (грань слева/справа) начиная с единицы
+	int a = abs(axe)-1;
+	if(axe<0) return tree->pos[a]==0 && !(poff&(zmasks[D]<<a)); 
+	if(tree->pos[a]==tree->msh->forest.bbox()[a]-1){ uint32_t mask = (zmasks[D]<<a)&RDbits(R); return (poff&mask)==mask; }
+	return false;
+}
+//------------------------------------------------------------------------------
+// f(Cell &nbC)
+// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
+// ifdR - допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
+template <typename T, int D>  template <typename F>  void ZipAdaptiveMesh<T, D>::Cell::face(F&& f, int axe, int ifdR){ 
+	if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i, ifdR); face(f, i, ifdR); } return; } // шаблон крест
+	int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1;
+	Cell res = *this;  res.toff = calc_nb_zoffset<D>(a, sign, toff);
+	int32_t doff = int64_t(res.toff)-int64_t(toff);  // разница в смещениях на ранге tR, поскольку R>=tR можно не приводить ее к R
+	if(((res.toff>>(D*res.tR))&Dbits)==Dbits){ if(ifdR<2){ res.ptr += doff; res.poff += doff; f(res); } return; } // остались внутри тайла
+	if(int64_t(poff)+doff<0 || !tree->get(res, poff+doff, R)){ // вышли за пределы дерева
+		Ind<D> tree_pos = tree->pos; tree_pos[a] += sign;
+		uint64_t off0 = (uint64_t(Dbits)<<(D*(R+1)))|poff, off1 = calc_nb_zoffset<D>(a, sign, off0);		
+		if(tree_pos[a]<0 || tree->msh->forest.bbox()[a]<=tree_pos[a]){ res.ptr = nullptr; f(res); } // вышли за границу
+		tree->msh->forest[tree_pos].get(res, off1&RDbits(R), R);
+	}
+	if((res.R<R && !ifdR) || (res.R==R && ifdR<2)) f(res); // сосед того же ранга или крупнее
+	else if(res.R>R && !ifdR){  // много мелких соседей
+		uint32_t max_poff = (res.poff>>(D*(R-res.R)))+1, mask = zmasks[D]<<a, imask = ~mask; 
+		if(sign<0) res.poff |= mask&RDbits(res.tree->max_rank-res.R);
+		else res.poff &= ~(mask&RDbits(res.tree->max_rank-res.R));
+		res.tree->get(res, res.poff, res.tree->max_rank);
+		while((res.poff>>(D*(R-res.R)))<max_poff){ // обходим грань
+			f(res);
+			uint32_t fix = res.poff&mask; res.poff |= mask; res.poff++; res.poff &= imask; res.poff |= fix; 
+			if(sign<0) res.poff |= mask&RDbits(res.tree->max_rank-res.R);
+			else res.poff &= ~(mask&RDbits(res.tree->max_rank-res.R));
+			if(!res.tree->get(res, res.poff, res.R)) return;
+		}
+	}
+}
+//------------------------------------------------------------------------------
+#endif //AIW_ZIP_AMR_CELL_HPP

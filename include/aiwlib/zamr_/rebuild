@@ -1,0 +1,96 @@
+// -*- C++ -*-
+#ifndef AIW_ZIP_AMR_REBUILD_HPP
+#define AIW_ZIP_AMR_REBUILD_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * ZipAdaptiveMesh::tree_t::rebuild method implementation.
+ * !!! DO NOT INCLUDE THIS FILE MANUALLY !!!
+ **/
+
+//------------------------------------------------------------------------------
+template <typename T, int D> template <typename F_CHECK, typename F_SPLIT, typename F_JOIN>
+void ZipAdaptiveMesh<T, D>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
+	for(Tree &tree: *this) rebuild_t(tree, f_check, f_split, f_join);
+	set_max_rank_box_step();
+}
+//------------------------------------------------------------------------------
+template <typename T, int D>  template <typename F_SPLIT, typename F_JOIN>
+void ZipAdaptiveMesh<T, D>::rebuild_t::copy_tile(F_SPLIT &&f_split, F_JOIN &&f_join, int rank){
+	uint32_t sz = tile_sz(rank);
+	if(jsI==js.end() || cell.ptr-tr->data.data()+sz <= (*jsI>>1)){ // тайл копируется как есть
+		tiles.push_back(std::make_pair(ptile_t(dst_pos, rank), ptile_t(cell.poff, cell.R)));
+		for(int i=0; i<sz; i++) dst[dst_pos++] = cell.ptr[i];
+		cell.jump(tr, rank);
+	} else if((*jsI>>1)==cell.ptr-tr->data.data()){ // накатываем патч
+		if(*jsI&1){
+			tiles.push_back(std::make_pair(ptile_t(dst_pos, 1), ptile_t(cell.poff<<D, cell.R+1)));
+			f_split(cell, dst.data()+dst_pos); cell.next(tr); dst_pos += 1<<D;
+		} else { 
+			tiles.push_back(std::make_pair(ptile_t(dst_pos, 0), ptile_t(cell.poff>>D, cell.R-1)));
+			f_join(cell, dst[dst_pos]); cell.jump(tr, 1); dst_pos++;
+		}
+		jsI++;
+	} else for(int i=0; i<(1<<D); i++) copy_tile(f_split, f_join, rank-1); 
+}
+//------------------------------------------------------------------------------
+// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell &src_chunk_start, T& dst)  ??? 
+template <typename T, int D> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
+ZipAdaptiveMesh<T, D>::rebuild_t::rebuild_t(ZipAdaptiveMesh<T, D>::Tree tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){	
+	tr = tree.tree;
+	for(Cell &c: tree){ // проходим дерево, накапливаем изменения в splits и joins
+		if(c.tR && (c.toff&Dbits)==0){  // это начало чанка и возможно этот чанк потребует слияния
+			int chk[1<<D], sum_chk = 0; Cell c2 = c;
+			for(int i=0; i<(1<<D); i++){ chk[i] = f_check(c2); sum_chk += chk[i]; c2.poff++; c2.toff++; c2.ptr++; }
+			if(sum_chk==-(1<<D)) add_join(c.ptr-tr->data.data());  // чанк действительно потребовал слияния
+			else if(c.R<rank_lim) for(int i=0; i<(1<<D); i++) if(chk[i]==1) add_split(c.ptr-tr->data.data()+i);
+			c.poff += Dbits; c.toff += Dbits; c.ptr += Dbits;
+		} else if(c.R<rank_lim && f_check(c)==1) add_split(c.ptr-tr->data.data());
+	}
+	
+	if(js.size()){ // перестраиваем дерево
+		// 1. копируем данные и разбираем их по тайлам
+		dst.resize(tr->data.size()+delta_sz); jsI = js.begin(); tr->get(cell, 0, 0);
+		while(cell) copy_tile(f_split, f_join, cell.tR);
+		tr->data.swap(dst); std::vector<T>().swap(dst);
+		
+		// 2. процедура слияния тайлов
+		std::vector<std::pair<ptile_t, ptile_t>*> ttable[rank_lim+1]; delta_sz = 0; // точки роста по рангам
+		for(auto& p: tiles){ uint32_t tR = p.first.get_rank();  if(!(p.second.get_off()&RDbits(tR))) ttable[tR].push_back(&p); } // ищем точки роста
+		for(int tR=0; tR<rank_lim; tR++){ // цикл по рангам тайлов, на верхний ранг мы не лазим - там тайлы слить уже нельзя?
+			if(tR) std::sort(ttable[tR].begin(), ttable[tR].end());
+			for(auto p: ttable[tR]){
+				uint32_t sz=1; std::pair<ptile_t, ptile_t> *p2 = p+1;
+				while(sz<(1<<D)) if(p2->first.get_flag(0)){ p2++; } else { if(p2->first.get_rank()!=tR) break; else { p2++; sz++; }} // проверяем хвост тайлов
+				if(sz==(1<<D)){
+					delta_sz++;
+					p->first.set_rank(tR+1); if(!(p->second.get_off()&RDbits(tR+1))) ttable[tR+1].push_back(p);
+					while(p2!=p) (--p2)->first.set_flag(0); // отмечаем тайлы как неиспользуемые
+				}
+			}
+		}
+		std::vector<std::pair<ptile_t, ptile_t> > tiles2; tiles2.reserve(tiles.size()-delta_sz*Dbits);	tr->max_rank = 0;
+		for(auto &p: tiles) if(!p.first.get_flag(0)){ tiles2.push_back(p); uint32_t R = p.second.get_rank(); if(tr->max_rank<R) tr->max_rank = R; }
+		tiles.swap(tiles2); std::vector<std::pair<ptile_t, ptile_t> >().swap(tiles2);
+		
+		// 3. перестройка дерева (идем от корня?)
+		ranks.init(tr->max_rank); ranks.fill(0xFF);
+		for(auto &p: tiles){ int dR = p.second.get_rank()-p.first.get_rank(); ranks.at(p.first.get_off()>>(dR*D), dR); }
+		ranks.reduce([](uint8_t a, uint8_t b){ return std::min(a, b); });		
+		tr->tree.clear(); build_tree(0, 0, -1); tr->tree.shrink_to_fit();
+	}
+}
+//------------------------------------------------------------------------------
+// trI==-1 означает tr->root,  возвращает новый tiles_off
+template <typename T, int D> uint32_t ZipAdaptiveMesh<T, D>::rebuild_t::build_tree(uint32_t tiles_off, uint32_t rank, int trI){
+	int R = rank-ranks.at(tiles_off, rank);
+	if(R==0){ (trI==-1? tr->root: tr->tree[trI]) = tiles[tiles_off].first; return tiles_off+1; } // замыкание рекурсии
+	(trI==-1? tr->root: tr->tree[trI]).set(tr->tree.size(), R, 1); trI = tr->tree.size();    // прописываем указатель на тайл
+	uint32_t t_sz = tile_sz(R);	 for(uint32_t i=0; i<t_sz; i++) tr->tree.emplace_back();  // выделяем память в дереве
+	for(uint32_t i=0; i<t_sz; i++) tiles_off = build_tree(tiles_off, rank+R, trI+i);
+	return tiles_off;
+}
+//------------------------------------------------------------------------------
+#endif //AIW_ZIP_AMR_REBUILD_HPP

@@ -1,0 +1,31 @@
+// -*- C++ -*-
+#ifndef AIW_PIRAMIDE_HPP
+#define AIW_PIRAMIDE_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <vector>
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T, int D> class Piramide{
+		std::vector<T> data;
+		std::vector<size_t> offs;
+	public:
+		void init(int R){
+			offs.resize(R+1); data.clear();
+			for(int i=0; i<=R; i++){ offs[i] = data.size(); data.resize(data.size()+(size_t(1)<<(i*D)));	}
+		}
+		void fill(const T& x){ for(T &p: data) p = x; }
+		int rank(){ return offs.size(); }
+		T& at(size_t off, int rank){ return data[offs[rank]+off]; }
+		template <typename F> void reduce(F&& f){
+			for(int R=offs.size()-1; R>0; R--) for(size_t i=0; i<(size_t(1)<<(R*D)); i++) f(at(i, R), at(i>>D, R-1));
+		}
+	};
+	//--------------------------------------------------------------------------
+};
+#endif //AIW_PIRAMIDE_HPP
