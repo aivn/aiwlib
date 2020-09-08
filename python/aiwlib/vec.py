@@ -275,6 +275,7 @@ class Vec:
     def sort(self): L = self._getdata(); L.sort(); return Vec(*L, T=self._T())
     def calc(self, x): return sum(c*x**i for i, c in enumerate(self._getdata()))
     def diff(self): return Vec(*[(i+1)*c for i, c in enumerate(self._getdata()[1:])], T=self._T())
+    def pop(self, a): L = self._getdata(); del L[a]; return Vec(*L, T=self._T())
     #---------------------------------------------------------------------------
     def __mod__(a, b):
         ab = _conv(a, b)

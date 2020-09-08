@@ -23,9 +23,9 @@ namespace aiw{
 	template <int D, typename T=double> class Vec{
 		T p[D];
 		
-		inline void set_x(){}
+		void set_x(){}
 		template <typename T2, typename ... Args>
-		inline void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
+		void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
 		static int size(){ return D; }
 		
@@ -38,28 +38,28 @@ namespace aiw{
 		}
 
 		template <class T2> Vec(const Vec<D, T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; }
-		template <class T2> inline Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; return *this; }
-		// template <class T2> inline operator Vec<D, T2>() const { Vec<D, T2> res; for(int i=0; i<D; i++) res[i] = p[i]; return res; }
+		template <class T2> Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; return *this; }
+		// template <class T2> operator Vec<D, T2>() const { Vec<D, T2> res; for(int i=0; i<D; i++) res[i] = p[i]; return res; }
 		
 		
-		inline T  operator [] (int i) const { 
+		T  operator [] (int i) const { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range: ", D, sizeof(T), i); 
 			return p[i]; 
 		} 
-		inline T& operator [] (int i) { 
+		T& operator [] (int i) { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range: ", D, sizeof(T), i); 
 			return p[i]; 
 		} 
 		
-		inline Vec operator -() const { Vec res; for(int i=0; i<D; i++) res.p[i] = -p[i]; return res; }
-		inline Vec operator +() const { Vec res; for(int i=0; i<D; i++) res.p[i] = +p[i]; return res; }
+		Vec operator -() const { Vec res; for(int i=0; i<D; i++) res.p[i] = -p[i]; return res; }
+		Vec operator +() const { Vec res; for(int i=0; i<D; i++) res.p[i] = +p[i]; return res; }
 
-		template <typename T2> inline Vec& operator *= (T2 x){ for(int i=0; i<D; i++) p[i] *= x; return *this; }
-		template <typename T2> inline Vec& operator /= (T2 x){ for(int i=0; i<D; i++) p[i] /= x; return *this; }
+		template <typename T2> Vec& operator *= (T2 x){ for(int i=0; i<D; i++) p[i] *= x; return *this; }
+		template <typename T2> Vec& operator /= (T2 x){ for(int i=0; i<D; i++) p[i] /= x; return *this; }
 		
-		inline T  periodic(int i) const { i %= D; if(i<0) i += D; return p[i]; } 
-		inline T& periodic(int i)       { i %= D; if(i<0) i += D; return p[i]; } 
-		inline Vec circ(int l) const { // cyclic shift
+		T  periodic(int i) const { i %= D; if(i<0) i += D; return p[i]; } 
+		T& periodic(int i)       { i %= D; if(i<0) i += D; return p[i]; } 
+		Vec circ(int l) const { // cyclic shift
 			Vec res; l %= D; if(l<0) l += D;
 			for(int i=0; i<l; i++) res.p[i] = p[D-l+i]; 
 			for(int i=l; i<D; i++) res.p[i] = p[i-l]; 
@@ -67,19 +67,19 @@ namespace aiw{
 		}
 
 		template <typename ... Args> 
-		inline Vec<sizeof ...(Args), T> operator ()(Args ... xxx) const { 
+		Vec<sizeof ...(Args), T> operator ()(Args ... xxx) const { 
 			return Vec<sizeof ...(Args), T>((*this)[xxx]...); // periodic ???
 		}
-		template <int D2> inline Vec<D2, T> operator ()(const Vec<D2, int> &I) const { 
+		template <int D2> Vec<D2, T> operator ()(const Vec<D2, int> &I) const { 
 			Vec<D2, T> res; for(int i=0; i<D2; i++) res[i] = (*this)[I[i]]; 
 			return res;
 		}
 
 		// *** OTHER FUNCTIONS ***
-		inline T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
-		inline T abs() const { return sqrt(abs2()); }
+		T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
+		T abs() const { return sqrt(abs2()); }
 
-		inline Vec pow(const int n) const { // ????
+		Vec pow(const int n) const { // ????
 			if(n==0) return Vec((T)1.);		
 			if(n==1) return *this;
 			Vec v, res; for(int i=0; i<D; i++) v[i] = n>0 ? p[i] : 1./p[i];
@@ -89,47 +89,47 @@ namespace aiw{
 			while( abs_n>>++k && k<31 ){ v &= v; if(abs_n&(1<<k)) res &= v; }
      		return res;		
 		}
-		inline Vec pow(double n) const { Vec v; for(int i=0; i<D; i++) v[i] = ::pow(p[i], n); return v; }
-		// inline Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
+		Vec pow(double n) const { Vec v; for(int i=0; i<D; i++) v[i] = ::pow(p[i], n); return v; }
+		// Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
 
-		inline Vec fabs() const { Vec v; for(int i=0; i<D; i++) v[i] = ::fabs(p[i]); return v; }
-		inline Vec ceil() const { Vec v; for(int i=0; i<D; i++) v[i] = ::ceil(p[i]); return v; }
-		inline Vec floor() const { Vec v; for(int i=0; i<D; i++) v[i] = ::floor(p[i]); return v; }
-		inline Vec round() const { Vec v; for(int i=0; i<D; i++) v[i] = ::round(p[i]); return v; }
-		template <typename T2> inline Vec<D, decltype(T()/T2())> fmod(T x) const { 
+		Vec fabs() const { Vec v; for(int i=0; i<D; i++) v[i] = ::fabs(p[i]); return v; }
+		Vec ceil() const { Vec v; for(int i=0; i<D; i++) v[i] = ::ceil(p[i]); return v; }
+		Vec floor() const { Vec v; for(int i=0; i<D; i++) v[i] = ::floor(p[i]); return v; }
+		Vec round() const { Vec v; for(int i=0; i<D; i++) v[i] = ::round(p[i]); return v; }
+		template <typename T2> Vec<D, decltype(T()/T2())> fmod(T x) const { 
 			 Vec<D, decltype(T()/T2())> v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], x); 
 			 return v; 
 		}
-		template <typename T2> inline Vec<D, decltype(T()/T2())> fmod(const Vec<D, T2> &b) const { 
+		template <typename T2> Vec<D, decltype(T()/T2())> fmod(const Vec<D, T2> &b) const { 
 			Vec<D, decltype(T()/T2())> v; for(int i=0; i<D; i++) v[i] = ::fmod(p[i], b[i]); 
 			return v; 
 		}
 
-		inline T min() const { T res = p[0]; for(int i=1; i<D; i++) res = res<p[i]?res:p[i]; return res; }
-		inline T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }
-		inline int imin() const { int k=0; for(int i=1; i<D; i++) k = p[k]<=p[i]?k:i; return k; }
-		inline int imax() const { int k=0; for(int i=1; i<D; i++) k = p[k]>p[i]?k:i; return k; }
-		inline T sum() const { T res = p[0]; for(int i=1; i<D; i++) res += p[i]; return res; }
-		inline T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
-		template <typename T2> inline void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; }
+		T min() const { T res = p[0]; for(int i=1; i<D; i++) res = res<p[i]?res:p[i]; return res; }
+		T max() const { T res = p[0]; for(int i=1; i<D; i++) res = res>p[i]?res:p[i]; return res; }
+		int imin() const { int k=0; for(int i=1; i<D; i++) k = p[k]<=p[i]?k:i; return k; }
+		int imax() const { int k=0; for(int i=1; i<D; i++) k = p[k]>p[i]?k:i; return k; }
+		T sum() const { T res = p[0]; for(int i=1; i<D; i++) res += p[i]; return res; }
+		T prod() const { T res = p[0]; for(int i=1; i<D; i++) res *= p[i]; return res; }
+		template <typename T2> void prod(T2 &res) const { res = p[0]; for(int i=1; i<D; i++) res *= p[i]; }
 
-		inline Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = std::isnan(p[i]); return res; }
-		inline Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = std::isinf(p[i]); return res; }
-		inline bool cknan() const { for(int i=0; i<D; i++) if(std::isnan(p[i])) return true; return false; }
-		inline bool ckinf() const { for(int i=0; i<D; i++) if(std::isinf(p[i])) return true; return false; }
+		Vec<D, int> nan() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = std::isnan(p[i]); return res; }
+		Vec<D, int> inf() const { Vec<D, int> res; for(int i=0; i<D; i++) res[i] = std::isinf(p[i]); return res; }
+		bool cknan() const { for(int i=0; i<D; i++) if(std::isnan(p[i])) return true; return false; }
+		bool ckinf() const { for(int i=0; i<D; i++) if(std::isinf(p[i])) return true; return false; }
 
-		inline bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
+		bool operator !() const { for(int i=0; i<D; i++) if(p[i]) return false; return true; }
 		operator T () = delete;
-		// inline operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; } 
+		// operator bool() const { for(int i=0; i<D; i++) if(p[i]) return true; return false; } 
 
-		template<typename T2> inline bool contains(const T2& x) const { 
+		template<typename T2> bool contains(const T2& x) const { 
 			for(int i=0; i<D; i++) if(p[i]==x) return true; 
 			return false;
 		}
 
-		inline Vec reverse() const { Vec res; for(int i=0; i<D; i++){ res[i] = p[D-i-1]; } return res; }
-		inline Vec operator ~ () const { reverse(); }
-		inline Vec sort() const {
+		Vec reverse() const { Vec res; for(int i=0; i<D; i++){ res[i] = p[D-i-1]; } return res; }
+		Vec operator ~ () const { reverse(); }
+		Vec sort() const {
 			Vec res = *this;
 			for(int i=0; i<D-1; i++)
 				for(int j=i+1; j<D; j++)
@@ -137,22 +137,20 @@ namespace aiw{
 			return res;
 		}
 
-		inline T calc(T x) const { T res = p[D-1]; for(int i=D-2; i>=0; i--){ res = p[i]+res*x; } return res; }
-		inline Vec<D-1, T> diff() const { Vec<D-1, T> res; for(int i=1; i<D; i++){ res[i-1] = i*p[i]; } return res; }
+		T calc(T x) const { T res = p[D-1]; for(int i=D-2; i>=0; i--){ res = p[i]+res*x; } return res; }
+		Vec<D-1, T> diff() const { Vec<D-1, T> res; for(int i=1; i<D; i++){ res[i-1] = i*p[i]; } return res; }
+		Vec<D-1, T> pop(int a) const { Vec<D-1, T> res; for(int i=0; i<D-1; i++){ res[i] = p[i+(i>=a)]; } return res; }
 		
 		T* begin(){ return p; }
 		T* end(){ return p+D; }
 	}; // end of class Vec
 	template <typename T, typename ... Args>
-	inline Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
+	Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
 		return Vec<1+sizeof...(Args), T>(x, args...);
 	}
 	//--------------------------------------------------------------------------
 	template<int D> using Vecf = Vec<D, float>;
-	template <typename ... Args> 
-	inline Vecf<sizeof...(Args)> vecf(Args ... args){
-		return Vecf<sizeof...(Args)>(args...);
-	}
+	template <typename ... Args> Vecf<sizeof...(Args)> vecf(Args ... args){	return Vecf<sizeof...(Args)>(args...); }
 	//--------------------------------------------------------------------------
 	//  compare 
 	//--------------------------------------------------------------------------
@@ -181,12 +179,12 @@ namespace aiw{
 	}																	\
 	VEC_BIN_OP_DELETE(OP)
 		
-	VEC_CMP_VEC(<, >=, false);
-	VEC_CMP_VEC(<=, >, false);
-	VEC_CMP_VEC(>, <=, false);
-	VEC_CMP_VEC(>=, <, false);
-	VEC_CMP_VEC(==, !=, false); // округление ???
-	VEC_CMP_VEC(!=, !=, true);  // округление ???
+	VEC_CMP_VEC(<, >=, false)
+	VEC_CMP_VEC(<=, >, false)
+	VEC_CMP_VEC(>, <=, false)
+	VEC_CMP_VEC(>=, <, false)
+	VEC_CMP_VEC(==, !=, false) // округление ???
+	VEC_CMP_VEC(!=, !=, true)  // округление ???
 	
 #undef VEC_CMP_VEC
 	//--------------------------------------------------------------------------
@@ -284,10 +282,10 @@ namespace aiw{
 	}																	\
 	VEC_BIN_OP_DELETE(OP##=)												
 
-	VEC_BIN_OP(+, +, a[i]+b[i], a[i]+b[0], a[0]+b[i], +=b[i], +=b[0]);					
-	VEC_BIN_OP(-, -, a[i]-b[i], a[i]-b[0], a[0]-b[i], -=b[i], -=b[0]);					
-	VEC_BIN_OP(/, /, a[i]/b[i], a[i]/b[0], a[0]/b[i], /=b[i], /=b[0]);					
-	VEC_BIN_OP(&, *, a[i]*b[i], a[i]*b[0], a[0]*b[i], *=b[i], *=b[0]);					
+	VEC_BIN_OP(+, +, a[i]+b[i], a[i]+b[0], a[0]+b[i], +=b[i], +=b[0])				   
+	VEC_BIN_OP(-, -, a[i]-b[i], a[i]-b[0], a[0]-b[i], -=b[i], -=b[0])					
+	VEC_BIN_OP(/, /, a[i]/b[i], a[i]/b[0], a[0]/b[i], /=b[i], /=b[0])					
+	VEC_BIN_OP(&, *, a[i]*b[i], a[i]*b[0], a[0]*b[i], *=b[i], *=b[0])					
 #define SS(OP, A, B) (a[A] OP b[B]?a[A]:b[B])
 	VEC_BIN_OP(>>, +, SS(>,i,i), SS(>,i,0), SS(>,0,i), =SS(>,i,i), =SS(>,i,0)) 
 	VEC_BIN_OP(<<, +, SS(<,i,i), SS(<,i,0), SS(<,0,i), =SS(<,i,i), =SS(<,i,0)) 
@@ -384,7 +382,7 @@ namespace aiw{
 	template <int D, typename T> inline T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return sqrt(s); }
 	inline double fabsV(double x){ return ::fabs(x); } 
 	//--------------------------------------------------------------------------
-}; // end of namespace aiw
+}   // end of namespace aiw
 
 namespace std{
 //---------------------------------------------------------------------------
@@ -414,8 +412,8 @@ namespace std{
 			return false;
 		} 
 	};	
-//---------------------------------------------------------------------------
-}; // end of namespace std
+	//--------------------------------------------------------------------------
+}   // end of namespace std
 #endif //SWIG
 #endif //AIW_VEC_HPP
 
