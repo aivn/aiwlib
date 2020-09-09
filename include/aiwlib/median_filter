@@ -1,0 +1,119 @@
+// -*- C++ -*-
+#ifndef AIW_MEDIAN_FILTER_HPP
+#define AIW_MEDIAN_FILTER_HPP
+
+/**
+ * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * Фильтр предназначен для обработки многомерных массивов 
+ * у которых данные хотя бы по одной оси расположены последовательно.
+ * В каждой точке применяется быстрый алгоритм слияния двух отсортированных векторов.
+ * У целевого массива обрезаются границы на ширину фильтра.
+ * Опционально используется OPEN_MP.
+ **/
+
+#include <omp.h>
+#include <vector>
+#include <map>
+#include <algorithm>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int D> struct Stencil {
+		std::vector<Ind<D> > points, smin, smax; // точки шаблона (относительно 0,0...) и поверхности (границы) вдоль некоторой оси.
+		Ind<D> bmin, bmax; // bbox, правый край ВКЛЮЧЕН
+
+		void init(int axe){ // должна быть вызван после того как заданы points
+			bmin = bmax = Ind<D>(); std::map<Ind<D-1>, Ind<D> > tmin, tmax;
+			for(const auto &p: points){
+				bmin <<= p; bmax >>= p; Ind<D-1> pp = p.pop(axe);
+				auto Imin = tmin.find(pp); auto Imax = tmax.find(pp);
+				if(Imin==tmin.end()) tmin[pp] = p; else { if(Imin->second[axe]>p[axe]) Imin->second[axe] = p[axe]; }
+				if(Imax==tmax.end()) tmax[pp] = p; else { if(Imax->second[axe]<p[axe]) Imax->second[axe] = p[axe]; }
+			}
+			smin.clear(); for(auto I: tmin) smin.push_back(I.second);
+			smax.clear(); for(auto I: tmax) smax.push_back(I.second);
+		}
+		
+		void init_sph(double R, int axe){
+			int Ri = R+.5; points.clear(); 
+			for(Ind<3> dp; dp^=ind(2*Ri+1); ++dp){	Ind<D> p = dp - ind(Ri); if(sqrt(p*p)<R) points.push_back(p); }
+			init(axe);
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <typename T, int D> class MedianFilter {
+	public:
+		struct point_t{
+			int t; T v;
+			bool operator < (const point_t& other) const { return v<other.v; }
+		};
+		struct line_t{ const T* ptr; int dt, off; };
+		std::vector<line_t> surf;
+		std::vector<point_t> points, points2, apps;
+		int t;
+	public:
+		// функция f(Ind<D-1> p) ==> T* src, обеспечивает доступ к входным данным
+		// p задается в системе координат относительно рассчитываемой линейки
+		template<typename F> T init(const Stencil<D> &st, int axe, F &&f){ 
+			t = 0; points.resize(st.points.size()); points2.resize(st.points.size()); apps.resize(st.smin.size()); surf.resize(st.smin.size());
+			Ind<D-1> sz = st.bmax.pop(axe)-st.bmin.pop(axe)+ind(1), mul(1);
+			for(int i=1; i<D-1; i++) mul[i] = mul[i-1]*sz[i-1];
+			std::vector<const T*> ptable(sz.prod(), nullptr); std::vector<int> start(sz.prod(), -0); 
+			for(Ind<D-1> p; p^=sz; ++p) ptable[p*mul] = f(p+st.bmin.pop(axe)); 
+			int doff = st.bmin.pop(axe)*mul;
+			for(size_t i=0; i<st.smin.size(); i++){
+				int off = st.smin[i].pop(axe)*mul-doff;
+				surf[i].ptr = ptable[off]; start[off] = st.smin[i][axe]; 
+				surf[i].dt = st.smax[i][axe]-st.smin[i][axe]+1;
+				surf[i].off = st.smax[i][axe]-st.bmin[axe]+1;
+			}
+			
+			for(uint32_t i=0; i<points.size(); i++){
+				int off = st.points[i].pop(axe)*mul-doff;
+				points[i].v = ptable[off][st.points[i][axe]-st.bmin[axe]];
+				points[i].t = st.points[i][axe]-start[off];
+			}
+			std::sort(points.begin(), points.end());
+			return points[points.size()/2].v;
+		}
+		T next(){
+			for(uint32_t i=0; i<apps.size(); i++){ apps[i].t = surf[i].dt+t; apps[i].v = surf[i].ptr[surf[i].off+t]; }
+			std::sort(apps.begin(), apps.end());
+			auto aI = apps.begin(); auto pI = points.begin(); auto p2I = points2.begin();
+			while(pI!=points.end()){
+				if(pI->t==t) pI++;
+				else if(aI!=apps.end() && aI->v < pI->v){ *p2I = *aI; p2I++; aI++; }
+				else { *p2I = *pI; p2I++; pI++; }
+			}
+			while(aI!=apps.end()){ *p2I = *aI; p2I++; aI++; }
+
+			points.swap(points2); t++;
+			return points[points.size()/2].v;
+		}
+	};
+	//--------------------------------------------------------------------------
+#ifdef AIW_MESH_HPP
+	template<typename T, int D> Mesh<T, D> median_filter(const Mesh<T, D> &src, double R, bool parallel=true){
+		Stencil<3> st; st.init_sph(R, 0);
+		Mesh<T, D> dst; dst.init(src.bbox()+st.bmin-st.bmax, src.bmin-st.bmin, src.bmax-st.bmax);
+		const T *src_ptr = &(src[Ind<D>(0)]); Ind<D-1> src_mul(src.bbox()[0]); for(int i=1; i<D-1; i++) src_mul[i] = src_mul[i-1]*src.bbox()[i];
+		size_t sz = dst.bbox().pop(0).prod();
+#pragma omp parallel for if(parallel)
+		for(size_t i=0; i<sz; i++){
+			Ind<D-1> pos = i%dst.bbox().pop(0); Ind<D-1> P0 = pos-st.bmin.pop(0);
+
+			MedianFilter<T, D> mf;
+			T *dst_ptr = &(dst[0|pos]);
+			dst_ptr[0] = mf.init(st, 0, [&](const Ind<D-1> &p){ return src_ptr+(P0+p)*src_mul; });
+
+			for(int x=1; x<dst.bbox()[0]; x++) dst_ptr[x] = mf.next();
+		}
+		return dst;
+	}
+#endif //AIW_MESH_HPP
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_MEDIAN_FILTER_HPP
