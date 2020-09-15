@@ -2,6 +2,8 @@
 #define MVIEW_INterFACE_HPP
 #include "mview_format.hpp"
 #include "../../AbstractViewer/plottable.hpp"
+#define POS 0
+#define NRM 1
 class  MViewInterface: public Plottable, public MViewFormat{
     private:
         //std::vector<glm::vec3> points;

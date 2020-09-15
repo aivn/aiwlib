@@ -1,6 +1,7 @@
 #ifndef MPLT_HPP
 #define MPLT_HPP
 #include "mesh"
+#define POS 0
 using namespace aiw;
 class Mplt:public Plottable, public Mesh<float, 3>{
     protected:
