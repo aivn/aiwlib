@@ -13,6 +13,10 @@
 //------------------------------------------------------------------------------
 template <typename T, int D> template <typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 void ZipAdaptiveMesh<T, D>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
+	// 1. эту функцию можно сделать параллеьной по лесу
+	// 2. возможна гонка данных даже в однопоточном варианте,
+	//    необходимо делать буферную зону шириной в одно дерево при перестроении данных,
+	//    т.е. перестроение одного дерева должно быть двухстадийным?
 	for(Tree &tree: *this) rebuild_t(tree, f_check, f_split, f_join);
 	set_max_rank_box_step();
 }

@@ -7,6 +7,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <omp.h>
 #include <vector>
 #include <list>
 #include <map>
@@ -278,7 +279,7 @@ namespace aiw{
 
 		int trmode = 0; // -1 --- нижний уровень, 0 и выше --- заданный ранг??? // 0 --- нижний уровень, n>0 --- ранг n-1, n<0 --- границы -n:1-n 
 		Tile get_tile(Ind<D> pos){ Tile t0;  t0.root = ind(0)<=pos && pos<tiles.bbox() ? &(tiles[pos]) : nullptr;  t0.trmode = trmode;  return t0; }
-		Tile get_tile(int tID){ return get_tile(tID%tiles.bbox()); } // позволяет делать параллельный обход
+		Tile get_tile(size_t tID){ return get_tile(tID%tiles.bbox()); } // позволяет делать параллельный обход
 
 		// прямой доступ к ячейкам нулевого ранга?
 		
@@ -330,7 +331,7 @@ namespace aiw{
 		template <typename dT, typename F> void foreach(F &&f, dT dt, int level){
 			for(auto t: *this) for(auto C: t) if(!(level%(1<<C.rank()))) f(C, dt);  // оптимизировать?
 		}
-		template <typename dT, typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, dT dt);
+		template <typename dT, typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, dT dt, bool parallel=false);
 
 		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
 		double conefold_complexity(Ind<D> pos) const;  // в ячейках X шаг
@@ -342,7 +343,7 @@ namespace aiw{
 		template <typename dT, typename F1, typename F2> void conefold2(tile_t** ground, F1 &&f1, F2 &&f2, dT dt); // замыкание рекурсии
 	public:
 		template <typename dT, typename F1, typename F2> void conefoldR(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
-		template <typename dT, typename F1, typename F2> void conefoldR(F1 &&f1, F2 &&f2, dT dt); 
+		template <typename dT, typename F1, typename F2> void conefoldR(F1 &&f1, F2 &&f2, dT dt, bool parallel=false); 
 		//----------------------------------------------------------------------
 	};  // конец класса AdaptiveMesh
 	//--------------------------------------------------------------------------

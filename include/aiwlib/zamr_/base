@@ -23,6 +23,7 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::set_max_rank_box_step()
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0){
+	// заменить R0 на min_rank?
 	box = tbox*(1<<R0); this->set_axes(bmin_, bmax_); max_rank = R0;
 	forest.init(tbox, bmin_, bmax_);
 	for(Ind<D> pos; pos^=tbox; ++pos){
@@ -57,6 +58,8 @@ template <typename T, int D> bool ZipAdaptiveMesh<T, D>::load(IOstream&& S, int 
 }
 //------------------------------------------------------------------------------
 template <typename T, int D>  template <typename dT, typename F1, typename F2> void ZipAdaptiveMesh<T, D>::foreach2Xdt(F1 &&f1, F2 &&f2, dT dt){
+	// это можно сделать параллельным по лесу
+	// проход по дереву можно сделать селективным по рангу? Хотя неясно какой это даст выигрыш (не более чем в два раза)?
 	dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
 	for(int i=0; i<(1<<max_rank); i++){
 		for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, i>>(max_rank-C.rank()), dt_arr[C.rank()]);

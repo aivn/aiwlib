@@ -394,6 +394,8 @@ namespace aiw{
 		};
 		iterator begin(){ iterator I; I.data = this; return I; }
 		iterator end(){ iterator I; I.data = this; I.pos[D-1] = box[D-1]; return I; }
+		const iterator begin() const {  iterator I; I.data = (Mesh*)this; return I; }
+		const iterator end() const {  iterator I; I.data = (Mesh*)this; I.pos[D-1] = box[D-1]; return I; }
 #endif //SWIG
 
 		// void swap(Mesh &B){ Mesh C = *this; *this = B; B = C; }

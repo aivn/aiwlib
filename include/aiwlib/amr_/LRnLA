@@ -124,8 +124,29 @@ namespace aiw{
 	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefold(F1 &&f1, F2 &&f2, dT dt){
 		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefold(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
 	} 
-	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefoldR(F1 &&f1, F2 &&f2, dT dt){
-		for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos) conefoldR(tiles.bbox()-pos-ind(1), f1, f2, dt);  // это наивный построчный обход
+	template <typename T, int D, int R>  template <typename dT, typename F1, typename F2> void AdaptiveMesh<T, D, R>::conefoldR(F1 &&f1, F2 &&f2, dT dt, bool parallel){
+		if(parallel){
+			std::list<Ind<D> > queue; queue.push_back(tiles.bbox()); int cf_count = (tiles.bbox()+ind(1)).prod();
+			Mesh<int, D> counts(tiles.bbox()+ind(1)); omp_lock_t qlock; omp_init_lock(&qlock);
+			for(Ind<D> pos; pos^=counts.bbox(); ++pos){ counts[pos] = 0; for(int i=0; i<D; i++) counts[pos] += pos[i]==tiles.bbox()[i]; }
+#pragma omp parallel
+			{
+				while(1){
+					Ind<D> pos; bool run = false, next = true;
+					omp_set_lock(&qlock);
+					if(queue.size()){ pos = queue.front(); queue.pop_front(); run = true; }
+					else next = cf_count;
+					omp_unset_lock(&qlock);
+					if(!run){ if(next) continue; else break; }
+					conefoldR(pos-ind(1), f1, f2, dt);
+					omp_set_lock(&qlock);
+					cf_count--;
+					for(int i=0; i<D; i++) if(pos[i]>0){ Ind<D> pos2 = pos; pos2[i]--; counts[pos2]++; if(counts[pos2]==D) queue.push_back(pos2); }
+					omp_unset_lock(&qlock);
+				}
+			}
+			omp_destroy_lock(&qlock); 
+		} else for(Ind<D> pos; pos^=tiles.bbox()+ind(1); ++pos)  conefoldR(tiles.bbox()-pos-ind(1), f1, f2, dt);   // это наивный построчный обход
 	} 
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R>	double AdaptiveMesh<T, D, R>::conefold_complexity(Ind<D> pos) const {   // в ячейках на шаг

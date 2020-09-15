@@ -190,6 +190,7 @@ namespace aiw{
 
 		// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split/join(const Cell&, T *chunk_data) 
 		template <typename F_CHECK, typename F_SPLIT, typename F_JOIN> void rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join);
+		template <typename F_CHECK> void rebuild(F_CHECK &&f_check){ rebuild(f_check, [](Cell&, T*){}, [](Cell&, T&){}); }
 		
 		T out_value;
 	protected:

@@ -61,7 +61,7 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R> void AdaptiveMesh<T, D, R>::dump(IOstream&& S) const {
-		BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<31;  br.R = R; bf.box = nullptr;
+		BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<31;  bf.R = R; bf.box = nullptr;
 		bf.tinfo.root = T()^bf.tinfo; bf.dump(S); S<tiles.bbox();
 		/*
 		int h_sz = head.size()+5+D*16; if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
@@ -95,7 +95,7 @@ namespace aiw{
 		}
 		init(box_, bmin_, bmax_);
 		*/
-		BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<31;  br.R = R; bf.box = nullptr;
+		BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<31;  bf.R = R; bf.box = nullptr;
 		if(!bf.load(S)){
 			if(raise_on_error){ WRAISE("incorrect AdaptiveMesh::load(): ", D, bf.D, sizeof(T), bf.szT, R, bf.R, S.name, S.tell(), bf.head); }
 			return false;
