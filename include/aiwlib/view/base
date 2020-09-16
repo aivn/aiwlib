@@ -16,6 +16,12 @@
 #include "images"
 #include "vtexture"
 
+#ifdef SWIG
+#define OVERRIDE
+#else
+#define OVERRIDE override
+#endif
+
 namespace aiw{
 	//--------------------------------------------------------------------------
 	// эта структура содержит все возможные настройки контейнера и его визуализации

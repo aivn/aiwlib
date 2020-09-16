@@ -122,12 +122,12 @@ namespace aiw{
 
 	public:		
 		bool load(aiw::IOstream& S);
-		int dim() const override { return D; }
-		void get_conf(ConfView &conf, bool firstcall=false) const override;  // настраивает conf (с учетом crop)
-		aiw::Vec<2> f_min_max(const ConfView &conf) const override;          // вычисляет min-max, как это делать для preview?
+		int dim() const OVERRIDE { return D; }
+		void get_conf(ConfView &conf, bool firstcall=false) const OVERRIDE;  // настраивает conf (с учетом crop)
+		aiw::Vec<2> f_min_max(const ConfView &conf) const OVERRIDE;          // вычисляет min-max, как это делать для preview?
 
 		
-		std::string get(const ConfView& conf, aiw::Vec<2> r) const override;
+		std::string get(const ConfView& conf, aiw::Vec<2> r) const OVERRIDE;
 
 		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const { // const 
 			iterator I = begin(conf); Vec<2> step = Vec<2>(image.size)/I.bbox;
@@ -147,8 +147,8 @@ namespace aiw{
 			ConfView conf = conf0; conf.uncrop();
 			plot(conf, image, color);
 		}
-		void plot(const ConfView &conf, ImageBUF &image, const CalcColor &color) const override { plot<ImageBUF>(conf, image, color); }
-		void preview(const ConfView& conf0, ImageBUF &image, const CalcColor &color) const override { preview<ImageBUF>(conf0, image, color); }
+		void plot(const ConfView &conf, ImageBUF &image, const CalcColor &color) const OVERRIDE { plot<ImageBUF>(conf, image, color); }
+		void preview(const ConfView& conf0, ImageBUF &image, const CalcColor &color) const OVERRIDE { preview<ImageBUF>(conf0, image, color); }
 	};
 	//--------------------------------------------------------------------------
 };
