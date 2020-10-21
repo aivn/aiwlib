@@ -9,9 +9,9 @@
 
 #include <string>
 #include <algorithm>
-#include "../iostream"
-#include "../vec"
-#include "../typeinfo"
+// #include "../iostream"
+// #include "../vec"
+// #include "../typeinfo"
 #include "color"
 #include "images"
 #include "vtexture"
@@ -137,12 +137,15 @@ namespace aiw{
 		float alpha = .5; // прозрачность
 
 		std::string pack() const {
-			return Packer()<dim<bmin0<bmax0<bmin<bmax<slice<step<size<mod_crop<anames<axes<flipped<logscale<mollweide<sph_interp<sph_phi0<cell_bound<
-						  features<interp<cfa_list<cfa_xfem_list<cfa<xfem_mode<segy<plot3D<vtx<alpha;
+			Packer P;
+			P.dump(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound, 
+				   features, interp, cfa_list, cfa_xfem_list, cfa, xfem_mode, segy, plot3D, /*vtx,*/ alpha);
+			return P;
 		}
 		void unpack(const std::string &S){
-			Packer(S)>dim>bmin0>bmax0>bmin>bmax>slice>step>size>mod_crop>anames>axes>flipped>logscale>mollweide>sph_interp>sph_phi0>cell_bound>
-						  features>interp>cfa_list>cfa_xfem_list>cfa>xfem_mode>segy>plot3D>vtx>alpha;
+			Packer P(S);
+			P.load(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound, 
+				   features, interp, cfa_list, cfa_xfem_list, cfa, xfem_mode, segy, plot3D, /*vtx,*/ alpha);
 		}
 	};
 	//--------------------------------------------------------------------------

@@ -3,131 +3,118 @@
 #define AIW_BINARY_IO_HPP
 
 /**
- * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
-#include "iostream"
+#include <type_traits>
+#include <string>
 #include <complex>
 #include <vector>
 #include <list>
 #include <map>
 
-#define BINARYIO4POD													\
-	inline void dump(aiw::IOstream &S) const { S.write(this, sizeof(*this)); } \
-	inline void load(aiw::IOstream &S)       { S.read(this, sizeof(*this)); }  
+template <typename T> struct aiw_dump_load { static const int mode = 0; }; // 0 --- возможно есть внешние dump/load, 1 --- тривиальные, 2 --- встроенные
+#define AIW_POD(T) template <> struct aiw_dump_load<T> { static const int mode = 1; }
 
-namespace aiw{
-	//--------------------------------------------------------------------------
-	//   base types
-	//--------------------------------------------------------------------------
-#define BIOP(T)															\
-	inline IOstream& operator < (IOstream& S, T  x){ S.write(&x, sizeof(T)); return S; } \
-	inline IOstream& operator > (IOstream& S, T& x){ S.read(&x, sizeof(T)); return S; }
-#define BIOP_I(T) BIOP(T) BIOP(u##T)
-	BIOP_I(int8_t)
-	BIOP_I(int16_t)
-	BIOP_I(int32_t)
-	BIOP_I(int64_t)
-#undef BIOP_I
-	BIOP(char)
-	BIOP(bool)
-	BIOP(float)
-	BIOP(double)
-#undef BIOP
-	//--------------------------------------------------------------------------
-	inline IOstream& operator < (IOstream& S, const std::string &x){ S<uint32_t(x.size()); S.write(&x[0], x.size()); return S;	}	
-	inline IOstream& operator > (IOstream& S, std::string &x){ uint32_t sz=0; S>sz; x.resize(sz); S.read(&x[0], sz); return S; }
-	//--------------------------------------------------------------------------
-	template <typename T> inline aiw::IOstream& //typename std::enable_if<T::dump, aiw::IOstream&>::type
-	operator <(IOstream &S, const T &X){ X.dump(S); return S; }
-	template <typename T> inline aiw::IOstream& //typename std::enable_if<T::load, aiw::IOstream&>::type
-	operator >(IOstream &S, T &X){ X.load(S); return S; }
-	//--------------------------------------------------------------------------
-	template <typename T, int D> 
-	inline IOstream& operator < (IOstream& S, T const (&p)[D]){ for(int i=0; i<D; i++) S<p[i]; return S; }
-	template <typename T, int D> 
-	inline IOstream& operator > (IOstream& S, T (&p)[D]){ for(int i=0; i<D; i++) S>p[i]; return S; }
-	//--------------------------------------------------------------------------
-	inline void dump_to_iostream(aiw::IOstream&) {}							
-	template <typename T, typename ... Args>  void dump_to_iostream(aiw::IOstream &S, const T& x, const Args&... args){ dump_to_iostream(S<x, args...); }
-	inline void load_from_iostream(aiw::IOstream&) {}							
-	template <typename T, typename ... Args>  void load_from_iostream(aiw::IOstream &S, T& x, Args&... args){ load_from_iostream(S>x, args...); }
-	//--------------------------------------------------------------------------
-	//   complex numeric
-	//--------------------------------------------------------------------------
-//#if defined(_GLIBCXX_COMPLEX) && !defined(AIW_BINARY_IO_STD_COMPLEX)
-//#define AIW_BINARY_IO_STD_COMPLEX
-	template<typename T> 
-	inline IOstream& operator < (IOstream& S, const std::complex<T> &x){ S.write(&x, sizeof(std::complex<T>)); return S; }				
-	template<typename T> 
-	inline IOstream& operator > (IOstream& S, std::complex<T> &x){ S.read(&x, sizeof(std::complex<T>)); return S; }
-//#endif //_GLIBCXX_COMPLEX
-	//--------------------------------------------------------------------------
-//#if defined(_GLIBCXX_VECTOR) && !defined(AIW_BINARY_IO_STD_VECTOR)
-//#define AIW_BINARY_IO_STD_VECTOR
-	template<typename T> inline IOstream& operator < (aiw::IOstream& S, const std::vector<T>& X){
-		S<uint64_t(X.size());
-		if(__has_trivial_copy(T) && X.size()) S.write(X.data(), sizeof(T)*X.size());
-		else for(size_t i=0; i<X.size(); i++) S<X[i];
-		return S;
-	}		
-	template<typename T> inline IOstream& operator > (aiw::IOstream& S, std::vector<T>& X){
-		uint64_t sz=0; S>sz; X.resize(sz);
-		if(__has_trivial_copy(T) && X.size()) S.read(X.data(), sizeof(T)*X.size());
-		else for(size_t i=0; i<X.size(); i++) S>X[i];
-		return S;
+AIW_POD(double); AIW_POD(int8_t);  AIW_POD(int16_t);  AIW_POD(int32_t);  AIW_POD(int64_t);
+AIW_POD(float); AIW_POD(uint8_t); AIW_POD(uint16_t); AIW_POD(uint32_t); AIW_POD(uint64_t);
+AIW_POD(bool);
+template <typename T> struct aiw_dump_load<std::complex<T> > { static const int mode = 1; };
+
+namespace aiw{	
+	// global case
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==0, bool>::type dump(S &s, const T& x){
+		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, create function bool dump(S&, const T&) for binary dump of type T! ***\033[0m\n"); return false; }
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==0, bool>::type load(S &s, T& x){
+		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, create function bool load(S&, T&) for binary load of type T! ***\033[0m\n"); return false; }
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==1, bool>::type
+	dump(S &s, const T& x){ return s.write(&x, sizeof(T))==sizeof(T); }
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==1, bool>::type
+	load(S &s,       T& x){ return  s.read(&x, sizeof(T))==sizeof(T); }
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==2, bool>::type
+	dump(S &s, const T& x){ return x.dump(s); }
+	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==2, bool>::type
+	load(S &s, T& x){ return x.load(s); }
+
+	template <typename S, typename T> bool stream_dump_wrapper(S& s, const T& x){ return dump(s, x); }
+	template <typename S, typename T> bool stream_load_wrapper(S& s, T& x){ return load(s, x); }
+
+	// fix size arrays
+	template <typename S, typename T, int D> bool dump(S &s, T const (&p)[D]){
+		if(aiw_dump_load<T>::mode==1) return s.write(p, D*sizeof(T))==D*sizeof(T);
+		for(int i=0; i<D; i++) if(!dump(s, p[i])) return false;
+		return true;
 	}
-	inline IOstream& operator < (aiw::IOstream& S, const std::vector<bool>& X){
-		S<uint64_t(X.size()); uint64_t cursor=0, buf=0;
+	template <typename S, typename T, int D> bool load(S &s, T (&p)[D]){
+		if(aiw_dump_load<T>::mode==1) return s.read(p, D*sizeof(T))==D*sizeof(T);
+		for(int i=0; i<D; i++) if(!load(s, p[i])) return false;
+		return true;
+	}
+	
+	// std::string
+	template <typename S> bool dump(S &s, const std::string& x){ return dump(s, uint32_t(x.size())) && s.write(&(x[0]), x.size())==x.size(); }
+	template <typename S> bool load(S &s, std::string& x){
+		uint32_t sz=0; if(!load(s, sz)) return false;
+		x.resize(sz); if(s.read(&(x[0]), sz)!=sz){ std::string().swap(x); return false; }
+		return true;
+	}
+
+	// std::vector
+	template <typename S, typename T> bool dump(S &s, const std::vector<T> &v){
+		if(!dump(s, uint64_t(v.size()))) return false;
+		if(aiw_dump_load<T>::mode==1) return s.write(v.data(), sizeof(T)*v.size())==sizeof(T)*v.size();
+		for(const T& x: v) if(!dump(s, x)) return false;
+		return true;
+	}
+	template <typename S, typename T> bool load(S &s, std::vector<T> &v){
+		uint64_t sz; if(!load(s, sz)){ return false; }	v.resize(sz); bool isOK;
+		if(aiw_dump_load<T>::mode==1) isOK = s.read(v.data(), sizeof(T)*sz)!=sizeof(T)*sz;
+		else for(T& x: v) if(!load(s, x)){  isOK = false; break; }
+		if(!isOK) std::vector<T>().swap(v);
+		return isOK;
+	}
+	template <typename S> bool dump(S &s, const std::vector<bool>& X){
+		if(!dump(s, uint64_t(X.size()))) return false;
+		uint64_t cursor=0, buf=0;
 		for(auto i=X.begin(); i!=X.end(); ++i){
 			buf |= uint64_t(*i)<<cursor++; 
-			if(cursor==64){ S<buf; cursor = 0; buf = 0; }
+			if(cursor==64){ if(!dump(s, buf)){ return false; } cursor = 0; buf = 0; }
 		}
-		if(cursor) S<buf;
-		return S;
+		if(cursor && !dump(s, buf)) return false;
+		return true;
 	}		
-	inline IOstream& operator > (aiw::IOstream& S, std::vector<bool>& X){
-		uint64_t sz=0; S>sz; X.resize(sz); uint64_t cursor=64, buf=0;
+	template <typename S> bool load(S &s, std::vector<bool>& X){
+		uint64_t sz=0; if(!load(s, sz)){ return false; } X.resize(sz); uint64_t cursor=64, buf=0;
 		for(auto i=X.begin(); i!=X.end(); ++i){
-			if(cursor==64){ S>buf; cursor = 0; }
+			if(cursor==64){ if(!load(s, buf)){ std::vector<bool>().swap(X); return false; } cursor = 0; }
 			*i = buf&(uint64_t(1)<<cursor++);
 		}
-		return S; 
+		return true; 
 	}
-// #endif //_GLIBCXX_VECTOR
-	//--------------------------------------------------------------------------
-// #if defined(_GLIBCXX_LIST) && !defined(AIW_BINARY_IO_STD_LIST)
-// #define AIW_BINARY_IO_STD_LIST
-	template<typename T> inline IOstream& operator < (IOstream& S, const std::list<T>& X){
-		S<uint64_t(X.size()); for(auto I=X.begin(); I!=X.end(); ++X) S<*I; return S;
+
+	// std::list
+	template <typename S, typename T> bool dump(S &s, const std::list<T>& X){
+		if(!dump(s, uint64_t(X.size()))) return false;
+		for(const T &x: X) if(!dump(s, x)) return false;
+		return true;
 	}		
-	template<typename T> inline IOstream& operator > (IOstream& S, std::list<T>& X){
-		uint64_t sz = 0; S>sz; T v; for(size_t i=0; i<sz; i++){ S>v; X.push_back(v); } return S;
-	}
-// #endif //_GLIBCXX_LIST
-	//--------------------------------------------------------------------------
-// #if defined(_GLIBCXX_MAP) && !defined(AIW_BINARY_IO_STD_MAP)
-// #define AIW_BINARY_IO_STD_MAP
-	template<typename K, typename V> inline IOstream& operator < (IOstream& S, const std::map<K, V>& X){
-		S<uint64_t(X.size());
-		for(auto I=X.begin(); I!=X.end(); ++I) S<I->first<I->second; 
-		return S;
+	template <typename S, typename T> bool load(S &s, std::list<T>& X){
+		uint64_t sz = 0; if(!load(s, sz)) return false;
+		X.resize(sz); for(T &x: X) if(!load(s, x)){ std::list<T>().swap(X); return false; }
+		return true;
 	}		
-	template<typename K, typename V> inline IOstream& operator > (IOstream& S, std::map<K, V>& X){
-		uint64_t sz = 0; S>sz; K k; V v;
-		for(size_t i=0; i<sz; i++){ S>k>v; X[k] = v; }
-		return S;
+
+	// std::map
+	template <typename S, typename K, typename V> bool dump(S &s, const std::map<K, V>& X){
+		if(!dump(s, uint64_t(X.size()))) return false;
+		for(auto I=X.begin(); I!=X.end(); ++I) if(!dump(s, I->first) || !dump(s, I->second)) return false;
+		return true;
 	}		
-	// #endif //_GLIBCXX_MAP
-};
+	template <typename S, typename K, typename V> bool load(S &s, std::map<K, V>& X){
+		uint64_t sz = 0; if(!load(s, sz)) return false;
+		K k; V v; for(size_t i=0; i<sz; i++) if(load(s, k) && load(s, v)) X[k] = v; else return false;
+		return true;
+	}		
+} // end of namespace aiw
 #endif //AIW_BINARY_IO_HPP
-	//--------------------------------------------------------------------------
-#if defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
-#define AIW_BINARY_IO_VEC
-namespace aiw{
-	template<int D, typename T> inline IOstream& operator < (IOstream& S, const Vec<D, T>& x){ S.write(&x, sizeof(x)); return S; }
-	template<int D, typename T> inline IOstream& operator > (IOstream& S,       Vec<D, T>& x){ S.read(&x, sizeof(x)); return S; }
-}
-#endif //defined(AIW_VEC_HPP) && !defined(AIW_BINARY_IO_VEC)
-	//--------------------------------------------------------------------------

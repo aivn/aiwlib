@@ -17,7 +17,9 @@ bool aiw::ZCubeView::load(IOstream &S){
 	sz = uint64_t(1)<<(R*D);  mem = S.mmap(sz*szT, 0);
 	for(int i=0; i<D; i++) this->set_step(i);
  
+#ifdef AIW_TYPEINFO
 	cfa_list = bf.tinfo.get_access();
+#endif //AIW_TYPEINFO
 	return true;
 }
 //------------------------------------------------------------------------------

@@ -38,7 +38,8 @@ if '-cond' in sys.argv:
     cond = compile(cond, cond, 'eval')
     del sys.argv[sys.argv.index('-cond'):sys.argv.index('-cond')+2]
     
-H, G, L = dict(enumerate('xyz')), dict(math.__dict__), (sys.stdin if sys.argv[1]=='-' else open(sys.argv[1])).readlines()
+H = dict(list(enumerate('xyz'))+list(enumerate('C%i'%i for i in range(1, 256))))
+G, L = dict(math.__dict__), (sys.stdin if sys.argv[1]=='-' else open(sys.argv[1])).readlines()
 if not '-noracs' in sys.argv:
     class Racs: pass
     racs = Racs()

@@ -3,11 +3,9 @@
 #define AIW_DEBUG_HPP
 
 /**
- * Copyright (C) 2016, 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
-
-#ifndef SWIG		
 
 #include <cerrno>
 #include <cstring>
@@ -72,11 +70,14 @@ namespace aiw{
 		return res;
 	}
 	//--------------------------------------------------------------------------
+#ifndef AIW_WIN32
 	void init_signal_hook(int signal);
 	void init_segfault_hook();
+#endif //AIW_WIN32
 	//--------------------------------------------------------------------------
-};
+}  // end of namespace aiw 
 
+#ifndef AIW_WIN32		
 #ifdef EBUG
 #   define WSTR(out, args...) { out<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "; \
 		aiw::debug_out(out, #args, args); out<<"\n"; }
@@ -105,8 +106,22 @@ extern char bUfFoRwRaIsE0[4096];
 		aiw::debug_out(bUfFoRwRaIsE, #args, args); bUfFoRwRaIsE<<"\n";	\
 		std::cerr<<bUfFoRwRaIsE.str(); strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; \
 	}	
-//------------------------------------------------------------------------------
-#endif //SWIG		
+#else //AIW_WIN32
+namespace aiw{  // это заглушка для Visual Studio etc.
+	template <typename ... Args> void WEXC(Args ... args){}
+	template <typename ... Args> void WEXT(Args ... args){}
+	template <typename ... Args> void WASSERT(bool cond, const char* msg, Args ... args){
+#ifdef EBUG
+		if(!cond) throw(msg);
+#endif //EBUG
+	}
+	template <typename ... Args> void WOUT(Args ... args){}
+	template <typename ... Args> void WERR(Args ... args){}
+	template <typename ... Args> void WCHK(Args ... args){}
+	template <typename ... Args> void WARNING(const char *msg, Args ... args){ std::cout<<msg; }
+	template <typename ... Args> void WRAISE(const char* msg, Args ... args){ throw(msg); }
+}
+#endif //AIW_WIN32		
 //------------------------------------------------------------------------------
 #define NAME_OF_AUTODOC1(num) autodoc_##num
 #define NAME_OF_AUTODOC2(num) NAME_OF_AUTODOC1(num)

@@ -128,7 +128,7 @@ include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o src/*.o src/bin/*.o python/aiwlib/_*.so 
+clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python/aiwlib/_*.so 
 cleanall: clean 
 	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python/aiwlib/$$(basename $$i){,c}; rm -f $$i python/aiwlib/$$(basename $$i){,c}; done
 	rm -f swig/*_wrap.cxx 

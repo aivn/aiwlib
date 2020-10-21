@@ -4,6 +4,8 @@
  **/
 
 #include <map>
+#include <algorithm>
+
 #define INIT_ARR_ZERO  {nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}
 #include "../include/aiwlib/sphere"
 using namespace aiw;
@@ -48,7 +50,7 @@ template<int N,typename T> inline Vec<N,T> shift( const Vec<N,T>& r, int i ) {
 }
 //------------------------------------------------------------------------------
 //вспомогательная ф-я определяющая номер грани
-int id( const Vec<5,uint64_t>& ind ) { return ( ( ind[ (ind[3]+1)%3 ]+1 )/2 + ind [ (ind[3]+2)%3 ]+1 + 4*ind[3] )*5 + ind[4]; }
+uint64_t id( const Vec<5,uint64_t>& ind ) { return ( ( ind[ (ind[3]+1)%3 ]+1 )/2 + ind [ (ind[3]+2)%3 ]+1 + 4*ind[3] )*5 + ind[4]; }
 //------------------------------------------------------------------------------
 //вспомагательная функция возвращающая соседний снизу треугольник для сетки 0-го уровня.
 inline Vec<5, uint64_t> down_nb(Vec<5, uint64_t> ind){

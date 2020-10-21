@@ -8,9 +8,53 @@
  **/
 
 #include "typeinfo"
+#include "iostream"
 #include "base_mesh"
 
+
 namespace aiw{
+	//--------------------------------------------------------------------------
+	class Packer{
+		std::vector<char> buf;
+		size_t rpos; // = 0;
+	public:
+		void init(size_t sz){ rpos = 0; buf.resize(sz); }
+		Packer(): rpos(0){}
+		Packer(const std::string &S): buf(S.size()), rpos(0) { memcpy(buf.data(), S.c_str(), S.size()); }
+		operator std::string () const { return std::string(buf.data(), buf.size()); }
+
+		size_t size() const { return buf.size(); }
+	    char* data() { return buf.data(); }
+	    const char* data() const { return buf.data(); }
+
+		size_t write(const void *x, size_t sz){ if(sz){ buf.resize(buf.size()+sz); memcpy(buf.data()+buf.size()-sz, x, sz); } return sz; }
+		size_t read(void *x, size_t sz){
+			if(rpos+sz<buf.size()){  memcpy(x, buf.data()+rpos, sz); rpos += sz; return sz; }
+			else{ rpos = buf.size(); return 0; }
+		}
+		void push_str(const std::string &x){ write(x.c_str(), x.size()); }
+		void set_align(size_t pos, int dsz, int align){ if((dsz+buf.size())%align) buf.insert(buf.begin()+pos, (dsz+buf.size())%align, 0); }
+
+		void seek(size_t pos){ rpos = pos; }
+		size_t tell() const { return rpos; };
+		void rseek(size_t pos){ rpos = buf.size()-pos; }
+		size_t tail_sz() const { return buf.size()-rpos; }
+		operator bool () const { return rpos<buf.size(); }
+		template<typename T> void get(size_t pos, T& x){  memcpy(&x, buf.data()+pos, sizeof(T)); }
+		template <typename T, int D> void get(size_t pos, T (&p)[D]){ memcpy(p, buf.data()+pos, sizeof(T)*D); }
+
+		bool dump(){ return true; }
+		bool load(){ return true; }
+		template <typename T, typename ... Args> bool dump(const T& x, const Args& ... args){ return stream_dump_wrapper(*this, x) && this->dump(args...); }
+		template <typename T, typename ... Args> bool load(      T& x,       Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
+	};
+	//--------------------------------------------------------------------------	
+	inline bool dump(IOstream& S, const Packer &P){ return S.dump(uint32_t(P.size())) && S.write(P.data(), P.size())==P.size(); }
+	inline bool load(IOstream& S, Packer &P){
+		size_t s = S.tell(); uint32_t sz; if(!S.load(sz)){ S.seek(s); return false; }
+		P.init(sz); if(S.read(P.data(), sz)!=sz){ S.seek(s); return false; }
+		return true;
+	}
 	//--------------------------------------------------------------------------
 	struct BinaryFormat{
 		static const int unused = 1<<16;                       // важно что бы это значение не кофликтовало с возможными значениями R
@@ -20,7 +64,9 @@ namespace aiw{
 		void* bmin = nullptr;
 		void* bmax = nullptr;
 		void* out_value = nullptr;
+#ifdef AIW_TYPEINFO
 		TypeInfo tinfo;
+#endif //AIW_TYPEINFO
 
 		template <int DM> void init(BaseMesh<DM> &bm){
 			head = bm.head; axes = bm.anames;
@@ -28,9 +74,9 @@ namespace aiw{
 			box = &bm.box; bmin = &bm.bmin; bmax = &bm.bmax;
 		}
 		
-		void dump(IOstream& S) const; // полностью пишет заголовок
+		bool dump(IOstream& S) const; // полностью пишет заголовок
 		bool load(IOstream& S);       // полностью читает заголовок, по возомжности (и необходимости) инициализирует пределы и пр.
 	};
 	//--------------------------------------------------------------------------
-};  // end of namespace aiw
+}  // end of namespace aiw	
 #endif //AIW_BINARY_FORMAT_HPP

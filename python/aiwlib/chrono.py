@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''Copyright (C) 2013 Antov V. Ivanov  <aiv.racs@gmail.com>
+'''Copyright (C) 2013, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 #---------------------------------------------------------------------------------------------------------
 import time as _time
@@ -15,8 +15,11 @@ class BaseTimeException(Exception): pass
 class IllegalInitTimeValue(BaseTimeException): pass
 class IllegalInitDateValue(BaseTimeException): pass
 class IllegaMuleTimeValue(BaseTimeException): pass
+
+try: long(1)
+except: long = int
 #---------------------------------------------------------------------------------------------------------
-class Time: 
+class Time(object): 
 #    format = ...
     precision = 3
     def __init__(self, val=0, **d): 
@@ -32,7 +35,7 @@ class Time:
                 elif val.count(':')==1: h, m = map(float,val.split(':')); self.val = pm*(3600*h+60*m)
                 elif val.count(':')==2: h, m, s = map(float,val.split(':')); self.val = pm*(3600*h+60*m+s)
                 else: raise IllegalInitTimeValue(val)
-            except ValueError, e: raise IllegalInitTimeValue(val)
+            except ValueError as e: raise IllegalInitTimeValue(val)
         else: raise IllegalInitTimeValue(val)
         self.h, self.m, self.s = int(abs(self.val)/3600), int(abs(self.val)/60)%60, self.val%60
     def setval(self): self.val = self.h*3600+self.m*60+self.s
@@ -54,7 +57,7 @@ class Time:
         if isinstance(other, Time): return Time(self.val+other.val)
         elif isinstance(other, Date): return Date(self.val+other.val)
         try: return self+Time(other)
-        except IllegalInitTimeValue, e: return self+Date(other)
+        except IllegalInitTimeValue as e: return self+Date(other)
     def __sub__(self, other): return self+(-other)
     def __radd__(self, other): return self+other
     def __rsub__(self, other): return -self+other
@@ -72,7 +75,7 @@ class Time:
     def __rcmp__(self, other): return cmp(Time(other).val, self.val2) #precision???
     def __nonzero__(self): return bool(self.val)
 #---------------------------------------------------------------------------------------------------------
-class Date:
+class Date(object):
     def __init__(self, val=None, **d): 
         if d: 
             for a, v in zip('YMDhms', _time.localtime(_time.time())[:6]): setattr(self, a, d.get(a, v))
@@ -106,7 +109,7 @@ class Date:
         if isinstance(other, Date): return Time(self.val-other.val)
         if isinstance(other, Time): return Date(self.val-other.val)
         try: return self-Time(other)
-        except IllegalInitTimeValue, e: return self-Date(other)
+        except IllegalInitTimeValue as e: return self-Date(other)
     def __radd__(self, other): return self+other
     def __rsub__(self, other): return Date(other) - self
     def __cmp__(self, other): return cmp(self.val, Date(other).val)

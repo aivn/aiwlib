@@ -23,18 +23,20 @@ void aiw::UnorderedMesh3DHead::cell_t::init(const std::vector<Vec<3> > &coord_ta
 bool aiw::UnorderedMesh3DHead::load(IOstream &S){
 	BinaryFormat bf; bf.D = 3|(1<<29); bf.R = -1; bf.axes = anames; int box[3] = {0}; bf.box = box; if(!bf.load(S)) return false; 
 	head = bf.head; nodes.resize(box[0]); cells.resize(box[1]); faces_sz = box[2];
-	uint64_t phys_sz = 0; S>phys_sz; phys.resize(phys_sz*bf.R); S.read(phys.data(), phys.size());
+	uint64_t phys_sz = 0; S.load(phys_sz); phys.resize(phys_sz*bf.R); S.read(phys.data(), phys.size());
 	S.read(nodes.data(), nodes.size()*sizeof(Vec<3>));
-	for(cell_t &cell: cells){ int pID = 0; S>pID>cell.nodes>cell.faces; cell.phys = phys.data()+bf.R*pID; cell.init(nodes); }
+	for(cell_t &cell: cells){ int pID = 0; S.load(pID, cell.nodes, cell.faces); cell.phys = phys.data()+bf.R*pID; cell.init(nodes); }
 	S.seek(faces_sz*20, 1);  // таблицу инцендентности для граней пропускаем (3 узла и две ячейки)
 
 	bmin = bmax = nodes[0]; for(const Vec<3> &node: nodes){ bmin <<= node; bmax >>= node; }
+#ifdef AIW_TYPEINFO
 	cfa_list = bf.tinfo.get_access();  cfa_xfem_list = bf.tinfo.get_xfem_access();
+#endif //AIW_TYPEINFO
 	return true;
 }
 //------------------------------------------------------------------------------
 bool aiw::UnorderedMesh3DView::load(IOstream &S, const UnorderedMesh3DHead &mesh_){
-	mesh = &mesh_;  size_t mem_sz = ~size_t(0); S>head>mem_sz; if(mem_sz==~size_t(0)) return false;
+	mesh = &mesh_;  size_t mem_sz = ~size_t(0); S.load(head, mem_sz); if(mem_sz==~size_t(0)) return false;
 	size_t s = S.tell(); mem = S.mmap(mem_sz, 0); if(S.tell()!=long(s+mem_sz)) return false;
 	nodes = (const int*)(mem->get_addr());
 	cells = nodes+mesh->nodes.size();

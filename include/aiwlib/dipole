@@ -62,5 +62,5 @@ namespace aiw{
 		inline aiw::Vec<3> Hfar(const Vec<3> &n, double t) const { return n%d0s*-signal4an(t+n*r0s)[2]; }
 	};
 	//--------------------------------------------------------------------------
-};
+}
 #endif //AIW__HPP

@@ -256,7 +256,10 @@ namespace aiw{
 #ifndef SWIG
 		void dump(aiw::IOstream &&S) const { 
 			// S<head<int32_t(0)<int32_t(sizeof(T))<((mode<<29)|R);
-			BinaryFormat bf; bf.head = head; bf.szT = sizeof(T); bf.D = 0; bf.R = (mode<<29)|R;	bf.tinfo.root = T()^bf.tinfo; 
+			BinaryFormat bf; bf.head = head; bf.szT = sizeof(T); bf.D = 0; bf.R = (mode<<29)|R;
+#ifdef AIW_TYPEINFO
+			bf.tinfo.root = T()^bf.tinfo; 
+#endif //AIW_TYPEINFO
 			bf.dump(S); S.write(this->ptr, sizeof(T)*sz);
 			S.flush(); 
 		}
@@ -307,5 +310,5 @@ namespace aiw{
 		size_t __sizeof__() const { return sizeof(Sphere) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
 	};
 	//--------------------------------------------------------------------------
-};
+}
 #endif //AIW_SPHERE_HPP

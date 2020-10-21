@@ -5,7 +5,7 @@
 
 #include "../../include/aiwlib/view/images"
 #include "../../include/aiwlib/view/mesh"
-#include "../../include/aiwlib/binary_format"
+// #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/segy"
 
 using namespace aiw;
@@ -15,16 +15,21 @@ bool aiw::MeshView::load(IOstream &S){
 	if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
 	head = bf.head; D = bf.D; szT = bf.szT; logscale = bf.logscale; 
 	sz = 1; for(int i=0; i<D; i++) sz *= box[i];
+	// WOUT(head, D, szT, sz, logscale, box, bmin, bmax, s, S.tell());
+	
 	mem = S.mmap(sz*szT, 0);
+	// WOUT(S.tell());
  
-	s = S.tell(); int32_t sz2 = 0; S>sz2;  // try read old aivlib mesh format (deprecated)
+	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(D*24+4+szT)){ S.read(&bmin, D*8); S.read(&bmax, D*8); S.read(&step, D*8); S.seek(szT, 1); logscale = 0;  } 
 	else  S.seek(s); 
 	for(int i=0; i<D; i++) this->set_step(i);
 	// for(auto i: bf.tinfo.get_access()) std::cout<<i.label<<' '<<i.offset<<'\n';
-	// std::cout<<bf.tinfo;	
+	// std::cout<<bf.tinfo;
+#ifdef AIW_TYPEINFO
 	cfa_list = bf.tinfo.get_access();
-	segy = false;	
+#endif //AIW_TYPEINFO
+	segy = false;
 	return true;
 }
 //------------------------------------------------------------------------------
@@ -100,6 +105,7 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 	double t0 = omp_get_wtime();
 #endif //EBUG
 	access_t access(*this, conf);
+	// WOUT(access.cfa.typeID, access.cfa.offset);
 	float f_min = 0, f_max = 0; int xsz = access.box[0], ysz = access.box[1];
 	if(access.powZ2){
 		if(abs(access.mul[0])<abs(access.mul[1])){		

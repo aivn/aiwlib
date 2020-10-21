@@ -27,15 +27,17 @@ namespace aiw{
 		, BaseMeshOp
 #endif //SWIG
 	{
+#ifndef SWIG
 	protected:
 		std::shared_ptr<BaseAlloc> mem;
 		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
 		Ind<D> axes;         // порядок следования осей ???
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
 		template <typename T2, int D2> friend class Mesh;
-		UsingBaseMeshAttributes;
+		UsingBaseMeshAttributes
 
 		friend class MeshView;
+#endif //SWIG
 	public:
 		
 		typedef T cell_type;
@@ -72,8 +74,10 @@ namespace aiw{
 		*/
 		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
 			BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T);  bf.out_value = (void*)&out_value;
+#ifdef AIW_TYPEINFO
 			bf.tinfo.root = T()^bf.tinfo; 
-			bf.dump(S); for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos];
+#endif //AIW_TYPEINFO
+			bf.dump(S); for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); // <== это можно оптимизировать!!!
 			S.flush(); 
 		}
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
@@ -86,11 +90,11 @@ namespace aiw{
 			if(__has_trivial_copy(T)){
 				if(use_mmap){ sz_init(box); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
 				else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); S.read(ptr, sz*sizeof(T)); }
-			} else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); for(Ind<D> pos; pos^=box; ++pos) S>(*this)[pos]; }
+			} else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); for(Ind<D> pos; pos^=box; ++pos) S.load((*this)[pos]); }
 			if(!use_mmap && S.tell()-s!=sizeof(T)*sz){ S.seek(s0); WRAISE("incorrect Mesh::load() ", D, sizeof(T), S.name, head, box, S.tell()-s, sizeof(T)*sz); }
 
-			s = S.tell(); int32_t sz2 = 0; S>sz2;  // try read old aivlib mesh format (deprecated)
-			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))){ S>bmin>bmax>step>out_value; logscale = 0; WOUT(bmin, bmax, step, out_value); } 
+			s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
+			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))){ S.load(bmin, bmax, step, out_value); logscale = 0; WOUT(bmin, bmax, step, out_value); } 
 			else  S.seek(s); 
 			for(int i=0; i<D; i++) this->set_step(i);
 			return true;
@@ -326,6 +330,7 @@ namespace aiw{
 			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
 		}
 
+		/*
 #ifndef SWIG		
 		void fill(aiw::IOstream &&S){
 			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
@@ -339,6 +344,7 @@ namespace aiw{
 		}
 #endif //SWIG
 		void fill(aiw::IOstream &S){ fill(std::move(S)); }
+		*/
 		//----------------------------------------------------------------------
 		// operators +, -, *, /, % etc?
 
@@ -415,5 +421,5 @@ namespace aiw{
 			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));  
 			}*/
 	//--------------------------------------------------------------------------
-};
+}
 #endif //AIW_MESH_HPP

@@ -16,7 +16,7 @@ namespace aiw{
 	protected:
 		size_t sz;  // общее число элементов
 		Ind<D> box; // размеры сетки в ячейках
-		friend class BinaryFormat;
+		friend struct BinaryFormat;
 	public:
 		static const int dim = D;
 		std::string head, anames[D];
@@ -106,5 +106,5 @@ public:											\
 	using BaseMesh<D>::interp;					\
 	using BaseMesh<D>::bounds;
 	//--------------------------------------------------------------------------
-};
+}
 #endif //AIW_BASE_MESH_HPP

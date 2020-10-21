@@ -46,6 +46,14 @@ namespace aiw{
 		}
 		return offset;
 	}
+	template <int D, typename T> T zoff_diag_shift_v2(T offset){  // возвращает сдвинутый вперед по диагонали offset
+		T result = 0;
+		for(int i=0; i<D; i++){
+			T mask = zmasks[D-1]<<i;
+			result |= ((offset|~mask)+1)&mask;
+		}
+		return result;
+	}
 	//--------------------------------------------------------------------------
 	inline uint64_t interleave_bits_any(int D, int32_t x, int R){
 		uint64_t f = 0;
@@ -185,7 +193,10 @@ namespace aiw{
 		}
 
 		void dump(aiw::IOstream &&S) const {
-			BinaryFormat bf; bf.init((BaseMesh<D>&)*this); bf.szT = sizeof(T); bf.D |= 1<<30;  bf.R = R;  bf.box = nullptr;	bf.tinfo.root = T()^bf.tinfo; 
+			BinaryFormat bf; bf.init((BaseMesh<D>&)*this); bf.szT = sizeof(T); bf.D |= 1<<30;  bf.R = R;  bf.box = nullptr;
+#ifdef AIW_TYPEINFO
+			bf.tinfo.root = T()^bf.tinfo; 
+#endif //AIW_TYPEINFO
 			bf.dump(S); S.write(data, N*sizeof(T));
 			S.flush(); 
 		}

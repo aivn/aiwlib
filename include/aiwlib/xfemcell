@@ -13,7 +13,9 @@
 #include <algorithm>
 #include "debug"
 #include "binaryio"
+// #ifdef AIW_TYPEINFO
 #include "typeinfo"
+// #endif //AIW_TYPEINFO
 
 namespace aiw{
 	//--------------------------------------------------------------------------

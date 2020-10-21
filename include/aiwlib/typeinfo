@@ -7,18 +7,14 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#include <type_traits>
-#include <map>
-#include <array>
-#include <vector>
-#include <string>
-#include <iostream>
 // #include <typeinfo>
 #include <complex>
+#include <vector>
+#include <list>
+#include <map>
+
 #include "vec"
-#include "iostream"
-#include "binaryio"
-#include "packer"
+// #include "iostream"
 
 // эти макросы перегружают внутри и снаружи оператор obj^TypeInfo
 // (оператор --- именно потому что его можно перегрузить как внутри, так и снаружи)
@@ -29,38 +25,10 @@
 // для POD-типов память просто копируется и смещения не изменяются, иначе
 // в TypeInfo после записи/чтения в packer ДОЛЖНЫ лежать смещения полей согласно  dump/load!!!
 
-#define TYPEINFO(TNAME, ARGS...)										\
-	aiw::TypeInfo::field_t operator ^ (aiw::TypeInfo& ti) const {		\
-		return ti.add(TNAME,  #ARGS, this, ARGS);						\
-	}																	\
-    void dump(aiw::IOstream &S) const {									\
-		if(std::is_trivially_copy_constructible<decltype(*this)>::value) \
-			S.write(this, sizeof(*this));								\
-		else aiw::dump_to_iostream(S, ARGS);							\
-	}																	\
-    void load(aiw::IOstream &S){										\
-		if(std::is_trivially_copy_constructible<decltype(*this)>::value) \
-			S.read(this, sizeof(*this));								\
-		else aiw::load_from_iostream(S, ARGS);							\
-	}
-
-#define TYPEINFO_X(T, ARGS...)											\
-	inline aiw::TypeInfo::field_t operator ^ (const T& X,				\
-											  aiw::TypeInfo& ti){		\
-		return ti.add(#T,  #ARGS, &X, ARGS);							\
-	}																	\
-	aiw::IOstream& operator < (aiw::IOstream& S, const T&X){			\
-		if(std::is_trivially_copy_constructible<T>::value)				\
-			S.write(&X, sizeof(X));										\
-		else aiw::dump_to_iostream(S, ARGS);							\
-		return S;														\
-	}																	\
-	aiw::IOstream& operator > (aiw::IOstream& S, T&X){					\
-		if(std::is_trivially_copy_constructible<T>::value)				\
-			S.read(&X, sizeof(X));										\
-		else aiw::load_from_iostream(S, ARGS);							\
-		return S;														\
-	}																	
+#ifdef AIW_TYPEINFO
+#define TYPEINFO(TNAME, ARGS...) aiw::TypeInfo::field_t operator ^ (aiw::TypeInfo& ti) const { return ti.add(TNAME, #ARGS, this, ARGS); }
+#define TYPEINFO_X(T, ARGS...) inline aiw::TypeInfo::field_t operator ^ (const T& X, aiw::TypeInfo& ti){ return ti.add(#T, #ARGS, &X, ARGS); }
+#endif //AIW_TYPEINFO
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -136,12 +104,16 @@ namespace aiw{
 		}		
 	}; // end of structure CellFieldAccess
 #ifndef SWIG
-	inline Packer& operator < (Packer &P, const CellFieldAccess &cfa){
-		return P<cfa.label<cfa.xfem_field<cfa.typeID<cfa.offset<cfa.xfem_szT<cfa.xfem_dim<cfa.xfem_pos<cfa.ibit;
+	template <typename S> bool dump(S &s, const CellFieldAccess &cfa){
+		return s.dump(cfa.label, cfa.xfem_field, cfa.typeID, cfa.offset, cfa.xfem_szT, cfa.xfem_dim, cfa.xfem_pos, cfa.ibit);
 	}
-	inline Packer& operator > (Packer &P, CellFieldAccess &cfa){
-		return P>cfa.label>cfa.xfem_field>cfa.typeID>cfa.offset>cfa.xfem_szT>cfa.xfem_dim>cfa.xfem_pos>cfa.ibit;
+	template <typename S> bool load(S &s, CellFieldAccess &cfa){
+		return s.load(cfa.label, cfa.xfem_field, cfa.typeID, cfa.offset, cfa.xfem_szT, cfa.xfem_dim, cfa.xfem_pos, cfa.ibit);
 	}
+#endif // SWIG
+	
+#ifdef AIW_TYPEINFO
+#ifndef SWIG
 	//--------------------------------------------------------------------------
 	struct TypeInfo{
 		//----------------------------------------------------------------------
@@ -226,19 +198,19 @@ namespace aiw{
 	//	return S<<"; // szT="<<a.szT<<", offset="<<a.offset<<'\n';
 	// }
 	//--------------------------------------------------------------------------
-	inline Packer& operator < (Packer &P, const TypeInfo::field_t &f) { return P<f.Tname<f.typeID<f.szT<f.dim<f.fname; }
-	inline Packer& operator > (Packer &P,       TypeInfo::field_t &f) { return P>f.Tname>f.typeID>f.szT>f.dim>f.fname; }
-	inline Packer& operator < (Packer &P, const TypeInfo::struct_info_t &S) { return P<S.szT<S.fields; }
-	inline Packer& operator > (Packer &P,       TypeInfo::struct_info_t &S) { return P>S.szT>S.fields; }
-	inline Packer& operator < (Packer &P, const TypeInfo &ti) {
-		P<ti.table<ti.root<ti.xfem_root;
-		if(ti.xfem_root.size()) P.write(ti.xfem_szT.data(), ti.xfem_szT.size()*4);
-		return P;
+	template <typename S> bool dump(S &s, const TypeInfo::field_t &f) { return s.dump(f.Tname, f.typeID, f.szT, f.dim, f.fname); }
+	template <typename S> bool load(S &s,       TypeInfo::field_t &f) { return s.load(f.Tname, f.typeID, f.szT, f.dim, f.fname); }
+	template <typename S> bool dump(S &s, const TypeInfo::struct_info_t &t) { return s.dump(t.szT, t.fields); }
+	template <typename S> bool load(S &s,       TypeInfo::struct_info_t &t) { return s.load(t.szT, t.fields); }
+	template <typename S> bool dump(S &s, const TypeInfo &ti) {
+		if(!s.dump(ti.table, ti.root, ti.xfem_root)) return false;
+		if(ti.xfem_root.size()) return s.write(ti.xfem_szT.data(), ti.xfem_szT.size()*4)==ti.xfem_szT.size()*4;
+		return true;
 	}
-	inline Packer& operator > (Packer &P, TypeInfo &ti) {
-		P>ti.table>ti.root>ti.xfem_root;
-		if(ti.xfem_root.size()){ ti.xfem_szT.resize(ti.xfem_root.size()); P.read(ti.xfem_szT.data(), ti.xfem_szT.size()*4); }
-		return P;
+	template <typename S> bool load(S &s, TypeInfo &ti) {
+		if(!s.load(ti.table, ti.root, ti.xfem_root)) return false;
+		if(ti.xfem_root.size()){ ti.xfem_szT.resize(ti.xfem_root.size()); return s.read(ti.xfem_szT.data(), ti.xfem_szT.size()*4)==ti.xfem_szT.size()*4; }
+		return true;
 	}
 	//--------------------------------------------------------------------------
 #define ADD_BASE_TYPE(T, TID) inline TypeInfo::field_t operator ^ (T, TypeInfo&){ TypeInfo::field_t f; f.Tname = #T; f.typeID = TID; f.szT = sizeof(T); return f; }
@@ -267,15 +239,16 @@ namespace aiw{
 		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, use macros TYPEINFO or TYPEINFO_X for your type! ***\033[0m\n");
 		return TypeInfo::field_t();
 	} 
+#endif //AIW_TYPEINFO
 }   // end of namespace aiw
 #endif //AIW_TYPEINFO_HPP
 
-#if defined(AIW_MATRIX_HPP) && !defined(AIW_TYPEINFO_MATR)
+#if defined(AIW_MATRIX_HPP) && defined(AIW_TYPEINFO) && !defined(AIW_TYPEINFO_MATR)
 #define AIW_TYPEINFO_MATR
 namespace aiw{	
 	template <int Y, int X, typename T> TypeInfo::field_t operator ^ (const Matr<Y, X, T> &M, TypeInfo &tio){ return (T()^tio).add_dimV(X).add_dimV(Y); }
 }
-#endif // defined(AIW_MATRIX_HPP) && !defined(AIW_TYPEINFO_MATR)
+#endif // defined(AIW_MATRIX_HPP) && defined(AIW_TYPEINFO) && !defined(AIW_TYPEINFO_MATR)
 
 // template <typename T> inline TypeInfo::field_t operator ^ (const DynVec<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1); }
 // template <typename T> inline TypeInfo::field_t operator ^ (const DynMatr<T> &X, TypeInfo &tio){ return (T()^tio).add_dimV(-1).add_dimV(-1); }

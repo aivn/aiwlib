@@ -3,20 +3,20 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/view/color"
-#include "../../include/aiwlib/packer"
 using namespace aiw;
 
 const float *all_paletters[] = {grey_pal, inv_grey_pal, black_red_pal, green_blue_pal, neg_pos1_pal,
 								neg_pos2_pal, positive_pal, rainbow_pal, color_pal, inv_rainbow_pal, cyclic_pal, nullptr};
 //------------------------------------------------------------------------------
 std::string aiw::CalcColor::pack() const {
-	Packer P; P<max_rgb<min<max<nan_color<pal_ID<cyclic<logscale<modulus<invert<magn;
+	Packer P; P.dump(max_rgb, min, max, nan_color, pal_ID, cyclic, logscale, modulus, invert, magn);
 	return P;
 }
 //------------------------------------------------------------------------------
 void aiw::CalcColor::unpack(const std::string &S){
-	Packer P(S); int pID = 0; P>max_rgb>min>max>nan_color>pID>cyclic>logscale>modulus>invert>magn;
+	Packer P(S); int pID = 0; P.load(max_rgb, min, max, nan_color, pID, cyclic, logscale, modulus, invert, magn);
 	if(magn) magn_pal_init(max_rgb);
 	init(all_paletters[pID], min, max);
 }

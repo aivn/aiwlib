@@ -3,25 +3,26 @@
 #define AIW_IOSTREAM_HPP
 
 /**
- * Copyright (C) 2016 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
-#ifndef SWIG
 #include <cstdio>
 #include <string>
 #include <stdarg.h>
-#endif //SWIG
+
+#include "binaryio"
 #include "alloc"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 #ifndef SWIG
+	//--------------------------------------------------------------------------
 	template <typename S> void format2stream(S &&str, const char *format){
 		for(int i=0; format[i]; ++i){
 			if(format[i]=='%'){
 				if(format[i+1]=='%'){ str.write(format, i); format += i+1; i = 0; }
-				else WRAISE("illegal '%' count: ", format, format+i)
+				else WRAISE("illegal '%' count: ", format, format+i);
 			}
 		}
 		str<<format;
@@ -80,6 +81,10 @@ namespace aiw{
 		template <typename ... Args> IOstream& operator ()(const char *format, Args ... args){
 			format2stream(*this, format, args...); return *this;
 		}
+		bool dump(){ return true; }
+		bool load(){ return true; }
+		template <typename T, typename ... Args> bool dump(const T& x, const Args& ... args){ return stream_dump_wrapper(*this, x) && this->dump(args...); }
+		template <typename T, typename ... Args> bool load(      T& x,       Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
 #endif //SWIG
 
 		aiw::IOstream& operator << (const char* S){ write(S, strlen(S)); return *this; }
@@ -101,9 +106,27 @@ namespace aiw{
 			}
 			return *this; 
 		}
-
-		// operators < > for binary IO
 	};
+	//--------------------------------------------------------------------------
+#ifdef AIW_VEC_HPP
+	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
+		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
+	}
+#endif //AIW_VEC_HPP
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+namespace std{
+#ifndef SWIG
+	inline aiw::IOstream& getline(aiw::IOstream &&S, std::string &dst, char delim='\n'){
+		for(char c; S.read(&c, 1)==1 && c!=delim;) dst += c;
+		return S;
+	}
+#endif //SWIG
+	inline aiw::IOstream& getline(aiw::IOstream &S, std::string &dst, char delim='\n'){ return getline(std::move(S), dst, delim); }	
+}
+namespace aiw{
+	//--------------------------------------------------------------------------
+	//   File
 	//--------------------------------------------------------------------------
 	class File: public IOstream{
 		std::shared_ptr<FILE> pf;
@@ -140,21 +163,5 @@ namespace aiw{
 			return r;
 		}		
 	};	
-	//--------------------------------------------------------------------------
-#ifdef AIW_VEC_HPP
-	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
-		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
-	}
-#endif //AIW_VEC_HPP
-	//--------------------------------------------------------------------------
-};
-namespace std{
-#ifndef SWIG
-	inline aiw::IOstream& getline(aiw::IOstream &&S, std::string &dst, char delim='\n'){
-		for(char c; S.read(&c, 1)==1 and c!=delim;) dst += c;
-		return S;
-	}
-#endif //SWIG
-	inline aiw::IOstream& getline(aiw::IOstream &S, std::string &dst, char delim='\n'){ return getline(std::move(S), dst, delim); }	
-};
+}  // end of namespace aiw
 #endif //AIW_IOSTREAM_HPP

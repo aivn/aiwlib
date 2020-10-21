@@ -9,7 +9,7 @@
 
 #include <vector>
 #include "../matr"
-#include "../packer"
+// #include "../packer"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -78,10 +78,12 @@ namespace aiw{
 		iterator trace(Ind<2> ij) const;
 	};
 	//--------------------------------------------------------------------------
+	/*
 #ifndef SWIG
 	inline Packer& operator < (Packer &P, const VTexture &vtx){ return P<vtx.image_sz<vtx.box<vtx.theta<vtx.phi<vtx.offset<vtx.scale; }
 	inline Packer& operator > (Packer &P,       VTexture &vtx){        P>vtx.image_sz>vtx.box>vtx.theta>vtx.phi>vtx.offset>vtx.scale; vtx.init(); return P; }
 #endif
+	*/
 	//--------------------------------------------------------------------------
 };  // end of namespace aiw
 #endif //AIW_VTEXTURE_VIEW_HPP

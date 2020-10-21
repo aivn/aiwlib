@@ -64,13 +64,16 @@ def final_select_pal(self, x, y):
 #-------------------------------------------------------------------------------
 mouse_right_cmd = ''
 def mouse_right_sph(self, xy, xy0, xy1): # плагин для расширения показа сферы
-    if mollweide.get() or not mouse_right_cmd: return
+    if content.main.mollweide.get() or not mouse_right_cmd: return
     eps = float(xy[0]-xy0[0])/(xy1[0]-xy0[0]), float(xy1[1]-xy[1])/(xy1[1]-xy0[1])
-    sph = data[file_num.get()][1][fr_num.get()]
+    sph = content.data[content.ifile][content.iframe+1]
+    #sph = content.data[file_num.get()][1][fr_num.get()]
     phi, th = [eps2val(([-pi, pi][i], [pi, 0][i]), eps[i], False) for i in (0,1)]
     r = vec(cos(phi)*sin(th), sin(phi)*sin(th), cos(th))
-    D = {'r':r, 'v':sph[r], 'cID':sph.find(r), 'cr':sph.center(sph.find(r)), 'phi':phi, 'theta':th, 'fname':data[file_num.get()][0],
-         'name':os.path.basename(data[file_num.get()][0]), 'frame':fr_num.get(), 'rank':sph.rank(), 'head':sph.head, 'path':os.path.dirname(data[file_num.get()][0])}
+    fname, cID = content.data[content.ifile][0], sph.get_ID(r)
+    D = {'r':r, 'v':sph.get_f(content.conf, r), 'cID':cID, 'cr':sph.get_center(cID),
+         'phi':phi, 'theta':th, 'fname':fname,
+         'name':os.path.basename(fname), 'frame':content.iframe, 'rank':sph.rank(), 'head':sph.head, 'path':os.path.dirname(fname)}
     if mouse_right_cmd[0]=='$': os.system(mouse_right_cmd[1:]%D)
     else: exec(mouse_right_cmd, globals(), D)
 #-------------------------------------------------------------------------------
@@ -104,10 +107,10 @@ class Content:
             else:
                 while 1:
                     msh, sph, amr, zcb = MeshView(), SphereView(), AdaptiveMeshView(), ZCubeView()  # ...
-                    if   msh.load(fin): self.data[-1].append(msh)
-                    elif sph.load(fin): self.data[-1].append(sph)
-                    elif amr.load(fin): self.data[-1].append(amr)
-                    elif zcb.load(fin): self.data[-1].append(zcb)
+                    if   msh.load(fin): self.data[-1].append(msh) #; print 'MSH'
+                    elif sph.load(fin): self.data[-1].append(sph) #; print 'SPH'
+                    elif amr.load(fin): self.data[-1].append(amr) #; print 'AMR'
+                    elif zcb.load(fin): self.data[-1].append(zcb) #; print 'ZCB'
                     else: break
             if len(self.data[-1])==1: del self.data[-1]; print fname, 'skipped'
             else:
@@ -239,36 +242,38 @@ content.main = MainConf(panel, panel_sz, content)
 content.settings = PlotConf(panel, content)
 #-------------------------------------------------------------------------------
 wroot.title('uplt')
-wroot.bind('<plus>', lambda e: content.color.scale_limits(2.5))
-wroot.bind('<minus>', lambda e: content.color.scale_limits(.5))
-wroot.bind('<equal>', lambda e: content.color.scale_limits(2.5))
-wroot.bind('[', lambda e: content.color.scale_limits(-1))
-wroot.bind(']', lambda e: content.color.scale_limits(1))
-wroot.bind('\\', lambda e: content.color.scale_limits(0))
-wroot.bind('a', lambda e: (content.color.autoscale.set(not content.color.autoscale.get()), content.color.replot()))
-wroot.bind('l', lambda e: (content.color.logscale.set(not content.color.logscale.get()), content.color.replot()))
-#wroot.bind('i', lambda e: (content.color.invert.set(not content.color.invert.get()), content.color.replot()))
-wroot.bind('s', content.animate.save_image)
-wroot.bind('r', lambda e: (content.animate.run.set(not content.animate.run.get()), content.animate.run_animate()))
-wroot.bind('<Up>', content.animate.prev_scroll) 
-wroot.bind('<Down>', content.animate.next_scroll) 
-wroot.bind('<Left>', lambda e: content.animate.move_scroll(-1)) 
-wroot.bind('<Right>', lambda e: content.animate.move_scroll(1)) 
-wroot.bind('<Prior>', lambda e: content.animate.move_scroll(-10)) #PgUp
-wroot.bind('<Next>', lambda e: content.animate.move_scroll(10))   #PgDown
-wroot.bind('x', lambda e: content.main.next_axe(0)) 
-wroot.bind('<Alt-x>', lambda e: content.main.prev_axe(0)) 
-wroot.bind('c', lambda e: content.main.next_axe(1)) 
-wroot.bind('<Alt-c>', lambda e: content.main.prev_axe(1)) 
-wroot.bind('q', lambda e: content.main.next_interp(0)) 
-wroot.bind('<Alt-q>', lambda e: content.main.prev_interp(0)) 
-wroot.bind('w', lambda e: content.main.next_interp(1)) 
-wroot.bind('<Alt-w>', lambda e: content.main.prev_interp(1)) 
-wroot.bind('f', lambda e: (content.main.flip[0].set(not content.main.flip[0].get()), content.main.flip_replot())) 
-wroot.bind('<Alt-f>', lambda e: (content.main.flip[1].set(not content.main.flip[1].get()), content.main.flip_replot())) 
-wroot.bind('b', lambda e: (content.main.cell_bound.set(not content.main.cell_bound.get()), content.main.cell_bound_replot())) 
-wroot.bind('i', lambda e: (content.main.sph_interp.set(not content.main.sph_interp.get()), content.main.sph_replot())) 
-wroot.bind('m', lambda e: (content.main.mollweide.set(not content.main.mollweide.get()), content.main.sph_replot())) 
+def bind(k, f): wroot.bind(k, f); content.settings.frame.unbind_all(k)
+#def bind(k, f): panel.bind(k, f); #content.settings.frame.unbind_all(k)
+bind('<plus>', lambda e: content.color.scale_limits(2.5))
+bind('<minus>', lambda e: content.color.scale_limits(.5))
+bind('<equal>', lambda e: content.color.scale_limits(2.5))
+bind('[', lambda e: content.color.scale_limits(-1))
+bind(']', lambda e: content.color.scale_limits(1))
+bind('\\', lambda e: content.color.scale_limits(0))
+bind('a', lambda e: (content.color.autoscale.set(not content.color.autoscale.get()), content.color.replot()))
+bind('l', lambda e: (content.color.logscale.set(not content.color.logscale.get()), content.color.replot()))
+#bind('i', lambda e: (content.color.invert.set(not content.color.invert.get()), content.color.replot()))
+bind('s', content.animate.save_image)
+bind('r', lambda e: (content.animate.run.set(not content.animate.run.get()), content.animate.run_animate()))
+bind('<Up>', content.animate.prev_scroll) 
+bind('<Down>', content.animate.next_scroll) 
+bind('<Left>', lambda e: content.animate.move_scroll(-1)) 
+bind('<Right>', lambda e: content.animate.move_scroll(1)) 
+bind('<Prior>', lambda e: content.animate.move_scroll(-10)) #PgUp
+bind('<Next>', lambda e: content.animate.move_scroll(10))   #PgDown
+bind('x', lambda e: content.main.next_axe(0)) 
+bind('<Alt-x>', lambda e: content.main.prev_axe(0)) 
+bind('c', lambda e: content.main.next_axe(1)) 
+bind('<Alt-c>', lambda e: content.main.prev_axe(1)) 
+bind('q', lambda e: content.main.next_interp(0)) 
+bind('<Alt-q>', lambda e: content.main.prev_interp(0)) 
+bind('w', lambda e: content.main.next_interp(1)) 
+bind('<Alt-w>', lambda e: content.main.prev_interp(1)) 
+bind('f', lambda e: (content.main.flip[0].set(not content.main.flip[0].get()), content.main.flip_replot())) 
+bind('<Alt-f>', lambda e: (content.main.flip[1].set(not content.main.flip[1].get()), content.main.flip_replot())) 
+bind('b', lambda e: (content.main.cell_bound.set(not content.main.cell_bound.get()), content.main.cell_bound_replot())) 
+bind('i', lambda e: (content.main.sph_interp.set(not content.main.sph_interp.get()), content.main.sph_replot())) 
+bind('m', lambda e: (content.main.mollweide.set(not content.main.mollweide.get()), content.main.sph_replot())) 
 #wroot.bind('<space>', lambda e: content.main.axes_menu[0].focus_set()) 
 content.canvas.bind('<Configure>', lambda e: content.plot_canvas((e.width, e.height)))
 

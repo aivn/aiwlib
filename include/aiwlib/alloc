@@ -40,6 +40,7 @@ namespace aiw{
 		size_t get_sizeof()  const { return sizeof(T); }				
 	};
 //---------------------------------------------------------------------------------------------	
+#ifndef AIW_WIN32
 	struct MemAlignAlloc: public BaseAlloc{
 		size_t sizeT;
 		MemAlignAlloc(size_t sz, size_t szT, int align){
@@ -49,10 +50,14 @@ namespace aiw{
 		~MemAlignAlloc(){ if(ptr) free(ptr); }
 		size_t get_sizeof()  const { return sizeT; }				
 	};
+#endif //AIW_WIN32
 //---------------------------------------------------------------------------------------------	
 	template <typename T> T* init_mem_ptr(std::shared_ptr<BaseAlloc>& mem, size_t sz, int align){
+#ifndef AIW_WIN32
 		if(align) mem.reset(new MemAlignAlloc(sz, sizeof(T), align));
-		else mem.reset(new MemAlloc<T>(sz));
+		else
+#endif //AIW_WIN32
+			mem.reset(new MemAlloc<T>(sz));
 		return (T*)(mem->get_addr());
 	}
 //---------------------------------------------------------------------------------------------	
@@ -75,6 +80,6 @@ namespace aiw{
     };
 #endif //MINGW
 //---------------------------------------------------------------------------------------------
-};
+}
 #endif //SWIG		
 #endif //AIW_ALLOC_HPP

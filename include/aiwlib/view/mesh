@@ -70,6 +70,7 @@ namespace aiw{
 			int xsz = image.size[0], ysz = image.size[1];
 			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
 
+			/*
 			if(conf.plot3D){
 				VTexture vtx = conf.vtx;
 				vtx.theta = M_PI/6; vtx.phi = M_PI/3;
@@ -98,8 +99,11 @@ namespace aiw{
 						image.set_pixel(ind(x,y), Ind<3>(c.round())<<ind(255));
 					}
 				}				
-			} else { // plot 2D
+			} else
+*/
+				{ // plot 2D
 				access_t f(*this, conf); 
+				//WOUT(f.cfa.typeID, f.cfa.offset);
 				// обходим изображение всегда "по шерсти", выигрыш от openMP примерно вдвое
 #pragma omp parallel for 
 				for(int y=0; y<ysz; y++){

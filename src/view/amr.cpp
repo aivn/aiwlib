@@ -78,18 +78,21 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream& S){
 	bf.bmin = &bmin; bf.bmax = &bmax; bf.box = &box;
 	if(!bf.load(S)) return false;
 	if(!(bf.D&(1<<31))) {  S.seek(s);  return false; }	
-	head = bf.head; D = bf.D&~(1<<31); szT = bf.szT; R = bf.R; logscale = bf.logscale; cfa_list = bf.tinfo.get_access();
+	head = bf.head; D = bf.D&~(1<<31); szT = bf.szT; R = bf.R; logscale = bf.logscale;
+#ifdef AIW_TYPEINFO
+	cfa_list = bf.tinfo.get_access();
+#endif //AIW_TYPEINFO
 	
 	int tiles_sz = box[0]; for(int i=1; i<D; i++) tiles_sz *= box[i];
 	tiles.resize(tiles_sz); data.resize(tiles_sz); max_rank = 0;
 	int flags_sz = 64/(1<<(R*D)); if(flags_sz==0) flags_sz = 1; // по одному биту на ячейку
 	for(int Ti=0; Ti<tiles_sz; Ti++){ // цикл по тайлам нулевого ранга
 		int rD = -1, rszT = -1, rR = -1;
-		size_t stell = S.tell();  S>rD>rszT>rR; if(rD!=D || rszT!=szT || rR!=R){
+		size_t stell = S.tell();  if(!S.load(rD, rszT, rR) || rD!=D || rszT!=szT || rR!=R){
 			S.seek(stell); WERR(rD, D, rszT, szT, rR, R);
 			return false;
 		}		
-		int h_sz, hl_sz, rID; S.seek(4*D, 1); S>h_sz>hl_sz>rID; int l_sz = hl_sz-h_sz;
+		int h_sz, hl_sz, rID; S.seek(4*D, 1); S.load(h_sz, hl_sz, rID); int l_sz = hl_sz-h_sz;
 		// WOUT(Ti, h_sz, hl_sz, rID, D, szT);
 		std::vector<tile_t*> tbl(hl_sz, 0);
 
@@ -111,7 +114,7 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream& S){
 		int I; uint32_t far_ch_sz; uint16_t ch_use;
 		for(int hti=0; hti<h_sz-1; hti++){
 			heavy_tile_t &t = root.htiles[hti]; t.data = &(root.data[hti*(1<<(R*D))*szT]);
-			S>t.rank>ch_use>far_ch_sz>I;  t.parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl.at(I); }
+			S.load(t.rank, ch_use, far_ch_sz, I);  t.parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S.load(I); t.childs[i] = tbl.at(I); }
 			//WOUT(t, t->parent, t->childs[0], t->childs[1], t->childs[2], t->childs[3]);
 			if(max_rank<t.rank) max_rank = t.rank;
 			S.read(t.usage.arr, flags_sz*8);
@@ -121,9 +124,9 @@ bool aiw::AdaptiveMeshView::load(aiw::IOstream& S){
 		}		
 		for(int lti=0; lti<l_sz; lti++){
 			light_tile_t &t = root.ltiles[lti]; t.chunks = &(root.chunks[lti*(1<<(D*(R-1)))]);
-			S>t.rank>ch_use>I;
+			S.load(t.rank, ch_use, I);
 			// if(I<0) WRAISE("", I);
-			t.page = I? &(root.htiles.at(I-1)): nullptr; S>I; t.parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S>I; t.childs[i] = tbl.at(I); }
+			t.page = I? &(root.htiles.at(I-1)): nullptr; S.load(I); t.parent = tbl.at(I); for(int i=0; i<(1<<D); i++){ S.load(I); t.childs[i] = tbl.at(I); }
 			if(max_rank<t.rank) max_rank = t.rank;
 			//WOUT(t, t->parent, t->page, t->childs[0], t->childs[1], t->childs[2], t->childs[3], t->parent->find_child_ID(t));
 			S.read(t.usage.arr, flags_sz*8);

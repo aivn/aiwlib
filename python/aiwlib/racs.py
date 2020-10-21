@@ -66,7 +66,9 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
 #                создает уникальные директории расчетов, обеспечивает 
 #                распределение заданий
 #-------------------------------------------------------------------------------
-import os, sys, math, time, inspect, socket, cPickle, thread, atexit 
+import os, sys, math, time, inspect, socket, thread, atexit
+try: import cPickle as pickle
+except: import pickle
 import aiwlib.gtable 
 import aiwlib.calc as calc
 import aiwlib.mixt as mixt
@@ -82,7 +84,7 @@ def _calc_configure(self):
         try:
             if os.path.islink('_') or os.path.exists('_'): os.remove('_')
             os.symlink(self.path, '_')
-        except Exception, e: print>>sys.stderr, e
+        except Exception as e: print>>sys.stderr, e
     if calc._racs_params['_statechecker']:
         import inspect
         f = open('/tmp/racs-schk-%i'%os.getpid(), 'w')
@@ -104,11 +106,11 @@ while 1:
             cPickle.dump(R, open(%r+'.RACS', 'w')); os.utime(%r, None)
         break
         '''%(os.getpid(), self.path, self.path, self.path)
-        f.close(); os.chmod(f.name, 0700); os.system(f.name); os.remove(f.name)
+        f.close(); os.chmod(f.name, 0o700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']:
         try: self.md5sum = sources.commit(self.path)
-        except Exception, e: print>>sys.stderr, e
+        except Exception as e: print>>sys.stderr, e
     if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1) or calc._racs_params['_mpi']: 
         mixt.set_output(self.path+'logfile')
     self.commit() #???
@@ -140,7 +142,7 @@ def _on_exit(self):
     if hasattr(self, '_run4stat'):
         connect = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connect.connect(('127.0.0.1', self._run4stat[0]))
-        s = cPickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]]) 
+        s = pickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]]) 
         connect.send('%08i'%len(s)+s); connect.close()
         return 
     import os, time, mixt, chrono
@@ -154,8 +156,8 @@ def _on_exit(self):
     finally: self.commit()
     rsz = os.path.getsize(self.path+'.RACS') 
     rcolor = ('' if rsz<4096 else ';33' if rsz<4096*3 else ';31' if rsz<4096*10 else ';37;41' if rsz<4096*30 else ';37;5;41')+'m%s'
-    print 'RUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
-        runtime, os.popen('du -hs '+self.path).readline().split()[0], rcolor%mixt.size2string(rsz), self.path)
+    print('RUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
+        runtime, os.popen('du -hs '+self.path).readline().split()[0], rcolor%mixt.size2string(rsz), self.path))
 #-------------------------------------------------------------------------------
 def run4stat(self, _count, _copies=1, _mkdir=True, **params):
     '''проводит _count одинаковых расчетов для набора статистики, 
@@ -174,12 +176,12 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
     serv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     while 1:
         try: serv.bind(('127.0.0.1', port)); break  
-        except socket.error, e: port += 1
+        except(socket.error, e): port += 1
     serv.listen(5)
     def recv_data():
         while cnum<_count or pids: #???
             connect, addr = serv.accept()
-            data = cPickle.loads(int(connect.recv(connect.recv(8)))); c = data.pop(0)
+            data = pickle.loads(int(connect.recv(connect.recv(8)))); c = data.pop(0)
             for k, v in zip(cargs, data): stat[k][c] = v
     thread.start_new_thread(recv_data, ())
     #-------------- цикл по расчетам ---------------------
@@ -197,7 +199,7 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
         pids.append(pid)
     while(pids): pids.remove(os.waitpid(-1, 0)[0])
     #-------------- окончание расчета --------------------
-    cPickle.dump(stat, open(path+'.stat', 'w'))
+    pickle.dump(stat, open(path+'.stat', 'w'))
     for k, f in params.items(): setattr(self, k, f(*dict([(i, stat[i]) for i in inspect.getargspec(f)])))
     sys.exit()
 #calc.Calc.run4stat = run4stat
@@ -205,8 +207,8 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
 #   parse command line options
 #-------------------------------------------------------------------------------
 if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
-    print __doc__
-    print ''.join(l for l in open(sys.modules['__main__'].__file__) if '#@' in l),
+    print(__doc__)
+    print(''.join(l for l in open(sys.modules['__main__'].__file__) if '#@' in l))
     sys.exit()
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
@@ -220,7 +222,7 @@ while i<len(calc._cl_args):
     elif mixt.is_name_eq(A) and A.split('=', 1)[1][0]=='[' and A[-1]==']':
         arg, l = A.split('=', 1)
         try: L = eval(l, math.__dict__, dict(calc._args_from_racs))
-        except SyntaxError, e:
+        except SyntaxError as e:
             s = l[1:-1]
             for t in '#^@:,':
                 if s.count('..')==1 and s.split('..')[0].count(t)==1:
@@ -264,7 +266,7 @@ if calc._racs_params['_mpi']:
     calc._racs_params['_daemonize'] = False
     import ctypes; _mpi = ctypes.CDLL('libmpi.so', ctypes.RTLD_GLOBAL)
     try: from aiwlib.mpi4py import *
-    except ImportError, e: print>>sys.stderr, '\033[37;1;41m Try "make mpi4py" in aiwlib/ directory? \033[0m'; raise
+    except ImportError as e: print>>sys.stderr, '\033[37;1;41m Try "make mpi4py" in aiwlib/ directory? \033[0m'; raise
     mpi_init()
     if not calc._arg_seqs: atexit.register(mpi_finalize)
     calc._racs_params['_mpi'] = 3 if calc._arg_seqs and mpi_proc_count()>1 else 2 if mpi_proc_count()>1 else 1

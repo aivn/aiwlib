@@ -26,7 +26,10 @@ namespace aiw{
 			BinaryFormat bf; bf.D = 0; bf.R = -1; if(!bf.load(S)) return false;
 			head = bf.head; szT = bf.szT; R = bf.R; mode = R>>29; R &= ~(7<<29);  sph_init_table(R);
 			sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
-			mem = S.mmap(sz*szT, 0); cfa_list = bf.tinfo.get_access();
+			mem = S.mmap(sz*szT, 0);
+#ifdef AIW_TYPEINFO
+			cfa_list = bf.tinfo.get_access();
+#endif //AIW_TYPEINFO
 			return true;
 		}
 
@@ -58,7 +61,10 @@ namespace aiw{
 			float v = 0; for(int i=0; i<szw; i++) v += conf.cfa.get_f(ptr + IDs[i]*szT)*weights[i];
 			return v;
 		}
-		float get_f(const ConfView& conf, const aiw::Vec<2> &r) const { return get_f(conf, polar(r[1], r[0])*(M_PI/180)); }
+		size_t get_ID(const aiw::Vec<3> &r3) const { return mode==0? sph_cellInd(r3, R): (mode==1? sph_vertInd(r3, R): sph_edgeInd(r3, R)); }
+		int rank() const { return R; }
+		aiw::Vec<3> get_center(size_t ID) const { return mode==0? sph_cell(ID, R): (mode==1? sph_vert(ID, R): sph_edge(ID, R)); }
+ 		float get_f(const ConfView& conf, const aiw::Vec<2> &r) const { return get_f(conf, polar(r[1], r[0])*(M_PI/180)); }
 		std::string get(const ConfView& conf, aiw::Vec<2> r) const OVERRIDE {
 			Vec<3> r3 = polar(r[1], r[0])*(M_PI/180);
 			double v =  get_f(conf, r3);

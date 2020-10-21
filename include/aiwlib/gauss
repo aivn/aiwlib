@@ -6,11 +6,11 @@
  * Licensed under the Apache License, Version 2.0
  **/
 //------------------------------------------------------------------------------
-#ifndef SWIG		
+#ifndef AIW_WIN32
 #include <sys/time.h>
+#endif //AIW_WIN32
 #include <stdlib.h>
 #include <math.h>
-#endif //SWIG		
 #include "vec"
 
 namespace aiw{
@@ -19,11 +19,13 @@ namespace aiw{
 	const double rand_alpha = 1./(1.+RAND_MAX), rand_alpha2PI = 2*M_PI/(1.+RAND_MAX);
 
 	inline void rand_init(unsigned int &seed, int thID=0){
+#ifndef AIW_WIN32
 		if(seed==0){
 			timeval t;
 			gettimeofday(&t, NULL);
 			seed = t.tv_usec*(1+thID);
 		}
+#endif //AIW_WIN32
 	}
 	inline void rand_init(){ unsigned int seed = 0; rand_init(seed); srand(seed); }
 
@@ -32,6 +34,9 @@ namespace aiw{
 
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(unsigned int &seed){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(seed); return v; }
+#ifndef AIW_WIN32
+	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
+#endif //AIW_WIN32
 #else //MINGW
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #endif //MINGW
@@ -55,7 +60,7 @@ namespace aiw{
 		Vec<3, T> res=a, add=a;
 		for(int i=1; i<=R; i++){ add %= b/-i; res += add; }
 		return res;
-	};
+	}
 	//--------------------------------------------------------------------------
 	template <typename T> inline aiw::Vec<3, T> arc_rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T> &b){
 		Vec<3, T> res = a%b; T res_abs = res.abs();
@@ -90,5 +95,5 @@ namespace aiw{
 	}
 #endif //MINGW
 	//--------------------------------------------------------------------------
-}; 
+} 
 #endif //AIW_GAUSS_HPP

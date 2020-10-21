@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifdef AIW_TYPEINFO
+
 #include <sstream>
 #include "../include/aiwlib/typeinfo"
 using namespace aiw;
@@ -64,3 +66,5 @@ void aiw::TypeInfo::add_field(std::vector<aiw::CellFieldAccess>& res, const fiel
 	}
 }
 //------------------------------------------------------------------------------
+
+#endif //AIW_TYPEINFO

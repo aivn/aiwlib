@@ -20,7 +20,7 @@ swig=on
 png=on
 pil=on
 bin=on
-ezz=off
+ezz=on
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
 # раскомментируйте одну из этих строк для ПОСТОЯННОГО использования (или отказа от) MPI
 # mpi=on
@@ -33,7 +33,8 @@ MPICXX:=mpiCC
 SWIG:=swig
 
 PYTHON_H_PATH:=/usr/include/python2.7
-override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3
+override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
+#override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  

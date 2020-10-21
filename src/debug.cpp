@@ -3,10 +3,12 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#include <csignal>
 #include <stdio.h>
 #include <stdlib.h>
+#ifndef AIW_WIN32
+#include <csignal>
 #include <execinfo.h>
+#endif //AIW_WIN32
 #include "../include/aiwlib/debug"
 using namespace aiw;
 
@@ -24,6 +26,7 @@ static int exc_counter = 0;
 BaseDebugStackTupleFrame::BaseDebugStackTupleFrame(bool reg){ if(reg && exc_counter<4095) exc_frames[exc_counter++] = this; } 
 BaseDebugStackTupleFrame::~BaseDebugStackTupleFrame(){ if(exc_counter>0 && exc_frames[exc_counter-1]==this) exc_counter--; } 
 //------------------------------------------------------------------------------
+#ifndef AIW_WIN32
 void signal_hook(int signum, siginfo_t * info, void * f){
 	while(exc_counter) exc_frames[--exc_counter]->out_msg(std::cerr);
 	void* buf[4096]; int size = backtrace(buf, 4096);
@@ -52,4 +55,5 @@ void aiw::init_signal_hook(int signal){
 	sigaction(signal, &act, NULL); 
 }
 void aiw::init_segfault_hook(){ init_signal_hook(SIGSEGV); }
+#endif //AIW_WIN32
 //------------------------------------------------------------------------------

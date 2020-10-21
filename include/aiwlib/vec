@@ -2,7 +2,7 @@
 #ifndef AIW_VEC_HPP
 #define AIW_VEC_HPP
 /**
- * Copyright (C) 2009-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2009-2020 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -374,7 +374,7 @@ namespace aiw{
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
-#endif //AIW_IOSTREAM_HPP	
+#endif //AIW_IOSTREAM_HPP		
 	//--------------------------------------------------------------------------
 	//   other functions
 	//--------------------------------------------------------------------------
@@ -414,11 +414,12 @@ namespace std{
 	};	
 	//--------------------------------------------------------------------------
 }   // end of namespace std
+
+template <typename T> struct aiw_dump_load;
+template <int D, typename T> struct aiw_dump_load<aiw::Vec<D, T> > { static const int mode = 1; };
+
 #endif //SWIG
 #endif //AIW_VEC_HPP
 
-#ifdef AIW_BINARY_IO_HPP
-#include "binaryio"
-#endif //AIW_BINARY_IO_HPP
 
 
