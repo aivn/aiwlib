@@ -143,7 +143,8 @@ class Content:
         # лишнее? if self.conf.logscale_y(): self.preview.create_text(3,panel_sz/2, text='logscale', fill='grey', anchor=W)        
         box = (self.conf.max_xy0()-self.conf.min_xy0())/panel_sz
         # print '*********', box, self.conf.max_xy0(), self.conf.min_xy0()
-        rect = (self.conf.min_xy()-self.conf.min_xy0())/box, (self.conf.max_xy()-self.conf.min_xy0())/box
+        try: rect = (self.conf.min_xy()-self.conf.min_xy0())/box, (self.conf.max_xy()-self.conf.min_xy0())/box
+        except: rect = (ind(0,0), ind(1,1))
         self.preview.create_rectangle(rect[0][0], panel_sz-rect[0][1], rect[1][0], panel_sz-rect[1][1],  outline='gray', tag='select')
 
         if not self.conf.features&self.conf.opt_mollweide: self.preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)

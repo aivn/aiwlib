@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-import os, sys, time, pickle, socket, aiwlib.chrono
+import os, sys, time, pickle, socket
+import aiwlib.chrono as chrono
 
 #-----------------------------------------------------------------------------
 def get_login() :
@@ -37,8 +38,9 @@ class Calc:
             if not k in D or v.startswith('='): continue
             D[k] = string2bool(v) if type(D[k]) is bool else type(D[k])(v)
         self.__dict__.update(D)
-        self.runtime, self.progress, self.statelist, self.args = aiwlib.chrono.Time(), 0., [], list(sys.argv)
+        self.runtime, self.progress, self.args = chrono.Time(), 0., list(sys.argv)
         if not '_repo' in self.__dict__: self._repo = 'repo'
+        self.add_state('started')
     #---------------------------------------------------------------------------
     def __getattr__(self, attr):
         'нужен для создания уникальной директории расчета по первому требованию (ленивые вычисления)'
@@ -60,9 +62,15 @@ class Calc:
         if info==None and state=='started': info = os.getpid()
         if info==None and state=='stopped': info = '' #.join(mixt.except_report(None))
         if not hasattr(self, 'statelist'): self.statelist = []
-        self.statelist.append((state, login, host, aiwlib.chrono.Date())+((info,) if info!=None else ()))
+        if self.statelist: self.__dict__['runtime'] = chrono.Date()-self.statelist[-1][3]
+        if state=='finished': self.__dict__['progress'] = 1.
+        self.statelist.append((state, login, host, chrono.Date())+((info,) if info!=None else ()))
     def set_state(self, state, info=None, host=socket.gethostname(), login=get_login()):
         'Устанавливает статус расчета, вызывает commit()'
         self.add_state(state, info, host, login); self.commit()
+    def set_progress(self, progress): #, prompt='',  runtime=-1):
+        #runtime = (chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime)
+        self.__dict__['progress'], self.__dict__['runtime'] = progress, chrono.Date()-self.statelist[-1][3]
+        self.commit()
     #---------------------------------------------------------------------------
     
