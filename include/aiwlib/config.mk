@@ -15,36 +15,39 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
-zlib=on
+zlib=off
 swig=on
-png=on
+png=off
 pil=on
-bin=on
-ezz=on
+bin=off
+ezz=off
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
 # раскомментируйте одну из этих строк для ПОСТОЯННОГО использования (или отказа от) MPI
 # mpi=on
-# mpi=off
+mpi=off
 #-------------------------------------------------------------------------------
 # main settings
 # основные параметры
-CXX:=g++
+#CXX:=g++
 MPICXX:=mpiCC
 SWIG:=swig
 
-PYTHON_H_PATH:=/usr/include/python2.7
+#PYTHON_H_PATH:=/usr/include/python2.7
+
+LINKOPT:=-L /home/aiv/.wine/drive_c/Python26/libs/ -lpython26
+PYTHON_H_PATH:=/home/aiv/.wine/drive_c/Python26/include/
+
+
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
-override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 
+override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DMINGW -DAIW_WIN32 -DM_PI=3.14159265358979323846
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
 #-------------------------------------------------------------------------------
-#CXX:=i586-mingw32msvc-g++
+CXX:=i686-w64-mingw32-g++
 #CXXOPT:= -O3 -DMINGW -g 
 #SWIGOPT:=-DMINGW
-#LINKOPT:=-L ~/.wine/drive_c/Python26/libs/ -lpython26
-#PYTHON_H_PATH=~/.wine/drive_c/Python26/include/
 #-------------------------------------------------------------------------------
 # End of the part for editing, please DO NOT CHANGE the rest of the file!
 # Конец части для редактирования, пожалуйста НЕ МЕНЯЙТЕ остальную часть файла!

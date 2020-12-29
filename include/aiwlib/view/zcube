@@ -77,7 +77,9 @@ namespace aiw{
 			}
 			// printf("MeshView::plot image=%ix%i, mesh=%ix%i, plottime=%g\n", image.size[0], image.size[1], f.box[0], f.box[1], omp_get_wtime()-t0);
 			// cell_bound ???
+#ifdef EBUG
 			WOUT(omp_get_wtime()-t0);
+#endif //EBUG
 		}
 		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color) const{  // рассчитан на маленькое изображение, учитывает только flip
 			ConfView conf = conf0; conf.uncrop();

@@ -35,8 +35,9 @@ all: libaiw.a;
 iostream swig mpi4py view: %: python/aiwlib/%.py python/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{images,color,mesh,amr,zcube,umesh3D,vtexture}}.o)
-	rm -f libaiw.a; ar -csr libaiw.a $^
+#libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{images,color,mesh,amr,zcube,umesh3D,vtexture}}.o)
+libaiw.a: $(shell echo src/{debug,sphere,configfile,isolines,checkpoint,typeinfo,binary_format,view/{images,color,mesh,amr,zcube,umesh3D,vtexture}}.o)
+	rm -f libaiw.a; i686-w64-mingw32-ar -csr libaiw.a $^
 #libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,amrview,view/{images,color,mesh}}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield}.o); rm -f libaiw.a; ar -csr libaiw.a $^
 #-------------------------------------------------------------------------------
@@ -68,8 +69,8 @@ python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
 	$(MPICXX) $(MPICXXOPT) -shared -o $@ $< $(LINKOPT)
 
 src/racs.cpp: include/aiwlib/mpi4py
-src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
-	$(RUN_MPICXX) -o $@ -c $< 
+#src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
+#	$(RUN_MPICXX) -o $@ -c $< 
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------

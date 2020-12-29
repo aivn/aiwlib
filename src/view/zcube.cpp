@@ -83,7 +83,9 @@ Vec<2> aiw::ZCubeView::f_min_max(const ConfView &conf) const { // вычисля
 			if(f_min>f) f_min = f;
 			if(f_max<f) f_max = f;
 		}
+#ifdef EBUG
 	WOUT(omp_get_wtime()-t0);
+#endif //EBUG
 	return Vec<2>(f_min, f_max);
 }
 //------------------------------------------------------------------------------

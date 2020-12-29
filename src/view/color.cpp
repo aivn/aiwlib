@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#define M_2_PI (M_PI*2)
+
 #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/view/color"
 using namespace aiw;

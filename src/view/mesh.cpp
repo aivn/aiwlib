@@ -142,7 +142,9 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 				}
 		}
 	}	
+#ifdef EBUG
 	WOUT(omp_get_wtime()-t0);
+#endif //EBUG
 	return Vec<2>(f_min, f_max);
 }
 //------------------------------------------------------------------------------

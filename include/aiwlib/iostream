@@ -10,9 +10,16 @@
 #include <cstdio>
 #include <string>
 #include <stdarg.h>
-
+/*
+#include <cmath>
+namespace std{
+	inline double _hypot(double x, double y){ return sqrt(x*x+y*y); }
+};
+inline double hypot(double x, double y){ return sqrt(x*x+y*y); }
+*/
 #include "binaryio"
 #include "alloc"
+
 
 namespace aiw{
 	//--------------------------------------------------------------------------

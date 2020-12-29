@@ -88,7 +88,9 @@ Vec<2> aiw::UnorderedMesh3DView::f_min_max(const ConfView &conf) const { // вы
 			else { int i=0; for(int j=1; j<4; j++){ if(w[i]>w[j]) i = j; } set_ff(ff, conf.cfa.get_f(data+faces[cell.faces[i]]), first); } // ищем ближайшую к r грань
 		}
 	}
+#ifdef EBUG
 	WOUT(omp_get_wtime()-t0);
+#endif //EBUG
 	return ff;
 }
 //------------------------------------------------------------------------------
