@@ -74,10 +74,22 @@ namespace aiw{
 		}
 	};  // end of struc CalcColor
 	//--------------------------------------------------------------------------
-	template <typename P> void plot_paletter(float const *pal, P& image, bool orient, int max_rgb=255){
-		float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
-		for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
-	}
+	struct Image {
+		std::string buf;
+		int head_sz = 0;
+		char *ptr_buf = nullptr;
+		aiw::Ind<2> size;
+
+		Image(aiw::Ind<2> size_);
+
+		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
+			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
+			char* ptr = ptr_buf+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
+			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+		}
+	};	
+	//--------------------------------------------------------------------------
+	void plot_paletter(float const *pal, Image& image, bool orient, int max_rgb=255);
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif // AIW_VIEW_COLOR_HPP

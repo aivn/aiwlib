@@ -13,8 +13,8 @@
 // #include "../vec"
 // #include "../typeinfo"
 #include "color"
-#include "images"
-#include "vtexture"
+// #include "images"
+// #include "vtexture"
 
 #ifdef SWIG
 #define OVERRIDE
@@ -132,20 +132,22 @@ namespace aiw{
 
 		bool segy = false;
 
+		/*
 		bool plot3D = false;
 		VTexture vtx;
 		float alpha = .5; // прозрачность
+		*/
 
 		std::string pack() const {
-			Packer P;
-			P.dump(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound, 
-				   features, interp, cfa_list, cfa_xfem_list, cfa, xfem_mode, segy, plot3D, /*vtx,*/ alpha);
+			Packer P; // до interp включительно все ок
+			P.dump(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound,
+							  features, interp, segy, cfa, cfa_list, cfa_xfem_list, xfem_mode); // , plot3D, vtx, alpha);
 			return P;
 		}
-		void unpack(const std::string &S){
+		bool unpack(const std::string &S){
 			Packer P(S);
-			P.load(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound, 
-				   features, interp, cfa_list, cfa_xfem_list, cfa, xfem_mode, segy, plot3D, /*vtx,*/ alpha);
+			return P.load(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound,
+							 features, interp, segy, cfa, cfa_list, cfa_xfem_list, xfem_mode); // , plot3D, vtx, alpha);
 		}
 	};
 	//--------------------------------------------------------------------------
@@ -158,8 +160,8 @@ namespace aiw{
 		virtual std::string get(const ConfView& conf, aiw::Vec<2> r) const = 0;
 		virtual ~BaseView(){}
 
-		virtual void plot(const ConfView &conf, ImageBUF &image, const CalcColor &color) const = 0;
-		virtual void preview(const ConfView& conf0, ImageBUF &image, const CalcColor &color) const = 0;
+		virtual void plot(const ConfView &conf, Image &image, const CalcColor &color) const = 0;
+		virtual void preview(const ConfView& conf0, Image &image, const CalcColor &color) const = 0;
 	};
 	//--------------------------------------------------------------------------
 };

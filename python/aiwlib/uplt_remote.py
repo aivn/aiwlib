@@ -1,5 +1,5 @@
 # -*- mode: Python; coding: utf-8 -*-
-import os, struct
+import os, sys, struct
 
 #-------------------------------------------------------------------------------
 _connects = {}
@@ -17,12 +17,12 @@ def _recv(cin, types): # i, s or f
         if t=='i': R.append(struct.unpack('i', cin.read(4))[0])
         elif t=='f': R.append(struct.unpack('d', cin.read(8))[0])
         else: R.append(cin.read(struct.unpack('i', cin.read(4))[0]))
-    #print '<<<', types, R
+    #print '<<<', types
     return R
 #-------------------------------------------------------------------------------
 class UpltConnect:
     def __init__(self, host, command):
-        self.cout, self.cin = os.popen2('ssh -C %s %s'%(host, command)); self.sz = 0
+        self.cout, self.cin = os.popen2('ssh -C %s "%s"'%(host, command)); self.sz = 0
         self.ls_cout, self.ls_cin = os.popen2('ssh %s bash'%host)
     def open(self, fname):
         self.ls_cout.write('echo %s\n'%fname); self.ls_cout.flush()
@@ -41,8 +41,8 @@ class UpltFrame:
     def dim(self): return self._dim
     def get_conf(self, conf, firstcall=False):
         _send(self.connect.cout, 'c', self.dID, self.fID, conf.pack(), int(firstcall))
-        conf.unpack(_recv(self.connect.cin, 's')[0])
-    def f_min_max(self, conf): 
+        res = conf.unpack(_recv(self.connect.cin, 's')[0])
+    def f_min_max(self, conf):
         _send(self.connect.cout, 'f', self.dID, self.fID, conf.pack())
         return _recv(self.connect.cin, 'ff')
     def get(self, conf, r):
@@ -50,8 +50,11 @@ class UpltFrame:
         return _recv(self.connect.cin, 's')[0]        
     def preview(self, conf, image, color): 
         _send(self.connect.cout, 'p', self.dID, self.fID, conf.pack(), color.pack(), image.size[0], image.size[1])
-        image.load(self.connect.cin.read(image.size.prod()*3))
+        image.buf = self.connect.cin.read(len(image.buf))
+        #image.load(self.connect.cin.read(image.size.prod()*3))
+        #magick2 = struct.unpack('i', self.connect.cin.read(4))[0]
+        #print 'p>>>>>>>>>', image.head_sz, image.size, image.size.prod()*3, magick1, magick2, 0x02345678
     def plot(self, conf, image, color):
         _send(self.connect.cout, 'P', self.dID, self.fID, conf.pack(), color.pack(), image.size[0], image.size[1])
-        image.load(self.connect.cin.read(image.size.prod()*3))
+        image.buf = self.connect.cin.read(len(image.buf))
 #-------------------------------------------------------------------------------

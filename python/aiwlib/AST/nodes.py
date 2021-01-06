@@ -57,7 +57,7 @@ BaseOp.And, BaseOp.Or = lambda a, b: BoolAndOp(a, b), lambda a, b: BoolOrOp(a, b
 #-------------------------------------------------------------------------------
 spaceOp = dict([ (n, type(n, (UnaryOp,), {'prioity':0, 'p_pyt':n+'(%s)', 'p_txt':n+'%s',
                                           '_bk':(lambda self, patt, f=(lambda x: x): f(self.a))})) for n in 
-                 'acos acosh asin asinh atan atanh cos cosh exp fabs floor log log10 sin sinh sqrt tan tanh'.split() ])
+                 'acos acosh asin asinh atan atanh cos cosh exp erf fabs floor log log10 sin sinh sqrt tan tanh'.split() ])
 brakets = {'()': 'crc_bk', '{}':'fig_bk', '<>':'ang_bk', '[]':'rm_bk'}
 for bk, n in brakets.items(): 
     spaceOp[n] = type(n, (UnaryOp,), {'prioity':0, 'p_pyt':n+'(%s)', 'p_txt':'%s'.join(bk), '_bk':(lambda self, patt, f=(lambda x: x): f(self.a))})

@@ -3,7 +3,7 @@
 #define AIW_MESH_VIEW_HPP
 
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -16,7 +16,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	class MeshView: public BaseView, BaseMesh<16> { //: public BaseView {
+	class MeshView: public BaseView, BaseMesh<16> { 
 		using BaseView::head;
 		int D = 0, szT = 0;
 		std::shared_ptr<BaseAlloc> mem;
@@ -61,69 +61,8 @@ namespace aiw{
 
 		std::string get(const ConfView& conf, aiw::Vec<2> r) const OVERRIDE;
 
-		template <typename P> void plot(const ConfView &conf, P &image, const CalcColor &color) const {
-#ifdef EBUG
-			double t0 = omp_get_wtime();
-#endif //EBUG
-			// WOUT(conf.axes);
-			// WOUT(conf.cfa.typeID, conf.cfa.offset, conf.cfa.label, szT);
-			int xsz = image.size[0], ysz = image.size[1];
-			Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
-
-			/*
-			if(conf.plot3D){
-				VTexture vtx = conf.vtx;
-				vtx.theta = M_PI/6; vtx.phi = M_PI/3;
-				vtx.image_sz = image.size;
-				vtx.box = box(0, 1, 2);
-				vtx.init();
-				const char* ptr = (const char*)(mem->get_addr());
-#pragma omp parallel for 
-				for(int y=0; y<ysz; y++){
-					for(int x=0; x<xsz; x++){
-						auto I = vtx.trace(ind(x, y));
-						if(!I){ image.set_pixel(ind(x,y), Ind<3>(255)); continue; }
-						Vecf<3> c; float l = 0.;
-						while(I && l<10){
-							float f = conf.cfa.get_f(ptr+I.data*szT);
-							if(color.min<=f && f<=color.max){
-								float dl = I.len();
-								if(dl){
-									float w = conf.alpha*dl/(l+dl);
-									c = c*(1-w)+w*color(f);
-									l += dl;
-								}
-							}
-							++I;
-						}
-						image.set_pixel(ind(x,y), Ind<3>(c.round())<<ind(255));
-					}
-				}				
-			} else
-*/
-				{ // plot 2D
-				access_t f(*this, conf); 
-				//WOUT(f.cfa.typeID, f.cfa.offset);
-				// обходим изображение всегда "по шерсти", выигрыш от openMP примерно вдвое
-#pragma omp parallel for 
-				for(int y=0; y<ysz; y++){
-					Ind<2> pos; Vec<2> X, r; r[1] = im_bmin[1]+y*im_step[1]; f.mod_coord(1, r[1], pos[1], X[1]);
-					for(int x=0; x<xsz; x++){
-						r[0] = im_bmin[0]+x*im_step[0]; f.mod_coord(0, r[0], pos[0], X[0]);
-						image.set_pixel(ind(x,y), color(interpolate(f, pos, X, f.interp)));
-					}
-				}
-			}
-			// printf("MeshView::plot image=%ix%i, mesh=%ix%i, plottime=%g\n", image.size[0], image.size[1], f.box[0], f.box[1], omp_get_wtime()-t0);
-			// cell_bound ???
-			WOUT(omp_get_wtime()-t0);
-		}
-		template <typename P> void preview(const ConfView& conf0, P &image, const CalcColor &color) const{  // рассчитан на маленькое изображение, учитывает только flip
-			ConfView conf = conf0; conf.uncrop();
-			plot(conf, image, color);
-		}
-		void plot(const ConfView &conf, ImageBUF &image, const CalcColor &color) const OVERRIDE { plot<ImageBUF>(conf, image, color); }
-		void preview(const ConfView& conf0, ImageBUF &image, const CalcColor &color) const OVERRIDE { preview<ImageBUF>(conf0, image, color); }
+		void plot(const ConfView &conf, Image &image, const CalcColor &color) const OVERRIDE;
+		void preview(const ConfView& conf0, Image &image, const CalcColor &color) const OVERRIDE;  // рассчитан на маленькое изображение, учитывает только flip
 	};
 	//--------------------------------------------------------------------------
 };

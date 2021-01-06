@@ -73,3 +73,13 @@ void aiw::magn_pal_init(int max_rgb){
 	}
 }
 //------------------------------------------------------------------------------
+aiw::Image::Image(aiw::Ind<2> size_): size(size_) {
+	char head[1024]; head_sz = snprintf(head, 1024, "P6\n%i %i\n255\n", size[0], size[1]);	
+	buf.resize(head_sz+size.prod()*3);  memcpy(&(buf[0]), head, head_sz);  ptr_buf = &(buf[head_sz]);
+}
+//------------------------------------------------------------------------------
+void aiw::plot_paletter(float const *pal, Image& image, bool orient, int max_rgb){
+	float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
+	for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
+}
+//------------------------------------------------------------------------------

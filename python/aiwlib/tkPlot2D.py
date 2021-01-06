@@ -4,8 +4,9 @@ Licensed under the Apache License, Version 2.0'''
 
 from math import *
 from Tkinter import *
-import os, sys, time, PIL.Image, PIL.ImageTk, PIL.ImageDraw, PIL.ImageFont
+import os, sys, time #, PIL.Image, PIL.ImageTk, PIL.ImageDraw, PIL.ImageFont
 from aiwlib.view import *
+from aiwlib.vec import *
 #-------------------------------------------------------------------------------
 get_widget_sz = lambda widget: tuple(map(int, widget.winfo_geometry().split('+')[0].split('x')))
 #-------------------------------------------------------------------------------
@@ -125,9 +126,12 @@ class Plot2D(Canvas):
     #----------------------
     def _add_pict(self, tag, xy0, xy1, border, plotter):
         if tag in self.picts: self.del_pict(tag)
-        image = PIL.Image.new('RGB', (xy1[0]-xy0[0], xy1[1]-xy0[1]))
-        plotter(ImagePIL(image))
-        cimage = PIL.ImageTk.PhotoImage(image=image)
+        #image = PIL.Image.new('RGB', (xy1[0]-xy0[0], xy1[1]-xy0[1]))
+        #plotter(ImagePIL(image))
+        #cimage = PIL.ImageTk.PhotoImage(image=image)
+        image = Image(ind(xy1[0]-xy0[0], xy1[1]-xy0[1]))
+        plotter(image)
+        cimage = PhotoImage(data=image.buf)
         self.create_image(xy0[0], xy0[1], image=cimage, anchor=NW, tag=tag)
         #if border: self.create_rectangle(xy0[0]+border/2, xy0[1]+border/2, xy1[0]-border/2, xy1[1]-border/2, width=border, tag=tag)
         if border: self.create_rectangle(xy0[0], xy0[1], xy1[0], xy1[1], width=border, tag=tag)
@@ -177,9 +181,18 @@ class Plot2D(Canvas):
         self._add_tics(tag, orient, xyt0, xyt1, tics, stics, font, tic_sz, font_scale)
         return max_tic_sz+tic_sz[0]+pal_sz
     def dump2png(self, fname):        
-        #os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s.ps'%(fname, tmp))
+        try: import PIL.Image, PIL.ImageDraw, PIL.ImageFont
+        except:
+            print 'Trying to use postscript and "convert" utility, install Python Imaging Library to speed up ...',; sys.stdout.flush()
+            ps, ext = os.path.splitext(fname); ps += '.ps'
+            self.postscript(file=ps)
+            if ext and fname!=ps:
+                os.system('gs -q -dNOPAUSE -dBATCH -dSAFER -r600 -dEPSCrop -dDownScaleFactor=6 -dGraphicsAlphaBits=4 -sDEVICE=png16m -sOutputFile="%s" %s'%(fname, ps))
+                os.remove(ps); print 'OK'
+            return
         img = PIL.Image.new('RGB', self.wsize(), (255, 255, 255)) #2png
         draw = PIL.ImageDraw.Draw(img)
+        #help(draw)
         for T, a, kw in self._content:
             if kw.get('tag') in ('pal_move', 'msh_move'): continue
             if T=='text':
@@ -198,7 +211,9 @@ class Plot2D(Canvas):
                 draw.line((a[0], a[3], a[2], a[3]), width=1, fill=(0,0,0)) 
                 draw.line((a[2], a[3], a[2], a[1]), width=1, fill=(0,0,0)) 
                 draw.line((a[2], a[1], a[0], a[1]), width=1, fill=(0,0,0)) 
-        for xy0, xy1, image, cimage in self.picts.values(): img.paste(image, (xy0+xy1))        
+        for xy0, xy1, image, cimage in self.picts.values():
+            tmpname = os.tmpnam()+'.ppm'; tmpout = open(tmpname, 'wb'); tmpout.write(image.buf); tmpout.close()
+            img.paste(PIL.Image.open(tmpname), xy0+xy1); os.remove(tmpname)
         img.save(fname)
     def mouse_move(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'move', action))
     def mouse_left(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'left', action))

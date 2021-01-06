@@ -1,5 +1,5 @@
 # main options for aiwlib make
-# Copyright (C) 2017-2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2017-2018,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #
 # Edit this part of the file manually to configure the make
@@ -17,10 +17,10 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
 # закомментируйте строки для отказа от использования лишних модулей 
 zlib=on
 swig=on
-png=on
-pil=on
 bin=on
 ezz=on
+#view=amr,umesh,zcube
+
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
 # раскомментируйте одну из этих строк для ПОСТОЯННОГО использования (или отказа от) MPI
 # mpi=on
@@ -35,6 +35,7 @@ SWIG:=swig
 PYTHON_H_PATH:=/usr/include/python2.7
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
 override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 
+#override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  
@@ -61,20 +62,6 @@ endif
 ifeq (on,$(swig))
 override CXXOPT:=$(CXXOPT) -I$(PYTHON_H_PATH)
 override MPICXXOPT:=$(MPICXXOPT) -I$(PYTHON_H_PATH)
-ifneq (on,$(pil))
-override CXXOPT:=$(CXXOPT) -DAIW_NO_PIL
-override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PIL
-endif
-else
-override CXXOPT:=$(CXXOPT) -DAIW_NO_PIL
-override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PIL
-endif
-
-ifeq (on,$(png))
-override LINKOPT:=$(LINKOPT) -lpng
-else
-override CXXOPT:=$(CXXOPT) -DAIW_NO_PNG
-override SWIGOPT:=$(SWIGOPT) -DAIW_NO_PNG
 endif
 
 ifeq (on,$(debug)) 

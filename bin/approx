@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python2
 # -*- coding: utf-8 -*-
 '''usage: approx source.dat|- X-expression Y-expression function [+XN=expr] [/Yerr-expressions] [-cond condition] [-rx min:max] 
                  [-P0 init] [-gplt params] [-noracs] [-prefix preifx] [:var1,var2,...] [key1=var1 [key2=var2]...]

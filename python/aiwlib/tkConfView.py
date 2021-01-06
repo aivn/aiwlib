@@ -113,6 +113,7 @@ class ColorConf:
         if self.logscale.get() and rz[0]<=0.: f_min.set(1e-16)
         color = aiwlib.view.CalcColor()
         for p in 'logscale modulus invert'.split(): setattr(color, p, getattr(self, p).get())
+        #print (self.get_pal(), rz[0], rz[1]), type(rz[1])
         color.init(self.get_pal(), rz[0], rz[1])
         #color.magn = color2.magn = msh.sizeof_cell_type==2 
         #if color.magn: magn_pal_init()

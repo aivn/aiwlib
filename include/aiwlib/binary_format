@@ -15,6 +15,7 @@
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class Packer{
+	public:
 		std::vector<char> buf;
 		size_t rpos; // = 0;
 	public:
@@ -29,7 +30,7 @@ namespace aiw{
 
 		size_t write(const void *x, size_t sz){ if(sz){ buf.resize(buf.size()+sz); memcpy(buf.data()+buf.size()-sz, x, sz); } return sz; }
 		size_t read(void *x, size_t sz){
-			if(rpos+sz<buf.size()){  memcpy(x, buf.data()+rpos, sz); rpos += sz; return sz; }
+			if(rpos+sz<=buf.size()){  memcpy(x, buf.data()+rpos, sz); rpos += sz; return sz; }
 			else{ rpos = buf.size(); return 0; }
 		}
 		void push_str(const std::string &x){ write(x.c_str(), x.size()); }

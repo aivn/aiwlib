@@ -3,12 +3,14 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
-#include "../../include/aiwlib/view/images"
+// #include "../../include/aiwlib/view/images"
 #include "../../include/aiwlib/view/mesh"
 // #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/segy"
 
+	
 using namespace aiw;
+// File logfile("uplt.log", "w");
 //------------------------------------------------------------------------------
 bool aiw::MeshView::load(IOstream &S){
 	size_t s = S.tell(); BinaryFormat bf; bf.init(*this); bf.D = -1;
@@ -125,7 +127,7 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 		}
 		f_min = -3*sqrt(f_min/(xsz*ysz)); f_max = 3*sqrt(f_max/(xsz*ysz));
 	} else {
-		f_min = f_max = access[ind(0,0)]; 
+		f_min = f_max = access[ind(0,0)];
 		if(abs(access.mul[0])<abs(access.mul[1])){		
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
 			for(int y=0; y<ysz; y++) for(int x=0; x<xsz; x++){
@@ -141,8 +143,72 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 					if(f_max<f) f_max = f; 
 				}
 		}
+		// logfile.printf("%g %g %g %i\n", f_min, f_max, *(const float*)(access.ptr), conf.cfa.typeID);
 	}	
 	WOUT(omp_get_wtime()-t0);
 	return Vec<2>(f_min, f_max);
+}
+//------------------------------------------------------------------------------
+void aiw::MeshView::plot(const ConfView &conf, Image &image, const CalcColor &color) const {
+	// double t0 = omp_get_wtime();
+	// WOUT(conf.axes);
+	// WOUT(conf.cfa.typeID, conf.cfa.offset, conf.cfa.label, szT);
+	int xsz = image.size[0], ysz = image.size[1];
+	Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
+
+	/*
+	  if(conf.plot3D){
+	  VTexture vtx = conf.vtx;
+	  vtx.theta = M_PI/6; vtx.phi = M_PI/3;
+	  vtx.image_sz = image.size;
+	  vtx.box = box(0, 1, 2);
+	  vtx.init();
+	  const char* ptr = (const char*)(mem->get_addr());
+#pragma omp parallel for 
+for(int y=0; y<ysz; y++){
+for(int x=0; x<xsz; x++){
+auto I = vtx.trace(ind(x, y));
+						if(!I){ image.set_pixel(ind(x,y), Ind<3>(255)); continue; }
+						Vecf<3> c; float l = 0.;
+						while(I && l<10){
+						float f = conf.cfa.get_f(ptr+I.data*szT);
+							if(color.min<=f && f<=color.max){
+								float dl = I.len();
+								if(dl){
+									float w = conf.alpha*dl/(l+dl);
+									c = c*(1-w)+w*color(f);
+									l += dl;
+								}
+							}
+							++I;
+						}
+						image.set_pixel(ind(x,y), Ind<3>(c.round())<<ind(255));
+					}
+				}				
+			} else
+*/
+	{ // plot 2D
+		access_t f(*this, conf); 
+		//WOUT(f.cfa.typeID, f.cfa.offset);
+		// обходим изображение всегда "по шерсти", выигрыш от openMP примерно вдвое
+		// int S = 0;
+#pragma omp parallel for // reduction(+:S) 
+		for(int y=0; y<ysz; y++){
+			Ind<2> pos; Vec<2> X, r; r[1] = im_bmin[1]+y*im_step[1]; f.mod_coord(1, r[1], pos[1], X[1]);
+			for(int x=0; x<xsz; x++){
+				r[0] = im_bmin[0]+x*im_step[0]; f.mod_coord(0, r[0], pos[0], X[0]);
+				image.set_pixel(ind(x,y), color(interpolate(f, pos, X, f.interp)));
+				// S += color(interpolate(f, pos, X, f.interp)).sum();
+			}
+		}
+		// printf(">>> %g\n", omp_get_wtime()-t0);
+	}
+	// printf("MeshView::plot image=%ix%i, mesh=%ix%i, plottime=%g\n", image.size[0], image.size[1], f.box[0], f.box[1], omp_get_wtime()-t0);
+	// cell_bound ???
+}
+//------------------------------------------------------------------------------
+void aiw::MeshView::preview(const ConfView& conf0, Image &image, const CalcColor &color) const {  // рассчитан на маленькое изображение, учитывает только flip
+	ConfView conf = conf0; conf.uncrop();
+	plot(conf, image, color);
 }
 //------------------------------------------------------------------------------

@@ -163,5 +163,28 @@ namespace aiw{
 			return r;
 		}		
 	};	
-}  // end of namespace aiw
+	//--------------------------------------------------------------------------
+	//   Wrap std::iostream
+	//--------------------------------------------------------------------------
+#ifndef SWIG
+	struct StdOstream {
+		std::ostream &f;
+		StdOstream(): f(std::cout){}
+		StdOstream(std::ostream &f_): f(f_){}
+		size_t write(const void* buf, size_t size){ f.write((const char*)buf, size); return size; } // ???
+
+		bool dump(){ return true; }
+		template <typename T, typename ... Args> bool dump(const T& x, const Args& ... args){ return stream_dump_wrapper(*this, x) && this->dump(args...); }
+	};
+	struct StdIstream {
+		std::istream &f;
+		StdIstream(): f(std::cin){}
+		StdIstream(std::istream &f_): f(f_){}
+		size_t read(void* buf, size_t size){ return f.read((char*)buf, size).gcount(); }
+		bool load(){ return true; }
+		template <typename T, typename ... Args> bool load(T& x, Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
+	};
+#endif //SWIG
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
 #endif //AIW_IOSTREAM_HPP
