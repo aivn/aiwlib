@@ -53,7 +53,8 @@ swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,typeinfo,view/
 # +amr,zcube,umesh3D,vtexture
 
 python/aiwlib/%.py: swig/%.py
-	@echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
+	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
+	@echo 'except: pass' >> $@
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 swig/%.py swig/%_wrap.cxx: swig/%.i 
 	$(show_target)
@@ -81,6 +82,7 @@ ifndef MODULE
 #src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 src/%.o:  src/%.cpp  include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
@@ -132,13 +134,14 @@ include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python/aiwlib/_*.so 
+clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python/aiwlib/_*.so   
 cleanall: clean 
 	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python/aiwlib/$$(basename $$i){,c}; rm -f $$i python/aiwlib/$$(basename $$i){,c}; done
 	rm -f swig/*_wrap.cxx 
 	-@for i in $$(cat TARGETS); do echo rm -f swig/$${i%%-*}.i; rm -f swig/$${i%%-*}.i; done
 clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python/aiwlib/_$${n:6}.so
 cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python/aiwlib/$${n:9}.py{,c}
+clean-mingw:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
 #-------------------------------------------------------------------------------
 uninstall:; 
 	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw.a 
@@ -153,4 +156,16 @@ links-install install-links: all uninstall
 	-ln -s "$$(pwd)/python/aiwlib"  $(PYTHONDIR)
 	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
+#-------------------------------------------------------------------------------
+#   windows
+#-------------------------------------------------------------------------------
+windows: $(shell echo windows/aiwlib/{{__init__,vec,swig,tkPlot2D,tkConfView,tkWidgets,iostream,view}.py,_{iostream,swig,view}.pyd}) windows/uplt.py;
+windows/aiwlib/%.py: python/aiwlib/%.py; cp $< $@
+windows/uplt.py: bin/uplt; cp $< $@
+mingw/%_wrap.o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
+mingw/obj/%.o: src/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
+mingw/view/%.o: src/view/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
+windows/aiwlib/_%.pyd: mingw/%_wrap.o; $(MINGW) -shared -o $@ $^ $(MINGW_LINKOPT) 
+windows/aiwlib/_iostream.pyd: mingw/obj/debug.o
+windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
 #-------------------------------------------------------------------------------

@@ -14,6 +14,7 @@ fast and easy -- if someone really wants round to nearest it shouldn't
 be TOO difficult). */
 
 #include <sys/types.h>
+#ifndef AIW_WIN32
 #include <netinet/in.h>
 
 void ibm2ieee(void *to, const void *from, int len)
@@ -118,6 +119,7 @@ void ieee2ibm(void *to, const void *from, int len)
 //------------------------------------------------------------------------------
 //  end of Larry Jones code fragment
 //------------------------------------------------------------------------------
+#endif // AIW_WIN32
 
 
 #include "../include/aiwlib/segy"
@@ -142,8 +144,11 @@ int aiw::segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::v
 		if(read_data){
 			data.push_back(std::vector<float>());
 			data.back().resize(tr.trace_sz);
+#ifndef AIW_WIN32
 			if(segy_ibm_format){ float buf[tr.trace_sz]; S.read(buf, tr.trace_sz*4); ibm2ieee(&(data.back()[0]), buf, tr.trace_sz); }
-			else S.read(&(data.back()[0]), tr.trace_sz*4);
+			else
+#endif
+				S.read(&(data.back()[0]), tr.trace_sz*4);
 			if(max_sz<tr.trace_sz) max_sz = tr.trace_sz;
 		} else S.seek(tr.trace_sz*4, SEEK_CUR);
 	}
@@ -195,8 +200,11 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 //------------------------------------------------------------------------------
 void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow){
 	int sz = data.bbox()[0]; float buf[sz]; for(int i=0; i<sz; i++){ buf[i] = z_pow? data[ind(i)]*pow(i+1, z_pow): data[ind(i)]; }
+#ifndef AIW_WIN32
 	if(segy_ibm_format){ float buf2[sz]; ieee2ibm(buf2, buf, sz); S.write(buf2, 4*sz); }
-    else S.write(buf, 4*sz); 
+    else
+#endif
+		S.write(buf, 4*sz); 
 }
 //------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
@@ -291,15 +299,21 @@ bool aiw::SegyTraceHead::load(aiw::IOstream &S){
 void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, double z_pow){
 	dump(S);
 	float buf[trace_sz]; if(z_pow) for(int i=0; i<trace_sz; i++){ buf[i] = data[i]*pow(i+1, z_pow); }
+#ifndef AIW_WIN32
 	if(segy_ibm_format){ float buf2[trace_sz]; ieee2ibm(buf2, z_pow?buf:data, trace_sz); S.write(buf2, 4*trace_sz); }
-    else S.write(z_pow?buf:data, 4*trace_sz); 	
+    else
+#endif
+		S.write(z_pow?buf:data, 4*trace_sz); 	
 }
 //------------------------------------------------------------------------------
 aiw::Mesh<float, 1> aiw::SegyTraceHead::read(aiw::IOstream &S){
 	//if(!load(S)) return ;
 	Mesh<float, 1> res; res.init(ind(trace_sz));
+#ifndef AIW_WIN32
 	if(segy_ibm_format){ float buf[trace_sz]; S.read(buf, trace_sz*4); ibm2ieee(&(res[ind(0)]), buf, trace_sz); }
-	else S.read(&(res[ind(0)]), 4*trace_sz);
+	else
+#endif
+		S.read(&(res[ind(0)]), 4*trace_sz);
 	return res;
 }
 //------------------------------------------------------------------------------

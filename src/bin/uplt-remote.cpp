@@ -86,7 +86,7 @@ int main(){
 			// fprintf(logfile, "g r=%g,%g\n", r[0], r[1]);
 				// (std::cout<double(data[dID][fID]->get(conf, r))).flush();
 		} else if(A=='f'){  // получение пределов
-			int dID = 0, fID = 0; std::string buf; ConfView conf; int res = stdIn.load(dID, fID, buf); conf.unpack(buf);
+			int dID = 0, fID = 0; std::string buf; ConfView conf;  stdIn.load(dID, fID, buf); conf.unpack(buf);
 			// fprintf(logfile, "ff1 %i %i\n", conf.cfa.typeID, res);
 			Vec<2> ff = data[dID][fID]->f_min_max(conf); stdOut.dump(ff); std::cout.flush();
 		} else if(A=='p'){  // preview

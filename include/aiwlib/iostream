@@ -151,11 +151,11 @@ namespace aiw{
 		size_t write(const void* buf, size_t size){ return ::fwrite(buf, 1, size, pf.get()); }
 		void flush(){ fflush(pf.get()); }
 		bool eof() const { return feof(pf.get()); }
-#ifndef MINGW
+#ifndef AIW_WIN32
 		std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
 			return std::shared_ptr<BaseAlloc>(new MMapAlloc(pf, size, write_mode?PROT_READ|PROT_WRITE:PROT_READ)); //O_RDONLY|O_WRONLY:O_RDONLY));
 		}
-#endif //MINGW
+#endif //AIW_WIN32
 		int printf(const char * format, ...){
 			va_list args; va_start(args, format);   
 			int r = vfprintf(pf.get(), format, args);

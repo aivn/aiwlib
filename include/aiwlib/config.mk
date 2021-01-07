@@ -15,10 +15,10 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
-zlib=on
+zlib=off
 swig=on
 bin=on
-ezz=on
+ezz=off
 #view=amr,umesh,zcube
 
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
@@ -39,7 +39,11 @@ override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  
-override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ 
+override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
+
+MINGW:=i686-w64-mingw32-g++
+MINGW_LINKOPT:=-L ~/.wine/drive_c/Python27/libs/ -lpython27 -lgomp
+MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)'
 #-------------------------------------------------------------------------------
 #CXX:=i586-mingw32msvc-g++
 #CXXOPT:= -O3 -DMINGW -g 

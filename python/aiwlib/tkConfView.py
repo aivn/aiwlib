@@ -112,7 +112,7 @@ class ColorConf:
         #f_min.set(rz[0]); f_max.set(rz[1])
         if self.logscale.get() and rz[0]<=0.: f_min.set(1e-16)
         color = aiwlib.view.CalcColor()
-        for p in 'logscale modulus invert'.split(): setattr(color, p, getattr(self, p).get())
+        for p in 'logscale modulus invert'.split(): setattr(color, p, bool(getattr(self, p).get()))
         #print (self.get_pal(), rz[0], rz[1]), type(rz[1])
         color.init(self.get_pal(), rz[0], rz[1])
         #color.magn = color2.magn = msh.sizeof_cell_type==2 
@@ -290,7 +290,7 @@ class MainConf:
     def sph_replot(self, *args):
         try: self.content.conf.sph_phi0 = float(self.sph_phi0.get())
         except: pass
-        self.content.conf.mollweide, self.content.conf.sph_interp  = self.mollweide.get(), self.sph_interp.get()
+        self.content.conf.mollweide, self.content.conf.sph_interp  = bool(self.mollweide.get()), bool(self.sph_interp.get())
         self.content.replot()
     def slice_replot(self, *args):
         conf = self.content.conf

@@ -15,7 +15,6 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-#ifndef MINGW
 	const double rand_alpha = 1./(1.+RAND_MAX), rand_alpha2PI = 2*M_PI/(1.+RAND_MAX);
 
 	inline void rand_init(unsigned int &seed, int thID=0){
@@ -29,17 +28,21 @@ namespace aiw{
 	}
 	inline void rand_init(){ unsigned int seed = 0; rand_init(seed); srand(seed); }
 
+#ifndef AIW_WIN32
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
 	inline double rand_gauss(unsigned int &seed){ return sqrt(-2.*log(rand_alpha*(rand_r(&seed)+1.)))*cos(rand_alpha2PI*rand_r(&seed));	}
+#else   //AIW_WIN32
+	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(rand()+1.)))*cos(rand_alpha2PI*rand()); }
+	inline double rand_gauss(unsigned int &seed){ return rand_gauss(); }
+#endif  //AIW_WIN32
 
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(unsigned int &seed){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(seed); return v; }
 #ifndef AIW_WIN32
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
-#endif //AIW_WIN32
-#else //MINGW
+#else  //AIW_WIN32
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
-#endif //MINGW
+#endif //AIW_WIN32
 	//--------------------------------------------------------------------------
     template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& n, double phi){ // |n|==1
 		// a*cos(phi) - a%n*sin(phi) + n*(a*n)*(1-cos(phi));
@@ -86,14 +89,14 @@ namespace aiw{
 		return p/p.abs(); 
 	} 
 	//--------------------------------------------------------------------------
-#ifndef MINGW
+#ifndef AIW_WIN32
 	template <typename T> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, T g){
 		return rotate(a, rotate(perp(a), a*T(rand_alpha2PI*random()/a.abs()))*T(g*rand_gauss())); 
 	}
 	template <typename T> aiw::Vec<3, T> gauss_rotate(const aiw::Vec<3, T>& a, T g, unsigned int &seed){
 		return rotate(a, rotate(perp(a), a*T(rand_alpha2PI*rand_r(&seed)/a.abs()))*T(g*rand_gauss(seed))); 
 	}
-#endif //MINGW
+#endif //AIW_WIN32
 	//--------------------------------------------------------------------------
 } 
 #endif //AIW_GAUSS_HPP

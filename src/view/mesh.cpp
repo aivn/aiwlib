@@ -103,9 +103,6 @@ std::string aiw::MeshView::get(const ConfView& conf, aiw::Vec<2> r) const {
 }
 //------------------------------------------------------------------------------
 Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисляет min-max, как это делать для preview?
-#ifdef EBUG
-	double t0 = omp_get_wtime();
-#endif //EBUG
 	access_t access(*this, conf);
 	// WOUT(access.cfa.typeID, access.cfa.offset);
 	float f_min = 0, f_max = 0; int xsz = access.box[0], ysz = access.box[1];
@@ -145,7 +142,6 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 		}
 		// logfile.printf("%g %g %g %i\n", f_min, f_max, *(const float*)(access.ptr), conf.cfa.typeID);
 	}	
-	WOUT(omp_get_wtime()-t0);
 	return Vec<2>(f_min, f_max);
 }
 //------------------------------------------------------------------------------

@@ -10,8 +10,8 @@ from aiwlib.tkPlot2D import *
 from aiwlib.tkConfView import *
 from aiwlib.iostream import *
 from aiwlib.vec import *
-from aiwlib.uplt_remote import *
-
+try: from aiwlib.uplt_remote import *
+except: uplt_remote = False; print 'Module uplt_remote not found'
 #-------------------------------------------------------------------------------
 class NameSpace:
     def __init__(self, **kw_args):
@@ -81,7 +81,7 @@ class Content:
     def __init__(self, flist):
         self.data, self.ifile, self.iframe, self.max_dim, self.umeshes = [], 0, 0, 0, []
         for fname in flist:
-            if ':' in fname:
+            if uplt_remote and ':' in fname:
                 host, name = fname.split(':', 1); t0 = time.time()
                 remote = uplt_remote(host, 'aiwlib/bin/uplt-remote')
                 print 'open connect to %s, %g sec'%(host, time.time()-t0) 
@@ -96,7 +96,7 @@ class Content:
                 continue
             if os.path.exists(fname): self.data.append([fname])
             else: continue
-            fin, t0, umsh = File(fname, 'r'), time.time(), UnorderedMesh3DHead()
+            fin, t0, umsh = File(fname, 'rb'), time.time(), UnorderedMesh3DHead()
             if fname.endswith('.sgy'): msh = MeshView(); msh.load_from_segy(fin); self.data[-1].append(msh)
             elif umsh.load(fin):
                 self.umeshes.append(umsh)
@@ -281,8 +281,13 @@ content.canvas.bind('<Configure>', lambda e: content.plot_canvas((e.width, e.hei
 
 #def on_left(e): print e.__dict__, repr(wroot.focus_displayof())
 #wroot.bind('<Left>', on_left)
-content.animate.tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(content.animate.tmpdir); print 'temporary path', content.animate.tmpdir
-childs = '/tmp/uplt-%s.childs'%os.getpid()
+try:
+    content.animate.tmpdir = '/tmp/uplt-%s/'%os.getpid(); os.mkdir(content.animate.tmpdir)
+    childs = '/tmp/uplt-%s.childs'%os.getpid()
+except:
+    content.animate.tmpdir, childs = 'uplt-tmp-%s/'%os.getpid(), ''
+    if not os.path.exists(content.animate.tmpdir): os.mkdir(content.animate.tmpdir)
+print 'temporary path', content.animate.tmpdir
 #-------------------------------------------------------------------------------
 if os.path.exists('.uplt'): print 'load configfile ./.uplt ...'; execfile('.uplt')
 elif os.path.exists(os.path.expanduser('~/.uplt')): print 'load configfile ~/.uplt ...'; execfile(os.path.expanduser('~/.uplt'))

@@ -9,11 +9,11 @@
 
 #ifndef SWIG		
 
-#ifndef MINGW
+#ifndef AIW_WIN32
 #    include <sys/mman.h>
 #    include <fcntl.h> 
 #    include <unistd.h>
-#endif //MINGW
+#endif //AIW_WIN32
 #include <memory>
 #include "debug"
 
@@ -61,7 +61,7 @@ namespace aiw{
 		return (T*)(mem->get_addr());
 	}
 //---------------------------------------------------------------------------------------------	
-#ifndef MINGW
+#ifndef AIW_WIN32
     class MMapAlloc: public BaseAlloc{
 		std::shared_ptr<FILE> pf;
 		void *mmap_ptr;
@@ -78,7 +78,7 @@ namespace aiw{
 		~MMapAlloc(){ munmap(mmap_ptr, mmap_sz); }
 		size_t get_sizeof()  const { return 1; }
     };
-#endif //MINGW
+#endif //AIW_WIN32
 //---------------------------------------------------------------------------------------------
 }
 #endif //SWIG		
