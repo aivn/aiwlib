@@ -75,8 +75,16 @@ void aiw::magn_pal_init(int max_rgb){
 //------------------------------------------------------------------------------
 aiw::Image::Image(aiw::Ind<2> size_): size(size_) {
 	char head[1024]; head_sz = snprintf(head, 1024, "P6\n%i %i\n255\n", size[0], size[1]);	
-	buf.resize(head_sz+size.prod()*3);  memcpy(&(buf[0]), head, head_sz);  ptr_buf = &(buf[head_sz]);
+	buf.resize(head_sz+size.prod()*3);  memcpy(&(buf[0]), head, head_sz);  ptr_buf = (uint8_t*)&(buf[head_sz]);
 }
+//------------------------------------------------------------------------------
+/*
+std::string aiw::Image::as_P3() const{
+	std::stringstream buf2; buf2<<"P3\n"<<size[0]<<' '<<size[1]<<"\n255\n";
+	for(int i=0; i<size.prod(); i++) buf2<<int(ptr_buf[i*3])<<' '<<int(ptr_buf[i*3+1])<<' '<<int(ptr_buf[i*3+2])<<'\n';
+	return buf2.str();
+}
+*/
 //------------------------------------------------------------------------------
 void aiw::plot_paletter(float const *pal, Image& image, bool orient, int max_rgb){
 	float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;

@@ -77,16 +77,17 @@ namespace aiw{
 	struct Image {
 		std::string buf;
 		int head_sz = 0;
-		char *ptr_buf = nullptr;
+		uint8_t *ptr_buf = nullptr;
 		aiw::Ind<2> size;
 
 		Image(aiw::Ind<2> size_);
 
 		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
 			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
-			char* ptr = ptr_buf+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
+			uint8_t* ptr = ptr_buf+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
 			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
 		}
+		// std::string as_P3() const;
 	};	
 	//--------------------------------------------------------------------------
 	void plot_paletter(float const *pal, Image& image, bool orient, int max_rgb=255);

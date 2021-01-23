@@ -74,11 +74,14 @@ class ColorConf:
     paletters = dict((k[:-4], getattr(aiwlib.view, k)) for k in dir(aiwlib.view) if k.endswith('_pal'))
     def __init__(self, panel, content, row=2, column=0):        
         frame = Frame(panel); frame.grid(row=row, column=column, sticky=E)
-        self.f_min = aiwEntry(frame, 0., self.replot, label='f', pack={'side':LEFT, 'anchor':E}, width=10)
+        self.autoscale = aiwCheck(frame, 'f', True, command=self.replot, pack={'side':LEFT})
+        self.f_min = aiwEntry(frame, 0., self.replot, label='', pack={'side':LEFT, 'anchor':E}, width=10)
         self.f_max = aiwEntry(frame, 0., self.replot, label=':', pack={'side':RIGHT, 'anchor':E}, width=10)
+        self.f_min.state(0); self.f_max.state(0)
 
         frame = Frame(panel); frame.grid(row=row+1, column=column, sticky=W)        
-        self.autoscale, self.old_autoscale = aiwCheck(frame, 'autoscale', True, command=self.replot, pack={'side':LEFT}), False
+        #self.autoscale, self.old_autoscale = aiwCheck(frame, 'autoscale', True, command=self.replot, pack={'side':LEFT}), False
+        self.total_autoscale = aiwCheck(frame, 'tot.scale', False, command=self.replot, pack={'side':LEFT})
         self.pal = aiwOptionMenu(frame, items=self.paletters.keys(), trace=self.replot, default='rainbow', pack={'side':RIGHT})
 
         frame = Frame(panel); frame.grid(row=row+2, column=column, sticky=W)        
@@ -99,30 +102,31 @@ class ColorConf:
             if ab[0]==ab[1]: return
         self.set_limits(ab[0], ab[1])
     def get_limits(self):
-        f_min, f_max = self.f_min.get(), self.f_max.get()
-        if f_min==f_max: f_min -= .5; f_max += .5
-        return f_min, f_max
-    def set_limits(self, f_min, f_max): self.autoscale.set(0); self.f_min.set(f_min); self.f_max.set(f_max); self.replot()        
-    def get(self):
         rz = [self.f_min.get(), self.f_max.get()]
         if rz[0]==rz[1]: rz[0] -= .5; rz[1] += .5
         if self.autoscale.get():
             if self.invert.get(): rz = -rz[1], -rz[0]
-            if self.modulus.get(): rz = map(abs, rz)
-        #f_min.set(rz[0]); f_max.set(rz[1])
-        if self.logscale.get() and rz[0]<=0.: f_min.set(1e-16)
+            if self.modulus.get():
+                if rz[0]*rz[1]<0: rz[1] = max(map(abs, rz)); rz[0] = 0
+                else: rz = sorted(map(abs, rz))
+        if self.logscale.get():
+            if rz[0]<=0.: rz[0] = 1e-18
+            if rz[1]<=0.: rz[1] = 1e-16
+        return rz
+    def set_limits(self, f_min, f_max): self.autoscale.set(0); self.f_min.set(f_min); self.f_max.set(f_max); self.replot()        
+    def get(self):
         color = aiwlib.view.CalcColor()
         for p in 'logscale modulus invert'.split(): setattr(color, p, bool(getattr(self, p).get()))
-        #print (self.get_pal(), rz[0], rz[1]), type(rz[1])
-        color.init(self.get_pal(), rz[0], rz[1])
+        color.init(self.get_pal(), *self.get_limits())
         #color.magn = color2.magn = msh.sizeof_cell_type==2 
         #if color.magn: magn_pal_init()
         return color
     def calc_min_max(self):
-        if self.autoscale.get(): lim = self.content.f_min_max(); self.f_min.set('%g'%lim[0]); self.f_max.set('%g'%lim[1])
+        if self.autoscale.get(): lim = self.content.f_min_max(self.total_autoscale.get()); self.f_min.set('%g'%lim[0]); self.f_max.set('%g'%lim[1])
     def replot(self, *args):
-        if self.autoscale.get()!=self.old_autoscale: self.old_autoscale = self.autoscale.get(); self.calc_min_max()
-        self.content.plot_preview(); self.content.plot_canvas()
+        self.f_min.state(not self.autoscale.get()); self.f_max.state(not self.autoscale.get())
+        #if self.autoscale.get(): self.old_autoscale = self.autoscale.get();
+        self.calc_min_max(); self.content.plot_preview(); self.content.plot_canvas()
 #-------------------------------------------------------------------------------
 class MainConf:
     ctypes = 'float double bool char uint8_t int8_t uint16_t int16_t uint32_t int32_t  uint64_t int64_t'.split()

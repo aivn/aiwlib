@@ -1,7 +1,8 @@
 # -*- mode: Python; coding: utf-8 -*-
-'''Copyright (C) 2017,2020  Antov V. Ivanov  <aiv.racs@gmail.com>
+'''Copyright (C) 2017,2020-2021  Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
+import tempfile
 from math import *
 from Tkinter import *
 import os, sys, time #, PIL.Image, PIL.ImageTk, PIL.ImageDraw, PIL.ImageFont
@@ -131,7 +132,12 @@ class Plot2D(Canvas):
         #cimage = PIL.ImageTk.PhotoImage(image=image)
         image = Image(ind(xy1[0]-xy0[0], xy1[1]-xy0[1]))
         plotter(image)
-        cimage = PhotoImage(data=image.buf)
+        #        print len(image.buf), len(image.buf)-image.head_sz, image.size.prod()*3
+        try: cimage = PhotoImage(width=xy1[0]-xy0[0], height=xy1[1]-xy0[1], format='PPM', data=image.buf)
+        except TclError, e:
+            print 'TCLError', e, '---> forced to use the temporary file P6.ppm ;-((('
+            open('P6.ppm', 'wb').write(image.buf)
+            cimage = PhotoImage(width=xy1[0]-xy0[0], height=xy1[1]-xy0[1], format='PPM', file='P6.ppm') 
         self.create_image(xy0[0], xy0[1], image=cimage, anchor=NW, tag=tag)
         #if border: self.create_rectangle(xy0[0]+border/2, xy0[1]+border/2, xy1[0]-border/2, xy1[1]-border/2, width=border, tag=tag)
         if border: self.create_rectangle(xy0[0], xy0[1], xy1[0], xy1[1], width=border, tag=tag)
@@ -197,7 +203,8 @@ class Plot2D(Canvas):
             if kw.get('tag') in ('pal_move', 'msh_move'): continue
             if T=='text':
                 a, txt, font = list(a), kw['text'], kw['font'] # с т.з. draw a задано относительно верхнего левого угла
-                font = PIL.ImageFont.truetype(font[0]+'.ttf', font[1])
+                try: font = PIL.ImageFont.truetype(font[0]+'.ttf', font[1])
+                except: font = PIL.ImageFont.truetype('./fonts/'+font[0]+'.ttf', font[1]) # for windows
                 sz, anchor = draw.textsize(txt, font=font), kw.get('anchor', '')
                 a[0] -= sz[0]/2; a[1] -= sz[1]/2 # центрируем текст относительно a
                 if 'e' in anchor: a[0] -= sz[0]/2
@@ -212,8 +219,8 @@ class Plot2D(Canvas):
                 draw.line((a[2], a[3], a[2], a[1]), width=1, fill=(0,0,0)) 
                 draw.line((a[2], a[1], a[0], a[1]), width=1, fill=(0,0,0)) 
         for xy0, xy1, image, cimage in self.picts.values():
-            tmpname = os.tmpnam()+'.ppm'; tmpout = open(tmpname, 'wb'); tmpout.write(image.buf); tmpout.close()
-            img.paste(PIL.Image.open(tmpname), xy0+xy1); os.remove(tmpname)
+            tmpout = tempfile.NamedTemporaryFile(suffix='.ppm', delete=False); tmpout.write(image.buf); tmpout.close()
+            img.paste(PIL.Image.open(tmpout.name), xy0+xy1); os.remove(tmpout.name)
         img.save(fname)
     def mouse_move(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'move', action))
     def mouse_left(self, xy0, xy1, action): self.mouses.append((xy0, xy1, 'left', action))

@@ -15,10 +15,10 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
-zlib=off
+zlib=on
 swig=on
 bin=on
-ezz=off
+ezz=on
 #view=amr,umesh,zcube
 
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
@@ -41,9 +41,14 @@ override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 override LINKOPT:=$(LINKOPT) -lgomp  
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 
-MINGW:=i686-w64-mingw32-g++
+# устанавливать 64x битный дистрибутив питона под wine как
+# wine64 ~/.wine/drive_c/windows/explorer.exe python-2.7.18.amd64.msi
+# запускать вьювер как
+# wine ~/.wine/drive_c/Python27/python.exe uplt.py ИМЕНА-ФАЙЛОВ
+MINGW:=x86_64-w64-mingw32-g++
+#MINGW:=i686-w64-mingw32-g++
 MINGW_LINKOPT:=-L ~/.wine/drive_c/Python27/libs/ -lpython27 -lgomp
-MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)'
+MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -fopenmp -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64
 #-------------------------------------------------------------------------------
 #CXX:=i586-mingw32msvc-g++
 #CXXOPT:= -O3 -DMINGW -g 

@@ -69,7 +69,7 @@ namespace aiw{
 			Vec<3> r3 = polar(r[1], r[0])*(M_PI/180);
 			double v =  get_f(conf, r3);
 			size_t ID = mode==0? sph_cellInd(r3, R): (mode==1? sph_vertInd(r3, R): sph_edgeInd(r3, R));
-			char buf[1024]; snprintf(buf, 1023, "%g\n[%ld]", v, ID);
+			char buf[1024]; snprintf(buf, 1023, "%g\n[%i]", v, int(ID));
 			return buf;
 		}
 		
@@ -100,6 +100,10 @@ namespace aiw{
 		void preview(const ConfView& conf0, Image &image, const CalcColor &color) const OVERRIDE{  // рассчитан на маленькое изображение, учитывает только flip
 			ConfView conf = conf0; conf.uncrop();
 			plot(conf, image, color);
+		}
+		void get_line(const ConfView &conf, aiw::Vec<2> point, int axe, std::vector<float>& X, std::vector<float>& Y) const OVERRIDE {
+			double d = sqrt(4*M_PI/sz)/3; int lsz = (2-axe)*M_PI/d; d = (2-axe)*180./lsz; lsz++; X.resize(lsz); Y.resize(lsz);
+			point[axe] = 0;	for(int i=0; i<lsz; i++){ X[i] = point[axe]; Y[i] = get_f(conf, point); point[axe] += d; }
 		}
 	};
 	//--------------------------------------------------------------------------

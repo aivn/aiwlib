@@ -3,6 +3,8 @@
 %feature("autodoc", "1");
 %include "std_string.i"
 %include "std_vector.i"
+%template(std_vectorf) std::vector<float>;
+
 %{
 #include "../include/aiwlib/typeinfo"
 #include "../include/aiwlib/view/color"

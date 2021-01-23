@@ -18,10 +18,9 @@ bool aiw::MeshView::load(IOstream &S){
 	head = bf.head; D = bf.D; szT = bf.szT; logscale = bf.logscale; 
 	sz = 1; for(int i=0; i<D; i++) sz *= box[i];
 	// WOUT(head, D, szT, sz, logscale, box, bmin, bmax, s, S.tell());
-	
 	mem = S.mmap(sz*szT, 0);
 	// WOUT(S.tell());
- 
+
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(D*24+4+szT)){ S.read(&bmin, D*8); S.read(&bmax, D*8); S.read(&step, D*8); S.seek(szT, 1); logscale = 0;  } 
 	else  S.seek(s); 
@@ -145,6 +144,18 @@ Vec<2> aiw::MeshView::f_min_max(const ConfView &conf) const { // вычисля�
 	return Vec<2>(f_min, f_max);
 }
 //------------------------------------------------------------------------------
+aiw::Vec<2> aiw::MeshView::f_min_max_tot(const ConfView &conf) const {
+	const char *ptr = (const char*)(mem->get_addr());
+	float f_min = 0, f_max = 0; 
+#pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
+	for(size_t i=0; i<sz; i++){
+		float f = conf.cfa.get_f(ptr+i*szT);
+		if(f_min>f) f_min = f; 
+		if(f_max<f) f_max = f; 
+	}
+	return Vec<2>(f_min, f_max);
+}
+//------------------------------------------------------------------------------
 void aiw::MeshView::plot(const ConfView &conf, Image &image, const CalcColor &color) const {
 	// double t0 = omp_get_wtime();
 	// WOUT(conf.axes);
@@ -207,4 +218,15 @@ void aiw::MeshView::preview(const ConfView& conf0, Image &image, const CalcColor
 	ConfView conf = conf0; conf.uncrop();
 	plot(conf, image, color);
 }
+//------------------------------------------------------------------------------
+void aiw::MeshView::get_line(const ConfView &conf, aiw::Vec<2> point, int axe, std::vector<float>& X, std::vector<float>& Y) const {
+	Ind<16> pos = coord2pos(conf.slice); for(int i=0; i<2; i++) pos[conf.axes[i]] = coord2pos(point[i], conf.axes[i]);
+	X.resize(box[axe]); Y.resize(box[axe]);  const char *ptr = (const char*)(mem->get_addr());
+	size_t mul = szT; for(int i=0; i<D; i++) if(i!=axe){ ptr += mul*pos[i]; mul *= box[i]; }
+	mul = szT; for(int i=0; i<axe; i++) mul *= box[i];
+	for(int i=0; i<box[axe]; i++){
+		X[i] = pos2coord(i, axe);
+		Y[i] = conf.cfa.get_f(ptr+i*mul);
+	}
+};
 //------------------------------------------------------------------------------

@@ -39,6 +39,14 @@ namespace aiw{
 		~MemAlloc(){ delete [] (T*)ptr; }
 		size_t get_sizeof()  const { return sizeof(T); }				
 	};
+	template<> struct MemAlloc<char>: public BaseAlloc{
+		MemAlloc(size_t sz){
+			size = sz; ptr = malloc(sz);
+			if(!ptr) WRAISE("can't allocate memory ", size);
+		}
+		~MemAlloc(){ free(ptr); }
+		size_t get_sizeof()  const { return 1; }				
+	};
 //---------------------------------------------------------------------------------------------	
 #ifndef AIW_WIN32
 	struct MemAlignAlloc: public BaseAlloc{
