@@ -125,12 +125,12 @@ class Plot2D(Canvas):
         else: self._content = filter(lambda i: i[2].get('tag')!=tag, self._content)
         Canvas.delete(self, tag)
     #----------------------
-    def _add_pict(self, tag, xy0, xy1, border, plotter):
+    def _add_pict(self, tag, xy0, xy1, border, plotter, image=None):
         if tag in self.picts: self.del_pict(tag)
         #image = PIL.Image.new('RGB', (xy1[0]-xy0[0], xy1[1]-xy0[1]))
         #plotter(ImagePIL(image))
         #cimage = PIL.ImageTk.PhotoImage(image=image)
-        image = Image(ind(xy1[0]-xy0[0], xy1[1]-xy0[1]))
+        if not image: image = Image(ind(xy1[0]-xy0[0], xy1[1]-xy0[1]))
         plotter(image)
         #        print len(image.buf), len(image.buf)-image.head_sz, image.size.prod()*3
         try: cimage = PhotoImage(width=xy1[0]-xy0[0], height=xy1[1]-xy0[1], format='PPM', data=image.buf)
@@ -142,9 +142,9 @@ class Plot2D(Canvas):
         #if border: self.create_rectangle(xy0[0]+border/2, xy0[1]+border/2, xy1[0]-border/2, xy1[1]-border/2, width=border, tag=tag)
         if border: self.create_rectangle(xy0[0], xy0[1], xy1[0], xy1[1], width=border, tag=tag)
         self.picts[tag] = (xy0, xy1, image, cimage) #, data, color)        
-    def add_pict(self, tag, xy0, xy1, plotter, border=1):
+    def add_pict(self, tag, xy0, xy1, plotter, border=1, image=None):
         'рисует data в прямоугольнике xy0:xy1'
-        self._add_pict(tag, xy0, xy1, border, plotter)
+        self._add_pict(tag, xy0, xy1, border, plotter, image)
         return tag
     def del_pict(self, tag): self.delete(tag); del self.picts[tag]
     def _add_tics(self, tag, orient, xy0, xy1, tics, stics, font, tic_sz, font_scale):

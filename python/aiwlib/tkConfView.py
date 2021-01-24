@@ -91,7 +91,7 @@ class ColorConf:
 
         self.content = content
     # def set_limits(self, f_min, f_max): self.autoscale.set(False); self.f_min.set(f_min); self.f_max.set(f_max)
-    def get_pal(self): return self.paletters[self.pal.get()]
+    def get_pal(self, paletter=None): return self.paletters[paletter if paletter else self.pal.get()]
     def scale_limits(self, mul):
         if mul==0: lim = max(abs(float(x.get())) for x in (self.f_min, self.f_max)); ab = [-lim, lim]
         elif mul==-1: ab = [self.f_min.get(), 0]
@@ -114,10 +114,10 @@ class ColorConf:
             if rz[1]<=0.: rz[1] = 1e-16
         return rz
     def set_limits(self, f_min, f_max): self.autoscale.set(0); self.f_min.set(f_min); self.f_max.set(f_max); self.replot()        
-    def get(self):
+    def get(self, paletter=None):
         color = aiwlib.view.CalcColor()
         for p in 'logscale modulus invert'.split(): setattr(color, p, bool(getattr(self, p).get()))
-        color.init(self.get_pal(), *self.get_limits())
+        color.init(self.get_pal(paletter), *self.get_limits())
         #color.magn = color2.magn = msh.sizeof_cell_type==2 
         #if color.magn: magn_pal_init()
         return color

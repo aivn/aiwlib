@@ -78,7 +78,8 @@ def mouse_right_sph(self, xy, xy0, xy1): # плагин для расширен�
     else: exec(mouse_right_cmd, globals(), D)
 #-------------------------------------------------------------------------------
 class Content:
-    def __init__(self, flist):
+    def __init__(self, flist, background=None):
+        'background = (frame, paletter, weight)'
         self.data, self.ifile, self.iframe, self.max_dim, self.umeshes, self.mouse_point = [], 0, 0, 0, [], None
         for fname in flist:
             if uplt_remote and ':' in fname:
@@ -117,6 +118,14 @@ class Content:
                 self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
                 print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
         if not self.data: print 'not input files\n', __doc__; sys.exit()
+
+        self.background = None
+        if background:
+            if len(self.data)<=1: print 'few input files, background ignored'
+            elif len(self.data[0])<=background[0]+1: print 'few input frames (%i) at %r, background ignored'%(len(self.data[0])-1, self.data[0][0])
+            elif not background[1] in [k[:-4] for k in dir(aiwlib.view) if k.endswith('_pal')]: print 'unknown paletter %s, background ignored'%background[1]
+            else: self.background = (self.data[0][background[0]+1], background[1], background[2]); del self.data[0]
+
         self.conf = ConfView(); self.data[0][1].get_conf(self.conf, True)
         if self.conf.cfa_list: self.conf.cfa = self.conf.cfa_list[0]
         else: self.conf.cfa.typeID, self.conf.cfa.offset = 0, 0
@@ -167,9 +176,18 @@ class Content:
         
         self.canvas.add_tics(tag='X', orient=0, xyN=(yw, sz[1]-xh, sz[0]-yw-pw), side=0, limits=self.conf.lim(0),
                              logscale=self.conf.get_logscale(0), **self.settings.get())
+
+
+        if self.background:
+            image = aiwlib.view.Image(ind(sz[0]-pw-yw, sz[1]-xh-th)); image.weight = self.background[2]
+            self.background[0].plot(self.conf, image, self.color.get(self.background[1]))
+            image.weight = 1-image.weight
+        else: image = None
         self.canvas.add_pict('img', (yw,th),  (sz[0]-pw,sz[1]-xh),
                              (lambda im: self.data[self.ifile][self.iframe+1].plot(self.conf, im, self.color.get())),
-                             border=self.settings.border.get())
+                             border=self.settings.border.get(), image=image)
+
+
         self.canvas._XY0, self.canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
 
         ns = NameSpace(conf=self.conf, X=self.conf.name_x(), Y=self.conf.name_y(), fname=self.data[self.ifile][0], frame=self.iframe,
@@ -233,11 +251,16 @@ class Content:
         #point = self.conf.xy2r(vec(float(xy[0]-self.msh_region[0])/(self.msh_region[2]-self.msh_region[0]),
         #                           float(self.msh_region[3]-xy[1])/(self.msh_region[3]-self.msh_region[1])))
         X, Y = std_vectorf(), std_vectorf(); self.data[self.ifile][self.iframe+1].get_line(self.conf, self.mouse_point, axe, X, Y)
-        plt.xlabel(self.conf.name(axe)); plt.grid(); plt.plot(X, Y); plt.show()
+        plt.xlim(xmin=X[0], xmax=X[len(X)-1]); plt.xlabel(self.conf.name(axe)); plt.grid(); plt.plot(X, Y); plt.show()
 #-------------------------------------------------------------------------------
 #  main widgets
 #-------------------------------------------------------------------------------
-content = Content(sum(map(glob.glob, sys.argv[1:]), []))
+#content = Content(sum(map(glob.glob, sys.argv[1:]), []))
+flist, bg, i0 = [], None, 1
+if sys.argv[1].startswith('-bg:'): bg = sys.argv[1][4:].split(','); bg = int(bg[0]), bg[1], float(bg[2]); i0 += 1
+for f in sys.argv[i0:]: flist += [f] if ':' in f else glob.glob(f)    
+content = Content(flist, bg); del flist, bg, i0, f
+
 panel_sz = 211
 wroot = Tk(); panel0 = Frame(wroot, width=panel_sz)
 content.canvas = Plot2D(wroot, width=900, height=900, background='white')
@@ -308,6 +331,7 @@ if os.path.exists('.uplt'): print 'load configfile ./.uplt ...'; execfile('.uplt
 elif os.path.exists(os.path.expanduser('~/.uplt')): print 'load configfile ~/.uplt ...'; execfile(os.path.expanduser('~/.uplt'))
 
 print u'''
+
 горячие клавиши:
    <+>,<=>/<-> --- расширить/сжать пределы по значению
        <[>/<]> --- установить верхний/нижний предел нулем 
@@ -328,10 +352,15 @@ print u'''
            <b> --- показать/скрыть границы ячеек
            <i> --- включить/выключить интерполяцию для сферы
            <m> --- включить/выключить проекцию Моллвейде для сферы
+   <x>/<y>/<z> --- построить зависимость f(x/y/z) проходящую через курсор мыши
 
 можно выбрать мышью область для отображения/пределы на изображении/палитре
 двойной щелчек сбрасывает выбор области/возвращает автошкалирование по значению
-'''
+
+для загрузки фона (например распределения свойст) добавьте первыми аргментами
+         -bg:frame,paletter,weight  background-data
+палитры: %s 
+'''%' '.join(k[:-4] for k in dir(aiwlib.view) if k.endswith('_pal'))
 
 try: content.file_replot(); wroot.mainloop()
 finally:

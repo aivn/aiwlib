@@ -79,13 +79,15 @@ namespace aiw{
 		int head_sz = 0;
 		uint8_t *ptr_buf = nullptr;
 		aiw::Ind<2> size;
+		float weight = 0;
 
 		Image(aiw::Ind<2> size_);
 
 		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
 			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
 			uint8_t* ptr = ptr_buf+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
-			ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2];
+			if(weight){ ptr[0] += color[0]*weight; ptr[1] += color[1]*weight; ptr[2] += color[2]*weight; }
+			else { ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2]; }
 		}
 		// std::string as_P3() const;
 	};	

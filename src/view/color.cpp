@@ -75,7 +75,7 @@ void aiw::magn_pal_init(int max_rgb){
 //------------------------------------------------------------------------------
 aiw::Image::Image(aiw::Ind<2> size_): size(size_) {
 	char head[1024]; head_sz = snprintf(head, 1024, "P6\n%i %i\n255\n", size[0], size[1]);	
-	buf.resize(head_sz+size.prod()*3);  memcpy(&(buf[0]), head, head_sz);  ptr_buf = (uint8_t*)&(buf[head_sz]);
+	buf.resize(head_sz+size.prod()*3, 0);  memcpy(&(buf[0]), head, head_sz);  ptr_buf = (uint8_t*)&(buf[head_sz]);
 }
 //------------------------------------------------------------------------------
 /*
