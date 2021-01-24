@@ -160,6 +160,8 @@ void aiw::MeshView::plot(const ConfView &conf, Image &image, const CalcColor &co
 	// double t0 = omp_get_wtime();
 	// WOUT(conf.axes);
 	// WOUT(conf.cfa.typeID, conf.cfa.offset, conf.cfa.label, szT);
+	for(int i=0; i<D; i++) if(i!=conf.axes[0] && i!=conf.axes[1] && (conf.bmax[i]<bmin[i] || bmax[i]<conf.bmin[i])) return;
+	
 	int xsz = image.size[0], ysz = image.size[1];
 	Vec<2> im_step = (conf.max_xy()-conf.min_xy())/image.size; Vec<2> im_bmin = conf.min_xy() + .5*im_step;
 
@@ -201,9 +203,13 @@ auto I = vtx.trace(ind(x, y));
 		// int S = 0;
 #pragma omp parallel for // reduction(+:S) 
 		for(int y=0; y<ysz; y++){
-			Ind<2> pos; Vec<2> X, r; r[1] = im_bmin[1]+y*im_step[1]; f.mod_coord(1, r[1], pos[1], X[1]);
+			Ind<2> pos; Vec<2> X, r; r[1] = im_bmin[1]+y*im_step[1];
+			if(r[1]<bmin[conf.axes[1]] || bmax[conf.axes[1]]<r[1]) continue; // ???
+			f.mod_coord(1, r[1], pos[1], X[1]);
 			for(int x=0; x<xsz; x++){
-				r[0] = im_bmin[0]+x*im_step[0]; f.mod_coord(0, r[0], pos[0], X[0]);
+				r[0] = im_bmin[0]+x*im_step[0];
+				if(r[0]<bmin[conf.axes[0]] || bmax[conf.axes[0]]<r[0]) continue; // ???
+				f.mod_coord(0, r[0], pos[0], X[0]);
 				image.set_pixel(ind(x,y), color(interpolate(f, pos, X, f.interp)));
 				// S += color(interpolate(f, pos, X, f.interp)).sum();
 			}

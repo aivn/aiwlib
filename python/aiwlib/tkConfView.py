@@ -91,7 +91,7 @@ class ColorConf:
 
         self.content = content
     # def set_limits(self, f_min, f_max): self.autoscale.set(False); self.f_min.set(f_min); self.f_max.set(f_max)
-    def get_pal(self, paletter=None): return self.paletters[paletter if paletter else self.pal.get()]
+    def get_pal(self): return self.paletters[self.pal.get()]
     def scale_limits(self, mul):
         if mul==0: lim = max(abs(float(x.get())) for x in (self.f_min, self.f_max)); ab = [-lim, lim]
         elif mul==-1: ab = [self.f_min.get(), 0]
@@ -114,10 +114,10 @@ class ColorConf:
             if rz[1]<=0.: rz[1] = 1e-16
         return rz
     def set_limits(self, f_min, f_max): self.autoscale.set(0); self.f_min.set(f_min); self.f_max.set(f_max); self.replot()        
-    def get(self, paletter=None):
+    def get(self):
         color = aiwlib.view.CalcColor()
         for p in 'logscale modulus invert'.split(): setattr(color, p, bool(getattr(self, p).get()))
-        color.init(self.get_pal(paletter), *self.get_limits())
+        color.init(self.get_pal(), *self.get_limits())
         #color.magn = color2.magn = msh.sizeof_cell_type==2 
         #if color.magn: magn_pal_init()
         return color
@@ -169,8 +169,8 @@ class MainConf:
 
         frame = Frame(panel); frame.grid(row=row+8, column=column)   # seg-Y, 3D etc
         self.segy = aiwCheck(frame, 'seg-Y   ', command=self.segy_replot, grid={'row':0, 'column':0})
-        self.plot3D = aiwCheck(frame, '3D', command=self.plot3D_replot, grid={'row':0, 'column':1})
-        self.alpha = aiwEntry(frame, 0.5,  label='alpha', grid={'row':0, 'column':2}, width=5)
+        self.bg_check = aiwCheck(frame, 'background', command=content.replot, grid={'row':0, 'column':1})
+        self.bg_weight = aiwEntry(frame, 0., grid={'row':0, 'column':2}, command=content.replot, width=4)
         
         self.file_num = aiwScaleSH(panel, 'file number', command=content.file_replot, length=panel_sz-2, showvalue=YES, #<<<
                                    orient='horizontal', to=0, grid={'row':row+9, 'column': column}) # relief=RAISED, ) 
@@ -261,8 +261,8 @@ class MainConf:
             self.type_in_cell.set(self.ctypes[self.content.conf.cfa.typeID])
 
         self.segy.state(bool(conf.features&conf.opt_segy))
-        self.plot3D.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
-        self.alpha.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
+        #self.plot3D.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
+        #self.alpha.state(bool(conf.features&conf.opt_3D) and conf.dim==3)
     #--- простые перерисовки ---
     def access_replot(self, *args):
         if self.content.conf.cfa_xfem_list and self.xfem_mode.get()!='phys': 

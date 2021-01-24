@@ -78,8 +78,7 @@ def mouse_right_sph(self, xy, xy0, xy1): # плагин для расширен�
     else: exec(mouse_right_cmd, globals(), D)
 #-------------------------------------------------------------------------------
 class Content:
-    def __init__(self, flist, background=None):
-        'background = (frame, paletter, weight)'
+    def __init__(self, flist):
         self.data, self.ifile, self.iframe, self.max_dim, self.umeshes, self.mouse_point = [], 0, 0, 0, [], None
         for fname in flist:
             if uplt_remote and ':' in fname:
@@ -118,17 +117,10 @@ class Content:
                 self.max_dim = max(self.max_dim, *[d.dim() for d in self.data[-1][1:]]) 
                 print fname, 'load', len(self.data[-1])-1, 'frames, %g sec'%(time.time()-t0)
         if not self.data: print 'not input files\n', __doc__; sys.exit()
-
-        self.background = None
-        if background:
-            if len(self.data)<=1: print 'few input files, background ignored'
-            elif len(self.data[0])<=background[0]+1: print 'few input frames (%i) at %r, background ignored'%(len(self.data[0])-1, self.data[0][0])
-            elif not background[1] in [k[:-4] for k in dir(aiwlib.view) if k.endswith('_pal')]: print 'unknown paletter %s, background ignored'%background[1]
-            else: self.background = (self.data[0][background[0]+1], background[1], background[2]); del self.data[0]
-
-        self.conf = ConfView(); self.data[0][1].get_conf(self.conf, True)
+        self.conf, self.background = ConfView(), None; self.data[0][1].get_conf(self.conf, True)
         if self.conf.cfa_list: self.conf.cfa = self.conf.cfa_list[0]
         else: self.conf.cfa.typeID, self.conf.cfa.offset = 0, 0
+    #---------------------------------------------------------------------------
     def f_min_max(self, total_autoscale): return tuple(self.data[self.ifile][self.iframe+1].base_min_max(self.conf, total_autoscale))
     def replot(self, *args):
         if self.color.autoscale.get(): self.color.calc_min_max()
@@ -137,6 +129,7 @@ class Content:
                                                       else self.file_replot if self.animate.atype.get()=='file'
                                                       else self.main.slice_replot)
         self.plot_preview(); self.plot_canvas()
+    #---------------------------------------------------------------------------
     def plot_preview(self): #<<< считаем что все уже настроено, просто перерисовываем
         new_panel_sz = wroot.bbox()[2]-self.canvas.wsize()[0]-5
         if new_panel_sz>0: global panel_sz;  panel_sz = new_panel_sz; self.preview.configure(width=panel_sz, height=panel_sz)
@@ -157,6 +150,7 @@ class Content:
         self.preview.create_rectangle(rect[0][0], panel_sz-rect[0][1], rect[1][0], panel_sz-rect[1][1],  outline='gray', tag='select')
 
         if not self.conf.features&self.conf.opt_mollweide: self.preview.mouse_select((0,0), (panel_sz,panel_sz), move_select, final_select_preview)
+    #---------------------------------------------------------------------------
     def plot_canvas_e(self, *args): self.plot_canvas()
     def plot_canvas(self, csz=None): #<<< считаем что все уже настроено, просто перерисовываем
         t0 = time.time()
@@ -177,16 +171,18 @@ class Content:
         self.canvas.add_tics(tag='X', orient=0, xyN=(yw, sz[1]-xh, sz[0]-yw-pw), side=0, limits=self.conf.lim(0),
                              logscale=self.conf.get_logscale(0), **self.settings.get())
 
+        if self.main.bg_check.get() and (not self.background or self.background[0] is self.data[self.ifile][self.iframe+1]):            
+            self.background = self.data[self.ifile][self.iframe+1], self.color.get(), self.color.pal.get()
+        elif not self.main.bg_check.get() and self.background and self.background[0] is self.data[self.ifile][self.iframe+1]: self.background = None
 
-        if self.background:
-            image = aiwlib.view.Image(ind(sz[0]-pw-yw, sz[1]-xh-th)); image.weight = self.background[2]
-            self.background[0].plot(self.conf, image, self.color.get(self.background[1]))
-            image.weight = 1-image.weight
+        if self.background and not self.background[0] is self.data[self.ifile][self.iframe+1]:
+            image = aiwlib.view.Image(ind(sz[0]-pw-yw, sz[1]-xh-th)); image.weight = self.main.bg_weight.get()
+            self.background[0].plot(self.conf, image, self.background[1])
+            image.weight = 1-self.main.bg_weight.get()
         else: image = None
         self.canvas.add_pict('img', (yw,th),  (sz[0]-pw,sz[1]-xh),
                              (lambda im: self.data[self.ifile][self.iframe+1].plot(self.conf, im, self.color.get())),
                              border=self.settings.border.get(), image=image)
-
 
         self.canvas._XY0, self.canvas._XY1 = (yw,th), (sz[0]-pw,sz[1]-xh)
 
@@ -208,8 +204,16 @@ class Content:
         self.canvas.mouse_move((yw,th), (sz[0]-pw,sz[1]-xh), (self.show_on_msh_move, hide_on_msh_move))
         #self.msh_region = (yw, th, sz[0]-pw, sz[1]-xh)   # область занимаемая графиком
         #print 'plot_canvas %g sec'%(time.time()-t0)
+    #---------------------------------------------------------------------------
+    def set_bg_check(self):
+        if   self.background and not self.main.bg_check.get() and self.background[0] is self.data[self.ifile][self.iframe+1]:
+            self.main.bg_check.set(True); self.old_pal = self.color.pal.get(); self.color.pal.set(self.background[2])
+        elif self.background and self.main.bg_check.get() and not self.background[0] is self.data[self.ifile][self.iframe+1]:
+            self.main.bg_check.set(False)
+            if hasattr(self, 'old_pal'): self.color.pal.set(self.old_pal); del self.old_pal
+    #---------------------------------------------------------------------------
     def frame_replot(self, *args):
-        self.iframe = self.main.frame_num.get()
+        self.iframe = self.main.frame_num.get(); self.set_bg_check()
         wroot.title('uplt: %r[%i]'%(self.data[self.ifile][0], self.iframe))
         self.data[self.ifile][self.iframe+1].get_conf(self.conf)
         self.main.update(self.conf); self.conf.cfa.ibit = self.main.cfa_ibit.get()
@@ -217,6 +221,7 @@ class Content:
     def file_replot(self, *args):
         self.ifile = self.main.file_num.get()
         if self.iframe>len(self.data[self.ifile])-2: self.iframe = len(self.data[self.ifile])-2
+        self.set_bg_check()
         wroot.title('uplt: %r[%i]'%(self.data[self.ifile][0], self.iframe))
         self.data[self.ifile][self.iframe+1].get_conf(self.conf)
         self.main.update(self.conf); self.conf.cfa.ibit = self.main.cfa_ibit.get()
@@ -255,11 +260,7 @@ class Content:
 #-------------------------------------------------------------------------------
 #  main widgets
 #-------------------------------------------------------------------------------
-#content = Content(sum(map(glob.glob, sys.argv[1:]), []))
-flist, bg, i0 = [], None, 1
-if sys.argv[1].startswith('-bg:'): bg = sys.argv[1][4:].split(','); bg = int(bg[0]), bg[1], float(bg[2]); i0 += 1
-for f in sys.argv[i0:]: flist += [f] if ':' in f else glob.glob(f)    
-content = Content(flist, bg); del flist, bg, i0, f
+content = Content(sum([[i] if ':' in i else glob.glob(i) for i in sys.argv[1:]], []))
 
 panel_sz = 211
 wroot = Tk(); panel0 = Frame(wroot, width=panel_sz)
@@ -356,11 +357,7 @@ print u'''
 
 можно выбрать мышью область для отображения/пределы на изображении/палитре
 двойной щелчек сбрасывает выбор области/возвращает автошкалирование по значению
-
-для загрузки фона (например распределения свойст) добавьте первыми аргментами
-         -bg:frame,paletter,weight  background-data
-палитры: %s 
-'''%' '.join(k[:-4] for k in dir(aiwlib.view) if k.endswith('_pal'))
+'''
 
 try: content.file_replot(); wroot.mainloop()
 finally:

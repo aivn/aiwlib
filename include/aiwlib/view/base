@@ -151,6 +151,7 @@ namespace aiw{
 			return P.load(dim, bmin0, bmax0, bmin, bmax, slice, step, size, mod_crop, anames, axes, flipped, logscale, mollweide, sph_interp, sph_phi0, cell_bound,
 							 features, interp, segy, cfa, cfa_list, cfa_xfem_list, xfem_mode); // , plot3D, vtx, alpha);
 		}
+		ConfView copy() const { return *this; }
 	};
 	//--------------------------------------------------------------------------
 	struct BaseView{
