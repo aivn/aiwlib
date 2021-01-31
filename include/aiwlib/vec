@@ -339,6 +339,8 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//  index work
 	//--------------------------------------------------------------------------
+	template<int D> using UInd = Vec<D, uint32_t>;
+	template<typename ... Args> inline UInd<sizeof...(Args)> uind(Args ... args){ return UInd<sizeof...(Args)>(args...); }
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> inline Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
 

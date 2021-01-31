@@ -1,0 +1,61 @@
+// -*- C++ -*-
+#ifndef AIW_TRIGINT_HPP
+#define AIW_TRIGINT_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cmath>
+#include <vector>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T> T ipow(T x, int p){
+		if(!p) return 1;
+		int abs_p = abs(p); T res = 1, tmp = x;
+		do{ if(abs_p&1){ res *= tmp; } tmp *= tmp; abs_p >>= 1; } while(abs_p);
+		return p>0? res: 1/res;		
+	}
+	template<typename T, int D, typename P> T ipow(const Vec<D, T> &v, P p){
+		T res = 1.; for(int i=0; i<D; i++) res *= ipow(v[i], (p>>(8*i))&0xFF);
+		return res;
+	}
+	//--------------------------------------------------------------------------
+	inline double trigint_reduce(unsigned int p, unsigned int q, const double *scab){
+		if(p>=2) return ( ipow(scab[1], p-1)*ipow(scab[2], q+1) - ipow(scab[3], p-1)*ipow(scab[4], q+1) + (p-1)*trigint_reduce(p-2, q, scab) )/(p+q);
+		if(q>=2) return ( ipow(scab[3], p+1)*ipow(scab[4], q-1) - ipow(scab[1], p+1)*ipow(scab[2], q-1) + (q-1)*trigint_reduce(p, q-2, scab) )/(p+q);
+		if(!q) return p? scab[2]-scab[4]: scab[0];     // int sin x dx = -cos x + C
+		if(!p) return    scab[3]-scab[1];              // int cos x dx =  sin x + C		
+		return -.5*(scab[4]*scab[4]-scab[2]*scab[2]);  // int sin x cos x dx = -.5*cos^2 x + C
+	}
+	// int_a^b sin^p x cos^q x dx
+	inline double trigint(unsigned int p, unsigned int q, double a, double b){
+		if(p==0 && q==0) return b-a; 
+		if(p==1 && q==0) return cos(a)-cos(b);  // int_a^b sin x dx
+		if(p==0 && q==1) return sin(b)-sin(a);  // int_a^b cos x dx		
+		double scab[5]; scab[0] = b-a; sincos(a, scab+1, scab+2); sincos(b, scab+3, scab+4);
+		return trigint_reduce(p, q, scab);
+	}
+	//--------------------------------------------------------------------------
+	class TrigInt{
+		std::vector<double> Ith, Iphi; double S; int sz = 0; // сделать общий вектор ???
+	public:
+		double square() const { return S; } 
+		void init(int sz_, double th_a=0, double th_b=M_PI, double phi_a=0, double phi_b=2*M_PI){
+			sz = sz_; S = (phi_b-phi_a)*trigint(1, 0, th_a, th_b);
+			Ith.resize(sz*sz); Iphi.resize(sz*sz);
+			for(int s=0; s<sz; s++) for(int c=0; c<sz; c++){ Ith[c+s*sz] = trigint(s, c, th_a, th_b); Iphi[c+s*sz] = trigint(s, c, phi_a, phi_b); }
+		}
+		double operator()(uint32_t p) const { return Ith[(p&0xFF)+sz*((p>>8)&0xFF)]*Iphi[((p>>16)&0xFF)+sz*((p>>24)&0xFF)]; }
+		template<int D> double operator ()(const UInd<D> &key) const {
+			double res = 1.; 
+			for(int i=0; i<D; i++){ double I = (*this)(key[i]); if(fabs(I)<1e-256) return 0; else res *= I; }
+			return res;
+		}
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_TRIGINT_HPP

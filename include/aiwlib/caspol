@@ -1,0 +1,185 @@
+// -*- C++ -*-
+#ifndef AIW_CASPOL_HPP
+#define AIW_CASPOL_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * Задает операции над полиномами в рамках CAS. Полином представляестя в виде std::map
+ * где ключами являются массивы степеней параметров от которых зависит полином, а заначениями численные коэффициенты
+ **/
+
+#include <sstream>
+#include <iostream>
+#include <map>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	// запаковывает/распаковывает степени выражения x^a y^b ... в целое число типа  R, width - число бит на степень
+	template <typename R, int D, typename T> R pack_pows(const Vec<D, T> &p, int width=8){ R res = 0; for(int i=0; i<D; i++){ res |= p[i]<<(i*width); } return res; }
+	template <int D, typename T, typename R> Vec<D, T> unpack_pows(R p, int width=8){
+		R mask = 0xFF>>(8-width);
+		Vec<D, T> res;  for(int i=0; i<D; i++) res[i] = mask&(p>>(i*width)); 
+		return res;
+	}
+	template <int D, typename T> std::string monome2py(const char *names, const Vec<D, T> &p){
+		std::stringstream buf;  bool ast = false;
+		for(int i=0; i<D; i++){
+			if(ast) buf<<'*';
+			if(p[i]){ buf<<names[i]; ast = true; }
+			if(p[i]>1) buf<<"**"<<int(p[i]);
+		}
+		return buf.str();
+	}   
+	template <int D, int T, typename K, typename V> std::string pol2py(const char *names, const std::map<K, V> &A, int width=8){
+		std::stringstream buf;  bool plus = false;
+		for(const auto& a: A){
+			if(plus && a.second>0) buf<<'+';
+			plus = true;  buf<<a.second;
+			if(a.first) buf<<'*'<<monome2py(names, unpack_pows<D, T>(a.first, width));
+		}
+		return buf.str();		
+	}
+	// классы Var и Polinome, AST а ля symbalg?
+	//--------------------------------------------------------------------------
+	inline bool is_caspol_zero(double x){ return fabs(x)<1e-256; }
+
+	template <typename K, typename V> std::map<K, V> operator * (const std::map<K, V> &A, const std::pair<K, V> &kv){
+		std::map<K, V> R; for(const auto &I: A) R[I.first+kv.first] = I.second*kv.second; 
+		return R;
+	}
+	template <typename K, typename V> std::map<K, V> operator * (const std::map<K, V> &A, const std::map<K, V> &B){
+		std::map<K, V> R;
+		for(const auto &a: A) for(const auto &b: B){
+				K k = a.first+b.first; auto I = R.find(k);
+				if(I==R.end()) R[k] = a.second*b.second;
+				else {
+					I->second += a.second*b.second;
+					if(is_caspol_zero(I->second)) R.erase(I);
+				}
+			}
+		return R;
+	}
+	//--------------------------------------------------------------------------
+	template <typename K, typename V, typename K2> void operator += (std::map<K, V> &A, const std::pair<K2, V> &b){
+		if(!is_caspol_zero(b.second)){
+			auto I = A.find(b.first);
+			if(I==A.end()) A[b.first] = b.second;
+			else { I->second += b.second; if(is_caspol_zero(I->second)) A.erase(I); }
+		}
+	}
+	template <typename K, typename V, typename K2> void operator -= (std::map<K, V> &A, const std::pair<K2, V> &b){
+		if(!is_caspol_zero(b.second)){
+			auto I = A.find(b.first);
+			if(I==A.end()) A[b.first] = -b.second;
+			else { I->second -= b.second; if(is_caspol_zero(I->second)) A.erase(I); }
+		}
+	}
+	template <typename K, typename V> void operator += (std::map<K, V> &A, const std::map<K, V> &B){ for(const auto &b: B) A += b; }
+	template <typename K, typename V> void operator -= (std::map<K, V> &A, const std::map<K, V> &B){ for(const auto &b: B) A -= b; }
+	template <typename K, typename V> std::map<K, V> operator + (const std::map<K, V> &A, const std::map<K, V> &B){ std::map<K, V> R = A; R += B; return R; }
+	template <typename K, typename V> std::map<K, V> operator - (const std::map<K, V> &A, const std::map<K, V> &B){	std::map<K, V> R = A; R -= B; return R;	}
+	//--------------------------------------------------------------------------
+	template <int D> struct CASVec3D{
+		std::map<UInd<D>, double> p[3]; // cos theta   sin theta   cos phi   sin phi
+		CASVec3D(){}
+		CASVec3D(int i){ // создает вектор m_i в сферических координатах
+			UInd<D> x; x[i] = 0x00010100; p[0][x] = 1.;
+			UInd<D> y; y[i] = 0x01000100; p[1][y] = 1.;
+			UInd<D> z; z[i] = 0x00000001; p[2][z] = 1.;
+		}
+	
+		CASVec3D operator + (const CASVec3D &b) const { CASVec3D r = *this; r.p[0] += b.p[0]; r.p[1] += b.p[1]; r.p[2] += b.p[2]; return r; }
+		CASVec3D operator - (const CASVec3D &b) const { CASVec3D r = *this; r.p[0] -= b.p[0]; r.p[1] -= b.p[1]; r.p[2] -= b.p[2]; return r; }
+		std::map<UInd<D>, double> operator * (const CASVec3D &b) const { return p[0]*b.p[0]+p[1]*b.p[1]+p[2]*b.p[2]; }
+		CASVec3D operator % (const CASVec3D &b) const {
+			CASVec3D r;
+			r.p[0] = p[1]*b.p[2]-p[2]*b.p[1];
+			r.p[1] = p[2]*b.p[0]-p[0]*b.p[2];
+			r.p[2] = p[0]*b.p[1]-p[1]*b.p[0];
+			return r;
+		}
+	};
+	//--------------------------------------------------------------------------
+	class MultinomialCoef{
+		std::vector<double> rfacts;
+	public:
+		MultinomialCoef(int N){ // N --- максимально возможная степень (предрасчет факториала)
+			rfacts.resize(N); rfacts[0] = rfacts[1] = 1.;
+			for(int i=2; i<N; i++) rfacts[i] = rfacts[i-1]/i;
+		}
+		template <typename K> double operator()(const K &P) const {
+			double res = 1.; int n = 0; for(auto k: P){ res *= rfacts[k]; n += k; }
+			return res/rfacts[n];
+		}
+	};
+	//--------------------------------------------------------------------------
+	template <typename T> class MultinomialPows{
+		std::vector<T> k; int D;
+	public:
+		MultinomialPows(): D(0){}
+		MultinomialPows(int D_, int n=0): k(D, 0), D(D_) { k[0] = n; }
+		void reinit(int D_, int n=0){ D = D_; k.resize(D, 0); k[0] = n; }
+		void reinit_n(int n){ for(T& x: k){ x = 0; } k[0] = n; }
+		bool next(){
+			if(k[0]){ k[0]--; k[1]++; return true; }
+			int i = 1; while(!k[i] && i<D-1) i++;
+			if(i==D-1) return false;
+			k[0] = k[i]-1; k[i+1] += 1; k[i] = 0;
+			return true;
+		}
+		bool next(int dq){
+			while(dq){
+				if(k[0]>=dq){ k[0] -= dq; k[1] += dq; return true; }
+				if(k[0]){ dq -= k[0]; k[1] += k[0]; k[0] = 0; }
+				int i = 1; while(!k[i] && i<D-1) i++;
+				if(i==D-1) return false;
+				k[0] = k[i]-1; k[i+1] += 1; k[i] = 0; dq -= 1;
+			}
+			return true;
+		}
+
+		int size() const { return k.size(); }
+		T operator[](int i) const { return k[i]; }
+
+		const T* begin() const { return k.data(); }
+		const T* end() const { return k.data()+D; }
+	};
+	template <typename T> std::ostream& operator << (std::ostream& S, const MultinomialPows<T> &mp){
+		for(int i=0; i<mp.size(); i++){ if(i){ S<<' '; } S<<mp[i]; }
+		return S;
+	}
+	//--------------------------------------------------------------------------
+	// раскладывает экспоненту с аргументом exp_arg в ряд Тейлора до члена NT включительно в окрестности точки exp_arg=0
+	template <typename K, typename V> std::map<K, V> exp2taylor(const std::map<K, V> &exp_arg, int NT){
+		MultinomialCoef mc(NT); MultinomialPows<int> mp(exp_arg.size(), NT);
+		std::map<K, V> res; double rfact = 1.;
+		for(int nt=0; nt<=NT; nt++){ // цикл по членам ряда
+			mp.reinit_n(nt); do { // цикл по мономам
+				K k; V v = mc(mp)*rfact; int i = 0;
+				for(const auto& a:exp_arg){ k += a.first*mp[i]; v *= ipow(a.second, mp[i]);  i++;  }
+				res += std::make_pair(k, v);
+			} while(mp.next()); // конец цикла по мономам
+			if(nt>1) rfact /= nt;
+		} // конец цикла по членам ряда
+		return res;
+	}
+	// раскладывает экспоненту с аргументом exp_arg в ряд Тейлора до члена NT включительно в окрестности точки exp_arg=exp_arg0
+	template <typename K, typename V> std::map<K, V> exp2taylor(const std::map<K, V> &exp_arg, int NT, V exp_arg0){
+		MultinomialCoef mc(NT); MultinomialPows<int> mp(exp_arg.size()+1, NT);
+		std::map<K, V> res; double rfact = 1.;
+		for(int nt=0; nt<=NT; nt++){ // цикл по членам ряда
+			mp.reinit_n(nt); do { // цикл по мономам
+				K k; V v = mc(mp)*rfact; int i = 0;
+				for(const auto& a:exp_arg){ k += a.first*mp[i]; v *= ipow(a.second, mp[i]);  i++;  }
+				res += std::make_pair(k, v*ipow(-exp_arg0, mp[i]));
+			} while(mp.next()); // конец цикла по мономам
+			if(nt>1) rfact /= nt;
+		} // конец цикла по членам ряда
+		return res;
+	}
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_CASPOL_HPP
