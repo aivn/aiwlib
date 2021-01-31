@@ -228,7 +228,7 @@ void aiw::MeshView::preview(const ConfView& conf0, Image &image, const CalcColor
 void aiw::MeshView::get_line(const ConfView &conf, aiw::Vec<2> point, int axe, std::vector<float>& X, std::vector<float>& Y) const {
 	Ind<16> pos = coord2pos(conf.slice); for(int i=0; i<2; i++) pos[conf.axes[i]] = coord2pos(point[i], conf.axes[i]);
 	X.resize(box[axe]); Y.resize(box[axe]);  const char *ptr = (const char*)(mem->get_addr());
-	size_t mul = szT; for(int i=0; i<D; i++) if(i!=axe){ ptr += mul*pos[i]; mul *= box[i]; }
+	size_t mul = szT; for(int i=0; i<D; i++){ if(i!=axe){ ptr += mul*pos[i]; } mul *= box[i]; }
 	mul = szT; for(int i=0; i<axe; i++) mul *= box[i];
 	for(int i=0; i<box[axe]; i++){
 		X[i] = pos2coord(i, axe);
