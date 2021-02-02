@@ -10,9 +10,11 @@
  * где ключами являются массивы степеней параметров от которых зависит полином, а заначениями численные коэффициенты
  **/
 
-#include <sstream>
 #include <iostream>
+#include <sstream>
+#include <algorithm>
 #include <map>
+#include <unordered_map>
 #include "vec"
 
 namespace aiw{
@@ -82,6 +84,15 @@ namespace aiw{
 	template <typename K, typename V> std::map<K, V> operator + (const std::map<K, V> &A, const std::map<K, V> &B){ std::map<K, V> R = A; R += B; return R; }
 	template <typename K, typename V> std::map<K, V> operator - (const std::map<K, V> &A, const std::map<K, V> &B){	std::map<K, V> R = A; R -= B; return R;	}
 	//--------------------------------------------------------------------------
+	template <typename K, typename V, typename K2> void operator += (std::unordered_map<K, V> &A, const std::pair<K2, V> &b){
+		if(!is_caspol_zero(b.second)){
+			auto I = A.find(b.first);
+			if(I==A.end()) A[b.first] = b.second;
+			else { I->second += b.second; if(is_caspol_zero(I->second)) A.erase(I); }
+		}
+	}
+	template <typename K, typename V> void operator += (std::map<K, V> &A, const std::unordered_map<K, V> &B){ for(const auto &b: B) A += b; }
+	//--------------------------------------------------------------------------
 	template <int D> struct CASVec3D{
 		std::map<UInd<D>, double> p[3]; // cos theta   sin theta   cos phi   sin phi
 		CASVec3D(){}
@@ -146,6 +157,8 @@ namespace aiw{
 
 		const T* begin() const { return k.data(); }
 		const T* end() const { return k.data()+D; }
+
+		uint64_t pack(int width=8) const { uint64_t res = 0;  for(int i=0; i<D; i++){ res |= uint64_t(k[i])<<(i*width); } return res; }
 	};
 	template <typename T> std::ostream& operator << (std::ostream& S, const MultinomialPows<T> &mp){
 		for(int i=0; i<mp.size(); i++){ if(i){ S<<' '; } S<<mp[i]; }
@@ -180,6 +193,40 @@ namespace aiw{
 		} // конец цикла по членам ряда
 		return res;
 	}
+	//--------------------------------------------------------------------------
+	template <typename K, typename V> class DichPolynome {
+		std::vector<std::pair<K, V> > data; 
+	public:
+		const std::pair<K, V>* begin() const { return data.data(); }
+		const std::pair<K, V>* end() const { return data.data()+data.size(); }
+		void sort(){ std::sort(data.begin(), data.end()); }
+
+		size_t size() const { size_t sz = 0; for(const auto &kv: data){ sz += !is_caspol_zero(kv.second); } return sz; }
+		K& key(size_t i){ return data[i].first; }
+		V& val(size_t i){ return data[i].second; }
+
+		V& operator[](K k){
+			size_t a = 0, b = data.size()-1;
+			while(b-a>1){
+				size_t c = (a+b)/2;
+				if(data[c].first==k) return data[c].second;
+				if(data[c].first<k) a = c; // std::less ???
+				else b = c;
+			}
+			if(data[a].first==k) return data[a].second;
+			return data[b].second;
+		}
+		void triangle_fill(int D, int N){
+			MultinomialPows<int> mp(D);
+			for(int n=0; n<N; n++){
+				mp.reinit_n(n);
+				do{ data.push_back(std::make_pair(K(mp.pack()), V(0))); } while(mp.next());
+			}
+			sort();
+		}
+		void operator += (const std::pair<K, V>& kv){ (*this)[kv.first] += kv.second; }
+	};
+	template <typename K, typename V> void operator += (std::map<K, V> &A, const DichPolynome<K, V> &B){ for(const auto &b: B) A += b; }
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif //AIW_CASPOL_HPP
