@@ -218,14 +218,6 @@ namespace aiw{
 				for(int k=1; k<=max_pow; k++) // цикл по степеням
 					vols[(D-d)*max_pow1+k] = binomial_coeff(k+d-1, d);
 			}
-			/*
-			printf("-------------\n");
-			for(int d=D; d>1; d--){
-				for(int k=0; k<=max_pow; k++) printf("%i ", vols[(D-d)*max_pow1+k]);
-				printf("\n");
-			}
-			printf("-------------\n");
-			*/
 		}
 		template<typename K> T& operator[](K pows){
 			size_t off = 0; uint32_t mp_k_sum = max_pow;
@@ -233,18 +225,6 @@ namespace aiw{
 				uint32_t k = (pows>>(d*8))&0xFF;
 				if(k){ off += vols[(D-1-d)*max_pow1 + mp_k_sum] - vols[(D-1-d)*max_pow1 + mp_k_sum-k];  mp_k_sum -= k; }
 			}
-			/*
-			if(off+(pows&0xFF)>=coeffs.size()){ // || coeffs[off+(pows&0xFF)] || off+(pows&0xFF)==6){
-				WOUT(off, (pows&0xFF), (unpack_pows<4,int>(pows)));
-				if(off+(pows&0xFF)<coeffs.size()) WOUT(coeffs[off+(pows&0xFF)]);
-				size_t off = 0; uint32_t k0 = 0, k_sum = 0;
-				for(int d=D-1; d>0; d--){
-					uint32_t k = (pows>>(d*8))&0xFF; WOUT(d, k, k0, k_sum, vols[(D-1-d)*max_pow1 + max_pow-k_sum], vols[(D-1-d)*max_pow1 + max_pow-k_sum-k]);
-					if(k){ off += vols[(D-1-d)*max_pow1 + max_pow-k_sum] - vols[(D-1-d)*max_pow1 + max_pow-k_sum-k]; k_sum += k; }
-					k0 = k;
-				}
-				if(coeffs[off+(pows&0xFF)])	exit(1);
-				}*/
 			return coeffs[off+(pows&0xFF)];
 		}
 		template<typename K> void operator += (const std::pair<K, T>& kv){ (*this)[kv.first] += kv.second; }
