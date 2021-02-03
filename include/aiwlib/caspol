@@ -13,6 +13,7 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <vector>
 #include <map>
 #include <unordered_map>
 #include "vec"
@@ -114,12 +115,18 @@ namespace aiw{
 		}
 	};
 	//--------------------------------------------------------------------------
+	inline uint64_t binomial_coeff(int n, int k){ // n>=k
+		int a = k>n-k? k: n-k; uint64_t res = 1; 
+		for(int i=a+1; i<=n; i++) res *= i; // n!/a!
+		for(int i=2; i<=n-a; i++) res /= i; //  /(n-a)!
+		return res;
+	}
 	class MultinomialCoef{
 		std::vector<double> rfacts;
 	public:
 		MultinomialCoef(int N){ // N --- максимально возможная степень (предрасчет факториала)
-			rfacts.resize(N); rfacts[0] = rfacts[1] = 1.;
-			for(int i=2; i<N; i++) rfacts[i] = rfacts[i-1]/i;
+			rfacts.resize(N+1); rfacts[0] = rfacts[1] = 1.;
+			for(int i=2; i<=N; i++) rfacts[i] = rfacts[i-1]/i;
 		}
 		template <typename K> double operator()(const K &P) const {
 			double res = 1.; int n = 0; for(auto k: P){ res *= rfacts[k]; n += k; }
@@ -131,10 +138,11 @@ namespace aiw{
 		std::vector<T> k; int D;
 	public:
 		MultinomialPows(): D(0){}
-		MultinomialPows(int D_, int n=0): k(D, 0), D(D_) { k[0] = n; }
+		MultinomialPows(int D_, int n=0): k(D_, 0), D(D_) { k[0] = n; }
 		void reinit(int D_, int n=0){ D = D_; k.resize(D, 0); k[0] = n; }
 		void reinit_n(int n){ for(T& x: k){ x = 0; } k[0] = n; }
 		bool next(){
+			if(D<=1) return false;
 			if(k[0]){ k[0]--; k[1]++; return true; }
 			int i = 1; while(!k[i] && i<D-1) i++;
 			if(i==D-1) return false;
@@ -142,6 +150,7 @@ namespace aiw{
 			return true;
 		}
 		bool next(int dq){
+			if(D<=1) return false;
 			while(dq){
 				if(k[0]>=dq){ k[0] -= dq; k[1] += dq; return true; }
 				if(k[0]){ dq -= k[0]; k[1] += k[0]; k[0] = 0; }
@@ -193,40 +202,62 @@ namespace aiw{
 		} // конец цикла по членам ряда
 		return res;
 	}
-	//--------------------------------------------------------------------------
-	template <typename K, typename V> class DichPolynome {
-		std::vector<std::pair<K, V> > data; 
+	//--------------------------------------------------------------------------	
+	template <int D, typename T=double> struct PolPowCoef {
+		std::vector<T> coeffs;  // общее число коэффициентов binomial_coeff(max_pow+D-1, D)
+		std::vector<int> vols;  // объемы пирамид, длина (D-1)*(max_pow+1), если степень равна нулю то и объем равен нулю
+		int max_pow = -1, max_pow1 = 0;
 	public:
-		const std::pair<K, V>* begin() const { return data.data(); }
-		const std::pair<K, V>* end() const { return data.data()+data.size(); }
-		void sort(){ std::sort(data.begin(), data.end()); }
-
-		size_t size() const { size_t sz = 0; for(const auto &kv: data){ sz += !is_caspol_zero(kv.second); } return sz; }
-		K& key(size_t i){ return data[i].first; }
-		V& val(size_t i){ return data[i].second; }
-
-		V& operator[](K k){
-			size_t a = 0, b = data.size()-1;
-			while(b-a>1){
-				size_t c = (a+b)/2;
-				if(data[c].first==k) return data[c].second;
-				if(data[c].first<k) a = c; // std::less ???
-				else b = c;
+		int get_max_pow() const { return max_pow; }
+		size_t size() const { size_t sz = 0; for(auto x: coeffs){ sz += !is_caspol_zero(x); } return sz; }
+		void init(int max_pow_){
+			max_pow = max_pow_; max_pow1 = max_pow+1;
+			vols.resize(max_pow1*(D-1), 0); coeffs.resize(binomial_coeff(max_pow+D-1, D), T(0));
+			for(int d=D; d>1; d--){ // цикл по размерностям
+				vols[(D-d)*max_pow1] = 0;
+				for(int k=1; k<=max_pow; k++) // цикл по степеням
+					vols[(D-d)*max_pow1+k] = binomial_coeff(k+d-1, d);
 			}
-			if(data[a].first==k) return data[a].second;
-			return data[b].second;
-		}
-		void triangle_fill(int D, int N){
-			MultinomialPows<int> mp(D);
-			for(int n=0; n<N; n++){
-				mp.reinit_n(n);
-				do{ data.push_back(std::make_pair(K(mp.pack()), V(0))); } while(mp.next());
+			/*
+			printf("-------------\n");
+			for(int d=D; d>1; d--){
+				for(int k=0; k<=max_pow; k++) printf("%i ", vols[(D-d)*max_pow1+k]);
+				printf("\n");
 			}
-			sort();
+			printf("-------------\n");
+			*/
 		}
-		void operator += (const std::pair<K, V>& kv){ (*this)[kv.first] += kv.second; }
+		template<typename K> T& operator[](K pows){
+			size_t off = 0; uint32_t mp_k_sum = max_pow;
+			for(int d=D-1; d>0; d--){
+				uint32_t k = (pows>>(d*8))&0xFF;
+				if(k){ off += vols[(D-1-d)*max_pow1 + mp_k_sum] - vols[(D-1-d)*max_pow1 + mp_k_sum-k];  mp_k_sum -= k; }
+			}
+			/*
+			if(off+(pows&0xFF)>=coeffs.size()){ // || coeffs[off+(pows&0xFF)] || off+(pows&0xFF)==6){
+				WOUT(off, (pows&0xFF), (unpack_pows<4,int>(pows)));
+				if(off+(pows&0xFF)<coeffs.size()) WOUT(coeffs[off+(pows&0xFF)]);
+				size_t off = 0; uint32_t k0 = 0, k_sum = 0;
+				for(int d=D-1; d>0; d--){
+					uint32_t k = (pows>>(d*8))&0xFF; WOUT(d, k, k0, k_sum, vols[(D-1-d)*max_pow1 + max_pow-k_sum], vols[(D-1-d)*max_pow1 + max_pow-k_sum-k]);
+					if(k){ off += vols[(D-1-d)*max_pow1 + max_pow-k_sum] - vols[(D-1-d)*max_pow1 + max_pow-k_sum-k]; k_sum += k; }
+					k0 = k;
+				}
+				if(coeffs[off+(pows&0xFF)])	exit(1);
+				}*/
+			return coeffs[off+(pows&0xFF)];
+		}
+		template<typename K> void operator += (const std::pair<K, T>& kv){ (*this)[kv.first] += kv.second; }
+		// const std::pair<K, V>* begin() const { return data.data(); }
+		// const std::pair<K, V>* end() const { return data.data()+data.size(); }
 	};
-	template <typename K, typename V> void operator += (std::map<K, V> &A, const DichPolynome<K, V> &B){ for(const auto &b: B) A += b; }
+	template <typename K, typename V, int D> void operator += (std::map<K, V> &A, /*const*/ PolPowCoef<D, V> &B){
+		MultinomialPows<int> mp(D, B.get_max_pow());
+		for(int n=0; n<=B.get_max_pow(); n++){
+			mp.reinit_n(n);
+			do { K key = mp.pack(); 	A += std::make_pair(key, B[key]); } while(mp.next());
+		}
+	}
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif //AIW_CASPOL_HPP
