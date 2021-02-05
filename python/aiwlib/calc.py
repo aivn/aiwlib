@@ -169,16 +169,7 @@ class Calc:
         if not hasattr(self, 'statelist'): self.statelist = []
         runtime = (chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime)
         self.__dict__['progress'], self.__dict__['runtime'] = progress, runtime
-        if os.path.exists(self.path+'.RACS'): 
-            L = open(self.path+'.RACS').readlines()
-            if "sS'progress'\n" in L and "sS'runtime'\n" in L:
-                L[L.index("sS'progress'\n")+2] = 'F%g\n'%progress
-                L[L.index("sS'runtime'\n")+5] = 'F%g\n'%runtime
-                open(self.path+'.RACS', 'w').write(''.join(L))
-                os.utime(self.path, None) # for racs cache refresh
-                if _racs_params['_mpi']==2 and mpi_proc_number()==0: 
-                    shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
-            else: self.commit() #self.md5sources = self.commit() ???
+        if os.path.exists(self.path+'.RACS'): self.commit() #self.md5sources = self.commit() ???
         if prompt:
             if not '_progressbar' in self.__dict__: self.__dict__['_progressbar'] = mixt.ProgressBar()
             if prompt=='@clean': self._progressbar.clean()  
