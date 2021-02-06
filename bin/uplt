@@ -260,7 +260,12 @@ class Content:
 #-------------------------------------------------------------------------------
 #  main widgets
 #-------------------------------------------------------------------------------
-content = Content(sum([[i] if ':' in i else glob.glob(i) for i in sys.argv[1:]], []))
+args = []
+for i in sys.argv[1:]:
+    if i.startswith('--mem'): BaseView.set_max_mem_Gsz(float(i[5:]))
+    elif ':' in i: args.append(i)
+    else: args += glob.glob(i)
+content = Content(args)
 
 panel_sz = 211
 wroot = Tk(); panel0 = Frame(wroot, width=panel_sz)

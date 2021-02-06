@@ -22,6 +22,7 @@ namespace aiw{
 		GzFile(){}
 		operator bool () const { return pf.get() && !gzeof(pf.get()); }
 #ifndef SWIG
+		std::shared_ptr<IOstream> copy() const { GzFile *f = new GzFile; *f = *this; std::shared_ptr<IOstream> r(f); return r; }
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
 			std::stringstream path; format2stream(path, format, args...); gzFile f = ::gzopen(path.str().c_str(), mode);
 			if(!f) WRAISE("can't open file", path.str(), mode);

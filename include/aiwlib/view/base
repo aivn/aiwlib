@@ -159,17 +159,32 @@ namespace aiw{
 
 		virtual int dim() const = 0;
 		virtual void get_conf(ConfView &conf, bool firstcall=false) const = 0;   // настраивает conf (с учетом crop)
-		virtual aiw::Vec<2> f_min_max(const ConfView &conf) const = 0;           // вычисляет min-max, как это делать для preview?
-		virtual aiw::Vec<2> f_min_max_tot(const ConfView &conf) const { return f_min_max(conf); }
-		virtual std::string get(const ConfView& conf, aiw::Vec<2> r) const = 0;
+		virtual aiw::Vec<2> f_min_max(const ConfView &conf) = 0;           // вычисляет min-max, как это делать для preview?
+		virtual aiw::Vec<2> f_min_max_tot(const ConfView &conf) { return f_min_max(conf); }
+		virtual std::string get(const ConfView& conf, aiw::Vec<2> r) = 0;
 		virtual ~BaseView(){}
 
-		virtual void plot(const ConfView &conf, Image &image, const CalcColor &color) const = 0;
-		virtual void preview(const ConfView& conf0, Image &image, const CalcColor &color) const = 0;
+		virtual void plot(const ConfView &conf, Image &image, const CalcColor &color) = 0;
+		virtual void preview(const ConfView& conf0, Image &image, const CalcColor &color) = 0;
 
 	private:
-		std::map<Ind<2>, Vec<2> > tot_limits; 
+		std::map<Ind<2>, Vec<2> > tot_limits;  // список пределов по всему кубу, для ускорения расчета пределов
+	protected:
+		std::shared_ptr<IOstream> fin;
+		std::shared_ptr<BaseAlloc> mem;
+		size_t mem_offset, mem_sz = 0;
+		// где то тут должны быть параметры загрузки среза, если идет загрузка отдельными срезами
+		void mem_load_prepare();   // расчищает память за счет давно неиспользуемых объектов
+		virtual void mem_load(){   // должен вызывать mem_load_prepare(), может быть перегружен
+			if(!mem){ mem_load_prepare(); fin->seek(mem_offset); mem = fin->mmap(mem_sz, 0); }
+		}
+		virtual void mem_free(){   // вызывается снаружи, освобождает память объекта, может быть перегружен
+			mem.reset();
+		}
+		static std::list<BaseView*> view_table;
+		static double max_mem_Gsz; // максимально допустимый суммарный размер данных в гигабайтах
 	public:
+		static void set_max_mem_Gsz(double Gsz) { max_mem_Gsz = Gsz; }
 		aiw::Vec<2> base_min_max(const ConfView &conf, bool total_autoscale){
 			if(!total_autoscale) return f_min_max(conf);
 			auto I = tot_limits.find(ind(conf.cfa.typeID, conf.cfa.offset));
@@ -177,7 +192,7 @@ namespace aiw{
 			Vec<2> lim = f_min_max_tot(conf); tot_limits[ind(conf.cfa.typeID, conf.cfa.offset)] = lim;
 			return lim;
 		}
-		virtual void get_line(const ConfView &conf, aiw::Vec<2> point, int axe, std::vector<float>& X, std::vector<float>& Y) const = 0;
+		virtual void get_line(const ConfView &conf, aiw::Vec<2> point, int axe, std::vector<float>& X, std::vector<float>& Y) = 0;
 	};
 	//--------------------------------------------------------------------------
 };

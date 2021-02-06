@@ -70,6 +70,7 @@ namespace aiw{
 		void seekg(long offset, int whence=0){ this->seek(offset, whence); }
 		
 #ifndef SWIG
+		virtual std::shared_ptr<IOstream> copy() const = 0;
 		virtual std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
 			if(write_mode) WRAISE("can't mmapped IOstream to write mode", name); 
 			std::shared_ptr<BaseAlloc> ptr(new MemAlloc<char>(size));
@@ -135,6 +136,7 @@ namespace aiw{
 		File(FILE *f){ pf.reset(f, [](FILE*){}); }
 		operator bool () const { return pf.get() && !feof(pf.get()); }
 #ifndef SWIG
+		std::shared_ptr<IOstream> copy() const { File *f = new File; *f = *this; std::shared_ptr<IOstream> r(f); return r; }
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
 			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);
 			if(!f) WRAISE("cannot open file", path.str(), mode);

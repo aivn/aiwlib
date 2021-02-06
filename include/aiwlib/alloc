@@ -13,6 +13,8 @@
 #    include <sys/mman.h>
 #    include <fcntl.h> 
 #    include <unistd.h>
+#else  //AIW_WIN32
+#    include <windows.h>
 #endif //AIW_WIN32
 #include <memory>
 #include "debug"
@@ -44,7 +46,7 @@ namespace aiw{
 			size = sz; ptr = malloc(sz);
 			if(!ptr) WRAISE("can't allocate memory ", size);
 		}
-		~MemAlloc(){ free(ptr); }
+		~MemAlloc(){ if(ptr) free(ptr); }
 		size_t get_sizeof()  const { return 1; }				
 	};
 //---------------------------------------------------------------------------------------------	
