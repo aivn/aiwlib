@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <omp.h>
 #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/view/color"
 using namespace aiw;
@@ -90,4 +91,22 @@ void aiw::plot_paletter(float const *pal, Image& image, bool orient, int max_rgb
 	float step = 1./image.size[orient]; CalcColor color; color.init(pal, 0., 1.); color.max_rgb = max_rgb;
 	for(Ind<2> pos; pos^=image.size; ++pos) image.set_pixel(pos, color((pos[orient]+.5)*step));
 }
+//------------------------------------------------------------------------------
+// прорисовывает цветом color пиксели у которых соседи имеют разные цвета, остальное делает черным.
+void aiw::plot_grad_bw(Image &im, const aiw::Ind<3>& color){
+	std::string buf = im.buf; uint8_t *ptr_buf = (uint8_t*)&(buf[im.head_sz]);  int sz_x = im.size[0], sz_y = im.size[1];
+#pragma omp parallel for
+	for(int y=0; y<sz_y;  y++){
+		const uint8_t *src = ptr_buf+3*y*sz_x, *src1, *src2; uint8_t  *dst = im.ptr_buf+3*y*sz_x;
+		if(y==0)      src1 = nullptr; else src1 = src-3*sz_x; 
+		if(y==sz_y-1) src2 = nullptr; else src2 = src+3*sz_x;
+		for(int x=0; x<sz_x;  x++){
+			if( (x && memcmp(src+x*3, src+(x-1)*3, 3)) ||
+				(x<sz_x-1 && memcmp(src+x*3, src+(x+1)*3, 3)) ||
+				(src1 && memcmp(src+x*3, src1+x*3, 3)) ||
+				(src2 && memcmp(src+x*3, src2+x*3, 3)) ){ dst[x*3] = color[0]; dst[x*3+1] = color[1]; dst[x*3+2] = color[2]; }
+			else memset(dst+x*3, 0, 3);
+		}
+	}
+} 
 //------------------------------------------------------------------------------

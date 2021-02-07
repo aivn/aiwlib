@@ -86,13 +86,16 @@ namespace aiw{
 		void set_pixel(const aiw::Ind<2>& pos, const aiw::Ind<3>& color){
 			WASSERT(ind(0)<=pos && pos<size, "oops... ", pos, size, color);
 			uint8_t* ptr = ptr_buf+ (pos[0] + (size[1]-pos[1]-1)*size[0])*3;
-			if(weight){ ptr[0] += color[0]*weight; ptr[1] += color[1]*weight; ptr[2] += color[2]*weight; }
-			else { ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2]; }
+			// if(weight){ ptr[0] += color[0]*weight; ptr[1] += color[1]*weight; ptr[2] += color[2]*weight; }
+			// else { ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2]; }
+			if(!ptr[0] && !ptr[1] && !ptr[2]){ ptr[0] = color[0]; ptr[1] = color[1]; ptr[2] = color[2]; }
 		}
 		// std::string as_P3() const;
 	};	
 	//--------------------------------------------------------------------------
 	void plot_paletter(float const *pal, Image& image, bool orient, int max_rgb=255);
+	// прорисовывает цветом color пиксели у которых соседи имеют разные цвета, остальное делает черным
+	void plot_grad_bw(Image &im, const aiw::Ind<3>& color=ind(128,128,128)); 
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif // AIW_VIEW_COLOR_HPP

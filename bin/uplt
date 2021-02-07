@@ -178,6 +178,7 @@ class Content:
         if self.background and not self.background[0] is self.data[self.ifile][self.iframe+1]:
             image = aiwlib.view.Image(ind(sz[0]-pw-yw, sz[1]-xh-th)); image.weight = self.main.bg_weight.get()
             self.background[0].plot(self.conf, image, self.background[1])
+            plot_grad_bw(image)
             image.weight = 1-self.main.bg_weight.get()
         else: image = None
         self.canvas.add_pict('img', (yw,th),  (sz[0]-pw,sz[1]-xh),
