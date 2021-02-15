@@ -18,7 +18,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class SphereView: public BaseView { 
 		int R = 0, szT = 0, mode = 0, sz = 0;
-		std::shared_ptr<BaseAlloc> mem;
+		// std::shared_ptr<BaseAlloc> mem;
 		std::vector<CellFieldAccess> cfa_list;
 	public:
 
@@ -26,7 +26,7 @@ namespace aiw{
 			BinaryFormat bf; bf.D = 0; bf.R = -1; if(!bf.load(S)) return false;
 			head = bf.head; szT = bf.szT; R = bf.R; mode = R>>29; R &= ~(7<<29);  sph_init_table(R);
 			sz = mode==0? sph_cells_num(R): (mode==1? sph_vertex_num(R): sph_edges_num(R));
-			fin = S.copy(); mem_sz = sz*szT; S.seek(mem_sz, 1); mem.reset(); 
+			fin = S.copy(); mem_offset = S.tell();  mem_sz = sz*szT; S.seek(mem_sz, 1); mem.reset(); 
 			// mem = S.mmap(sz*szT, 0);
 #ifdef AIW_TYPEINFO
 			cfa_list = bf.tinfo.get_access();
@@ -67,9 +67,10 @@ namespace aiw{
 		size_t get_ID(const aiw::Vec<3> &r3) const { return mode==0? sph_cellInd(r3, R): (mode==1? sph_vertInd(r3, R): sph_edgeInd(r3, R)); }
 		int rank() const { return R; }
 		aiw::Vec<3> get_center(size_t ID) const { return mode==0? sph_cell(ID, R): (mode==1? sph_vert(ID, R): sph_edge(ID, R)); }
- 		float get_f(const ConfView& conf, const aiw::Vec<2> &r){ return get_f(conf, polar(r[1], r[0])*(M_PI/180)); }
+ 		float get_f(const ConfView& conf, const aiw::Vec<2> &r){ return get_f(conf, polar(r[1]*(M_PI/180), r[0]*(M_PI/180))); }
 		std::string get(const ConfView& conf, aiw::Vec<2> r) OVERRIDE {
-			Vec<3> r3 = polar(r[1], r[0])*(M_PI/180);
+			mem_load();
+			Vec<3> r3 = polar(r[1]*(M_PI/180), r[0]*(M_PI/180));
 			double v =  get_f(conf, r3);
 			size_t ID = mode==0? sph_cellInd(r3, R): (mode==1? sph_vertInd(r3, R): sph_edgeInd(r3, R));
 			char buf[1024]; snprintf(buf, 1023, "%g\n[%i]", v, int(ID));
@@ -78,23 +79,24 @@ namespace aiw{
 		
 		void plot(const ConfView &conf, Image &image, const CalcColor &color) OVERRIDE {
 			mem_load();
-			double phi0 = conf.sph_phi0*M_PI/180;
+			double phi0 = conf.sph_phi0; // *M_PI/180;
 			if(conf.mollweide){
-				int x_max = image.size[0]/2, y_max = image.size[1]/2, x; 
+				int x_max = image.size[0]/2, y_max = image.size[1]/2; 
 				double h = 1./y_max, hx = 2./x_max; double alpha = x_max*h;
 #pragma omp parallel for	
 				for(int y=-y_max; y<y_max; y++){
-					for(x=-x_max; x<=-sqrt(y_max*y_max-y*y)*alpha; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
+					int x; for(x=-x_max; x<=-sqrt(y_max*y_max-y*y)*alpha; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 					double Y = y*h, a1 = sqrt(1.-Y*Y), b1 = M_PI/(2.*a1), z1 = 2*(asin(Y)+Y*a1)/M_PI, c1 = sqrt(1-z1*z1);  
 					for(; x<sqrt(y_max*y_max-y*y)*alpha; x++){
 						double sbv, cbv; sincos(b1*x*hx+phi0, &sbv, &cbv);
-						Vec<3> coord = vec(c1*cbv, c1*sbv, z1);
+						Vec<3> coord = vec(c1*cbv, c1*sbv, z1); 
 						image.set_pixel(ind(x_max+x, y_max+y), color(get_f(conf, coord)));
 					}
 					for(; x<x_max; x++) image.set_pixel(ind(x_max+x, y_max+y), ind(255)); // empty fill
 				}
 			} else {				
-				Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(phi0-M_PI, M_PI) + .5*step;
+				// Vec<2> step = vec(2*M_PI, -M_PI)/image.size; Vec<2> bmin = vec(phi0-M_PI, M_PI) + .5*step;
+				Vec<2> step = vec(360., -180.)/image.size; Vec<2> bmin = vec(phi0-180., 180.) + .5*step;
 				int sz_x = image.size[0], sz_y = image.size[1];
 #pragma omp parallel for	
 				for(int iy=0; iy<sz_y; iy++) for(int ix=0; ix<sz_x; ix++) image.set_pixel(ind(ix, iy), color(get_f(conf, bmin+vec(ix*step[0], iy*step[1]))));

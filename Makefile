@@ -23,7 +23,7 @@ endif
 endif
 
 ifeq (on,$(bin)) 
-all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice,uplt-remote})
+all: $(shell echo bin/{arr2seg-Y,isolines,dat2mesh,fv-slice,uplt-remote,sph2dat})
 endif
 
 ifeq (on,$(ezz))
@@ -116,7 +116,7 @@ endif
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
 #bin/arr2seg-Y: src/segy.o
 #bin/isolines: src/isolines.o
-bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff bin/uplt-remote: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
+bin/arr2seg-Y bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff bin/uplt-remote bin/sph2dat: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------

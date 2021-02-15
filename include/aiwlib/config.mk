@@ -11,11 +11,11 @@ PYTHONDIR=/usr/lib/python2.7
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
-BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote
+BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2seg-Y
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
-zlib=on
+zlib=off
 swig=on
 bin=on
 ezz=on

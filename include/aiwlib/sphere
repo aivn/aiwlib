@@ -231,7 +231,7 @@ namespace aiw{
 		T&   __getitem__(const aiw::Vec<2> &r){ return (*this)[r]; }
 		void __setitem__(const aiw::Vec<2> &r, const T &val ){ (*this)[r] = val; }
 
-		bool interp=false;
+		bool interp = false; // в будущем int: 0 - нет, 1 - линейная в треугольнике, 2 - высокого порядка по всем ближ. соседям ячейки (хорошо работает для mode==1)
 		T operator()(const aiw::Vec<3> &r) const {
 			if(!interp || mode>1) return (*this)[r];
 			uint64_t IDs[13]; double weights[13]; int sz = sph_interp_weights(r, R, mode, IDs, weights);
