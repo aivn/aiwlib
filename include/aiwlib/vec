@@ -143,6 +143,8 @@ namespace aiw{
 		
 		T* begin(){ return p; }
 		T* end(){ return p+D; }
+		const T* begin() const { return p; }
+		const T* end() const { return p+D; }
 	}; // end of class Vec
 	template <typename T, typename ... Args>
 	Vec<1+sizeof...(Args), T> vec(T x, Args ... args){

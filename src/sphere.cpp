@@ -32,6 +32,8 @@ static Ind6* vertex_edges[MAX_RANK] = INIT_ARR_ZERO;      // индексы со
 static double* vertex_areas[MAX_RANK] = INIT_ARR_ZERO;    // площади ячеек при разбиении по вершинам 
 static double* edge_areas[MAX_RANK] = INIT_ARR_ZERO;      // площади ячеек при разбиении по ребрам 
 static Vec<3>* edge_centers[MAX_RANK] = INIT_ARR_ZERO;    // координаты центров ребер
+
+static double* interp_radius[MAX_RANK] = INIT_ARR_ZERO;   // радиусы носителей при интерполяции с mode=1
 //------------------------------------------------------------------------------
 Vec<3> aiw::barecentr(const Vec<3> &n, const Vec<3> tr[3]){
     Vec<3> l;
@@ -100,9 +102,19 @@ int aiw::sph_interp_weights(const aiw::Vec<3> &r, int R, int mode, uint64_t* IDs
 	const aiw::Vec<3, uint64_t>& vid = sph_cell_vert(cid, R); // ID вершин ячейки сетки куда попал r
 	Vec<3> n[3]; for(int i=0; i<3; i++) n[i] = sph_vert(vid[i], R); // координаты вершин ячейки сетки куда попал r
 	if(mode){ // по граням не интреполируем?
+		/* linear interp
 		Vec<3> w = barecentr(r, n); // веса вершин ячейки сетки куда попал r
 		for(int i=0; i<3; i++){ IDs[i] = vid[i]; weights[i] = w[i]; }
 		return 3;
+		*/
+		double c_max = 0; uint64_t v_max = -1; int sz = 0;
+		for(auto i: vid){ double c = sph_vert(i, R)*r; if(c_max<c){ c_max = c; v_max = i; } }
+		const auto &vIDs = sph_vert_vert(v_max, R);
+		IDs[sz] = v_max; weights[sz++] = r*sph_vert(v_max, R);
+		for(auto i: vIDs) if(i!=uint64_t(-1)){ double c = r*sph_vert(i, R); if(c>=interp_radius[R][i]){ IDs[sz] = i; weights[sz++] = c; } }
+		double w_sum = 0; for(int i=0; i<sz; i++){ weights[i] -= interp_radius[R][IDs[i]]; weights[i] *= weights[i]; w_sum += weights[i]; }
+		w_sum = 1./w_sum; for(int i=0; i<sz; i++) weights[i] *= w_sum;
+		return sz;
 	}
 	Vec<3> cXn[3], c = sph_cell(cid, R); for(int i=0; i<3; i++) cXn[i] = c%n[i];  // центр ячейки и векторные произведения центра с вершинами
 	int sz = 0, tr;  // число ячеек и номер треугольника (дальней от r вершины)?
@@ -122,20 +134,21 @@ int aiw::sph_interp_weights(const aiw::Vec<3> &r, int R, int mode, uint64_t* IDs
 void aiw::sph_free_table(int rank){ // освобождает таблицы старше ранга rank (включительно)
 	int old_rank = current_rank; current_rank = rank;
 	for(int i=old_rank; i<=rank; i-- ){
-		delete [] cell_centers[i];
-		delete [] cell_areas[i];
-		delete [] cell_vertex[i];
-		delete [] cell_neighbours[i];
-		delete [] vertex_cells[i];
-		delete [] normals[i];
-		delete [] cell_edges[i];
-		delete [] edge_cells[i];
-		delete [] edge_vertex[i];
-		delete [] vertex_vertex[i];
-		delete [] vertex_edges[i];
-		delete [] vertex_areas[i];
-		delete [] edge_areas[i];
-		delete [] edge_centers[i];
+		delete [] cell_centers[i]; cell_centers[i] = nullptr;
+		delete [] cell_areas[i];   cell_areas[i] = nullptr;
+		delete [] cell_vertex[i];  cell_vertex[i] = nullptr;
+		delete [] cell_neighbours[i]; cell_neighbours[i] = nullptr;
+		delete [] vertex_cells[i]; vertex_cells[i] = nullptr;
+		delete [] normals[i];  normals[i] = nullptr;
+		delete [] cell_edges[i];  cell_edges[i] = nullptr;
+		delete [] edge_cells[i];  edge_cells[i] = nullptr;
+		delete [] edge_vertex[i];  edge_vertex[i] = nullptr;
+		delete [] vertex_vertex[i];  vertex_vertex[i] = nullptr;
+		delete [] vertex_edges[i];  vertex_edges[i] = nullptr;
+		delete [] vertex_areas[i];  vertex_areas[i] = nullptr;
+		delete [] edge_areas[i];  edge_areas[i] = nullptr;
+		delete [] edge_centers[i];  edge_centers[i] = nullptr;
+		delete [] interp_radius[i];  interp_radius[i] = nullptr;
 	}
 	Vec<3> *tmp3 = vertex;
 	vertex = new Vec<3>[sph_vertex_num(current_rank)];
@@ -310,10 +323,10 @@ void mass_finish(int rank){
 	}
 }
 //------------------------------------------------------------------------------
-void arrs_init( int rank ){
+void arrs_init(int rank){
 	//WOUT(rank);
 	if(rank<0 || rank>=MAX_RANK) WRAISE("incorrect ", rank, MAX_RANK);
-	if(rank==0)init_zero_rank();
+	if(rank==0) init_zero_rank();
 	else {
 		//тут нужна другая функция
 		//Увеличивать быстродействе здесь будем потом
@@ -434,6 +447,18 @@ void arrs_init( int rank ){
 			} else eID = I->second;
 			cell_edges[rank][i][k] = eID;			
 		}
+	}
+	//--------------------
+	size_t sz = sph_vertex_num(rank);
+	interp_radius[rank] = new double[sz];
+	for(size_t i=0; i<sz; i++){
+		const Vec<3> &n0 = sph_vert(i, rank); double r_min = 1;
+		const auto &cIDs = sph_vert_cell(i, rank);
+		for(auto j: cIDs) if(j!=uint64_t(-1)){
+				const auto &nIDs = sph_cell_cell(j, rank);
+				for(auto k: nIDs){ double r = sph_cell(k, rank)*n0; if(r_min>r) r_min = r; }
+			}
+		interp_radius[rank][i] = r_min;
 	}
 }
 //------------------------------------------------------------------------------
