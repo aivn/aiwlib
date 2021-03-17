@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
 '''wbib file1.bib [file2.bib...] ==> update wbib database (see ~/.wbib/)
+wbib join [authors|journals key2,key3...=new_key1 key3,...=new_key2  ... author|journals ...] 
+     ==> join/change keys of authors, journals and papers
 wbib [options] file1.aux [file2.aux...] ==> file1.bbl file2.bbl ...
 optinos:
  -e or -r --- select language (default russian, see ~/.wbib/conf)
@@ -8,91 +10,25 @@ optinos:
  -h or -H --- switch off/on hyperref (default on, see ~/.wbib/conf)
 '''
 
-import os, sys
+import os, sys, functools
 #-------------------------------------------------------------------------------
-#class Node:
-#    def __init__(self, _val='', **kw_args): self._val = _val; self.__dict__.update(kw_args)
-#    def __nonzero__(self): return bool(self._val)
-#    def __str__(self): return str(self._val)
-#    def __getattr__(self, key): return self.__dict__.get(key, Node())
-#    def __getitem__(self, key): return self.__dict__.get(key, Node())
-#    def __setitem__(self, key, val): self.__dict__[key] = Node(val)
+#   базовая работа с текстом
 #-------------------------------------------------------------------------------
-def load_file(f): #==> [line, block]
-    blocks, lines, mode = [], [], 0 # 0 - wait new block, 1 - read block, 2 - skip current block
-    for i, l in enumerate(open(dbpath+f)):
-        l = l.strip()
-        if mode==0 and l:
-            if l[0]=='#': mode = 2  # start skip current block
-            else: mode = 1; lines.append(i); blocks.append([l]) # start new block
-        elif mode and not l: mode = 0  # close block
-        elif mode==1 and l[0]!='#':  blocks[-1].append(l)
-    return zip(lines, blocks)
-#-------------------------------------------------------------------------------
-def block2dict(block, *keys, **kw_args):
-    res = dict(kw_args); res.update((k, '') for k in keys); res[''] = []
-    for l in block:
-        k, v = l.split(' ', 1); v = v.strip()
-        if k in res: res[k] = v
-        else: res[''].append(l)
-    return res
-#-------------------------------------------------------------------------------
-def load_db():
-    if not os.path.exists(dbpath): print (dbpath, 'not found!'); return
-    for X in ('authors', 'journals'):
-        if not os.path.exists(dbpath+X): print (dbpath+X+' not found!'); return
-        XX = eval(X)
-        for line, block in load_file(X):
-            data = block2dict(block[1:], 'ru', 'en', line=line)
-            for k in block[0].split():
-                if k in XX: print('ERR: key "%s" сonflict, see %s l%i and l%i'%(k, dbpath+X, XX[k]['line'], line))
-                else: XX[k] = data        
-    if not os.path.exists(dbpath+'papers') and not any(f.endswith('.papers') for f in os.listdir(dbpath)): print (dbapth+'papers not found empty!'); return
-    for f in os.listdir(dbpath):
-        if f=='papers' or f.endswith('.papers'):
-            for line, block in load_file(f):
-                auths, year, jour, vol, No, pages = (block[0]+' - - - - - -').split()[:6]; auths, log = auths.split(','), []
-                data = block2dict(block[1:], *'ru en url pdf rurl rpdf eurl epdf'.split(),
-                                  auths=auths, year=year, journal=jour, volume=vol, number=No, pages=pages, line=line, fname=f)
-                log += ['unknown author key '+a for a in auths if not a in authors]
-                if year=='-': log.append('year empty')
-                if jour not in journals: log.append('unknown journal key '+jour)
-                if log:
-                    for l in log: print('    ', l)
-                    print('ERR: see %s:%i'%(dbpath+f, line))
-                papers.append(data)    
-#-------------------------------------------------------------------------------
-def dump_db():
-    #for p in papers: print(p)
-    if not os.path.exists(dbpath): os.mkdir(dbpath)
-    for X in ('authors', 'journals'):
-        fout, order, XX = open(dbpath+X, 'w'), {}, eval(X)
-        for k, v in XX.items():
-            #print(k, v)
-            order.setdefault(v['line'], []).append(k)
-        for line in sorted(order.keys()):
-            print(*order[line], file=fout)
-            block = XX[order[line][0]]
-            if block.get('ru'): print('ru', block['ru'], file=fout)
-            if block.get('en'): print('en', block['en'], file=fout)
-            for l in block.get('', []): print(l, file=fout)
-            print('', file=fout)
-    for p in papers:
-        if os.path.basename(fout.name)!=p['fname']: fout = open(dbpath+p['fname'], 'w'); print(fout.name, p['fname'])
-        print(','.join(p['auths']), '%(year)s %(journal)s %(volume)s %(number)s %(pages)s'%p, file=fout)
-        for k in 'ru en url pdf rurl rpdf eurl epdf'.split():
-            if p.get(k): print(k, p[k], file=fout)
-        for l in block.get('', []): print(l, file=fout)
-        print('', file=fout)
-#-------------------------------------------------------------------------------
-trans_table = dict(list(zip(map(ord, 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯабвгдеёжзийклмнопрстуфхцчшщыэюяЬьЪъ'),
-                            '''A B V G D E E Zh Z I Y K L M N O P R S T U F Kh Ts Ch Sh Shch Y E Yu Ya 
-                            a b v g d e e zh z i y k l m n o p r s t u f kh ts ch sh shch y e yu ya ’ ’'''.split()+[None]*2)))
-trans = lambda l: l.translate(trans_table)
-norm = lambda l: ' '.join(l.replace('`', "’").replace("'", "’").split())
+_is_eng = lambda l: all(not i.isalpha() or i in 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' for i in l)
+is_eng = lambda l: _is_eng(l) if type(l) is str else _is_eng(l[-1])
 
+trans_table = dict(list(zip(map(ord, 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯЬабвгдеёжзийклмнопрстуфхцчшщыэюяьЪъ'),
+                            ('A B V G D E E Zh Z I Y K L M N O P R S T U F Kh Ts Ch Sh Shh Y E Yu Ya ’ '+
+                             'a b v g d e e zh z i y k l m n o p r s t u f kh ts ch sh sch y e yu ya ’').split()+[None]*2)))
+keygens = [lambda l: ''.join(i for i in l.split()[0].translate(trans_table).lower() if i.isalnum()),
+           lambda l: ''.join(i[:3] for i in ''.join(i if i.isalnum() else ' ' for i in l.translate(trans_table).replace('’', '')).split()  if len(i)>2 or i.istitle()),
+           lambda l: ''.join(i for i in l.translate(trans_table).lower() if i.isalnum())]
+def trans(l):
+    if 'ь' in l or 'Ь' in l:
+        l = ''.join(a for a, b in zip(l[:-1], l[1:]) if not a in 'ьЬ' or not b in 'БВГДЖЗЙКЛМНПРСТФХЦЧШЩбвгджзйклмнпрстфхцчшщ')+l[-1]*(not l[-1] in 'ьЬ')
+    return l.translate(trans_table)
 def normalize_name(a):
-    L = a.replace(',', ' ').split()
+    L = a.replace('.', '. ').replace(',', ' ').split()
     if len(L)>1 and not '.' in L[-1] and L[-1].istitle() and any(  # переставляем инициалы в конец, это может не работать для азиатов?
             '.' in i  or not i.istitle()  or len(i)<len(L[-1]) for i in L[:-1]): L = L[-1:]+L[:-1] 
     if len(L)>1: # ставим точки в конце инициалов
@@ -105,95 +41,273 @@ def normalize_name(a):
                     if j.isupper() or not Q: Q.append(j)
                     else: Q[-1] += j
                 L += [(j if j[-1]=='.' else j+'.') for j in Q]
+    if all(len(i)-(i[-1]=='.')==1 for i in L): return ''
     return ' '.join(L)
-
-#for i in sys.argv[1:]: print(i, '==>', normalize_name(i))
-#sys.exit()
-
-def match_name(A, B): # ==> name or ''
-    A = A.replace('.', '. ').split()
-    B = B.replace('.', '. ').split()
-    res = []
-    for a, b in zip(A, B):
-        l = min(len(a)-(a[-1]=='.'), len(b)-(b[-1]=='.'))
-        if a[:l].replace('ё', 'е').replace('Ё', 'Е')==b[:l].replace('ё', 'е').replace('Ё', 'Е'): res.append(max(a, b))
-        else: return ''
-    return ' '.join(res)
+def match_name(A, B): # ==> True or False
+    for a, b in zip(*[''.join(i if i.isalnum() or i=='.' else ' ' for i in x.replace('.', '. ').lower().replace('ё', 'е')).split() for x in (A, B)]):
+        i = min(len(a)-(a[-1]=='.'), len(b)-(b[-1]=='.'))
+        if a[:i]!=b[:i]: return False
+    return True
+# norm = lambda l: ' '.join(l.replace('`', "’").replace("'", "’").split())
+#-------------------------------------------------------------------------------
+#   структура данных
+#-------------------------------------------------------------------------------
+class Node:
+    def __nonzero__(self): return True
+    def __hash__(self): return id(self)
+    def __init__(self, *keys, **kw_args): self.keys = keys; self.__dict__.update(kw_args)
+    def __getitem__(self, key):
+        if key in self.__dict__: return self.__dict__[key]
+        # if key.startswith('ru_') or key.startswith('en_') and key[3:] in self.__dict__: return self.__dict__[key[3:]]
+        return self.__dict__.setdefault(key, set())
+    def __setitem__(self, key, val): self.__dict__.setdefault(key, set()).add(val)
+    #def __getattr__(self, key): return self[key]
+    def match(self, val):
+        if is_eng(val): return any(match_name(val, x) for x in self['en']) or any(match_name(val, trans(x)) for x in self['ru'])
+        else: tval = trans(val); return any(match_name(val, x) for x in self['ru']) or any(match_name(tval, x) for x in self['en'])
+    def lang(self): return [l for l in ('en','ru') if self.__dict__.get(l)]
+    def _prefix(self, lb):
+        la = self.lang()
+        if la!=lb and len(la)==1:
+            for k in [i[0] for i in self.__dict__.items() if i[0]!=la[0] and i[0][:3]!=la[0]+'_' and type(i[1]) is set]: self.__dict__[la[0]+'_'+k] = self.__dict__.pop(k)
+        return lb[0]+'_' if la and la!=lb and len(lb)==1 else ''        
+    def add_name(self, name, **kw_args):
+        prefix = self._prefix(['en' if is_eng(name) else 'ru'])
+        for k, v in kw_args.items():  self[prefix+k if k!=prefix[:2] and k[:3]!=prefix else k].add(v)
+        self['en' if is_eng(name) else 'ru'].add(name)
+    def load(self, block, fname, line):
+        self.keys, self.fname, self.line = tuple(block[0].split()), fname, line
+        for l in block[1:]: k, v = (l.split(' ', 1)+[''])[:2]; self[k].add(v.strip())        
+    def dump(self, fout=sys.stdout):
+        if fout is sys.stdout: print('  --- %(fname)s:%(line)s'%self.__dict__)
+        print(' '.join(self.keys), file=fout)
+        kvL = [i for i in self.__dict__.items() if type(i[1]) is set]
+        for k, v in sorted(i for i in kvL if i[0][:2]=='ru')+sorted(i for i in kvL if i[0][:2]=='en')+sorted(i for i in kvL if not i[0][:2] in ('ru', 'en')):
+            for i in sorted(v): print(k, i, file=fout)
+        print(file=fout)
+    def join(self, other):
+        prefix = self._prefix(other.lang())
+        for k, v in other.__dict__.items():
+            if type(v) is set: self[prefix+k if k[:2]!=prefix[:2] else k].__ior__(v)
+        self.keys += tuple(k for k in other.keys if not k in self.keys)
+    def replace_key(self, old_key, new_key):
+        if old_key==new_key or not old_key in self.keys: return False
+        print(self.keys)
+        ik = self.keys.index(old_key);  self.keys = self.keys[:ik]+(new_key,)*(not new_key in self.keys)+self.keys[ik+1:]
+        return True
+#-------------------------------------------------------------------------------
+class Paper(Node):
+    def load(self, block, fname, line):
+        Node.load(self, block, fname, line)
+        self.keys, self.year, self.journal = [tuple(self.keys[0].split(','))]+list(self.keys[1:])
+        for k, v in [(i, self[i]) for i in ('en', 'ru') if i in self.__dict__]:
+            for i in list(v): v.remove(i); a, b = (i.split(' ', 1)+[''])[:2]; v.add(tuple((a.split(',')+['']*3)[:3]+[b.strip()]))
+    def dump(self, fout=sys.stdout):
+        if fout is sys.stdout: print('  --- %(fname)s:%(line)s'%self.__dict__)
+        print(','.join(self.keys), '%(year)s %(journal)s'%self.__dict__, file=fout)
+        kvL = [i for i in self.__dict__.items() if type(i[1]) is set]
+        for k, v in sorted(i for i in kvL if i[0][:2]=='ru')+sorted(i for i in kvL if i[0][:2]=='en')+sorted(i for i in kvL if not i[0][:2] in ('ru', 'en')):
+            for i in sorted(v):
+                if len(k)==2: print(k, ','.join(i[:3]), i[3], file=fout)
+                else: print(k, i, file=fout)
+        print(file=fout)            
+    def join(self, other): Node.join(self, other); del_paper(other, True); add_paper(self)
+#-------------------------------------------------------------------------------
+class Table:
+    def __init__(self): self.index, self.data = {}, []
+    def __getitem__(self, key): return self.index[key]
+    def build_name_index(self):
+        self.name_index = {}
+        for node in self.data:
+            for name in node['ru']|node['ru']: self.name_index.setdefault(name, []).append(node)
+    def _bib_add2node(self, node, name, **kw_args):
+        node.add_name(name, **kw_args)
+        nodes = self.name_index.setdefault(name, [])
+        if not node in nodes: nodes.append(node)        
+    def bib_add(self, name, fname, line, **kw_args):
+        if not name: return ['']
+        nodes = self.name_index.get(name, [])
+        if not nodes: nodes = [node for node in self.data if node.match(name)]
+#        print(name, fname, line, kw_args, nodes)
+        if len(nodes)==1: self._bib_add2node(nodes[0], name, **kw_args); return nodes[0].keys  # добавляем данные к существующей ноде
+        elif nodes:  # разрешаем неоднозначность
+            print('\nВозникла неоднозначность при добавлении "%s" из  %s:%s'%(name, fname, line))
+            for k, v in kw_args.items(): print('    %s: %s'%(k, v))
+            for i, n in enumerate(nodes): print(' %i'%(i+1), end=''); n.dump()
+            while 1:
+                try: nn = int(input('введите 1 ... %i либо 0 для создания новой записи: '%len(nodes)))
+                except: continue
+                if 0<=nn and nn<=len(nodes): break
+            if nn:
+                self._bib_add2node(nodes[nn-1], name, **kw_args)  # добавляем данные к выбранной ноде
+                return nodes[nn-1].keys
+        # создаем новую ноду
+        for kg in keygens:
+            key = kg(name)
+            if not key in self.index: break
+        else: key += str(sum(i==key or (i.startswith(key) and i[len(key):].isdigit()) for i in self.index.keys()))                
+        node = Node(key, fname=fname, line=line); self.data.append(node); self.index[key] = node; self._bib_add2node(node, name, **kw_args)
+        return [key]        
+    #def sort(self, ... ):
+    def replace_keys(self, old_keys, new_key):
+        for k in old_keys:
+            n = self.index.get(k)
+            if not n: print('Key %s not found, replace %s=%s aborted'%(k, ','.join(old_keys), new_key)); exit(1)
+            if n.replace_key(k, new_key):
+                n2 = self.index.get(new_key)
+                if n2: n.join(n2); self.data.remove(n2)
+                del self.index[k]; self.index[new_key] = n
+            # выводить какую то статистку и кого слили/убрали
+    def load(self, fname, conflicts):
+        for line, block in load_file(fname):
+            #print(line, block)
+            node = Node(); node.load(block, fname, line); self.data.append(node)
+            for k in node.keys:
+                if k in self.index: conflicts.append((k, '%(fname)s:%(line)s'%self.index[k], '%(fname)s:%(line)s'%node))
+                else: self.index[k] = node
+            #print(node.keys, self.index.keys())
+#-------------------------------------------------------------------------------
+hash_paper = lambda p: tuple([id(authors.index[a]) for a in p.keys]+[p.year, id(journals.index[p.journal])])
+def add_paper(p):
+    #print(p.__dict__)
+    if not p in papers_index[0]:  papers.append(p); papers_index[0].add(p)
+    else: del_paper(p)
+    h = hash_paper(p); papers_index[1].setdefault(h, set()).add(p)
+    for n in p['ru']|p['en']: papers_index[2].setdefault(h+(n[3],), set()).add(p)
+def del_paper(p, total=False):
+    for I in papers_index[1:]:
+        for h, s in I.items():
+            if p in s:
+                s.remove(p)
+                if not s: del I[h]
+                break            
+    if total and p in papers_index[0]: papers.remove(p); papers_index[0].remove(p)
+#-------------------------------------------------------------------------------
+#   загрузка/сохранение базы
+#-------------------------------------------------------------------------------
+def load_file(f): #==> [line, block]
+    blocks, lines, mode = [], [], 0 # 0 - wait new block, 1 - read block, 2 - skip current block
+    for i, l in enumerate(open(dbpath+f)):
+        l = l.strip()
+        if mode==0 and l:
+            if l[0]=='#': mode = 2  # start skip current block
+            else: mode = 1; lines.append(i); blocks.append([l]) # start new block
+        elif mode and not l: mode = 0  # close block
+        elif mode==1 and l[0]!='#':  blocks[-1].append(l)
+    return zip(lines, blocks)
+#-------------------------------------------------------------------------------
+def load_db():
+    if not os.path.exists(dbpath): print (dbpath, 'not found!'); return
+    for T in ('authors', 'journals'):
+        if not os.path.exists(dbpath+T): print (dbpath+T+' not found!'); return
+        X, conflicts = eval(T), []; X.load(T, conflicts)
+        for c in conflicts: print('key "%s" conflict, see %s %s'%c)
+        if conflicts: print('Load %s aborted --- %i conflicts found.'%(T, len(conflicts))); exit(1)
+    if not os.path.exists(dbpath+'papers') and not any(f.endswith('.papers') for f in os.listdir(dbpath)): print (dbapth+'papers not found!'); return
+    ukeys, log = [], []
+    for f in os.listdir(dbpath):
+        if f=='papers' or f.endswith('.papers'):            
+            for line, block in load_file(f):
+                paper = Paper(); paper.load(block, f, line)
+                ukeys += ['unknown author key "%s", see %s%s:%s'%(a, dbpath, f, line) for a in paper.keys if not a in authors.index]
+                if paper.journal not in journals.index: ukeys.append('unknown journal key "%s", see %s%s:%s'%(paper.journal, dbpath, f, line))
+                if paper.year=='-': log.append('year empty, see %s%s:%s'%(dbpath, f, line))
+                add_paper(paper)
+    for l in log+ukeys: print(l)
+    print('Load database:', len(authors.data), 'authors,', len(journals.data), 'journals,', len(papers), 'papers,', len(log), 'warnings,', len(ukeys), 'key errors.')
+    if ukeys: exit(1)
+#-------------------------------------------------------------------------------
+def check_db(): pass # ???
+#-------------------------------------------------------------------------------
+def dump_db(confirm=False):
+    dups = [s for s in papers_index[2].values() if len(s)>1] 
+    for dup in dups:
+        print('Следующие статьи возможно дублируют друг друга:')
+        for p in dup: p.dump()
+    if (confirm or dups) and input('Сохранить изменения в базе [yes]? ')!='yes': print('Aborted'); exit()
+    if not os.path.exists(dbpath): os.mkdir(dbpath)
+    for T in ('authors', 'journals'):
+        fout, X = open(dbpath+T, 'w'), eval(T)
+        for node in X.data: node.dump(fout)
+    for p in papers:
+        # print(p.__dict__)
+        fname = p['fname'] if p['fname']=='papers' or p['fname'].endswith('.papers') else os.path.basename(p['fname']).rsplit('.', 1)[0]+'.papers'
+        if os.path.basename(fout.name)!=fname: fout = open(dbpath+fname, 'w')
+        p.dump(fout)
+#-------------------------------------------------------------------------------
+#   чтение bib-файлов
 #-------------------------------------------------------------------------------
 def load_bib(f):
-    mode, lastkey, scobs = False, None, 0
-    for i, l in enumerate(open(f)):
-        if l[0]=='#': continue
-        if not mode and l.lower().startswith('@book'): data, line, mode = {'journal': 'book'}, i, True; continue
-        if not mode and l[0]=='@': data, line, mode = {}, i, True; continue
-        if mode and '=' in l and not lastkey:
-            k, v = l.split('=', 1); k, v = k.strip().lower(), v.strip()
-            scobs += v.count('{') - v.count('}')            
-            if v[0]=='{': v = v[1:]
-            if scobs: data[k], lastkey = v, k; continue
-            data[k] = v[:-1]  if v.endswith('}') else v[:-2] if v.endswith('},') else v
-        elif mode and lastkey:
-            l = l.strip(); scobs += l.count('{') - l.count('}')            
-            if scobs: data[lastkey] += ' '+l
-            else: lastkey = None; data[k] = l[:-1]  if l.endswith('}') else l[:-2] if l.endswith('},') else l            
-        if mode and l[0]=='}': # terminate
-            mode = False
-            if not 'author' in data: print('ERR: author empty %s:%i'%(f, line));  continue
-            if not 'journal' in data: print('ERR: journal empty %s:%i'%(f, line));  continue
-            # authors work
-            aL, auths = norm(data.pop('author')), []; data['auths'] = auths
-            if ' and ' in aL: aL = aL.split(' and ')
-            elif aL.count(',')>=2: aL = aL.split(',')
-            else: aL = [aL]
-            for a in aL:
-                a = normalize_name(a); ta = trans(a)
-                for k, v in authors.items():
-                    for lang in ('ru', 'en'):
-                        m = match_name(a, v.get(lang, ''))
-                        if len(m)>len(v.get(lang, '')): v[lang] = m                        
-                        if m: break
-                    if m or match_name(a, v.get('en', '')): auths.append(k); break
-                else: # create new author
-                    if ta: k = ta.split()[0]
-                    else: print('ERR>>>>>>>>>>>>> ', aL, a, f, l, ta); continue
-                    if k in authors: k = ta.split()[0]+''.join(i[0] for i in ta.split()[1:])
-                    if k in authors: k = ta.replace(' ', '')
-                    if k in authors: print('ERR: can not make author key for', a, ':', ta, 'in %s:%i'%(f, line));  continue
-                    authors[k] = {('en' if a[0].upper() in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' else 'ru'): a, 'en': ta,
-                                  'line': max(i['line'] for i in authors.values())+1 if authors else 0}
-                    auths.append(k)
-            # journal work
-            J = data['journal']; tJ = trans(J) 
-            for k in [tJ.replace(' ', '')]+[''.join(i[0] for i in tJ.split())]*(len(tJ.split())>2):
-                if k in journals:
-                    J2 = journals[k]
-                    print(k, J2)
-                    for lang in ('ru', 'en'):
-                        m = match_name(J, J2.get(lang, ''))
-                        if len(m)>len(J2.get(lang, '')): J2[lang] = m
-                        if m: break
-                    if m or match_name(tJ, J2.get('en', '')): break
-            else:  # create new journal
-                if k in journals: k = tJ.replace(' ', '')
-                if k in journals: print('ERR: can not make journal key for', J, ':', tJ, 'in %s:%i'%(f, line)); continue
-                if not J: print('ERR>>>>>>>>>>>>>  ', f, l); continue
-                journals[k] = {('en' if J[0].upper() in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' else 'ru'): J, 'en': tJ,
-                               'line': max(i['line'] for i in journals.values())+1 if journals else 0}
-            data['journal'], data['line'], data['fname'] = k, (max(i['line'] for i in papers)+1 if papers else 0), os.path.splitext(os.path.basename(f))[0]+'.papers'
-            for k in 'year volume number pages'.split(): data.setdefault(k, '-')
-            if data.get('title'): data['en' if data['title'][0] in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' else 'ru'] = data['title']
-            papers.append(data)  # finish
+    import bibtexparser; bibdata = bibtexparser.load(open(f)).entries    
+    for data in bibdata:
+        for k, v in data.items(): data[k] = ' '.join(v.split())
+        auths, pID = data.get('author'), '[%(ID)s]'%data
+        if not auths: print('Author empty - skipped %s:%s'%(f, pID));  continue
+        if not data.get('year'): print('Year empty - skipped %s:%s'%(f, pID));  continue
+        if ' and ' in auths: auths = auths.split(' and ')
+        elif auths.count(',')>=2: auths = auths.split(',')
+        else: auths = [auths]
+        data['author'] = [authors.bib_add(normalize_name(a), f, pID)[0] for a in auths]
+        if not all(data['author']): print('Incorrect author in', auths, f+':'+pID, 'skipped'); del data['author']; continue
+        jdata = dict([(k, data.pop(k)) for k in ['publisher'] if k in data])
+        data['journal'] = journals.bib_add(data.get('journal', data['ENTRYTYPE']), f, pID, **jdata)[0]
+        for k in ('language', 'ENTRYTYPE'): data.pop(k, None)
+    for data in bibdata:
+        if not 'author' in data or  not 'year' in data:  continue
+        ID, author, title, year, journal, volume, number, pages = [data.pop(k, '') for k in 'ID author title year journal volume number pages'.split()]
+        if  '-' in pages and not '--' in pages: pages = pages.replace('-', '--')
+        paper = Paper(*author, fname=f, line='[%s]'%ID, year=''.join(year.split()), journal=journal); paper.add_name((volume, number, pages, title), **data)
+        # поиск повторов:
+        h = hash_paper(paper); cross = papers_index[2].get(h+(title,), set()) if title else papers_index[1].get(h, set())
+        if len(cross)>1:
+            paper.dump(); print('может быть дубликатом одной из статей:')
+            for p in cross: p.dump()
+        if len(cross)==1: cross.pop().join(paper)
+        else: add_paper(paper)
 #-------------------------------------------------------------------------------
 def aux2bbl(f): pass
 #-------------------------------------------------------------------------------
-authors, journals, papers, dbpath = {}, {}, [], os.path.expanduser('~/.wbib/')
+authors, journals, papers, papers_index, dbpath = Table(), Table(), [], [set(), {}, {}], os.path.expanduser('~/.wbib/')
 
-if len(sys.argv)==1: print(__doc__); load_db(); sys.exit()
+if len(sys.argv)==1: load_db(); sys.exit()
+if len(sys.argv)==2 and sys.argv[1] in 'h -h --h help -help --help'.split(): print(__doc__); exit()
 if sys.argv[1].endswith('.bib'):
     if not all(f.endswith('.bib') for f in sys.argv[1:]): print(__doc__); sys.exit()
-    load_db()
+    load_db(); authors.build_name_index(); journals.build_name_index()
     for f in sys.argv[1:]: load_bib(f)
     dump_db()
+elif sys.argv[1]=='join':
+    load_db(); chlist, mode = set(), None    
+    for a in sys.argv[2:]:
+        if a in ('authors', 'journals'): mode, X = a, eval(a)
+        elif mode and a.count('=')==1:
+            a, b = a.split('=');  a = functools.reduce(lambda L, k: L if k in L and k!=b else L+[k], a.split(','), [])  # убираем дубли старых ключей
+            if mode=='authors': chlist.update(p for p in papers for k in a if p.replace_key(k, new_key))  # проверять на два одинаковых автора в одной статье?
+            else:
+                for p in papers:
+                    if p.journal in a: p.journal = b; chlist.add(p)
+            X.replace_keys(a, b)
+        else: print(__doc__); exit(1)
+    for p in chlist: add_paper(p)
+
+    for dup in [s for s in papers_index[1].values() if len(s)>1]: 
+        dup = list(dup)
+        while len(dup)>1:
+            print('\nСледующие статьи возможно дублируют друг друга:'); 
+            for i, p in enumerate(dup): print('  [%i]'%(i+1), end=''); p.dump() 
+            try:
+                inp = input('перечислите номера статей для слияния через пробел, или * (выбрать все) или Enter (не проводить слияние): ')
+                jL = list(range(len(dup))) if inp=='*' else [int(i)-1 for i in inp.split()]
+                if not jL: break
+                p0, pL = dup[jL[0]], [dup[i] for i in jL[1:]]
+                if not pL: continue
+            except: continue
+            for p in pL: p0.join(p); dup.remove(p)
+            print('\nрезультат слияния:'); p0.dump()
+
+    # проверить базу ?
+    # выводить какую то статистику
+    dump_db(True)
 else:
     lang, smode, hmode = 'ru', False, True
     while len(sys.argv)>1 and sys.argv[1].startswith('-'):
