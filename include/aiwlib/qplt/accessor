@@ -1,0 +1,230 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_ACCESSOR_HPP
+#define AIW_QPLT_ACCESSOR_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cmath>
+#include <string>
+#include <vector>
+#include <map>
+#include "../debug"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct QpltColor;
+	struct QpltImage;
+	struct QpltScene;
+	//--------------------------------------------------------------------------
+	struct QpltAccessor {
+		int ctype = 0;        // тип поля
+		int Din = 1;          // размерность входных данных
+		/*uint64_t*/ int mask = 0;    // для обработки беззнаковых (!!!) целых полей (опционально)
+		// в будущем сюда можно добавить возможность доступа к фрагментам блоба uint64_t содержащим fixed point значения
+
+	private:
+		int offsets[3];       // смещения (в байтах) внутри ячеки контейнера
+	public:
+		int get_offset(int i) const { return offsets[i]; }
+		void set_offset(int i, int off){ offsets[i] = off; }
+
+		int diff = 0;         // тип дифф. оператора (0 - выкл, 1 - div, 2 - grad2D, 3 - grad3D, 4 - rot, 5 - laplas2D, 6 - laplas3D)
+		float rsteps[3];      // обратные шаги по пространству для дифференцирования (для лапласиана обратные квадраты шагов, для остальных обратные удвоенные)
+		int vconv = 5;        // преобразование выходного вектора к скаляру (0..2 - номер компоненты, 3 - модуль, 4 - фаза для 2D, 5 - без преобразования)
+		int Dout() const;     // размерность выходных данных, ???
+		int Ddiff() const;    // размерность пр-ва в котором идет дифференцирование
+		bool minus = false;   // смена знака (для скаляра)
+		bool check() const;   // проверка корректности задания всех полей
+
+		// HID преобразований:    4b     2b       3b        3b
+		// int hash() const { return ctype|(Din<<4)|(diff<<6)|(vconv<<9)|(minus<<12); }     
+		// AID преобразований:                1b       2b       3b       3b
+		int get_AID() const { return int(bool(ctype))|(Din<<1)|(diff<<3)|(vconv<<6); } //|(minus<<9); }     
+		
+#ifndef SWIG
+		//----------------------------------------------------------------------
+		template <int> float conv(const char *ptr) const;
+	private:
+		static float pow2(float x){ return x*x; }
+		template <int CID> float rot0(const char **nb) const {
+			return (conv<CID&1>(nb[3]+offsets[2]) - conv<CID&1>(nb[2]+offsets[2]))*rsteps[1] 
+				-  (conv<CID&1>(nb[5]+offsets[1]) - conv<CID&1>(nb[4]+offsets[1]))*rsteps[2];
+		}
+		template <int CID> float rot1(const char **nb) const {
+			return (conv<CID&1>(nb[5]+offsets[0]) - conv<CID&1>(nb[4]+offsets[0]))*rsteps[2] 
+				-  (conv<CID&1>(nb[1]+offsets[2]) - conv<CID&1>(nb[0]+offsets[2]))*rsteps[0];
+		}
+		template <int CID> float rot2(const char **nb) const {
+			return (conv<CID&1>(nb[1]+offsets[1]) - conv<CID&1>(nb[0]+offsets[1]))*rsteps[0] 
+				-  (conv<CID&1>(nb[3]+offsets[0]) - conv<CID&1>(nb[2]+offsets[0]))*rsteps[1];
+		}
+	public:
+		
+		template <int AID> static constexpr int DOUT(){
+#define DIN(AID) ((AID>>1)&3)
+#define DIFF(AID) ((AID>>3)&7)
+#define VCONV(AID) ((AID>>6)&7)
+			// return DIFF(AID)==0 || DIFF(AID)>=5? DIN(AID): (DIFF(AID)==1 || (DIFF(AID)==4 && DIN(AID)==2)|| VCONV(AID)<5 ? 1: DIFF(AID));
+			return VCONV(AID)<5 || DIFF(AID)==1 || (DIFF(AID)==4 && DIN(AID)==2)? 1: (DIFF(AID)==0 || DIFF(AID)>=5? DIN(AID): (DIFF(AID)==4? 3: DIFF(AID)));
+#undef DIN
+#undef DIFF
+#undef VCONV
+		}
+		template <int AID> void conv(const char* ptr, const char **nb, float *dst) const {
+			constexpr int DIN = (AID>>1)&3;
+			constexpr int DIFF = (AID>>3)&7;
+			constexpr int VCONV = (AID>>6)&7;
+			// constexpr int MINUS = (AID>>9)&1;
+
+			if(DIN==1){  // скаляр на входе
+				if(DIFF==0){ *dst = conv<AID&1>(ptr+offsets[0]); if(minus) *dst = -*dst;  }  // нет никаких преобразований
+				if(DIFF==5 || DIFF==6){ // laplas
+					float c2 = 2*conv<AID&1>(ptr+offsets[0]); *dst = 0;
+					// for(int i=0; i<DIFF-3; i++) *dst += (conv<AID&1>(nb[2*i]+offsets[i]) + conv<AID&1>(nb[2*i+1]+offsets[i]) - c2)*rsteps[i];
+					for(int i=0; i<DIFF-3; i++) *dst += (conv<AID&1>(nb[2*i]+offsets[0]) + conv<AID&1>(nb[2*i+1]+offsets[0]) - c2)*rsteps[i];
+					if(minus) *dst = -*dst;  
+				} // :3
+				if(DIFF==2 || DIFF==3){ // grad
+					if(VCONV==5) for(int i=0; i<DIFF; i++) dst[i] = (conv<AID&1>(nb[2*i+1]+offsets[0]) - conv<AID&1>(nb[2*i]+offsets[0]))*rsteps[i];
+				    if(VCONV<3){  // одна компонента
+						*dst = (conv<AID&1>(nb[2*VCONV+1]+offsets[VCONV]) - conv<AID&1>(nb[2*VCONV]+offsets[VCONV]))*rsteps[VCONV];
+						if(minus) *dst = -*dst;  
+					}
+					if(VCONV==3){  // модуль градиента
+						*dst = 0;
+						for(int i=0; i<DIFF; i++) *dst += pow2((conv<AID&1>(nb[2*i+1]+offsets[0]) - conv<AID&1>(nb[2*i]+offsets[0]))*rsteps[i]);
+						*dst = sqrtf(*dst);
+					} // :5
+					if(VCONV==4 && DIFF==2){  // фаза 2D градиента
+						*dst = atan2f( (conv<AID&1>(nb[3]+offsets[0]) - conv<AID&1>(nb[2]+offsets[0]))*rsteps[1],
+									   (conv<AID&1>(nb[1]+offsets[0]) - conv<AID&1>(nb[0]+offsets[0]))*rsteps[0] );
+					}
+				} // :11
+			} else {  // вектор размерности DIN на входе
+				if(DIFF==0){
+					if(VCONV==5) for(int i=0; i<DIN; i++) dst[i] = conv<AID&1>(ptr+offsets[i]);
+				    if(VCONV<3){  // одна компонента
+						*dst = conv<AID&1>(ptr+offsets[VCONV]);
+						if(minus) *dst = -*dst;  
+					}
+					if(VCONV==3){  // модуль
+						*dst = 0;
+						for(int i=0; i<DIN; i++) *dst += pow2(conv<AID&1>(ptr+offsets[i]));
+						*dst = sqrtf(*dst);
+					} // :5
+					if(VCONV==4 && DIN==2){  // фаза
+						*dst = atan2f(conv<AID&1>(ptr+offsets[1]), conv<AID&1>(ptr+offsets[0]));
+					}					
+				} // :11
+				if(DIFF==1){ // div, скаляр на выходе
+					*dst = 0;
+					for(int i=0; i<DIN; i++) *dst += (conv<AID&1>(nb[2*i+1]+offsets[i]) - conv<AID&1>(nb[2*i]+offsets[i]))*rsteps[i];
+					if(minus) *dst = -*dst;  					
+				} // :1x2
+				if(DIFF==4){ // rot2D
+					if(DIN==2){
+						*dst = rot2<AID&1>(nb);
+						if(minus) *dst = -*dst;  						
+					} // :1x2
+					if(DIN==3){
+						if(VCONV==5){
+							dst[0] = rot0<AID&1>(nb);
+							dst[1] = rot1<AID&1>(nb);
+							dst[2] = rot2<AID&1>(nb);
+						}
+						if(VCONV<3){  // одна компонента
+							if(VCONV==0) *dst = rot0<AID&1>(nb);
+							if(VCONV==1) *dst = rot1<AID&1>(nb);
+							if(VCONV==2) *dst = rot2<AID&1>(nb);
+							if(minus) *dst = -*dst;  
+						}
+						if(VCONV==3) *dst = sqrtf(pow2(rot0<AID&1>(nb)) + pow2(rot1<AID&1>(nb)) + pow2(rot2<AID&1>(nb))); // модуль
+					} // :5
+				} // :7
+			} // :18
+		} // :32x2 вариантов
+		//----------------------------------------------------------------------
+#define CALL(DIN, DIFF, VCONV)											\
+		if(!ctype){ FUNC::template call<(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(*this, args...); } \
+		else{ FUNC::template call<1|(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(*this, args...); } break;
+		
+		template <typename FUNC, typename ... Args> void call(Args& ... args){
+			// WOUT(diff, vconv, Din, ctype, get_AID());
+			// AID = (Din<<1)|(diff<<3)|(vconv<<6)
+			switch(Din){
+			case 1:  // скаляр на входе
+				switch(diff){
+				case 0:  CALL(1,0,5);  // off
+				case 5:  CALL(1,5,5);  // laplas2D
+				case 6:  CALL(1,6,5);  // laplas3D
+				case 2: // grad 2D
+					switch(vconv){
+					case 0: CALL(1,2,0);  // v[0]
+					case 1: CALL(1,2,1);  // v[1]
+					case 3: CALL(1,2,3);  // |v|
+					case 4: CALL(1,2,4);  // phase
+					case 5: CALL(1,2,5);  // off
+					} break;
+				case 3: // grad 3D
+					switch(vconv){
+					case 0: CALL(1,3,0);  // v[0]
+					case 1: CALL(1,3,1);  // v[1]
+					case 2: CALL(1,3,2);  // v[2]
+					case 3: CALL(1,3,3);  // |v|
+					case 5: CALL(1,3,5);  // off
+					} break;
+				} break;			
+			case 2: // 2D вектор на входе
+				switch(diff){
+				case 0: // off
+					switch(vconv){
+					case 0: CALL(2,0,0); // v[0]
+					case 1: CALL(2,0,1); // v[1]
+					case 3: CALL(2,0,3); // |v|
+					case 4: CALL(2,0,4); // phase 
+					case 5: CALL(2,0,5); // off
+					} break;
+				case 1: CALL(2,1,5); // div
+				case 4: CALL(2,4,5); // rot
+				} break;
+			case 3: // 3D вектор на входе
+				switch(diff){
+				case 0: // off
+					switch(vconv){
+					case 0: CALL(3,0,0); // v[0]
+					case 1: CALL(3,0,1); // v[1]
+					case 2: CALL(3,0,2); // phase 
+					case 3: CALL(3,0,3); // |v|
+					case 5: CALL(3,0,5); // off
+					} break;
+				case 1: CALL(3,1,5); // div
+				case 4: // rot
+					switch(vconv){
+					case 0: CALL(3,4,0);  // v[0]
+					case 1: CALL(3,4,1);  // v[1]
+					case 2: CALL(3,4,2);  // v[2]
+					case 3: CALL(3,4,3);  // |v|
+					case 5: CALL(3,4,5);  // off
+					} break;
+				} break;
+			}
+		}
+#undef CALL
+		//----------------------------------------------------------------------
+#define CALL_FUNC(CONTAINER, FUNC)										\
+		friend struct call_##FUNC;										\
+		struct call_##FUNC{												\
+			template<int AID, typename ...Args>							\
+			static void call(QpltAccessor &acc, CONTAINER &cnt,			\
+							 Args& ... args){							\
+				cnt.FUNC##_impl<AID>(acc, args...);						\
+			}															\
+		}																	
+#endif //SWIG
+	};  // end of class Accessor
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_ACCESSOR_HPP

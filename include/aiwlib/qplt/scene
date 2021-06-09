@@ -1,0 +1,71 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_SCENE_HPP
+#define AIW_QPLT_SCENE_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cmath>
+#include <string>
+#include <vector>
+#include <map>
+#include "../vec"
+// #include "../debug"
+// #include "imaging"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class QpltScene {
+		int axes[3] = {0, 1, 2};  // эти же оси применяются в дифференциальных операторах
+		double limits[16] = {0.}; // ??? max dim == 8???
+		double spos[8] = {0.};    // позиции срезов в системе координат связанной с контейнером
+		uint32_t flags = 0;       // 2 бита на интерполяцию, бит на !autoscale, бит на flip
+	public:
+		bool autoscale = true;      // by slice
+		bool autoscale_tot = true;  // by all range
+		
+		int get_axe(int i) const { return axes[i]; } 
+		void set_axe(int i, int v){ axes[i] = v; }
+		double get_min(int axe) const { return limits[2*axes[axe]]; }
+		double get_max(int axe) const { return limits[2*axes[axe]+1]; }
+		double get_pos(int i) const { return spos[i]; }
+		void set_pos(int i, double v){ spos[i] = v; }
+		
+		int get_interp(int axe) const { return (flags>>(4*axes[axe]))&3; }
+		int get_autoscale(int axe) const { return !((flags>>(4*axes[axe]+2))&1); }
+		int get_flip(int axe) const { return (flags>>(4*axes[axe]+3))&1; }
+		void set_interp(int axe, int interp){ flags &= ~(uint32_t(3)<<(4*axes[axe])); flags|= (uint32_t(interp)&3)<<(4*axes[axe]); }
+		void set_autoscale(int axe, bool v){ flags &= ~(uint32_t(1)<<(4*axes[axe]+2)); flags|= uint32_t(!v)<<(4*axes[axe]+2); }
+		void set_flip(int axe, bool v){
+			if(v!=get_flip(axe)) std::swap(limits[2*axes[axe]], limits[2*axes[axe]+1]);
+			flags &= ~(uint32_t(1)<<(4*axes[axe]+3)); flags|= uint32_t(v)<<(4*axes[axe]+3);
+		}
+		void set_min_max(int axe, double a, double b, bool as=false){ set_autoscale(axe, as);  limits[2*axes[axe]] = a; limits[2*axes[axe]+1] = b; }
+
+		void crop(aiw::Vec<3> A, aiw::Vec<3> B, int logscale){  // 0<=A, B<=1 (в размерах окна)
+			for(int i=0; i<2+D3; i++){
+				if(A[i]>0) A[i] = 0;
+				if(B[i]>1) B[i] = 1;
+				int a = axes[i]; Vec<2> lim = get_flip(i)? vec(1-B[i], 1-A[i]): vec(A[i], B[i]);
+				for(int k=0; k<2; k++)
+					limits[2*a+k] = logscale&1<<i? pow(limits[2*a], 1+(log(limits[2*a+1])/log(limits[2*a+1])-1)*lim[k])
+						: limits[2*a] + (limits[2*a+1]-limits[2*a])*lim[k];
+				set_autoscale(i, true);
+			}
+		}
+		void uncrop(){ for(int i=0; i<2+D3; i++) set_autoscale(i, true); }
+		//---------------------------------------------------------------------
+		bool D3 = false;  // 3D режим 
+		float theta = 30, phi = 60;  // ориентация сцены, в градусах, точка вращения центр изображения (с учетом пределов отрисовки)
+		float dx=1, dy=1, dz=1;  // соотношение сторон ячейки
+		int D3scale_mode = 0;
+		// далее куб изображения вписывается в окно под таким углом, и:
+		// float X0 = 0, Y0 = 0;  // ориентация центра окна относительно центра изображения
+		// float scale = 1.;      // масштаб, задает увеличение ...
+		// можно еще сдвигать точку вращения, но она должна задаваться в 3D?
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_SCENE_HPP

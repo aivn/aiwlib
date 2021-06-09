@@ -1,0 +1,116 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_IMAGING_HPP
+#define AIW_QPLT_IMAGING_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <cmath>
+#include <string>
+#include <vector>
+#include <map>
+#include "../debug"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct QpltImage {
+		std::string buf;
+		int Nx, Ny;
+
+		bool operator !() const { return !Nx || !Ny; }
+		operator bool () const { return Nx && Ny; }
+		QpltImage(int Nx_=0, int Ny_=0): Nx(Nx_), Ny(Ny_){
+			if(!Nx || !Ny) return;
+			buf.resize(Nx*Ny*4, 0); 
+		}
+
+		void fill(int color); 
+		void set_pixel(int x, int y, int color){
+			WASSERT(0<=x && x<Nx && 0<=y && y<Ny, "oops... ", x, y, Nx, Ny, color);
+			((uint32_t*)&(buf[0]))[x + (Ny-y-1)*Nx] |= color; 
+		}
+#ifndef SWIG
+		void set_gray_pixel(int x, int y, uint8_t c){
+			WASSERT(0<=x && x<Nx && 0<=y && y<Ny, "oops... ", x, y, Nx, Ny, c);
+			uint8_t *ptr =  (uint8_t*)&(buf[0]) + (x + (Ny-y-1)*Nx)*4; for(int i=0; i<3; i++) ptr[i] = c;
+		}
+		void set_gray_pixel_chk(int x, int y, uint8_t c){
+			if(0<=x && x<Nx && 0<=y && y<Ny){
+				uint8_t *ptr =  (uint8_t*)&(buf[0]) + (x + (Ny-y-1)*Nx)*4; for(int i=0; i<3; i++) ptr[i] = c;
+			}
+		}
+#endif //SWIG
+
+
+		// прорисовывает цветом color пиксели у которых соседи имеют разные цвета, остальное делает черным
+		void grad_bw(int color=0xFFFFFF);
+
+		std::string rgb888() const;
+		void dump2ppm(const char *path) const;
+	};	
+	//--------------------------------------------------------------------------
+	class QpltColor{
+#ifndef SWIG
+		union rgb_t{
+			int I; uint8_t c[3];
+			rgb_t(int I_=0): I(I_){}
+			rgb_t  operator * (float x) const { rgb_t J; for(int i=0; i<3; i++) J.c[i] = c[i]*x; return J; }
+			rgb_t  operator + (rgb_t J) const { return I+J.I; }
+		};
+#endif //SWIG
+		static std::map<std::string, std::vector<rgb_t> > table;
+		
+		std::vector<rgb_t> pal;
+		float min, max, mul;
+		bool logscale; int up_bound;
+	public:
+		static std::vector<std::string> get_pals();
+		static bool add_pal(const char* name, const std::vector<int>& pal);
+		static void plot_pal(const char *pal, QpltImage& image, bool vertical);
+		static aiw::QpltImage plot_pal(const char *pal, int Nx, int Ny, bool vertical);
+
+		operator bool () const { return pal.size(); }
+		float get_min() const { return min; }
+		float get_max() const { return max; }
+		bool get_logscale() const { return logscale; }
+		
+		bool init(const char *pal_, float min_, float max_, bool logscale_=false);
+		void reinit(float min_, float max_);
+		QpltColor(){}
+		QpltColor(const char *pal_, float min_, float max_, bool logscale_=false){ init(pal_, min_, max_, logscale_); }
+
+		// std::string pack() const;
+		// void unpack(const std::string &S);
+		
+		int nan_color = 0x7F7F7F;  // grey
+		bool modulus = false;      // это нелинейная операция, она делается после интерполяции и не может быть помещена в Accessor
+		// bool cyclic = false;
+
+		int operator ()(float f) const {
+			if(modulus) f = fabs(f);
+			f = logscale? log(f/min)*mul :(f-min)*mul;
+			if(std::isnan(f)) return nan_color;
+			int i = ::floor(f);
+			if(i<0) return pal.front().I;
+			if(i>=up_bound) return pal.back().I;
+			float w = f-i;
+			return (pal[i]*(1-w)+pal[i+1]*w).I;
+		}
+		float get_f(float x) const { return logscale? min*pow(max/min, x): min+(max-min)*x; }
+		
+	private:
+		static std::map<uint16_t, std::pair<uint16_t, uint32_t> > arr_table;
+		struct arr_point_t{ int8_t x, y; uint8_t c; };
+		static std::vector<arr_point_t> arr_data;
+		static int arr_length0, arr_width0;
+		static void arr_init();
+	public:
+		int arr_length = 0, arr_width = 0;  // длина и ширина стрелки, длина стрелки задает шаг ячейки и прореживание при отрисовке векторного поля
+		float arr_spacing = 1.;
+		void arr_plot(int cx, int cy, const float *v, QpltImage &im) const;  // cx, cy задают центр стрелки 
+	};  // end of class CalcColor
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_IMAGING_HPP

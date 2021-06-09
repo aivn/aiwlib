@@ -1,0 +1,61 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_MESH_HPP
+#define AIW_QPLT_MESH_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <map>
+#include "../vec"
+#include "../debug"
+#include "imaging"
+#include "scene"
+#include "accessor"
+#include "base"
+	
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class QpltMesh: public QpltContainer {
+		std::shared_ptr<BaseAlloc> mem;
+		size_t mem_offset = 0;
+
+		// 8+8 (пределы по пр-ву) 1 (AID) 1 (ctype, минус учитывается отдельно) 3 (offsets), для масок всегда перерасчет?
+		std::map<Ind<21>, Vecf<2> > flimits;  // кэш пределов
+		
+		void data_free_impl() override;  // выгружает данные из памяти
+		void data_load_impl() override;  // загружает данные в память
+		
+		template <int AID> void prepare_impl(QpltAccessor&, QpltScene&, QpltColor&);
+		template <int AID> void plot_impl(QpltAccessor&, QpltScene&, QpltColor&, QpltImage&);
+		template <int AID> void get_impl(QpltAccessor&, QpltScene&, float x, float y, std::string &res);
+
+		uint64_t mul0[8];  int64_t mul[3];  char* ptr0; 
+		
+		// template <int> friend  struct qplt_mesh_get_t; // void calc(const QpltAccessor&, float *dst);
+		template <int> struct calc_t;
+		template <int AID> calc_t<AID> get_calc(QpltAccessor&, QpltScene&, Ind<2> im_sz);
+		
+	public:
+		bool load(IOstream &);
+		
+		CALL_FUNC(QpltMesh, prepare);
+		void prepare(QpltScene &scene, QpltAccessor &acc, QpltColor &color) override {
+			prepare_scene(scene);
+			acc.call<call_prepare>(*this, scene, color);
+		}
+
+		CALL_FUNC(QpltMesh, plot);
+		void plot(QpltScene &scene, QpltAccessor &acc, QpltColor &color, QpltImage &im) override { acc.call<call_plot>(*this, scene, color, im); }
+
+		CALL_FUNC(QpltMesh, get);
+		std::string get(QpltScene &scene, QpltAccessor &acc, float x, float y) override {
+			std::string res;
+			acc.call<call_get>(*this, scene, x, y, res);
+			return res;
+		}
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_MESH_HPP

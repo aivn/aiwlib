@@ -1,0 +1,116 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_BASE_HPP
+#define AIW_QPLT_BASE_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <memory>
+#include <string>
+#include <vector>
+#include <list>
+#include "../vec"
+#include "../debug"
+#include "../iostream"
+#include "imaging"
+#include "scene"
+#include "accessor"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class QpltContainer{
+	private:
+		static std::list<QpltContainer*> mem_queue;
+	protected:
+		// интерфейс верхнего уровня, эти функции должны вызываться при отрисовке/освобождении контейнера
+		void data_free();    // освобождает память, убирает себя из очереди 
+		void data_load();    // загружает данные в память, перед этим выгружает из памяти другие контейнеры, добавляет себя в очередь
+		// эти функции надо реализовать в наследниках что бы все работало, но их НЕ НАДО вызывать - используются data_free/data_load()
+		virtual void data_free_impl() = 0;  // выгружает данные из памяти
+		virtual void data_load_impl() = 0;  // загружает данные в память
+
+		friend class QpltFactory;
+
+		std::shared_ptr<IOstream> fin;
+		int frame_;          // номер фрейма, исключительно справочная информация
+		double mem_sz;       // объем памяти необходимый для загрузки данных, в GB
+		int dim0, dim, szT;  // исходная и итоговая (оси размером в одну ячейку выбрасываются) размерности контейнера и размер ячейки в байтах
+		std::string head, info, axes[8];
+		static const std::string default_axes[8];
+		uint32_t logscale;  // битовая маска с лог.масштабами по осям
+		Ind<8> bbox0; Vec<8> bmin0, bmax0;  // исходные параметры контейнера - размер и пределы по осям, устанавливаются при загрузке и больше не меняются
+		Ind<3> bbeg, bbox;  Vec<3> bmin, bmax; // позиция, размер и пределы области отрисовки в осях ОТРИСОВКИ, устанавливаются в prepare_scene()
+		Ind<8> spos; int aI[3]; int flips;     // положения срезов в базовых осях,  оси отрисовки и маска флипов
+
+		virtual void prepare_scene(QpltScene&); 
+	public:
+		static double mem_limit; // лимит на размер памяти, в GB
+		
+		const char* fname() const { return fin->name.c_str(); }
+		int frame() const { return frame_; }
+		
+		virtual int get_dim0() const { return dim0; }
+		virtual int get_dim() const { return dim; }
+		virtual int get_szT() const { return szT; }
+		virtual const char* get_head() const { return head.c_str(); }
+		virtual const char* get_info() const { return info.c_str(); }		
+		virtual int get_bbox0(int i) const { return bbox0[i]; }  // для вывода информации и настройки слайдеров
+		
+		// virtual int get_bbox(int i) const { return bbox[i]; }
+		// virtual int get_bbeg(int i) const { return bbeg[i]; }
+		virtual float get_bmin(int axe) const { return bmin[axe]; }  // для настройки осей 
+		virtual float get_bmax(int axe) const { return bmax[axe]; }  // для настройки осей 
+		virtual bool get_logscale(int axe) const { return logscale&(1<<aI[axe]); }  // для настройки осей 
+
+		// для вывыода информации об осях
+		virtual float get_step0(int i) const { return logscale&1<<i? exp(log(bmax0[i]/bmin0[i])/bbox0[i]) : (bmax0[i]-bmin0[i])/bbox0[i]; }  // для вывода информации
+		virtual const char* get_axe_name0(int i) const { return axes[i].c_str(); } 
+		virtual float get_bmin0(int i) const { return bmin0[i]; }  
+		virtual float get_bmax0(int i) const { return bmax0[i]; }  
+		virtual bool get_logscale0(int i) const { return logscale&(1<<i); }  /
+
+		// вызывается перед plot, устанавливает bbox, bbeg, bmin, bmax, настраивает пределы в Slice и вызывает prepare_impl
+		virtual void prepare(QpltScene&, QpltAccessor&, QpltColor&) = 0;
+		virtual void plot(QpltScene&, QpltAccessor&, QpltColor&, QpltImage&) = 0;
+
+		// virtual std::vector<float> get_line(QpltScene&, QpltAccessor&, int axe, float lpos) = 0; // 0<=lpos<=1 в размерах сцены
+		virtual std::string get(QpltScene&, QpltAccessor&, float x, float y) = 0; // 0<=xy<=1 в размерах сцены
+		virtual float get_coord(int axe, float x) const {
+			if(flips&1<<axe) x = 1-x;
+			return logscale&1<<aI[axe] ? bmin[axe]*pow(bmax[axe]/bmin[axe], x) : bmin[axe]+(bmax[axe]-bmin[axe])*x;
+		}
+		virtual int get_pos(int axe, float x) const { if(flips&1<<axe){ x = 1-x; } return bbeg[axe]+bbox[axe]*x; } 
+
+		virtual int coord2pos(int i, float x) const {
+			return logscale&1<<i ? log(x/bmin0[i])/exp(log(bmax0[i]/bmin0[i])/bbox0[i]) : (x-bmin0[i])/(bmax0[i]-bmin0[i])*bbox0[i];
+		}
+		virtual float pos2coord(int i, int p) const {
+			return logscale&1<<i ? bmin0[i]*pow(exp(log(bmax0[i]/bmin0[i])/bbox0[i]), p+.5) : bmin0[i]+(bmax0[i]-bmin0[i])/bbox0[i]*(p+.5);
+		}
+			
+		virtual ~QpltContainer(){} // data_free(); } 
+		// pack/unpack, features, seGY и пр?
+	};
+	//--------------------------------------------------------------------------
+	class QpltFactory{
+		std::vector<std::vector<QpltContainer*> > table;
+		File last_fin; int last_frame;
+	public:
+		int get_sz() const { return table.size(); }
+		int get_file_sz(int fileID) const { return table.at(fileID).size(); } // число загруженных фреймов в файле
+		const char *get_file_name(int fileID) const { return table.at(fileID).at(0)->fname(); }
+		
+		bool open_file(const char* fname); // поддержка GZ файлов?  
+		bool load_frame();
+		bool skip_frame();
+		void close_file(); 
+		
+		const QpltContainer* get_frame(int fileID, int frameID) const { return table.at(fileID).at(0); }
+		void free_frame(int fileID, int frameID);
+		void free_file(int fileID);
+	};
+	//--------------------------------------------------------------------------	
+}   // end of namespace aiw
+#endif //AIW_QPLT_BASE_HPP
