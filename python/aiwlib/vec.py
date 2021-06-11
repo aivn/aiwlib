@@ -306,6 +306,16 @@ class Vec:
 def iterbox(bbox):
     bbox, pos = Ind(bbox), Ind(D=len(bbox))
     while pos<bbox: yield pos; pos[0] += 1; pos ^= bbox
+def Range(a, b=None):
+    if b is None: a, b = Ind(D=len(a)), Ind(a)
+    else: a, b = Ind(a), Ind(b)
+    pos, bmax, R = Ind(a), b[-1], range(len(a)-1)
+    while pos[-1]<bmax:
+        yield pos
+        pos[0] += 1
+	for i in R: 
+	    if pos[i]<b[i]: break 
+	    else: pos[i] = a[i]; pos[i+1] += 1
 #-------------------------------------------------------------------------------
 def angle(a, b, c):    
     ab, bc = b-a, c-b; ab /= ab.abs(); bc /= bc.abs()
@@ -329,7 +339,7 @@ class Vecf(Vec):
     def __init__(self, *args, **kw_args): kw_args['T'] = 'float'; Vec.__init__(self, *args, **kw_args)
 vecf = lambda *args, **kw_args: Vecf(*args, **kw_args)
 
-__all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle', 'iterbox']
+__all__ = ['Vec', 'vec', 'Ind', 'ind', 'Vecf', 'vecf', 'angle', 'iterbox', 'Range']
 #-------------------------------------------------------------------------------
 #add_swig_types_table(SwigTypesTable())
 #print '======================================================'

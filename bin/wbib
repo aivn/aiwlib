@@ -43,11 +43,14 @@ def normalize_name(a):
                 L += [(j if j[-1]=='.' else j+'.') for j in Q]
     if all(len(i)-(i[-1]=='.')==1 for i in L): return ''
     return ' '.join(L)
-def match_name(A, B): # ==> True or False
-    for a, b in zip(*[''.join(i if i.isalnum() or i=='.' else ' ' for i in x.replace('.', '. ').lower().replace('ё', 'е')).split() for x in (A, B)]):
-        i = min(len(a)-(a[-1]=='.'), len(b)-(b[-1]=='.'))
-        if a[:i]!=b[:i]: return False
-    return True
+def match_word(a, b): # ==> 0 | 1 | 100
+    if a==b: return 100
+    i = min(len(a)-(a[-1]=='.'), len(b)-(b[-1]=='.'))
+    return a[:i]==b[:i]
+def match_name(A, B, strong_len): # ==>  0 --- хотя бы одно несовпадение, иначе N+10*M где N - короткие совпадаения, M - полные
+    A, B = [''.join(i if i.isalnum() or i=='.' else ' ' for i in x.replace('.', '. ').lower().replace('ё', 'е')).split() for x in (A, B)]
+    L = [match_word(a, b) for a, b in zip(A,B)]
+    return 0 if not all(L) or (strong_len and len(A)!=len(B))  else sum(L) 
 # norm = lambda l: ' '.join(l.replace('`', "’").replace("'", "’").split())
 #-------------------------------------------------------------------------------
 #   структура данных
@@ -62,9 +65,9 @@ class Node:
         return self.__dict__.setdefault(key, set())
     def __setitem__(self, key, val): self.__dict__.setdefault(key, set()).add(val)
     #def __getattr__(self, key): return self[key]
-    def match(self, val):
-        if is_eng(val): return any(match_name(val, x) for x in self['en']) or any(match_name(val, trans(x)) for x in self['ru'])
-        else: tval = trans(val); return any(match_name(val, x) for x in self['ru']) or any(match_name(tval, x) for x in self['en'])
+    def match(self, val, sl):
+        if is_eng(val): return max([match_name(val, x, sl) for x in self['en']]+[match_name(val, trans(x), sl) for x in self['ru']])
+        else: tval = trans(val); return max([match_name(val, x, sl) for x in self['ru']]+[match_name(tval, x, sl) for x in self['en']])
     def lang(self): return [l for l in ('en','ru') if self.__dict__.get(l)]
     def _prefix(self, lb):
         la = self.lang()
@@ -124,12 +127,18 @@ class Table:
         node.add_name(name, **kw_args)
         nodes = self.name_index.setdefault(name, [])
         if not node in nodes: nodes.append(node)        
-    def bib_add(self, name, fname, line, **kw_args):
+    def bib_add(self, name, fname, line, strong_len, **kw_args):
         if not name: return ['']
-        nodes = self.name_index.get(name, [])
-        if not nodes: nodes = [node for node in self.data if node.match(name)]
+        nodes, single = self.name_index.get(name, []), True
+        if not nodes:
+            match_nodes = {}
+            for node in self.data:
+                match = node.match(name, strong_len)
+                if match: match_nodes.setdefault(match, []).append(node)
+            if match_nodes: nodes = match_nodes[max(match_nodes)]
+            single = len(nodes)==1 and max(match_nodes)>=2
 #        print(name, fname, line, kw_args, nodes)
-        if len(nodes)==1: self._bib_add2node(nodes[0], name, **kw_args); return nodes[0].keys  # добавляем данные к существующей ноде
+        if single: self._bib_add2node(nodes[0], name, **kw_args); return nodes[0].keys  # добавляем данные к существующей ноде
         elif nodes:  # разрешаем неоднозначность
             print('\nВозникла неоднозначность при добавлении "%s" из  %s:%s'%(name, fname, line))
             for k, v in kw_args.items(): print('    %s: %s'%(k, v))
@@ -247,10 +256,10 @@ def load_bib(f):
         if ' and ' in auths: auths = auths.split(' and ')
         elif auths.count(',')>=2: auths = auths.split(',')
         else: auths = [auths]
-        data['author'] = [authors.bib_add(normalize_name(a), f, pID)[0] for a in auths]
+        data['author'] = [authors.bib_add(normalize_name(a), f, pID, False)[0] for a in auths]
         if not all(data['author']): print('Incorrect author in', auths, f+':'+pID, 'skipped'); del data['author']; continue
         jdata = dict([(k, data.pop(k)) for k in ['publisher'] if k in data])
-        data['journal'] = journals.bib_add(data.get('journal', data['ENTRYTYPE']), f, pID, **jdata)[0]
+        data['journal'] = journals.bib_add(data.get('journal', data['ENTRYTYPE']), f, pID, True, **jdata)[0]
         for k in ('language', 'ENTRYTYPE'): data.pop(k, None)
     for data in bibdata:
         if not 'author' in data or  not 'year' in data:  continue

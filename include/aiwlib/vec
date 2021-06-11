@@ -384,8 +384,55 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <int D, typename T> inline bool is_bad_value(const Vec<D, T> &v){ return v.cknan() || v.ckinf(); }
 	template <int D, typename T> inline T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return sqrt(s); }
-	inline double fabsV(double x){ return ::fabs(x); } 
+	inline double fabsV(double x){ return ::fabs(x); }
 	//--------------------------------------------------------------------------
+	//   new style
+	//--------------------------------------------------------------------------
+	template <int D, typename T> inline T prod(const Vec<D, T> &v){ T r = v[0]; for(int i=1; i<D; i++){ r *= v[i]; } return r;  }
+	template <int D> inline int64_t prod(const Ind<D> &v){ int64_t r = v[0]; for(int i=1; i<D; i++){ r *= v[i]; } return r;  }
+	//--------------------------------------------------------------------------
+    template <int D> struct IndRange{
+		Ind<D> a, b;
+	
+		IndRange(){}
+		IndRange(const Ind<D> &b_): b(b_){}
+		IndRange(const Ind<D> &a_, const Ind<D> &b_): a(a_), b(b_){}
+			
+		class iterator {
+			Ind<D> a, b, pos; bool is_active;
+		public:
+			iterator(): is_active(false) {}
+			iterator(const Ind<D> &a_, const Ind<D> &b_): a(a_), b(b_), pos(a_), is_active(true){}
+	
+			const Ind<D>& operator *() const { return pos; }
+			void operator ++ (){
+				pos[0]++;
+				for(int i=0; i<D-1; i++) 
+					if(pos[i]<b[i]) return; 
+					else{ pos[i] = a[i]; pos[i+1]++; }
+				is_active = pos[D-1]<b[D-1];
+			}
+			bool operator != (const iterator&) const { return is_active; }
+		};
+		iterator begin() const { return iterator(a, b); }
+		iterator end() const { return iterator(); }
+    };
+	template <int D> inline IndRange<D> range(const Ind<D> &b){ return IndRange<D>(b); }
+	template <int D> inline IndRange<D> range(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
+	//--------------------------------------------------------------------------
+	template <int D> class BoxIter {
+		Ind<D> a, b, box, pos; size_t f = 0;
+	public:
+		BoxIter(){}
+		BoxIter(const Ind<D> &b_): b(b_), box(b_){}
+		BoxIter(const Ind<D> &a_, const Ind<D> &b_): a(a_), b(b_), box(b-a), pos(a_) {}
+		const Ind<D>& operator * () const { return pos; }
+		void operator ()(size_t f2){
+			pos[0] += f2-f; f = f2;
+			if(pos[0]>=b[0]) pos = a+f%box;
+		}
+	};
+	//--------------------------------------------------------------------------	
 }   // end of namespace aiw
 
 namespace std{

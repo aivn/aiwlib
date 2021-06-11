@@ -17,7 +17,7 @@ void ZipAdaptiveMesh<T, D>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN
 	// 2. возможна гонка данных даже в однопоточном варианте,
 	//    необходимо делать буферную зону шириной в одно дерево при перестроении данных,
 	//    т.е. перестроение одного дерева должно быть двухстадийным?
-	for(Tree &tree: *this) rebuild_t(tree, f_check, f_split, f_join);
+	for(tree_t &tree: forest) rebuild_t(tree, f_check, f_split, f_join);
 	set_max_rank_box_step();
 }
 //------------------------------------------------------------------------------
@@ -42,7 +42,7 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::copy_tile(F_SPLIT &&f_split, F_JOIN &&f_j
 //------------------------------------------------------------------------------
 // f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell &src_chunk_start, T& dst)  ??? 
 template <typename T, int D> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
-ZipAdaptiveMesh<T, D>::rebuild_t::rebuild_t(ZipAdaptiveMesh<T, D>::Tree tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){	
+ZipAdaptiveMesh<T, D>::rebuild_t::rebuild_t(ZipAdaptiveMesh<T, D>::tree_t &tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){	
 	tr = tree.tree;
 	for(Cell &c: tree){ // проходим дерево, накапливаем изменения в splits и joins
 		if(c.tR && (c.toff&Dbits)==0){  // это начало чанка и возможно этот чанк потребует слияния
@@ -84,7 +84,15 @@ ZipAdaptiveMesh<T, D>::rebuild_t::rebuild_t(ZipAdaptiveMesh<T, D>::Tree tree, F_
 		for(auto &p: tiles){ int dR = p.second.get_rank()-p.first.get_rank(); ranks.at(p.first.get_off()>>(dR*D), dR); }
 		ranks.reduce([](uint8_t a, uint8_t b){ return std::min(a, b); });		
 		tr->tree.clear(); build_tree(0, 0, -1); tr->tree.shrink_to_fit();
-	}
+
+
+		
+		// 4. расчет индексов
+		// tree.tiles.clear(); int coff = 0, toff = 0;
+		// for(ptile_t p: tree.tree) if(!p.get_sign()){
+		//		
+		//	}
+	}	
 }
 //------------------------------------------------------------------------------
 // trI==-1 означает tr->root,  возвращает новый tiles_off

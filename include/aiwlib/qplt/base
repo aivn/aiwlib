@@ -69,7 +69,7 @@ namespace aiw{
 		virtual const char* get_axe_name0(int i) const { return axes[i].c_str(); } 
 		virtual float get_bmin0(int i) const { return bmin0[i]; }  
 		virtual float get_bmax0(int i) const { return bmax0[i]; }  
-		virtual bool get_logscale0(int i) const { return logscale&(1<<i); }  /
+		virtual bool get_logscale0(int i) const { return logscale&(1<<i); }  
 
 		// вызывается перед plot, устанавливает bbox, bbeg, bmin, bmax, настраивает пределы в Slice и вызывает prepare_impl
 		virtual void prepare(QpltScene&, QpltAccessor&, QpltColor&) = 0;
@@ -89,6 +89,8 @@ namespace aiw{
 		virtual float pos2coord(int i, int p) const {
 			return logscale&1<<i ? bmin0[i]*pow(exp(log(bmax0[i]/bmin0[i])/bbox0[i]), p+.5) : bmin0[i]+(bmax0[i]-bmin0[i])/bbox0[i]*(p+.5);
 		}
+
+		virtual void prepare3D(QpltScene&, int Nx, int Ny) const; 
 			
 		virtual ~QpltContainer(){} // data_free(); } 
 		// pack/unpack, features, seGY и пр?

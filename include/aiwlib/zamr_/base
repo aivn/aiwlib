@@ -20,6 +20,7 @@ template <typename T, int D> T& ZipAdaptiveMesh<T, D>::get(Ind<D> pos){
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::set_max_rank_box_step(){ // устанавливает max_rank, box и шаги
 	max_rank = 0; for(auto &t: forest) max_rank = std::max(t.max_rank, max_rank);
 	box = forest.bbox()*(1<<max_rank); this->set_axes(bmin, bmax);
+	for(int i=0; i<rank_lim+1; i++) steps[i] = forest.step/(1<<i);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0){
@@ -28,8 +29,11 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const
 	forest.init(tbox, bmin_, bmax_);
 	for(Ind<D> pos; pos^=tbox; ++pos){
 		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&step);
-		t.max_rank = R0; t.tree.clear(); t.data.resize(1<<(R0*D)); t.root = ptile_t(0, R0);
+		t.max_rank = R0; t.tree.clear(); t.data.resize(1<<(R0*D)); t.root = ptile_t(0, R0, 0);
+		t.tiles.resize(2); t.tiles[0] = t.tiles[1] = R0;
+		WOUT(t.root.get_sign(), t.root.get_off(), t.root.get_rank());
 	}
+	set_max_rank_box_step();
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> size_t ZipAdaptiveMesh<T, D>::memsz() const { // размер памяти в байтах
@@ -40,7 +44,8 @@ template <typename T, int D> size_t ZipAdaptiveMesh<T, D>::memsz() const { // р
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::dump(IOstream&& S) const {
 	BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T); bf.D |= 1<<30; bf.box = nullptr;
-	bf.tinfo.root = T()^bf.tinfo; bf.dump(S); S<forest.bbox(); for(auto &t: forest) t.dump(S);
+	// bf.tinfo.root = T()^bf.tinfo;
+	bf.dump(S); S.dump(forest.bbox()); for(auto &t: forest) t.dump(S);
 	S.flush();
 }
 //------------------------------------------------------------------------------
@@ -57,15 +62,50 @@ template <typename T, int D> bool ZipAdaptiveMesh<T, D>::load(IOstream&& S, int 
 	return true;
 }
 //------------------------------------------------------------------------------
-template <typename T, int D>  template <typename dT, typename F1, typename F2> void ZipAdaptiveMesh<T, D>::foreach2Xdt(F1 &&f1, F2 &&f2, dT dt){
-	// это можно сделать параллельным по лесу
-	// проход по дереву можно сделать селективным по рангу? Хотя неясно какой это даст выигрыш (не более чем в два раза)?
-	dT dt_arr[max_rank+1] = {dt}; for(int i=1; i<=max_rank; i++) dt_arr[i] = dt_arr[i-1]/2;
-	for(int i=0; i<(1<<max_rank); i++){
-		for(auto t: *this) for(auto C: t) if(!(i%(1<<(max_rank-C.rank())))) f1(C, i>>(max_rank-C.rank()), dt_arr[C.rank()]);
-		for(auto t: *this) for(auto C: t) if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, (i+1)>>(max_rank-C.rank()), dt_arr[C.rank()]);
+template <typename T, int D>  template <typename F> void ZipAdaptiveMesh<T, D>::foreach(F &&f, int min_rank, int ti){
+	for(tree_t& tr: forest){ // это можно сделать параллельным
+		Cell C; if(!tr.get_first(C, min_rank)) continue;
+		WOUT(min_rank, max_rank, ti);
+		do{ f(C, ti>>(max_rank-C.rank())); } while(C.next(min_rank));
 	}
 }
 //------------------------------------------------------------------------------
-
+template <typename T, int D>  template <typename F1, typename F2> void ZipAdaptiveMesh<T, D>::foreach2Xdt(F1 &&f1, F2 &&f2){
+	// это можно сделать параллельным по лесу
+	// проход по дереву можно сделать селективным по рангу? Хотя неясно какой это даст выигрыш (не более чем в два раза)?	
+	for(int i=0; i<(1<<max_rank); i++){
+		int min_rank = max_rank; while(min_rank>0 && (i&(1<<(max_rank-min_rank))==0)) min_rank--;
+		foreach(f1, min_rank, i);
+		min_rank = max_rank; while(min_rank>0 && ((i+1)&(1<<(max_rank-min_rank))==0)) min_rank--;
+		foreach(f2, min_rank, i+1);
+		/*
+		for(tree_t& tr: forest){
+			Cell C; tr.get_first(C);
+			do{
+				if(!(i%(1<<(max_rank-C.rank())))) f1(C, i>>(max_rank-C.rank()));
+				C.next_all_rank();
+			} while(C);
+		}
+		for(tree_t& tr: forest){
+			Cell C; tr.get_first(C);
+			do{
+				if(!((i+1)%(1<<(max_rank-C.rank())))) f2(C, (i+1)>>(max_rank-C.rank()));
+				C.next_all_rank();
+			} while(C);
+		}
+		*/
+	}
+}
+//------------------------------------------------------------------------------
+template <typename T, int D>  void ZipAdaptiveMesh<T, D>::out2dat(IOstream&& S){
+	foreach([&](Cell &C, int){
+			Vec<2> a = C.bmin()(0,1), b = a+C.step()(0,1); 
+			S("% % %\n", a, C.rank(), *C);
+			S("% % % %\n", a[0], b[1], C.rank(), *C);
+			S("% % %\n", b, C.rank(), *C);
+			S("% % % %\n", b[0], a[1], C.rank(), *C);
+			S("% % %\n\n\n", a, C.rank(), *C);
+		});
+} 
+//------------------------------------------------------------------------------
 #endif //AIW_ZIP_AMR_BASE_HPP

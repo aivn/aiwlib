@@ -31,7 +31,7 @@ for i, p in enumerate(qplt.QpltColor.get_pals()):
     win.paletter.setItemIcon(i, QtGui.QIcon(QtGui.QPixmap(QtGui.QImage(qplt.QpltColor.plot_pal(p, pico[0], pico[1], False).rgb888(),
                                                                        pico[0], pico[1], QtGui.QImage.Format_RGB888)))) 
 win.paletter.setCurrentText('rainbow')
-win.plot_dim.addItems(['2D', '3D'])
+win.D3.addItems(['2D', '3D'])
 
 win.celldim.addItems(['1', '2', '3'])
 win.celltype.addItems(['float', 'double', 'bool', 'uint8_t', 'int8_t', 'uint16_t', 'int16_t', 'uint32_t', 'int32_t', 'uint64_t', 'int64_t'])
@@ -79,7 +79,7 @@ def show_axes_info(*args):
 
 qplt_canvas.show_axes_info = show_axes_info        
 for i in range(1,9): getattr(win, 'fr_axe%i'%i).hide()
-win.show_axes_info.stateChanged(show_axes_info)
+win.show_axes_info.stateChanged.connect(show_axes_info)
 #-------------------------------------------------------------------------------
 
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
@@ -92,7 +92,7 @@ def autoscale(*args):
 win.autoscale.stateChanged.connect(autoscale)
 for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z'.split():
     getattr(win, l).editingFinished.connect(replot)
-for l in 'paletter celldim celltype diff vconv xinterp yinterp plot_dim D3scale_mode'.split(): getattr(win, l).activated.connect(replot)
+for l in 'paletter celldim celltype diff vconv xinterp yinterp D3 D3scale_mode'.split(): getattr(win, l).activated.connect(replot)
 for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(replot)
 def slice_replot(pos, sl_num):
     mesh, sl_axe = factory.get_frame(win.filenum.value(), win.framenum.value()), canvas.slices_table[sl_num]

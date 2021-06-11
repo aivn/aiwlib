@@ -3,7 +3,7 @@
 
 from PyQt5 import QtWidgets, QtGui, QtCore
 import time
-from tics import *
+from aiwlib.tics import *
 #-------------------------------------------------------------------------------
 class Canvas(QtWidgets.QWidget):
     # каждый раз класс создается заново (императивно) или обновляется то что было создано (декларативно)?
@@ -13,10 +13,10 @@ class Canvas(QtWidgets.QWidget):
         self.win, self.plt_type, self.mouse_coord, self.select_mode = win, 1, (0, 0), 0  
         self.X, self.Y, self.im = [0]*3, [0]*3, None  # границы подобластей в пикселях, нужны для обработки событий мыши и пр
         self.slices_table = []  # номера осей отображаемых на срезах
-        self.setCursor(QtCore.Qt.BlankCursor)
+        #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
-    def save(self, path):
+    def save(self):
         path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)')
         if ok:
             if not path.endswith('.png') and not path.endswith('.PNG'): path += '.png'
@@ -25,6 +25,43 @@ class Canvas(QtWidgets.QWidget):
             #pixmap_to_save = pixmap.scaled(self.w.value(), self.h.value(), \
             #    transformMode = Qt.SmoothTransformation if self.smooth.isChecked() else Qt.FastTransformation)
             #pixmap_to_save.save(path, 'PNG')
+    #--------------------------------------------------------------------------
+    def plot2D(self, paint):
+        win = self.win
+        tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
+        h_font = text_sz('1', paint, True)
+
+        # рисуем ось Y
+        paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
+        tics, max_tic_sz, stics = make_tics([mesh.get_bmin(1), mesh.get_bmax(1)], mesh.get_logscale(1),
+                                                self.Y[1]-self.Y[0], True, paint, scene.get_flip(1))
+        self.X[0] = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
+        for y in stics: paint.drawLine(self.X[0]-tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
+        for y, t in tics:
+            paint.drawLine(self.X[0]-2*tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
+            paint.drawText(self.X[0]-2*tl-max_tic_sz, self.Y[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
+        if win.y_text.text():
+            paint.rotate(-90)
+            paint.drawText(-self.Y[1], 0, self.Y[1]-self.Y[0], h_font, QtCore.Qt.AlignHCenter, win.y_text.text())
+            paint.rotate(90)
+
+        # рисуем ось X
+        tics, max_tic_sz, stics = make_tics([mesh.get_bmin(0), mesh.get_bmax(0)], mesh.get_logscale(0),
+                                            self.X[1]-self.X[0], False, paint, scene.get_flip(0))
+        for x in stics: paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+tl)
+        for x, t in tics:                
+            paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+2*tl)
+            paint.drawText(self.X[0]+x-max_tic_sz/2, self.Y[1]+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
+        if win.x_text.text(): paint.drawText(self.X[0], self.Y[2]-h_font, self.X[1]-self.X[0], h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
+
+        # рисуем главное изображение
+        paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
+        paint.drawRect(self.X[0], self.Y[0], self.X[1]-self.X[0], self.Y[1]-self.Y[0])
+            
+        t1 = time.time()
+        qplt_im = qplt.QpltImage(self.X[1]-self.X[0]-bw, self.Y[1]-self.Y[0]-bw)#; qplt_im.fill(0xFF)
+        mesh.plot(scene, accessor, color, qplt_im)
+        return qplt_im, time.time()-t1
     #--------------------------------------------------------------------------
     def leaveEvent(self, event):
         self.plt_type &= 3
@@ -51,7 +88,8 @@ class Canvas(QtWidgets.QWidget):
             
             win.cellsize.setText(str(mesh.get_szT()))
             
-            scene.autoscale, scene.autoscale_tot, scene.D3scale_mode = win.autoscale.isChecked(), win.autoscale_tot.isChecked(), win.D3scale_mode.currentIndex()
+            scene.autoscale, scene.autoscale_tot = win.autoscale.isChecked(), win.autoscale_tot.isChecked()
+            scene.D3, scene.D3scale_mode = bool(win.D3.currentIndex()), win.D3scale_mode.currentIndex()
             for i in 'xyz': setattr(scene, 'd'+i, float(getattr(win, 'D3cell_'+i).text()))            
             scene.set_flip(0, win.xflip.isChecked()); scene.set_interp(0, win.xinterp.currentIndex()); scene.set_axe(0, win.x_axe.currentIndex())
             scene.set_flip(1, win.yflip.isChecked()); scene.set_interp(1, win.yinterp.currentIndex()); scene.set_axe(1, win.y_axe.currentIndex())
@@ -79,7 +117,7 @@ class Canvas(QtWidgets.QWidget):
                     getattr(win, 'fr_slice%i'%i).show(); sl.setMaximum(sz-1)
                     #scene.set_pos(sl_axe, mesh.pos2coord(sl_axe, sl.value()))
                     sl.setValue(mesh.coord2pos(sl_axe, scene.get_pos(sl_axe)))
-                    getattr(win, 'slicelbl%i'%i).setText(mesh.get_axe_name(sl_axe).decode()+'[%i]'%sl.value())
+                    getattr(win, 'slicelbl%i'%i).setText(mesh.get_axe_name0(sl_axe).decode()+'[%i]'%sl.value())
                     self.slices_table.append(sl_axe)
                     #scene.set_pos(scene.get_axe(2), ...  ???)
                 else: getattr(win, 'fr_slice%i'%i).hide()
@@ -126,39 +164,15 @@ class Canvas(QtWidgets.QWidget):
                     paint.rotate(90)
             else: self.X[1] = sz_x
                 
-            # рисуем ось Y
-            paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
-            tics, max_tic_sz, stics = make_tics([mesh.get_bmin(1), mesh.get_bmax(1)], mesh.get_logscale(1),
-                                                self.Y[1]-self.Y[0], True, paint, scene.get_flip(1))
-            self.X[0] = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
-            for y in stics: paint.drawLine(self.X[0]-tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
-            for y, t in tics:
-                paint.drawLine(self.X[0]-2*tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
-                paint.drawText(self.X[0]-2*tl-max_tic_sz, self.Y[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
-            if win.y_text.text():
-                paint.rotate(-90)
-                paint.drawText(-self.Y[1], 0, self.Y[1]-self.Y[0], h_font, QtCore.Qt.AlignHCenter, win.y_text.text())
-                paint.rotate(90)
-
-            # рисуем ось X
-            tics, max_tic_sz, stics = make_tics([mesh.get_bmin(0), mesh.get_bmax(0)], mesh.get_logscale(0),
-                                                self.X[1]-self.X[0], False, paint, scene.get_flip(0))
-            for x in stics: paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+tl)
-            for x, t in tics:                
-                paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+2*tl)
-                paint.drawText(self.X[0]+x-max_tic_sz/2, self.Y[1]+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
-            if win.x_text.text(): paint.drawText(self.X[0], self.Y[2]-h_font, self.X[1]-self.X[0], h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
-
-            # рисуем главное изображение
-            paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
-            paint.drawRect(self.X[0], self.Y[0], self.X[1]-self.X[0], self.Y[1]-self.Y[0])
+            if scene.D3:
+                mesh.prepare3D(scene, self.X[1]-20, self.Y[1]-20)
+                for i in range(6): paint.drawLine(scene.get_flpoint_x(i)+10, scene.get_flpoint_y(i)+10, scene.get_flpoint_x(i+1)+10, scene.get_flpoint_y(i+1)+10) 
+                for i in range(3): paint.drawLine(scene.get_flpoint_x(2*i)+10, scene.get_flpoint_y(2*i)+10, scene.get_flcenter_x()+10, scene.get_flcenter_y()+10) 
+            else:
+                qplt_im, dT = self.plot2D(paint);  T += dT
             
-            t1 = time.time()
-            qplt_im = qplt.QpltImage(self.X[1]-self.X[0]-bw, self.Y[1]-self.Y[0]-bw)#; qplt_im.fill(0xFF)
-            mesh.plot(scene, accessor, color, qplt_im)
-            T += time.time()-t1
-            im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
-            paint.drawImage(self.X[0]+bw, self.Y[0]+bw, im)
+                im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
+                paint.drawImage(self.X[0]+bw, self.Y[0]+bw, im)
             # paint.drawImage(self.X[0]+bw, self.Y[0]+bw, QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB888))
     
             if scene.autoscale:  win.f_min.setText('%g'%color.get_min()); win.f_max.setText('%g'%color.get_max())
@@ -180,18 +194,21 @@ class Canvas(QtWidgets.QWidget):
                 if (not self.select_mode and self.X[1]<x and self.Y[0]<y and y<self.Y[1]) or self.select_mode&1:  # палитра
                     paint.drawLine(self.X[1]+ps, y, self.X[2], y); paint.setPen(C) 
                     paint.drawText(self.X[1], y, self.X[2]-self.X[1], 1000, QtCore.Qt.AlignRight, '%g'%color.get_f(xy[1]))
-                if (not self.select_mode and x<self.X[1] and self.Y[0]<y and y<self.Y[1]) or self.select_mode&4:  # выбор по Y
-                    paint.drawLine(self.X[0], y, self.X[1], y); paint.setPen(C)
-                    paint.drawText(0, y-500, self.X[0], 1000, QtCore.Qt.AlignVCenter, '%g\n[%g]'%(mesh.get_coord(1, xy[1]), mesh.get_pos(1, xy[1])))                
-                if (not self.select_mode and self.Y[0]<y and self.X[0]<x and x<self.X[1]) or self.select_mode&2:  # выбор по X
-                    paint.setPen(QtCore.Qt.gray); paint.drawLine(x, self.Y[0], x, self.Y[1]);  paint.setPen(C) 
-                    paint.drawText(x-500, self.Y[2]-500, 1000, 500, QtCore.Qt.AlignHCenter|QtCore.Qt.AlignBottom,
-                                   '%g\n[%g]'%(mesh.get_coord(0, xy[0]), mesh.get_pos(0, xy[0])))
-                if not self.select_mode and self.Y[0]<y and y<self.Y[1] and self.X[0]<x and x<self.X[1]:
-                    text = mesh.get(scene, accessor, xy[0], xy[1]).decode()
-                    rect = paint.boundingRect(x, y, 1000, 1000, 0, text)
-                    paint.fillRect(rect, QtCore.Qt.white)
-                    paint.setPen(QtCore.Qt.red); paint.drawText(x, y, rect.width(), rect.height(), 0, text)
+                if scene.D3:
+                    pass
+                else:
+                    if (not self.select_mode and x<self.X[1] and self.Y[0]<y and y<self.Y[1]) or self.select_mode&4:  # выбор по Y
+                        paint.drawLine(self.X[0], y, self.X[1], y); paint.setPen(C)
+                        paint.drawText(0, y-500, self.X[0], 1000, QtCore.Qt.AlignVCenter, '%g\n[%g]'%(mesh.get_coord(1, xy[1]), mesh.get_pos(1, xy[1])))                
+                    if (not self.select_mode and self.Y[0]<y and self.X[0]<x and x<self.X[1]) or self.select_mode&2:  # выбор по X
+                        paint.setPen(QtCore.Qt.gray); paint.drawLine(x, self.Y[0], x, self.Y[1]);  paint.setPen(C) 
+                        paint.drawText(x-500, self.Y[2]-500, 1000, 500, QtCore.Qt.AlignHCenter|QtCore.Qt.AlignBottom,
+                                       '%g\n[%g]'%(mesh.get_coord(0, xy[0]), mesh.get_pos(0, xy[0])))
+                    if not self.select_mode and self.Y[0]<y and y<self.Y[1] and self.X[0]<x and x<self.X[1]:
+                        text = mesh.get(scene, accessor, xy[0], xy[1]).decode()
+                        rect = paint.boundingRect(x, y, 1000, 1000, 0, text)
+                        paint.fillRect(rect, QtCore.Qt.white)
+                        paint.setPen(QtCore.Qt.red); paint.drawText(x, y, rect.width(), rect.height(), 0, text)
 
         show_status = not hasattr(self, 'status')
         if T: self.status = 'x'.join('[%i]'%mesh.get_bbox0(i) for i in range(mesh.get_dim()))+' replot %0.2g/%0.2g sec'%(T, time.time()-t0)
@@ -200,12 +217,18 @@ class Canvas(QtWidgets.QWidget):
     def mouseMoveEvent(self, event):
         self.plt_type |= 4
         self.mouse_coord = event.x(), event.y()
-        self.update()
+        if scene.D3 and self.select_mode==8:
+            scene.phi -= (event.x()-self.mouse_press_coord[0])*.1  # ???
+            scene.theta -= (event.y()-self.mouse_press_coord[1])*.1
+            self.mouse_press_coord = event.x(), event.y()
+            self.plt_type = 1; self.update()
+        else: self.update()
     def mousePressEvent(self, event):
-        x, y = event.x(), event.y()
+        x, y = event.x(), event.y()        
         if self.X[1]<x and self.Y[0]<y and y<self.Y[1]: self.select_mode = 1   # палитра
         if self.X[0]<x and x<self.X[1] and y>self.Y[0]: self.select_mode = 2   # X
         if x<self.X[1] and self.Y[0]<y and y<self.Y[1]: self.select_mode |= 4  # Y
+        if scene.D3 and self.select_mode!=1: self.select_mode = 8
         if self.select_mode: self.mouse_press_coord = x, y
     def mouseReleaseEvent(self, event):
         if self.select_mode:
@@ -219,11 +242,17 @@ class Canvas(QtWidgets.QWidget):
             #                       float(win.f_min.text()), float(win.f_max.text()), win.logscale.isChecked())
             win.f_min.setText('%g'%color.get_f(Y[0]))
             win.f_max.setText('%g'%color.get_f(Y[1]))
-        if self.select_mode&6: mesh = factory.get_frame(win.filenum.value(), win.framenum.value())
-        if self.select_mode&2: scene.set_min_max(0, mesh.get_coord(0, X[0]), mesh.get_coord(0, X[1]))  # ось X            
-        if self.select_mode&4: scene.set_min_max(1, mesh.get_coord(1, Y[0]), mesh.get_coord(1, Y[1]))  # ось Y
-        print('select [%g:%g]x[%g:%g]'%(scene.get_min(0), scene.get_max(0), scene.get_min(1), scene.get_max(1)))
-        if self.select_mode: self.plt_type, self.select_mode = 1, 0; self.update()
+        if scene.D3:
+            self.select_mode = 0
+            #scene.phi += (event.x()-self.mouse_press_coord[0])*.003
+            #scene.theta += (event.y()-self.mouse_press_coord[1])*.003
+            #self.plt_type = 1; self.update()
+        else:
+            if self.select_mode&6: mesh = factory.get_frame(win.filenum.value(), win.framenum.value())
+            if self.select_mode&2: scene.set_min_max(0, mesh.get_coord(0, X[0]), mesh.get_coord(0, X[1]))  # ось X            
+            if self.select_mode&4: scene.set_min_max(1, mesh.get_coord(1, Y[0]), mesh.get_coord(1, Y[1]))  # ось Y
+            #print('select [%g:%g]x[%g:%g]'%(scene.get_min(0), scene.get_max(0), scene.get_min(1), scene.get_max(1)))
+            if self.select_mode: self.plt_type, self.select_mode = 1, 0; self.update()
     def mouseDoubleClickEvent(self, event):
         self.plt_type, x, y = 1, event.x(), event.y()
         if self.X[1]<x and self.Y[0]<y and y<self.Y[1]:  # вернуть автошкалирование палитры

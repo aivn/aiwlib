@@ -56,7 +56,7 @@ def make_tics(limits, logscale, N, orient, font_sz):
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
     else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
-    t2p = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер знаечния в позицию
+    t2p = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
     try: return [(t2p(t), num2str(t)) for t in tics], (max(len(num2str(t))*font_sz for t in tics) if orient else font_sz), map(t2p, stics)
     except ValueError as e: return [(0, num2str(t)) for t in tics], (max(len(num2str(t))*font_sz for t in tics) if orient else font_sz), [0]*len(stics)
 #-------------------------------------------------------------------------------

@@ -1205,18 +1205,52 @@ class QpltScene(_object):
     __swig_getmethods__["phi"] = _qplt.QpltScene_phi_get
     if _newclass:
         phi = _swig_property(_qplt.QpltScene_phi_get, _qplt.QpltScene_phi_set)
-    __swig_setmethods__["X0"] = _qplt.QpltScene_X0_set
-    __swig_getmethods__["X0"] = _qplt.QpltScene_X0_get
+    __swig_setmethods__["dx"] = _qplt.QpltScene_dx_set
+    __swig_getmethods__["dx"] = _qplt.QpltScene_dx_get
     if _newclass:
-        X0 = _swig_property(_qplt.QpltScene_X0_get, _qplt.QpltScene_X0_set)
-    __swig_setmethods__["Y0"] = _qplt.QpltScene_Y0_set
-    __swig_getmethods__["Y0"] = _qplt.QpltScene_Y0_get
+        dx = _swig_property(_qplt.QpltScene_dx_get, _qplt.QpltScene_dx_set)
+    __swig_setmethods__["dy"] = _qplt.QpltScene_dy_set
+    __swig_getmethods__["dy"] = _qplt.QpltScene_dy_get
     if _newclass:
-        Y0 = _swig_property(_qplt.QpltScene_Y0_get, _qplt.QpltScene_Y0_set)
-    __swig_setmethods__["scale"] = _qplt.QpltScene_scale_set
-    __swig_getmethods__["scale"] = _qplt.QpltScene_scale_get
+        dy = _swig_property(_qplt.QpltScene_dy_get, _qplt.QpltScene_dy_set)
+    __swig_setmethods__["dz"] = _qplt.QpltScene_dz_set
+    __swig_getmethods__["dz"] = _qplt.QpltScene_dz_get
     if _newclass:
-        scale = _swig_property(_qplt.QpltScene_scale_get, _qplt.QpltScene_scale_set)
+        dz = _swig_property(_qplt.QpltScene_dz_get, _qplt.QpltScene_dz_set)
+    __swig_setmethods__["D3scale_mode"] = _qplt.QpltScene_D3scale_mode_set
+    __swig_getmethods__["D3scale_mode"] = _qplt.QpltScene_D3scale_mode_get
+    if _newclass:
+        D3scale_mode = _swig_property(_qplt.QpltScene_D3scale_mode_get, _qplt.QpltScene_D3scale_mode_set)
+
+    def get_flcenter_x(self):
+        """get_flcenter_x(QpltScene self) -> int"""
+        return _qplt.QpltScene_get_flcenter_x(self)
+
+
+    def get_flcenter_y(self):
+        """get_flcenter_y(QpltScene self) -> int"""
+        return _qplt.QpltScene_get_flcenter_y(self)
+
+
+    def get_flpoint_x(self, i):
+        """get_flpoint_x(QpltScene self, int i) -> int"""
+        return _qplt.QpltScene_get_flpoint_x(self, i)
+
+
+    def get_flpoint_y(self, i):
+        """get_flpoint_y(QpltScene self, int i) -> int"""
+        return _qplt.QpltScene_get_flpoint_y(self, i)
+
+
+    def get_flpoint_a(self, i):
+        """get_flpoint_a(QpltScene self, int i) -> int"""
+        return _qplt.QpltScene_get_flpoint_a(self, i)
+
+
+    def get_flpoint_b(self, i):
+        """get_flpoint_b(QpltScene self, int i) -> int"""
+        return _qplt.QpltScene_get_flpoint_b(self, i)
+
 
     def __init__(self):
         """__init__(aiw::QpltScene self) -> QpltScene"""
@@ -1296,19 +1330,34 @@ class QpltContainer(_object):
         return _qplt.QpltContainer_get_bmax(self, axe)
 
 
-    def get_step(self, i):
-        """get_step(QpltContainer self, int i) -> float"""
-        return _qplt.QpltContainer_get_step(self, i)
-
-
-    def get_axe_name(self, i):
-        """get_axe_name(QpltContainer self, int i) -> char const *"""
-        return _qplt.QpltContainer_get_axe_name(self, i)
-
-
     def get_logscale(self, axe):
         """get_logscale(QpltContainer self, int axe) -> bool"""
         return _qplt.QpltContainer_get_logscale(self, axe)
+
+
+    def get_step0(self, i):
+        """get_step0(QpltContainer self, int i) -> float"""
+        return _qplt.QpltContainer_get_step0(self, i)
+
+
+    def get_axe_name0(self, i):
+        """get_axe_name0(QpltContainer self, int i) -> char const *"""
+        return _qplt.QpltContainer_get_axe_name0(self, i)
+
+
+    def get_bmin0(self, i):
+        """get_bmin0(QpltContainer self, int i) -> float"""
+        return _qplt.QpltContainer_get_bmin0(self, i)
+
+
+    def get_bmax0(self, i):
+        """get_bmax0(QpltContainer self, int i) -> float"""
+        return _qplt.QpltContainer_get_bmax0(self, i)
+
+
+    def get_logscale0(self, i):
+        """get_logscale0(QpltContainer self, int i) -> bool"""
+        return _qplt.QpltContainer_get_logscale0(self, i)
 
 
     def prepare(self, arg2, arg3, arg4):
@@ -1344,6 +1393,11 @@ class QpltContainer(_object):
     def pos2coord(self, i, p):
         """pos2coord(QpltContainer self, int i, int p) -> float"""
         return _qplt.QpltContainer_pos2coord(self, i, p)
+
+
+    def prepare3D(self, arg2, Nx, Ny):
+        """prepare3D(QpltContainer self, QpltScene arg2, int Nx, int Ny)"""
+        return _qplt.QpltContainer_prepare3D(self, arg2, Nx, Ny)
 
     __swig_destroy__ = _qplt.delete_QpltContainer
     __del__ = lambda self: None

@@ -184,30 +184,6 @@ template <int AID> void aiw::QpltMesh::plot_impl(QpltAccessor &acc, QpltScene &s
 				}
 		}
 	} else { // 3D mode
-		// float c_ph = cosf(scene.phi*M_PI/180),  s_ph = sinf(scene.phi*M_PI/180),  c_th = cosf(scene.theta*M_PI/180),  s_th = cosf(scene.theta*M_PI/180);
-		float c_ph, s_ph, c_th, s_th;  sincosf(scene.phi*M_PI/180, &s_ph, &c_ph);  sincosf(scene.theta*M_PI/180, &s_th, &c_th);
-		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th),  nX(-s_ph, c_ph, 0.f),  nY(-c_th*c_ph, -c_th*s_ph, s_th), d(scene.dx, scene.dy, scene.dz);
-		
-		Vecf<2> A, B;  // вмещающая оболочка на сцене
-		for(int i=0; i<8; i++){  // цикл по углам
-			Vecf<3> r = bbox&d/2;
-			for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
-			Vecf<2> p(r*nX, r*nY);
-			A <<= p; B >>= p;
-		} // конец цикла по углам
-		float scaleX = 1, scaleY = 1;
-		if(scene.D3scale_mode==0) scaleX = scaleY = float(std::min(im.Nx, im.Ny))/(bbox&d).abs();
-		if(scene.D3scale_mode==1) scaleX = scaleY = std::min(im.Nx/(B[0]-A[0]), im.Ny/(B[1]-A[1]));
-		if(scene.D3scale_mode==2){ scaleX = im.Nx/(B[0]-A[0]); scaleY = im.Ny/(B[1]-A[1])); }
-		nX *= scaleX; nY *= scaleY;
-
-		int gr[3], Ng = 0;  // номера граней и их количество, номер грани это номер оси+1, знак задает в плюс или в минус смещена грань по оси
-		for(int i=0; i<3; i++){  // цикл по осям --- ищем отображаемые грани, достаточно проверить глубину одной вершины
-			Vecf<3> r = bbox&d/2; float z1 = nS*r;
-			r[i] = -r[i]; float z2 = nS*r;
-			if(z1<z2) gr[Ng++] =  i;    // точность ???
-			if(z1>z2) gr[Ng++] = -i;
-		}
 
 		
 		

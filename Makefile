@@ -33,7 +33,7 @@ endif
 all: libaiw.a;
 
 iostream swig mpi4py view: %: python/aiwlib/%.py python/aiwlib/_%.so;
-.PRECIOUS: swig/%.py swig/%.o src/%.o
+.PRECIOUS: swig/%.py swig/%.o src/%.o 
 #-------------------------------------------------------------------------------
 libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{color,mesh}}.o)
 	rm -f libaiw.a; ar -csr libaiw.a $^
@@ -78,13 +78,25 @@ src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
+#%.d: %.cpp
+#	$(show_target)
+#	echo -n $@ ' src/' > $@
+#	$(CXX) $(CXXOPT) -M $< > $@
+
+#include src/*.d
+
+#src/%.o: src/%.cpp src/%.d
+#	$(show_target)
+#	$(CXX) $(CXXOPT) -c  $<
+
 ifndef MODULE
 #src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
-src/%.o:  src/%.cpp  include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+src/%.o:  src/%.cpp src/%.d include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+src/view/%.o:  src/view/%.cpp src/view/%.d  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+swig/%.o: swig/%.cxx swig/%.d include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
+#$(strip $(dir $(MODULE))$(subst \,,$(shell cat $(basename $(MODULE)).d)))
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
 	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif

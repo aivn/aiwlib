@@ -1943,7 +1943,7 @@
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
        </property>
-       <widget class="QComboBox" name="plot_dim">
+       <widget class="QComboBox" name="D3">
         <property name="geometry">
          <rect>
           <x>0</x>

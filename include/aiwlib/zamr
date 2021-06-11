@@ -3,7 +3,7 @@
 #define AIW_ZIP_AMR_HPP
 
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020--21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -14,82 +14,70 @@
 #include "zcube"
 #include "piramide"
 
+// TODO
+// 1. отщепить адресацию при обходе от данных, что бы можно было хранить данные в std::vector<std::vector<T> >
+
 namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T, int D>  class ZipAdaptiveMesh: public aiw::BaseMesh<D>{
 		UsingBaseMeshAttributes;
-		static const int rank_lim = 24/D; // максимально возможный ранг разбиения
+		static constexpr int rank_lim = 26/D; // максимально возможный ранг разбиения
 		// static const uint32_t Dbits = ~((~uint32_t(0))<<D);
 		// static uint32_t RDbits(int R){ 	return (~uint32_t(0))>>(32-D*R); }
-		static const uint32_t Dbits = (1<<D)-1;
-		static uint32_t RDbits(int R){ 	return (uint32_t(1)<<(R*D))-1; }
-		static uint32_t tile_sz(int R){  return uint32_t(1)<<(R*D); }
-		static bool get_bm(const uint64_t *arr, int i){ return arr[i>>6] &  (uint64_t(1)<<(i&0x3f)); }
-		static void set_bm(      uint64_t *arr, int i){        arr[i>>6] |= (uint64_t(1)<<(i&0x3f)); }
-		static void unset_bm(    uint64_t *arr, int i){      arr[i>>6] &= ~((uint64_t(1)<<(i&0x3f))); }
-		//----------------------------------------------------------------------
 
-		// указатель на следующий фрагмент (тайл) дерева  --- 3 байта смещенния, 5 бит ранга и 3 бита флагов
-		// если первый бит флага поднят то это тайл узлов, иначе тайл данных
-		// возможно стоит изменить на 26 бит смещения, 5 бит ранга и 1 бит флага? это расширит оффсет на 1 бит для 2D и 3D случаев
+		static constexpr uint32_t Dbits = (1<<D)-1; 
+		static uint32_t RDbits(int R){ 	return (1<<(R*D))-1; }
+		static uint32_t tile_sz(int R){  return 1<<(R*D); }
+		//		static bool get_bm(const uint64_t *arr, int i){ return arr[i>>6] &  (uint64_t(1)<<(i&0x3f)); } 
+		//		static void set_bm(      uint64_t *arr, int i){        arr[i>>6] |= (uint64_t(1)<<(i&0x3f)); }
+		// static void unset_bm(    uint64_t *arr, int i){      arr[i>>6] &= ~((uint64_t(1)<<(i&0x3f))); }
+		//----------------------------------------------------------------------
+		// указатель на следующий фрагмент (тайл) дерева  --- 1 бит флагов, 5 бит ранга, 26 бит смещения
+		// если флаг поднят то это тайл узлов, иначе тайл данных
 		struct ptile_t{
 			uint32_t blob;
-			BINARYIO4POD;
 			
-			void set(uint32_t off, uint32_t rank, uint32_t flags){ blob = (off&0xFFFFFF)|((rank&0x1F)<<24)|((flags&0x7)<<29); }
+			void set(bool sign, uint32_t rank, uint32_t off){ blob = uint32_t(sign)|((rank&0x3F)<<1)|(off<<6); }
 			ptile_t(): blob(0){}
-			ptile_t(uint32_t off, uint32_t rank, uint32_t flags=0){ set(off, rank, flags); }
+			ptile_t(bool sign, uint32_t rank, uint32_t off){ set(sign, rank, off); }
 
-			uint32_t get_off() const { return blob&0xFFFFFF; }
-			uint32_t get_rank() const { return (blob>>24)&0x1F; }
-			void set_rank(uint32_t rank){ blob &= ~(0x1F<<24); blob |= ~((rank&0x1F)<<24); }
-			uint32_t get_flags() const { return (blob>>29)&0x7; }
-			bool get_flag(int i) const { return blob&(1<<(29+i)); }
-			void set_flag(int i) { blob |= uint32_t(1)<<(29+i); }
-			void unset_flag(int i) { blob &= ~(uint32_t(1)<<(29+i)); } // непонятно используется или нет
+			bool get_sign() const { return blob&1; }
+			uint32_t get_rank() const { return (blob>>1)&0x3F; }
+			uint32_t get_off() const { return blob>>6; }
 
-			bool operator < (ptile_t b) const { return get_off()<b.get_off(); }
+			// bool operator < (ptile_t b) const { return get_off()<b.get_off(); }
 		};
 		//----------------------------------------------------------------------
+	public:
 		class Cell; 
+	private:
 		struct tree_t{
 			ptile_t root;
 			std::vector<ptile_t> tree;
 			std::vector<T> data;
 
-			void set_ptr(ptile_t &ptr, int rank, const       T* tgt) const { ptr.set(data.data()-tgt, rank, 0); }
-			void set_ptr(ptile_t &ptr, int rank, const ptile_t* tgt) const { ptr.set(tree.data()-tgt, rank, 1); }
+			void set_ptr(ptile_t &ptr, int rank, const       T* tgt) const { ptr.set(0, rank, tgt-data.data()); }
+			void set_ptr(ptile_t &ptr, int rank, const ptile_t* tgt) const { ptr.set(1, rank, tgt-tree.data()); }
 
-			// ищет ячейку со смещением off на Z-кривой ранга rank,
+			bool get_first(Cell &cell, int min_rank); // настраивает cell на первуя ячейку с рангом не ниже чем min_rank
+			
+			// ищет ячейку со смещением off на Z-кривой ранга rank, состояние cell может быть произвольным
 			// возвращает false при выходе за пределы дерева, при этом ячейка не меняется
 			// может найти как более крупную так и более мелкую ячейки
-			bool get(Cell&, uint32_t off, int rank);
+			bool get(Cell &cell, uint32_t off, int rank);
 			
 			Vec<D> bmin;  // координаты левого угла
 			Ind<D> pos;   // позиция дерева в лесу
 			ZipAdaptiveMesh *msh;
 			int max_rank;
 
-			void dump(IOstream &S) const { S<bmin<pos<max_rank<root<tree<data; }
-			void load(IOstream &S)       { S>bmin>pos>max_rank>root>tree>data; }
-		}; //  end of struct tree_t
-		//----------------------------------------------------------------------
-		struct Tree;
-		struct rebuild_t{ // контекст для перепаковки данных, что бы не передавать много аргументов при рекурсивной разбивке тайлов
-			std::vector<uint32_t> js; int32_t delta_sz = 0; // список объединных/разбитых ячеек (первый бит как флаг разбиения) и изменение размера данных
-			void add_join(uint32_t off){ js.push_back(off<<1); delta_sz -=  Dbits; }
-			void add_split(uint32_t off){ js.push_back((off<<1)|1); delta_sz +=  Dbits; }
-
-			template <typename F_CHECK, typename F_SPLIT, typename F_JOIN> rebuild_t(Tree tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join);
+			// для каждого ранга вектор пар coff, позиция в векторе данных
+			// std::vector<std::vector<std::pair<uint32_t, ptile_t> > > index; // индекс тайлов с данными по рангам
+			std::vector<uint8_t> tiles;   // по два байта на тайл - ранг Z-кривой, ранг тайла. Заменяет индекс.
 			
-			std::vector<T> dst; tree_t* tr;  // новая версия данных  и дерево
-			std::vector<uint32_t>::iterator jsI; uint32_t dst_pos = 0; Cell cell; // курсоры
-			std::vector<std::pair<ptile_t, ptile_t> > tiles; // тайлы с данными (ранг/смещение данных и ранг/смещение на общей сетке дерева)
-			template <typename F_SPLIT, typename F_JOIN> void copy_tile(F_SPLIT &&f_split, F_JOIN &&f_join, int rank);
-
-			Piramide<uint8_t, D> ranks;
-			uint32_t build_tree(uint32_t tiles_off, uint32_t rank, int trI); // trI==-1 означает tr->root,  возвращает новый tiles_off
-		};
+			bool dump(IOstream &S) const { return S.dump(bmin, pos, max_rank, root, tree, data, index); }
+			bool load(IOstream &S)       { return S.load(bmin, pos, max_rank, root, tree, data, index); }
+		}; //  end of struct tree_t
 		//----------------------------------------------------------------------
 		Mesh<tree_t, D> forest;
 		Vec<D> steps[rank_lim+1]; // шаги на разных рангах
@@ -98,23 +86,28 @@ namespace aiw{
 	public:		
 		class Cell {
 		protected:
-			T* ptr = nullptr;    // указатель на данные ячейки
-			int32_t R = -1, tR;  // ранг ячейки и ранг задающий размер тайла как 1<<tR по каждой из сторон
-			uint32_t poff = 0;   // смещение внутри дерева на данном ранге R (если рассматривать данный ранг как непрерывную Z-кривую в дереве)
-			uint32_t toff = 0;   // смещение внутри тайла ПЛЮС Dbits<<tR (обеспечивает запас бит в старших позициях для отриц. смещений)
+			T* ptr = nullptr;   // указатель на данные ячейки
+			uint32_t cR, tR;    // ранг ячейки и ранг задающий размер тайла как 1<<tR по каждой из сторон
+			uint32_t coff = 0;  // смещение внутри дерева на данном ранге R (если рассматривать данный ранг как непрерывную Z-кривую в дереве)
+			uint32_t toff = 0;  // смещение внутри тайла ПЛЮС Dbits<<(tR*D) (обеспечивает запас бит в старших позициях для отриц. смещений)
+			// typename std::vector<std::pair<uint32_t, ptile_t> >::iterator index; // позиция в индексе дерева
+			uint32_t tile = 0;  // номер тайла в tree->tiles, при случаном доступе его невозможно эффективно инициализировать?
 			tree_t *tree = nullptr;
 			
 			friend class ZipAdaptiveMesh;
-			void next(tree_t* tree){ if(++toff < (1<<(D*(tR+1)))){ ptr++; poff++; } else if(!tree->get(*this, poff+1, R)) ptr = nullptr; }
+			bool next_tile(int min_rank);  // переключает ячейку на первую ячейку следующиго тайла  с рангом не ниже чем min_rank 
+			bool next(int min_rank);       // переключает ячейку на следующую позицию с рангом не ниже чем min_rank 
+			/*
 			void jump(tree_t* tree, int dR){
 				uint32_t d = 1<<(dR*D);	poff += d; toff += d;
 				if(toff < (1<<(D*(tR+1)))) ptr += d; else if(!tree->get(*this, poff, R)) ptr = nullptr;
 			}
+			*/
 		public:
 			operator bool () const { return ptr; }  
 			bool operator !() const { return !ptr; }
 
-			int rank() const { return R; }  // уровень вложенности
+			int rank() const { return cR; }  // уровень вложенности
 			Vec<D> step() const;
 			Vec<D> bmin() const;
 			
@@ -127,8 +120,8 @@ namespace aiw{
 			const Cell operator [](const Ind<D> &dpos) const; // доступ к соседям
 			template <typename ... Args>  const Cell operator() (Args ... dpos) { return (*this)[Ind<D>(dpos...)]; } // доступ к соседям
 
-			bool bound(int axe) const;  // принимает номер оси со знаком (грань слева/справа) начиная с единицы (как в face)
-			T* chunk(){ if(tR && !(toff&Dbits)) return ptr; else return nullptr; }
+			bool is_bound(int axe) const;  // принимает номер оси со знаком (грань слева/справа) начиная с единицы (как в face)
+			// T* chunk(){ if(tR && !(toff&Dbits)) return ptr; else return nullptr; }
 			
 			// f --- функция вида f(Cell &nbC)
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
@@ -138,35 +131,6 @@ namespace aiw{
 			// inline typename const meta_t<M>::meta_data_type& meta(int i) const {...}
 		}; // end of class Cell
 		//----------------------------------------------------------------------
-		class Tree {
-			tree_t *tree = nullptr;
-			friend class ZipAdaptiveMesh;
-		public:
-			struct iterator: public Cell{
-				using Cell::ptr; using Cell::R; using Cell::tR; using Cell::toff;  using Cell::poff;  using Cell::tree;
-				
-				Cell& operator * () { return *this; }
-				const Cell& operator * () const { return *this; }
-				void operator ++(){ this->next(tree); }
-				bool operator != (const iterator &) const { return !this->ptr; }
-			};
-			iterator begin(){ iterator I; tree->get((Cell&)I, 0, tree->max_rank); return I; }
-			iterator end() { return iterator(); }
-		};
-		//----------------------------------------------------------------------
-		struct iterator: public Tree{
-			friend class ZipAdaptiveMesh;
-			Tree& operator * () { return *this; }
-			const Tree& operator * () const { return *this; }
-			void operator ++() { if(this->tree->pos==this->tree->msh->forest.bbox()-ind(1)) this->tree = nullptr; else this->tree++; }
-			bool operator != (const iterator &) const { return !this->tree; }
-		};
-		iterator begin(){ iterator I; I.tree = &(forest[Ind<D>(0)]); return I; }
-		iterator end() { return iterator(); }
-		//----------------------------------------------------------------------
-		Tree get_tree(Ind<D> pos){ Tree t0;  t0.tree = &(forest[pos]); return t0; }
-		Tree get_tree(int tID){ return get_tree(tID%forest.bbox()); } // позволяет делать параллельный обход
-
 		//  инициализация сетки
 		void init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0=0);
 		void init(Ind<D> tbox, int R0=0){ init(tbox, vec(0.), tbox*(1<<R0), R0); }
@@ -176,14 +140,15 @@ namespace aiw{
 		int get_max_rank() const { return max_rank; }
 		size_t size() const {  size_t res = 0; for(const auto &t: forest) res += t.data.size(); return res; }   // число ячеек
 		size_t memsz() const;  // размер памяти в байтах
+
 		// void out_info() const;
+		void out2dat(IOstream&&); 
 		// void tiles2dat(IOstream&& hS, IOstream&& lS) const { for(Ind<D> pos; pos^=forest.bbox(); ++pos) tiles[pos].forest2dat(hS, lS); }
 		// void selfcheck() const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].selfcheck(); }
 		
 		// прямой доступ к ячейкам нулевого ранга?		
 		// порождение итераторв для обходов на соотв рангах?
 
-		// void out2dat(IOstream&&); ???
 		// минимальный/максимальный ранги, размер памяти, число тайлов (в т.ч. по рангам), заполненность тайлов и пр.
 		// T& operator(const Vec<D> &r){} // доступ к произвольной ячейке по координате ???
 		// template <typename SEE_UP_F, typename SEE_DOWN_F> void commit(SEE_UP_F see_up_f, SEE_DOWN_F see_down_f, const std::vector<Ind<D> > &stencil){}
@@ -192,10 +157,10 @@ namespace aiw{
 		template <typename F_CHECK, typename F_SPLIT, typename F_JOIN> void rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join);
 		template <typename F_CHECK> void rebuild(F_CHECK &&f_check){ rebuild(f_check, [](Cell&, T*){}, [](Cell&, T&){}); }
 		
-		T out_value;
 	protected:
 		T& get(Ind<D> pos); 
 	public:
+		T out_value;
 		// const T& operator [](const Ind<D> &pos) const { return get(pos); }
 		T& operator [](const Ind<D> &pos)       { return (T&)get(pos); }
 		// const T& operator ()(const Vec<D> &coord) const { return get(this->coord2pos(coord)); }
@@ -210,8 +175,10 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//   всякие обходы
 		//----------------------------------------------------------------------
-		template <typename dT, typename F> void foreach(F &&f, dT dt, int level){ for(auto t: *this) for(auto C: t) if(!(level%(1<<C.rank()))) f(C, dt); }
-		template <typename dT, typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2, dT dt);
+		// f[1|2] принимают Cell& и int ti
+		template <typename F> void foreach(F &&f, int min_rank=0, int ti=0);    
+		template <typename F1, typename F2> void foreach2Xdt(F1 &&f1, F2 &&f2);
+
 		/*
 		// pos --- левый нижний угол conefold на сетке тайлов нулевого уровня, conefold занимает 2^D тайлов
 		double conefold_complexity(Ind<D> pos) const;  // в ячейках X шаг
@@ -225,12 +192,30 @@ namespace aiw{
 		template <typename dT, typename F1, typename F2> void conefold(Ind<D> pos, F1 &&f1, F2 &&f2, dT dt); 
 		template <typename dT, typename F1, typename F2> void conefold(F1 &&f1, F2 &&f2, dT dt); 
 		*/
+	private:
+		struct rebuild_t{ // контекст для перепаковки данных, что бы не передавать много аргументов при рекурсивной разбивке тайлов
+			std::vector<uint32_t> js; int32_t delta_sz = 0; // список объединных/разбитых ячеек (первый бит как флаг разбиения) и изменение размера данных
+			void add_join(uint32_t off){ js.push_back(off<<1); delta_sz -=  Dbits; }
+			void add_split(uint32_t off){ js.push_back((off<<1)|1); delta_sz +=  Dbits; }
+
+			template <typename F_CHECK, typename F_SPLIT, typename F_JOIN> rebuild_t(tree_t &tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join);
+			
+			std::vector<T> dst; tree_t* tr;  // новая версия данных  и дерево
+			std::vector<uint32_t>::iterator jsI; uint32_t dst_pos = 0; Cell cell; // курсоры
+			std::vector<std::pair<ptile_t, ptile_t> > tiles; // тайлы с данными (ранг/смещение данных и ранг/смещение на общей сетке дерева)
+			template <typename F_SPLIT, typename F_JOIN> void copy_tile(F_SPLIT &&f_split, F_JOIN &&f_join, int rank);
+
+			Piramide<uint8_t, D> ranks;
+			uint32_t build_tree(uint32_t tiles_off, uint32_t rank, int trI); // trI==-1 означает tr->root,  возвращает новый tiles_off
+		};
 		//----------------------------------------------------------------------
-	}; // end of class AdaptiveMeshFCR
+	}; // end of class ZipAdaptiveMesh
 	//--------------------------------------------------------------------------
 #include "zamr_/cell"
-#include "zamr_/rebuild"
 #include "zamr_/base"
+#include "zamr_/rebuild"
+	
+	//#include "zamr_/base"
 	// #include "zamr_/LRnLA"
 	//--------------------------------------------------------------------------
 };  // end of namespace aiw
