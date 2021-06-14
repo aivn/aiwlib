@@ -17,45 +17,59 @@ _mul = lambda A, B: A[0]*B[0]+A[1]*B[1]
 _xmul = lambda A, x: (A[0]*x, A[1]*x)
 _abs = lambda A: (A[0]**2+A[1]**2)**.5
 
-def make_tics3D(limits, logscale, A, B, C, tic_len, paint, flip):  
-    '''возвращает [(tic_pos, tic_text)], extend, [tics_lines...]
+def make_tics3D(limits, logscale, A, B, C, tic_len, paint, flip, label='', is_z_label=False):  
+    '''возвращает [(tic_pos, tic_text)], extend, [tics_lines...], label_pos
 ось расположена на отрезке A--B, точка C --- центр изображения. Координаты A, B, С задаются в пикселях
 tic_pos задаются как (x,y) с выравниванием по умолчанию. 
-extend --- (d_left, d_top, d_right, d_bottom) - то насколько необходимо расширить изображение за счет тиков
+extend --- (d_left, d_top, d_right, d_bottom) - то насколько необходимо расширить изображение за счет тиков (все со знаком +)
 tic_line --- кортежи (x1, y1, x2, y2), координаты отрезков
 '''
+    AB = _sub(B, A); lAB = _abs(AB)
+    if not lAB: return [], [0]*4, [], None
+    d = -AB[1]/lAB*tic_len, AB[0]/lAB*tic_len   
+    if _mul(d, _sub(C, A))>0: d = -d[0], -d[1]    
     if flip: limits = limits[1], limits[0]
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
     textL = [num2strL(L, logscale) for L in ticsL]    # текстовые представления
     tszX = [sum(text_sz(t, paint, False) for t in L) for L in textL] # суммарные размеры тиков по X
     tszY = [sum(text_sz(t, paint, True)  for t in L) for L in textL] # суммарные размеры тиков по Y
-    vertical = tszX/abs(A[0]-B[0]) > tszY/abs(A[1]-B[1])
+    vertical = sum(tszX)/(abs(A[0]-B[0])+1) > sum(tszY)/(abs(A[1]-B[1])+1)
     tszs = tszY if vertical else tszX
-    tics = sorted(ticsL[min([(abs(float(tszs[i])/N-[.6, .4][vertical]), i) for i in range(len(tszs))])[1]]) # набор значений тиков    
+    tics = sorted(ticsL[min([(abs(float(tszs[i])/lAB-[.4, .3][vertical]), i) for i in range(len(tszs))])[1]]) # набор значений тиков    
     if not tics: tics = limits
     if logscale:
         stics = [] if limits[0]==tics[0] else calc_tics_normalscale(limits[0], tics[0], tics[0]/10)
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
     else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
-    AB = _sub(A, B); lAB = _abs(AB);  d = -AB[1]/lAB, AB[0]/lAB
-    if _mul(d, _sub(C, A))>0: d = -d[0], -d[1]    
     t2p0 = lambda t: 1./log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(1./(limits[1]-limits[0])*(t-limits[0])) # конвертер значения в позицию
-    def t2p(t, sc): a = _add(A, _xmul(AB, t2p0(t))); return map(int, a+_add(a, _xmul(d, sc)))
-    L, align, d2, extend, bbox = num2strL(tics, logscale), [-(d[0]<0), -(d[1]<0)], _xmul(d, 2), [0]*4, [f(A[i], B[i]) for i in (0, 1) for f in (min, max)] 
+    def t2p(t, sc=1): a = _add(A, _xmul(AB, t2p0(t))); return list(map(int, a+_add(a, _xmul(d, sc))))
+    L, align, d2, extend, bbox, flow = num2strL(tics, logscale), [-(d[0]<0), -(d[1]<0)], _xmul(d, 2), [0]*4, [f(A[i], B[i]) for f in (min, max) for i in (0, 1)], None
     if abs(AB[0])>abs(AB[1]):  # ось скорее горизонтальная
-        if abs(max(text_sz(l, paint, False) for l in L)/lAB[0]*lAB[1])<tic_len: align[0] = -.5  # выравнивание по центру
-    elif abs(lAB[0])>abs(lAB[1]): align[1] = -.5 # ось скорее вертикальная, выравнивание по центру
-    T2p = lambda t, l: map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, text_sz(l))))
-    def T2pl(t, l):
-        lsz = text_sz(l); lxy = map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, lsz)))
-        if d[0]<0: extend[0] = min(lxy[0]-bbox[0], extend[0])
-        if d[1]<0: extend[1] = min(lxy[1]-bbox[1], extend[1])
-        if d[0]>0: extend[0] = max(lxy[0]+lsz[0]-bbox[2], extend[2])
-        if d[1]>0: extend[0] = max(lxy[1]+lsz[1]-bbox[3], extend[3])
-        return lxy, l    
-    try: return [T2pl(t, l) for t, l in zip(tics, L)],  extend, [t2p(t, 2) for t in tics]+map(t2p, stics)
-    except ValueError as e: return [], [0]*4, []
+        if abs(max(text_sz(l, paint, False) for l in L)/AB[0]*AB[1])<tic_len: flow = 0  # выравнивание по центру align[0] = -.5
+    elif abs(AB[0])<abs(AB[1]): flow = 1 # ось скорее вертикальная, выравнивание по центру align[1] = -.5
+    T2p = lambda t, l: list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, text_sz(l)))))
+    def T2pl(i):
+        t, l = tics[i], L[i]
+        if not flow is None:  # меняем align что бы чиселка не вылезала за пределы оси
+            #align[flow] = -.5 #i/len(L)*-(d[flow]<0)
+            if i in (0, len(L)-1): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
+            else: align[flow] = -.5 #i/len(L)*-(d[flow]<0)
+        lsz = text_sz(l, paint); lxy = list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, lsz))))
+        if d[0]<0: extend[0] = -min(lxy[0]-bbox[0], -extend[0])
+        if d[1]<0: extend[1] = -min(lxy[1]-bbox[1], -extend[1])
+        if d[0]>0: extend[2] = max(lxy[0]+lsz[0]-bbox[2], extend[2])
+        if d[1]>0: extend[3] = max(lxy[1]+lsz[1]-bbox[3], extend[3])
+        return lxy, l
+    if label:
+        lbl_sz, max_tic_sz = text_sz(label, paint), max(text_sz(l, paint, False) for l in L)
+        if is_z_label: 
+            if d[0]<0: label_pos = [A[0]-2*tic_len-max_tic_sz-2*lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)]; extend[0] = max(extend[0], -label_pos[0])
+            else: label_pos = [A[0]+2*tic_len+max_tic_sz+lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)]; extend[2] = max(extend[2], label_pos[0]+lbl_sz[0]-bbox[0])
+        else: label_pos = None
+    else: label_pos = None
+    try: return list(map(T2pl, range(len(L)))),  extend, [t2p(t, 2) for t in tics]+list(map(t2p, stics)), label_pos
+    except ValueError as e: return [], [0]*4, [], label_pos
 #-------------------------------------------------------------------------------
 def make_tics(limits, logscale, N, vertical, paint, flip):
     'возвращает [(tic_pos, tic_text)... ], max_tic_sz, [subtics_pos...]'
@@ -71,9 +85,7 @@ def make_tics(limits, logscale, N, vertical, paint, flip):
     else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
     t2p0 = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
     t2p = lambda t: N-t2p0(t) if flip else t2p0(t)
-    #try: return [(t2p(t), num2str(t)) for t in tics], max(text_sz(num2str(t), paint, False) for t in tics), map(t2p, stics)
-    #except ValueError as e: return [(0, num2str(t)) for t in tics], max(text_sz(num2str(t), paint, False) for t in tics), [] #[0]*len(stics)
-    L = num2strL(tics, logscale)
+    L = num2strL(tics, logscale)        
     try: return [(t2p(t), l) for t, l in zip(tics, L)], max(text_sz(l, paint, False) for l in L), map(t2p, stics)
     except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for t in L), [] #[0]*len(stics)
 #-------------------------------------------------------------------------------

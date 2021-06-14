@@ -20,7 +20,7 @@ win.resizeEvent = replot
 #def release(*args): print('RELEASE', args)
 #win.mouseReleaseEvent = release
 
-for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
+for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
 for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width'.split(): getattr(win, l).setValidator(QtGui.QIntValidator())
 #win.cellmask.setValidator(QtGui.QIntValidator())
 
@@ -32,6 +32,7 @@ for i, p in enumerate(qplt.QpltColor.get_pals()):
                                                                        pico[0], pico[1], QtGui.QImage.Format_RGB888)))) 
 win.paletter.setCurrentText('rainbow')
 win.D3.addItems(['2D', '3D'])
+win.D3.setCurrentIndex(1)
 
 win.celldim.addItems(['1', '2', '3'])
 win.celltype.addItems(['float', 'double', 'bool', 'uint8_t', 'int8_t', 'uint16_t', 'int16_t', 'uint32_t', 'int32_t', 'uint64_t', 'int64_t'])
@@ -44,7 +45,10 @@ win.x_axe.addItems(['X', 'Y', 'Z'])
 win.y_axe.addItems(['X', 'Y', 'Z'])
 win.z_axe.addItems(['X', 'Y', 'Z'])
 win.y_axe.setCurrentIndex(1)
-win.y_axe.setCurrentIndex(2)
+win.z_axe.setCurrentIndex(2)
+win.xtics3D.addItems(['both', 'auto', 'down', 'up', 'off'])
+win.ytics3D.addItems(['both', 'auto', 'down', 'up', 'off'])
+win.ztics3D.addItems(['both', 'auto', 'left', 'right', 'off'])
 
 win.D3scale_mode.addItems(['fixed', 'equal', 'full'])
 #------------------------------------------------------------------------------
@@ -60,11 +64,20 @@ qplt_canvas.qplt, qplt_canvas.factory, qplt_canvas.scene, qplt_canvas.accessor, 
 if factory.get_sz()==1: win.fr_filenum.hide()
 else: win.filenum.setMaximum(factory.get_sz()-1)
 #-------------------------------------------------------------------------------    
-def axe_click(axe1, axe2, ID):
-    if axe2.currentIndex()==ID: axe2.setCurrentIndex((ID+1)%axe2.count()) 
+def scene_and_axe_conf(a, i):
+    i_old, l = scene.get_axe(a), 'xyz'[a]
+    scene.set_axe(a, i); getattr(win, '%s_axe'%l).setCurrentIndex(i)
+    getattr(win, '%sinterp'%l).setCurrentIndex(scene.get_interp(a))
+    getattr(win, '%sflip'%l).setChecked(scene.get_flip(a))
+    return i_old
+def axe_click(axe, ID):    
+    oldID, axe2, axe3 = scene_and_axe_conf(axe, ID), (axe+1)%3, (axe+2)%3
+    if getattr(win, '%s_axe'%'xyz'[axe2]).currentIndex()==ID: scene_and_axe_conf(axe2, oldID)
+    elif getattr(win, '%s_axe'%'xyz'[axe3]).currentIndex()==ID: scene_and_axe_conf(axe3, oldID)
     replot()
-win.x_axe.activated.connect(lambda ID: axe_click(win.x_axe, win.y_axe, ID))
-win.y_axe.activated.connect(lambda ID: axe_click(win.y_axe, win.x_axe, ID))
+win.x_axe.activated.connect(lambda ID: axe_click(0, ID))
+win.y_axe.activated.connect(lambda ID: axe_click(1, ID))
+win.z_axe.activated.connect(lambda ID: axe_click(2, ID))
 #-------------------------------------------------------------------------------
 def show_axes_info(*args):
     if win.show_axes_info.isChecked():
@@ -72,7 +85,7 @@ def show_axes_info(*args):
             getattr(win, 'min%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_bmin0(i))
             getattr(win, 'max%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_bmax0(i))
             getattr(win, 'step%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_step0(i))
-            getattr(win, 'log%i'%(1+i)).setText('V'*qplt_canvas.mesh.get_logscale0(i))
+            getattr(win, 'logsc%i'%(1+i)).setText('V'*qplt_canvas.mesh.get_logscale0(i))
             getattr(win, 'fr_axe%i'%(1+i)).show()
     else:
         for i in range(1,9): getattr(win, 'fr_axe%i'%i).hide()
@@ -84,15 +97,15 @@ win.show_axes_info.stateChanged.connect(show_axes_info)
 
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
 
-for l in 'autoscale_tot logscale modulus invert xflip yflip show_pal'.split(): getattr(win, l).stateChanged.connect(replot)
+for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(replot)
 
 def autoscale(*args):
     for l in (win.f_min, win.f_max): l.setReadOnly(win.autoscale.isChecked())    
     if win.autoscale.isChecked(): replot()
 win.autoscale.stateChanged.connect(autoscale)
-for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z'.split():
+for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split():
     getattr(win, l).editingFinished.connect(replot)
-for l in 'paletter celldim celltype diff vconv xinterp yinterp D3 D3scale_mode'.split(): getattr(win, l).activated.connect(replot)
+for l in 'paletter celldim celltype diff vconv xinterp yinterp D3 D3scale_mode xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(replot)
 for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(replot)
 def slice_replot(pos, sl_num):
     mesh, sl_axe = factory.get_frame(win.filenum.value(), win.framenum.value()), canvas.slices_table[sl_num]

@@ -1099,6 +1099,63 @@ class QpltAccessor(_object):
 QpltAccessor_swigregister = _qplt.QpltAccessor_swigregister
 QpltAccessor_swigregister(QpltAccessor)
 
+class Ind2(_object):
+    """Proxy of C++ aiw::Ind2 class."""
+
+    __swig_setmethods__ = {}
+    __setattr__ = lambda self, name, value: _swig_setattr(self, Ind2, name, value)
+    __swig_getmethods__ = {}
+    __getattr__ = lambda self, name: _swig_getattr(self, Ind2, name)
+    __repr__ = _swig_repr
+    __swig_setmethods__["x"] = _qplt.Ind2_x_set
+    __swig_getmethods__["x"] = _qplt.Ind2_x_get
+    if _newclass:
+        x = _swig_property(_qplt.Ind2_x_get, _qplt.Ind2_x_set)
+    __swig_setmethods__["y"] = _qplt.Ind2_y_set
+    __swig_getmethods__["y"] = _qplt.Ind2_y_get
+    if _newclass:
+        y = _swig_property(_qplt.Ind2_y_get, _qplt.Ind2_y_set)
+    __swig_setmethods__["x0"] = _qplt.Ind2_x0_set
+    __swig_getmethods__["x0"] = _qplt.Ind2_x0_get
+    if _newclass:
+        x0 = _swig_property(_qplt.Ind2_x0_get, _qplt.Ind2_x0_set)
+    __swig_setmethods__["y0"] = _qplt.Ind2_y0_set
+    __swig_getmethods__["y0"] = _qplt.Ind2_y0_get
+    if _newclass:
+        y0 = _swig_property(_qplt.Ind2_y0_get, _qplt.Ind2_y0_set)
+
+    def __init__(self, x_=0, y_=0):
+        """
+        __init__(aiw::Ind2 self, int x_=0, int y_=0) -> Ind2
+        __init__(aiw::Ind2 self, int x_=0) -> Ind2
+        __init__(aiw::Ind2 self) -> Ind2
+        """
+        this = _qplt.new_Ind2(x_, y_)
+        try:
+            self.this.append(this)
+        except __builtin__.Exception:
+            self.this = this
+
+    def __add__(self, b):
+        """__add__(Ind2 self, Ind2 b) -> Ind2"""
+        return _qplt.Ind2___add__(self, b)
+
+
+    def __sub__(self, b):
+        """__sub__(Ind2 self, Ind2 b) -> Ind2"""
+        return _qplt.Ind2___sub__(self, b)
+
+
+    def __getitem__(self, i):
+        """__getitem__(Ind2 self, int i) -> int"""
+        return _qplt.Ind2___getitem__(self, i)
+
+    __swig_destroy__ = _qplt.delete_Ind2
+    __del__ = lambda self: None
+Ind2_swigregister = _qplt.Ind2_swigregister
+Ind2_swigregister(Ind2)
+cvar = _qplt.cvar
+
 class QpltScene(_object):
     """Proxy of C++ aiw::QpltScene class."""
 
@@ -1221,35 +1278,19 @@ class QpltScene(_object):
     __swig_getmethods__["D3scale_mode"] = _qplt.QpltScene_D3scale_mode_get
     if _newclass:
         D3scale_mode = _swig_property(_qplt.QpltScene_D3scale_mode_get, _qplt.QpltScene_D3scale_mode_set)
+    __swig_setmethods__["flcenter"] = _qplt.QpltScene_flcenter_set
+    __swig_getmethods__["flcenter"] = _qplt.QpltScene_flcenter_get
+    if _newclass:
+        flcenter = _swig_property(_qplt.QpltScene_flcenter_get, _qplt.QpltScene_flcenter_set)
 
-    def get_flcenter_x(self):
-        """get_flcenter_x(QpltScene self) -> int"""
-        return _qplt.QpltScene_get_flcenter_x(self)
-
-
-    def get_flcenter_y(self):
-        """get_flcenter_y(QpltScene self) -> int"""
-        return _qplt.QpltScene_get_flcenter_y(self)
-
-
-    def get_flpoint_x(self, i):
-        """get_flpoint_x(QpltScene self, int i) -> int"""
-        return _qplt.QpltScene_get_flpoint_x(self, i)
+    def flpoint(self, i):
+        """flpoint(QpltScene self, int i) -> Ind2"""
+        return _qplt.QpltScene_flpoint(self, i)
 
 
-    def get_flpoint_y(self, i):
-        """get_flpoint_y(QpltScene self, int i) -> int"""
-        return _qplt.QpltScene_get_flpoint_y(self, i)
-
-
-    def get_flpoint_a(self, i):
-        """get_flpoint_a(QpltScene self, int i) -> int"""
-        return _qplt.QpltScene_get_flpoint_a(self, i)
-
-
-    def get_flpoint_b(self, i):
-        """get_flpoint_b(QpltScene self, int i) -> int"""
-        return _qplt.QpltScene_get_flpoint_b(self, i)
+    def axe3D(self, axe, i, mode):
+        """axe3D(QpltScene self, int axe, int i, int mode) -> Ind2"""
+        return _qplt.QpltScene_axe3D(self, axe, i, mode)
 
 
     def __init__(self):
@@ -1403,7 +1444,6 @@ class QpltContainer(_object):
     __del__ = lambda self: None
 QpltContainer_swigregister = _qplt.QpltContainer_swigregister
 QpltContainer_swigregister(QpltContainer)
-cvar = _qplt.cvar
 
 class QpltFactory(_object):
     """Proxy of C++ aiw::QpltFactory class."""

@@ -4,7 +4,6 @@
  **/
 
 #include <algorithm>
-// #include <pair>
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
 using namespace aiw;
@@ -69,11 +68,11 @@ void aiw::QpltContainer::prepare_scene(QpltScene &S){ // устанавлива�
 }
 //------------------------------------------------------------------------------
 void aiw::QpltContainer::prepare3D(QpltScene &S, int Nx, int Ny) const {
-	// if(S.theta<0) S.theta += M_PI;
-	// if(S.theta>M_PI) S.theta -= M_PI;
+	if(S.theta<0) S.theta  = 0;
+	if(S.theta>180) S.theta = 180;
 						  
 	float c_ph, s_ph, c_th, s_th;  sincosf(S.phi*M_PI/180, &s_ph, &c_ph);  sincosf(S.theta*M_PI/180, &s_th, &c_th);
-	S.nS = -vecf(c_ph*s_th, s_ph*s_th, c_th);  S.nX = -vecf(-s_ph, c_ph, 0.f);  S.nY = -vecf(-c_th*c_ph, -c_th*s_ph, s_th);
+	S.nS = vecf(c_ph*s_th, s_ph*s_th, c_th);  S.nX = -vecf(-s_ph, c_ph, 0.f);  S.nY = vecf(-c_th*c_ph, -c_th*s_ph, s_th);
 	Vecf<3> d(S.dx, S.dy, S.dz);
 		
 	Vecf<2> pp[8], A, B;  int i_min; float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
@@ -81,6 +80,7 @@ void aiw::QpltContainer::prepare3D(QpltScene &S, int Nx, int Ny) const {
 		Vecf<3> r = -bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
 		pp[i] = vecf(r*S.nX, r*S.nY);  A <<= pp[i]; B >>= pp[i];
 		if(i==0 || r*S.nS>Zmin){ i_min = i; Zmin = r*S.nS; }
+		// WOUT(i, r, pp[i], i_min, Zmin, r*S.nS);
 	}  // конец цикла по углам
 	Vecf<2> scale(1.f);
 	if(S.D3scale_mode==0) scale[0] = scale[1] = float(std::min(Nx, Ny))/(bbox&d).abs();
@@ -95,30 +95,32 @@ void aiw::QpltContainer::prepare3D(QpltScene &S, int Nx, int Ny) const {
 		if(z1<z2) S.flats |= 2<<4*i;  // точность ???
 	}
 		
-	std::pair<float, int> stable[6];  // таблица для сортировки вершин
+	std::pair<float, int> stable[6]; int rtable[6];  // таблица для сортировки вершин и обратная таблица переходов
 	for(int i=0, j=0; i<8; i++) if(i!=i_min && i!=7-i_min){ Vecf<2> dp = pp[i]-pp[i_min];  stable[j++] = std::make_pair(atan2f(dp[1], dp[0]), i); }
 	std::sort(stable, stable+6);
 
-	Ind<3> nb_min;  for(int i=0; i<3; i++) nb_min[i] = i_min&1<<i ? i_min-(1<<i): i_min+(1<<i);   // вершины, соседние центральной	
-	bool cshift = !nb_min.contains(stable[0].second);  // необходимость сдвига, что бы с центральной точкой были ребра от вершин 0,2,4	
-	Vecf<2> C(Nx/2.+.5, Ny/2.+.5);	S.flpoints[6] = C+(pp[i_min]&scale);  
-	for(int i=0; i<6; i++) S.flpoints[(i+cshift)%6] = C+(pp[stable[i].second]&scale); 
+	Ind<3> nb_min;  for(int i=0; i<3; i++) nb_min[i] = i_min&1<<i ? i_min-(1<<i): i_min+(1<<i);  // вершины соседние центральной	
+	bool cshift = !nb_min.contains(stable[0].second);  // необходимость сдвига, что бы с центральной точкой были соединены ребра от вершин 0,2,4	
+	Vecf<2> C(Nx/2.+.5, Ny/2.+.5);	S.flcenter = C+(pp[i_min]&scale);  // центр изображения и центральная точка  
+	for(int i=0; i<6; i++){ rtable[i] = stable[(i+cshift)%6].second; S.flpoints[i] = C+(pp[rtable[i]]&scale);  }
 
 	for(int i=0; i<3; i++){  // полуцикл по парам вершин, вторая половина цикла отрабатывает тут же
-		int a[2], b[2]; for(int j=0; j<2; j++){ a[j] = stable[(i+3*j)%6].second;  b[j] = stable[(i+3*j+1)%6].second; }
+		int a[2], b[2]; for(int j=0; j<2; j++){ a[j] = rtable[(i+3*j)%6];  b[j] = rtable[(i+3*j+1)%6]; }
 		int ab = abs(a[0]-b[0]),  axe = ab==1? 0: (ab==2? 1: 2);  // ось которой отвечает пара вершин
 		bool ver = std::min((pp[a[0]]-pp[i_min]).abs(), (pp[b[0]]-pp[i_min]).abs()) < std::min((pp[a[1]]-pp[i_min]).abs(), (pp[b[1]]-pp[i_min]).abs());
 		bool inv = a[ver]>b[ver];
-		S.flpoints2axes[2*axe+inv] = (i+3*ver)%6; S.flpoints2axes[2*i+axe-inv] = (i+3*ver+1)%6; 
+		// WOUT(i, a[0], a[1], b[0], b[1], ab, axe, ver, inv, 2*axe+inv, 2*axe+1-inv);
+		S.flaxes[2*axe+inv] = (i+3*ver)%6;  S.flaxes[2*axe+1-inv] = (i+3*ver+1)%6;  // mode==auto
+		ver = (pp[a[0]]+pp[b[0]])[axe<2] > (pp[a[1]]+pp[b[1]])[axe<2];  inv = a[ver]>b[ver];  // интерпретация индексов a, b (лево/право или верх/низ)
+		S.flaxes[6+2*axe+inv] = (i+3*ver)%6;  S.flaxes[6+2*axe+1-inv] = (i+3*ver+1)%6;  // mode==1 left/bottom
+		ver = !ver;  inv = a[ver]>b[ver];  // вторая пара осей
+		S.flaxes[12+2*axe+inv] = (i+3*ver)%6;  S.flaxes[12+2*axe+1-inv] = (i+3*ver+1)%6;  // mode==2 right/top
 	}
-	for(int i=0; i<7; i++) if(S.flpoints[i]>=ind(0,0)) S.flpoints[i][1] = Ny-1-S.flpoints[i][1];  // разворачиваем ось Y
+	if(S.flcenter.y>=0) S.flcenter.y = Ny-1-S.flcenter.y;  // разворачиваем ось Y
+	for(int i=0; i<6; i++) if(S.flpoints[i].y>=0) S.flpoints[i].y = Ny-1-S.flpoints[i].y;  // разворачиваем ось Y
 }
-int aiw::QpltScene::get_flpoint_x(int i) const { return flpoints[i%6][0]; }
-int aiw::QpltScene::get_flpoint_y(int i) const { return flpoints[i%6][1]; }
-int aiw::QpltScene::get_flcenter_x() const { return flpoints[6][0]; }
-int aiw::QpltScene::get_flcenter_y() const { return flpoints[6][1]; }
-int aiw::QpltScene::get_flpoint_a(int i) const { return flpoints2axes[2*i]; }
-int aiw::QpltScene::get_flpoint_b(int i) const { return flpoints2axes[2*i+1]; }
+int aiw::Ind2::x0 = 0;
+int aiw::Ind2::y0 = 0;
 //------------------------------------------------------------------------------
 //   class QpltFactory
 //------------------------------------------------------------------------------

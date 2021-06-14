@@ -11,11 +11,31 @@
 #include <string>
 #include <vector>
 #include <map>
+#ifdef SWIG
+#include <Python.h>
+#endif //SWIG
 #include "../vec"
 // #include "../debug"
 // #include "imaging"
 
 namespace aiw{
+	//--------------------------------------------------------------------------
+	struct Ind2{
+		int x, y;
+		static int x0, y0; 
+		
+		Ind2(int x_=0, int y_=0): x(x_), y(y_){}
+		Ind2 operator + (Ind2 b) const { return Ind2(x+b.x, y+b.y); }
+		Ind2 operator - (Ind2 b) const { return Ind2(x-b.x, y-b.y); }
+#ifdef SWIGPYTHON
+		int __getitem__(int i) const {
+			if(i<0 || 2<=i) throw PyErr_Format(PyExc_IndexError, "index [%i] out of range", i);
+			return i? y0+y: x0+x;
+		}
+#else  //SWIGPYTHON
+		void operator = (Ind<2> b){ x = b[0]; y = b[1]; }
+#endif //SWIGPYTHON
+	};
 	//--------------------------------------------------------------------------
 	class QpltScene {
 		int axes[3] = {0, 1, 2};  // эти же оси применяются в дифференциальных операторах
@@ -58,7 +78,7 @@ namespace aiw{
 		void uncrop(){ for(int i=0; i<2+D3; i++) set_autoscale(i, true); }
 		//---------------------------------------------------------------------
 		bool D3 = false;  // 3D режим 
-		float theta = 60, phi = 60;  // ориентация сцены, в градусах, точка вращения центр изображения (с учетом пределов отрисовки)
+		float theta = 70, phi = 60;  // ориентация сцены, в градусах, точка вращения центр изображения (с учетом пределов отрисовки)
 		float dx=1, dy=1, dz=1;  // соотношение сторон ячейки
 		int D3scale_mode = 0;
 		// далее куб изображения вписывается в окно под таким углом, и:
@@ -70,15 +90,12 @@ namespace aiw{
 #ifndef SWIG
 		Vecf<3> nS, nX, nY;  // нормали - ортогональная сцене, параллельная плоскости XY, параллельная плоскости nSZ
 		int flats;           // по 4 бита на флэт, 0 - не показывается, 1/2 - показывается по отрицательному/положительному значению по оси
-		Ind<2> flpoints[7];  // координаты углов флэтов в системе связанной с изображением (ось Y направлена вниз). Центральная точка [6], с ней связаны [0,2,4]
-		Ind<6> flpoints2axes;  // номера flpoint-ов  по осям (идут двойками для отрисовки тиков), если ось не используется стоят -1
+		Ind2 flpoints[6];    // координаты углов флэтов в системе связанной с изображением (ось Y направлена вниз). 
+		int flaxes[18];      // номера flpoint-ов  по осям (идут двойками для отрисовки тиков), если ось не используется стоят -1
 #endif //SWIG
-		int get_flcenter_x() const;
-		int get_flcenter_y() const;
-		int get_flpoint_x(int i) const;
-		int get_flpoint_y(int i) const;
-		int get_flpoint_a(int i) const;
-		int get_flpoint_b(int i) const;
+		Ind2 flcenter;       // центральная точка, с ней связаны flpoints[0,2,4]
+		Ind2 flpoint(int i) const { return flpoints[i%6]; }
+		Ind2 axe3D(int axe, int i, int mode) const { return flpoints[flaxes[mode*6+axe*2+i]]; }  // axe=0,1,2, i=0,1, mode=0(auto), 1(left/bottom), 2(right/top)
 	};
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
