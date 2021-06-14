@@ -10,7 +10,7 @@ def text_sz(text, paint, vertical=-1):
 #    rect = paint.boundingRect(0, 0, 1000, 1000, 0, text)
 #    return  rect.width(), rect.height() 
 #-------------------------------------------------------------------------------
-_add = lambda *args: (sum(x[0] for x in args), sum(x[1] for x in args))
+_add = lambda *args: (int(sum(x[0] for x in args)), int(sum(x[1] for x in args)))
 _sub = lambda A, B: (A[0]-B[0], A[1]-B[1])
 _and = lambda A, B: (A[0]*B[0], A[1]*B[1])
 _mul = lambda A, B: A[0]*B[0]+A[1]*B[1]
@@ -46,8 +46,8 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
     def t2p(t, sc=1): a = _add(A, _xmul(AB, t2p0(t))); return list(map(int, a+_add(a, _xmul(d, sc))))
     L, align, d2, extend, bbox, flow = num2strL(tics, logscale), [-(d[0]<0), -(d[1]<0)], _xmul(d, 2), [0]*4, [f(A[i], B[i]) for f in (min, max) for i in (0, 1)], None
     if abs(AB[0])>abs(AB[1]):  # ось скорее горизонтальная
-        if abs(max(text_sz(l, paint, False) for l in L)/AB[0]*AB[1])<tic_len: flow = 0  # выравнивание по центру align[0] = -.5
-    elif abs(AB[0])<abs(AB[1]): flow = 1 # ось скорее вертикальная, выравнивание по центру align[1] = -.5
+        if abs(max(text_sz(l, paint, False) for l in L)/AB[0]*AB[1])<tic_len: flow, align[0] = 0, -.5  # выравнивание по центру
+    elif abs(AB[0])<abs(AB[1]): flow, align[1] = 1, -.5  # ось скорее вертикальная, выравнивание по центру 
     T2p = lambda t, l: list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, text_sz(l)))))
     def T2pl(i):
         t, l = tics[i], L[i]
@@ -56,20 +56,25 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
             if i in (0, len(L)-1): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
             else: align[flow] = -.5 #i/len(L)*-(d[flow]<0)
         lsz = text_sz(l, paint); lxy = list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, lsz))))
-        if d[0]<0: extend[0] = -min(lxy[0]-bbox[0], -extend[0])
-        if d[1]<0: extend[1] = -min(lxy[1]-bbox[1], -extend[1])
-        if d[0]>0: extend[2] = max(lxy[0]+lsz[0]-bbox[2], extend[2])
-        if d[1]>0: extend[3] = max(lxy[1]+lsz[1]-bbox[3], extend[3])
+        update_extend(lxy, lsz)
         return lxy, l
+    def update_extend(xy, sz):
+        extend[0] = -min(xy[0]-bbox[0], -extend[0])
+        extend[1] = -min(xy[1]-bbox[1], -extend[1])
+        extend[2] = max(xy[0]+sz[0]-bbox[2], extend[2])
+        extend[3] = max(xy[1]+sz[1]-bbox[3], extend[3])
     if label:
         lbl_sz, max_tic_sz = text_sz(label, paint), max(text_sz(l, paint, False) for l in L)
         if is_z_label: 
-            if d[0]<0: label_pos = [A[0]-2*tic_len-max_tic_sz-2*lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)]; extend[0] = max(extend[0], -label_pos[0])
-            else: label_pos = [A[0]+2*tic_len+max_tic_sz+lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)]; extend[2] = max(extend[2], label_pos[0]+lbl_sz[0]-bbox[0])
-        else: label_pos = None
-    else: label_pos = None
-    try: return list(map(T2pl, range(len(L)))),  extend, [t2p(t, 2) for t in tics]+list(map(t2p, stics)), label_pos
-    except ValueError as e: return [], [0]*4, [], label_pos
+            if d[0]<0: lbl_pos = [A[0]-2*tic_len-max_tic_sz-2*lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)];  extend[0] = max(extend[0], bbox[0]-lbl_pos[0])
+            else: lbl_pos = [A[0]+2*tic_len+max_tic_sz+lbl_sz[1], int((A[1]+B[1]+lbl_sz[0])/2)];  extend[2] = max(extend[2], lbl_pos[0]+lbl_sz[0]-bbox[0])
+        else:
+            mp = _add(_xmul(_add(A, B), .5), _xmul(d, (abs(_mul(d, (max_tic_sz, lbl_sz[1])))/tic_len+2*tic_len+lbl_sz[1])/tic_len)) # середина вынесенного от AB отрезка
+            lbl_pos = _add(mp, _and(lbl_sz, align))
+            update_extend(lbl_pos, lbl_sz)
+    else: lbl_pos = None
+    try: return list(map(T2pl, range(len(L)))),  extend, [t2p(t, 2) for t in tics]+list(map(t2p, stics)), lbl_pos
+    except ValueError as e: return [], [0]*4, [], lbl_pos
 #-------------------------------------------------------------------------------
 def make_tics(limits, logscale, N, vertical, paint, flip):
     'возвращает [(tic_pos, tic_text)... ], max_tic_sz, [subtics_pos...]'

@@ -180,6 +180,9 @@ class Canvas(QtWidgets.QWidget):
                             extend = list(map(max, extend, ext))
                     #print(it, extend)
                 mesh.prepare3D(scene, self.X[1]-extend[0]-extend[2], self.Y[1]-self.Y[0]-extend[1]-extend[3])
+
+                # тут рисование и вывод qplt_im
+
                 qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
                 paint.drawEllipse(scene.flcenter.x+extend[0]-5, scene.flcenter.y+self.Y[0]+extend[1]-5, 10,  10)
                 for i in range(6): paint.drawLine(*(tuple(scene.flpoint(i))+tuple(scene.flpoint(i+1)))) 
@@ -195,16 +198,10 @@ class Canvas(QtWidgets.QWidget):
                             if axe==2:
                                 paint.translate(lbl_pos[0], lbl_pos[1]); paint.rotate(-90)
                                 paint.drawText(0, 0, 1000, 1000, 0, lbl)
-                                paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1]); 
+                                paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
                             else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
-                    #paint.setPen((QtCore.Qt.red, QtCore.Qt.green, QtCore.Qt.blue)[axe])
-                    #paint.drawText(int((scene.get_flpoint_x(scene.get_flpoint_a(axe))+scene.get_flpoint_x(scene.get_flpoint_b(axe)))/2)+10,
-                    #               int((scene.get_flpoint_y(scene.get_flpoint_a(axe))+scene.get_flpoint_y(scene.get_flpoint_b(axe)))/2)+10,
-                    #               100, 100, 0, 'XYZ'[axe])
-                    #paint.setPen(QtCore.Qt.black)
             else:
-                qplt_im, dT = self.plot2D(paint);  T += dT
-            
+                qplt_im, dT = self.plot2D(paint);  T += dT                
                 im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
                 paint.drawImage(self.X[0]+bw, self.Y[0]+bw, im)
             # paint.drawImage(self.X[0]+bw, self.Y[0]+bw, QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB888))
