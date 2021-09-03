@@ -1292,6 +1292,14 @@ class QpltScene(_object):
         """axe3D(QpltScene self, int axe, int i, int mode) -> Ind2"""
         return _qplt.QpltScene_axe3D(self, axe, i, mode)
 
+    __swig_setmethods__["im_a"] = _qplt.QpltScene_im_a_set
+    __swig_getmethods__["im_a"] = _qplt.QpltScene_im_a_get
+    if _newclass:
+        im_a = _swig_property(_qplt.QpltScene_im_a_get, _qplt.QpltScene_im_a_set)
+    __swig_setmethods__["im_b"] = _qplt.QpltScene_im_b_set
+    __swig_getmethods__["im_b"] = _qplt.QpltScene_im_b_get
+    if _newclass:
+        im_b = _swig_property(_qplt.QpltScene_im_b_get, _qplt.QpltScene_im_b_set)
 
     def __init__(self):
         """__init__(aiw::QpltScene self) -> QpltScene"""

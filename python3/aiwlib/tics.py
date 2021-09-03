@@ -41,7 +41,7 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
         stics = [] if limits[0]==tics[0] else calc_tics_normalscale(limits[0], tics[0], tics[0]/10)
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
-    else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
+    else: stics = calc_tics_normalscale(limits[0], limits[1], ((tics[1]-tics[0])/10 if len(tics)>1 else tics[0]))  # если в tics одно значение как расставлять subtics???
     t2p0 = lambda t: 1./log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(1./(limits[1]-limits[0])*(t-limits[0])) # конвертер значения в позицию
     def t2p(t, sc=1): a = _add(A, _xmul(AB, t2p0(t))); return list(map(int, a+_add(a, _xmul(d, sc))))
     L, align, d2, extend, bbox, flow = num2strL(tics, logscale), [-(d[0]<0), -(d[1]<0)], _xmul(d, 2), [0]*4, [f(A[i], B[i]) for f in (min, max) for i in (0, 1)], None
@@ -110,6 +110,7 @@ def num2strL(L, logscale):
 #-------------------------------------------------------------------------------
 def calc_tics_normalscale(a, b, h):
     'возвращает разбиение по шагам h'
+    if not h: return []
     if b<a: a, b = b, a
     A, B, L = floor(a/h)*h, ceil(b/h)*h, []
     while A<=B:

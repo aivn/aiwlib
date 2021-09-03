@@ -166,27 +166,45 @@ class Canvas(QtWidgets.QWidget):
                     paint.rotate(90)
             else: self.X[1] = sz_x
                 
-            if scene.D3:                
-                extend, axes_modes = [0]*4, [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
-                #if win.z_text.text(): extend[0] = 2*h_font
-                for it in range(3):
-                    mesh.prepare3D(scene, self.X[1]-extend[0]-extend[2], self.Y[1]-self.Y[0]-extend[1]-extend[3])
-                    qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
-                    for axe, mode, lbl in axes_modes:
-                        for m in [1,2] if mode==0 else [0] if mode==1 else [] if mode==4 else [mode-1]:
-                            text, ext, lines, lbl_pos = make_tics3D((mesh.get_bmin(axe), mesh.get_bmax(axe)), mesh.get_logscale(axe),
-                                                                    tuple(scene.axe3D(axe, 0, m)), tuple(scene.axe3D(axe, 1, m)),
-                                                                    tuple(scene.flcenter), tl, paint, scene.get_flip(axe), lbl*(m==1 or mode!=0), axe==2)
-                            extend = list(map(max, extend, ext))
-                    #print(it, extend)
-                mesh.prepare3D(scene, self.X[1]-extend[0]-extend[2], self.Y[1]-self.Y[0]-extend[1]-extend[3])
-
-                # тут рисование и вывод qplt_im
-
+            if scene.D3:
+                self.X[0] = 0
+                axes_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
+                im_sz0 = self.X[1], self.Y[1]-self.Y[0];  mesh.prepare3D(scene, im_sz0[0], im_sz0[1])
+                extend = [scene.im_a.x, scene.im_a.y, im_sz0[0]-scene.im_b.x, im_sz0[1]-scene.im_b.y]  
                 qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
-                paint.drawEllipse(scene.flcenter.x+extend[0]-5, scene.flcenter.y+self.Y[0]+extend[1]-5, 10,  10)
+                for axe, mode, lbl in axes_modes:
+                    for m in [1,2] if mode==0 else [0] if mode==1 else [] if mode==4 else [mode-1]:
+                        text, ext, lines, lbl_pos = make_tics3D((mesh.get_bmin(axe), mesh.get_bmax(axe)), mesh.get_logscale(axe),
+                                                                tuple(scene.axe3D(axe, 0, m)), tuple(scene.axe3D(axe, 1, m)),
+                                                                tuple(scene.flcenter), tl, paint, scene.get_flip(axe), lbl*(m==1 or mode!=0), axe==2)
+                        extend = list(map(max, extend, ext))
+                im_pos = [extend[0]-scene.im_a.x, extend[1]-scene.im_a.y]
+                im_sz1 = [im_sz0[0]-(im_pos[0]+extend[2]-(im_sz0[0]-scene.im_b.x)), im_sz0[1]-(im_pos[1]+extend[3]-(im_sz0[1]-scene.im_b.y))]
+                #print(extend, [scene.im_a.x, scene.im_a.y, scene.im_b.x, scene.im_b.y], im_sz1)
+                mesh.prepare3D(scene, im_sz1[0], im_sz1[1])
+                #print(im_sz0[0]-extend[0]-extend[2], im_sz0[1]-extend[1]-extend[3], scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y, '<<<<<<<<<')
+
+                
+                t1 = time.time()
+                qplt_im = qplt.QpltImage(scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y)#; qplt_im.fill(0xFF)
+                mesh.plot(scene, accessor, color, qplt_im)
+                T += time.time()-t1
+                im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
+
+                #paint.drawImage(self.X[0]+extend[0]+scene.im_a.x+bw, self.Y[0]+extend[1]+scene.im_a.y+bw, im)
+                #qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
+
+                paint.drawImage(self.X[0]+im_pos[0]+scene.im_a.x, self.Y[0]+im_pos[1]+scene.im_a.y, im)
+
+                qplt.Ind2.x0.fset(im_pos[0]); qplt.Ind2.y0.fset(self.Y[0]+im_pos[1])
                 for i in range(6): paint.drawLine(*(tuple(scene.flpoint(i))+tuple(scene.flpoint(i+1)))) 
+                paint.setPen(QtCore.Qt.gray)
+                paint.drawEllipse(scene.flcenter.x+im_pos[0]-5, scene.flcenter.y+self.Y[0]+im_pos[1]-5, 10,  10)
                 for i in range(3): paint.drawLine(*(tuple(scene.flpoint(2*i))+tuple(scene.flcenter)))
+                paint.setPen(QtCore.Qt.black)
+
+                #print('im_sz0=%s im_sz1=%s im_pos=%s scene.im=%s'%(im_sz0, im_sz1, im_pos, [scene.im_a.x, scene.im_a.y, scene.im_b.x, scene.im_b.y]))
+                
                 for axe, mode, lbl in axes_modes:
                     for m in [1,2] if mode==0 else [0] if mode==1 else [] if mode==4 else [mode-1]:
                         text, ext, lines, lbl_pos = make_tics3D((mesh.get_bmin(axe), mesh.get_bmax(axe)), mesh.get_logscale(axe),
@@ -200,6 +218,9 @@ class Canvas(QtWidgets.QWidget):
                                 paint.drawText(0, 0, 1000, 1000, 0, lbl)
                                 paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
                             else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
+                paint.setPen(QtCore.Qt.red)
+                paint.drawRect(self.X[0]+im_pos[0]+scene.im_a.x, self.Y[0]+im_pos[1]+scene.im_a.y, scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y)
+                paint.setPen(QtCore.Qt.black)
             else:
                 qplt_im, dT = self.plot2D(paint);  T += dT                
                 im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)

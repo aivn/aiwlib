@@ -34,11 +34,12 @@ namespace aiw{
 		}
 #else  //SWIGPYTHON
 		void operator = (Ind<2> b){ x = b[0]; y = b[1]; }
+		operator Ind<2> () const { return ind(x, y); }
 #endif //SWIGPYTHON
 	};
 	//--------------------------------------------------------------------------
 	class QpltScene {
-		int axes[3] = {0, 1, 2};  // эти же оси применяются в дифференциальных операторах
+		int axes[3] = {0, 1, 2};  // эти же оси применяются в дифференциальных операторах ???
 		double limits[16] = {0.}; // ??? max dim == 8???
 		double spos[8] = {0.};    // позиции срезов в системе координат связанной с контейнером
 		uint32_t flags = 0;       // 2 бита на интерполяцию, бит на !autoscale, бит на flip
@@ -92,10 +93,13 @@ namespace aiw{
 		int flats;           // по 4 бита на флэт, 0 - не показывается, 1/2 - показывается по отрицательному/положительному значению по оси
 		Ind2 flpoints[6];    // координаты углов флэтов в системе связанной с изображением (ось Y направлена вниз). 
 		int flaxes[18];      // номера flpoint-ов  по осям (идут двойками для отрисовки тиков), если ось не используется стоят -1
+
+		Vecf<2> nflats[6]; float cflats[6];  // для преобразования луча в координаты флэта
 #endif //SWIG
 		Ind2 flcenter;       // центральная точка, с ней связаны flpoints[0,2,4]
 		Ind2 flpoint(int i) const { return flpoints[i%6]; }
 		Ind2 axe3D(int axe, int i, int mode) const { return flpoints[flaxes[mode*6+axe*2+i]]; }  // axe=0,1,2, i=0,1, mode=0(auto), 1(left/bottom), 2(right/top)
+		Ind2 im_a, im_b;  // bbox для изображения
 	};
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw

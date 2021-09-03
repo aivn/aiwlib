@@ -36,6 +36,7 @@ namespace aiw{
 		// template <int> friend  struct qplt_mesh_get_t; // void calc(const QpltAccessor&, float *dst);
 		template <int> struct calc_t;
 		template <int AID> calc_t<AID> get_calc(QpltAccessor&, QpltScene&, Ind<2> im_sz);
+		template <int AID> calc_t<AID> get_flat(QpltAccessor&, QpltScene&, int axe, int pm); 
 		
 	public:
 		bool load(IOstream &);

@@ -57,7 +57,7 @@ template <int AID> struct aiw::QpltMesh::calc_t{
 	cell_type operator[](Ind<2> pos) const {
 		for(int i=0; i<2; i++){ if(pos[i]<0) pos[i] = 0; if(pos[i]>=bbox0[i]) pos[i] = bbox0[i]-1; }
 		char *nb[6] = {nullptr}, *ptr = ptr0; for(int i=0; i<2; i++) ptr += mul[i]*pos[i];
-		if((AID>>3)&7){
+		if((AID>>3)&7){  // если необходимо дифференцирование задаем соседей
 			for(int i=0; i<2; i++){
 				if(bbeg[i]+pos[i]>0) nb[2*i] = ptr-mul[i]; else nb[2*i] = ptr;
 				if(bbeg[i]+pos[i]<bbox0[i]-1) nb[2*i+1] = ptr+mul[i]; else nb[2*i+1] = ptr;
@@ -69,6 +69,7 @@ template <int AID> struct aiw::QpltMesh::calc_t{
 		return f;
 	}
 	int interp; float step[2]; // , rstep[2];
+	void mod_coord(Vecf<2> r, Ind<2> &pos, Vec<2> &X) const { pos = r; X = r-pos; }
 	void mod_coord(int axe, float r, int &pos, double &x) const { // вычисляет pos и  x на основе r
 		x = r*step[axe]; pos = x; x -= pos; 
 		// if(interp&(0xF<<(4*(1-axe)))) x = r*rstep[axe] - pos; // *step[axe];
@@ -79,6 +80,8 @@ template <int AID> struct aiw::QpltMesh::calc_t{
 		} else pos = logscale&1<<axe ? log(r/bmin[axe])*rstep[axe] :(r-bmin[axe])*rstep[axe];
 		*/
 	}
+	// bool check_in(Vecf<2> r) const { return bbeg[0]<=r[0] && bbeg[1]<=r[1] && r[0]<bbeg[0]+bbox[0] && r[1]<bbeg[1]+bbox[1]; }
+	bool check_in(Vecf<2> r) const { return 0<=r[0] && 0<=r[1] && r[0]<bbox[0] && r[1]<bbox[1]; }
 
 };
 //------------------------------------------------------------------------------
@@ -95,6 +98,23 @@ template <int AID>  aiw::QpltMesh::calc_t<AID>  aiw::QpltMesh::get_calc(QpltAcce
 	for(int i=0; i<2; i++) plt.step[i] = float(bbox[i])/im_sz[i];
 	return plt;
 }
+template <int AID>  aiw::QpltMesh::calc_t<AID>  aiw::QpltMesh::get_flat(QpltAccessor &acc, QpltScene &scene, int axe, int pm){
+	// WOUT(AID, QpltAccessor::DOUT<AID>(), acc.Dout());
+	calc_t<AID> plt;  plt.acc = &acc; plt.mul[2] = mul[axe];  int a[2] = {(axe+1)%3, (axe+2)%3}, axe_pos = bbeg[axe]+bbox[axe]*pm;
+	plt.ptr0 = ptr0;  if(pm) plt.ptr0 += mul[axe]*(bbox[axe]-1); 
+	for(int i=0; i<2; i++){
+		plt.mul[i] = mul[a[i]]; plt.bbeg[i] = scene.get_flip(a[i])? bbox0[aI[a[i]]]-bbeg[a[i]]-1: bbeg[a[i]];
+		// WOUT(i, a[i], aI[a[i]]);
+		plt.bbox0[i] = bbox0[aI[a[i]]]; plt.bbox[i] = bbox[a[i]];
+		// шаги в акссесоре при диффенцировании настраивать тут, для каждого флэта свой акцессор?
+	} // ???
+	plt.diff3minus = scene.get_flip(axe)? axe_pos+1<bbox0[aI[axe]]: axe_pos>0;
+	plt.diff3plus  = scene.get_flip(axe)? axe_pos>0: axe_pos+1<bbox0[aI[axe]];
+	plt.interp = scene.get_interp(a[0])<<4|scene.get_interp(a[1]);
+	for(int i=0; i<2; i++) plt.step[i] = 1;
+	WOUT(axe, pm, plt.bbox, mul[axe]);
+	return plt;
+}
 //------------------------------------------------------------------------------
 template <int AID> void aiw::QpltMesh::prepare_impl(QpltAccessor &acc, QpltScene &scene, QpltColor &color){
 	this->data_load();  ptr0 = (char*)(mem->get_addr());  
@@ -106,7 +126,7 @@ template <int AID> void aiw::QpltMesh::prepare_impl(QpltAccessor &acc, QpltScene
 		}
 	char *ptr1 = ptr0;  // указывает на нижний угол области по которой считаются пределы функции
 	for(int a=0; a<2+scene.D3; a++){
-		mul[a] = mul0[aI[a]]; ptr0 += mul[a]*bbeg[a]; ptr1 += mul[a]*bbeg[a];
+		mul[a] = mul0[aI[a]]; ptr0 += mul[a]*bbeg[a]; ptr1 += mul[a]*bbeg[a];  // реально вот тут задается crop
 		smin[aI[a]] = bbeg[a]; smax[aI[a]] = bbeg[a]+bbox[a];
 		if(scene.get_flip(a)){ ptr0 += (bbox[a]-1)*mul[a]; mul[a] = -mul[a]; }
 	}
@@ -130,7 +150,7 @@ template <int AID> void aiw::QpltMesh::prepare_impl(QpltAccessor &acc, QpltScene
 					if(smin[aI[i]]>0) nb[2*i] = ptr1-mul0[aI[i]]; else nb[2*i] = ptr1;
 					if(smin[aI[i]]<bbox0[aI[i]]-1) nb[2*i+1] = ptr1+mul0[aI[i]]; else nb[2*i+1] = ptr1;
 				}
-			WOUT(AID, DIFF, ddim, dout, (void*)ptr1, (void*)(nb[0]), (void*)(nb[1]), (void*)(nb[2]), (void*)(nb[3]), (void*)(nb[4]), (void*)(nb[5]));
+			// WOUT(AID, DIFF, ddim, dout, (void*)ptr1, (void*)(nb[0]), (void*)(nb[1]), (void*)(nb[2]), (void*)(nb[3]), (void*)(nb[4]), (void*)(nb[5]));
 			Vecf<3> f; acc.conv<AID>(ptr1, (const char**)nb, &(f[0])); float f_min = f.abs(), f_max = f_min;
 			Ind<8> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<dim; i++) sz *= sbox[i];
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max)
@@ -155,10 +175,9 @@ template <int AID> void aiw::QpltMesh::prepare_impl(QpltAccessor &acc, QpltScene
 }
 //------------------------------------------------------------------------------
 template <int AID> void aiw::QpltMesh::plot_impl(QpltAccessor &acc, QpltScene &scene, QpltColor &color, QpltImage &im){
-	// if(acc.Dout()>1) return;  // мы пока не умеем рисовать векторные поля ;-(
+	constexpr int dout = QpltAccessor::DOUT<AID>();
+	constexpr int PAID = dout==1? AID: (AID&0x7F)|(3<<6); // если итоговое поле векторное - рисуем его модуль 
 	if(!scene.D3){ // 2D mode
-		constexpr int dout = QpltAccessor::DOUT<AID>();
-		constexpr int PAID = dout==1? AID: (AID&0x7F)|(3<<6); // если итоговое поле векторное - рисуем его модуль 
 		calc_t<PAID> plt = get_calc<PAID>(acc, scene, ind(im.Nx, im.Ny));
 #pragma omp parallel for 
 		for(int y=0; y<im.Ny; y++){
@@ -170,7 +189,7 @@ template <int AID> void aiw::QpltMesh::plot_impl(QpltAccessor &acc, QpltScene &s
 			}
 		}
 		//im.dump2ppm("/tmp/qplt.ppm");
-		if(dout>1){
+		if(dout>1){  // векторные поля
 			calc_t<AID> plt2 = get_calc<AID>(acc, scene, ind(im.Nx, im.Ny));
 			Ind<2> N = ind(im.Nx, im.Ny), Na = N/color.arr_length/color.arr_spacing<<plt2.bbox, d = N/Na;
 			WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
@@ -184,9 +203,68 @@ template <int AID> void aiw::QpltMesh::plot_impl(QpltAccessor &acc, QpltScene &s
 				}
 		}
 	} else { // 3D mode
+		calc_t<PAID> plts[3]; int pms[3];
+ 
+		for(int axe=0; axe<3; axe++){
+			pms[axe] = (scene.flats>>4*axe)&0xF; // положение флэта на ортогональной ему оси (1 или 2)			
+			if(pms[axe]) plts[axe] = get_flat<PAID>(acc, scene, axe, pms[axe]-1);
+		}
 
-		
-		
+#pragma omp parallel for
+		for(int y=0; y<im.Ny; y++){
+			Ind<2> pos; Vec<2> X; 
+			for(int x=0; x<im.Nx; x++){
+				int axe; for(axe=0; axe<3; axe++) if(pms[axe]) {
+						// WOUT(x, y, axe);
+						// Vecf<2> r = scene.cflats[axe] + vecf(scene.nflats[2*axe]*ind(x, y), scene.nflats[2*axe+1]*ind(x, y));  // это должно быть методом сцены или того у кого cflats, nflats?
+						Vecf<2> r(scene.nflats[2*axe]*ind(x, y)+scene.cflats[2*axe], scene.nflats[2*axe+1]*ind(x, y)+scene.cflats[2*axe+1]);
+						//	 scene.nflats[2*axe+1]*(ind(x, y)-scene.cflats[2*axe+1]));  // это должно быть методом сцены или того у кого cflats, nflats?
+						if(plts[axe].check_in(r)){
+							plts[axe].mod_coord(r, pos, X);
+							im.set_pixel(x, y, color(interpolate(plts[axe], pos, X, plts[axe].interp)[0]));
+							// im.set_gray_pixel(x, y, 128); 
+							break;
+						}
+					}
+				if(axe==3) im.set_gray_pixel(x, y, 255);
+			}
+		}
+		/*
+		if(dout>1){  // векторные поля
+			calc_t<AID> plt2[3]; for(int fl=0; fl<3; fl++) if(pms[fl]) plt2[fl] = get_flat<PAID>(acc, scene, fl, pms[fl]-1);
+			Ind<2> N = ind(im.Nx, im.Ny), Na = N/color.arr_length/color.arr_spacing<<plt2.bbox, d = N/Na;
+			WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
+			for(int iy=0; iy<Na[1]; iy++)  for(int ix=0; ix<Na[0]; ix++){
+					int x = ix*d[0]+d[0]/2,  y = iy*d[1]+d[1]/2; Ind<2> pos; Vec<2> X;
+					plt2.mod_coord(0, x, pos[0], X[0]);	plt2.mod_coord(1, y, pos[1], X[1]);
+					// if(!y) WOUT(x, pos, X);
+					auto v = interpolate(plt2, pos, X, plt.interp);
+					color.arr_plot(x, y, (const float*)&v, im);
+					// im.set_pixel(x, y, 0xFFFFFF);
+				}
+				}*/
+		/*
+		if(dout>1) for(int fl=0; fl<3; fl++) if(pms[fl]){  // векторные поля c размещение векторов по отдельным флэтам?
+					calc_t<AID> plt2 = get_flat<AID>(acc, scene, fl, pms[fl]-1);
+
+					// тут надо посчитать размеры занимаемые флэтом вместо N, вообще нужны функции перевода луча в координаты флэта и обратно
+					Ind<2> N = ind(im.Nx, im.Ny), Na = N/color.arr_length/color.arr_spacing<<plt2.bbox, d = N/Na;
+					
+					// WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
+					for(int iy=0; iy<Na[1]; iy++)  for(int ix=0; ix<Na[0]; ix++){
+							int x = ix*d[0]+d[0]/2,  y = iy*d[1]+d[1]/2; Ind<2> pos; Vec<2> X;
+							plt2.mod_coord(0, x, pos[0], X[0]);	plt2.mod_coord(1, y, pos[1], X[1]);
+							// if(!y) WOUT(x, pos, X);
+							auto v = interpolate(plt2, pos, X, plt.interp);
+
+							// тут должен быть доворот v
+							
+							color.arr_plot(x, y, (const float*)&v, im);
+					// im.set_pixel(x, y, 0xFFFFFF);
+						}
+					
+				}
+		*/
 	}
 }
 //------------------------------------------------------------------------------
