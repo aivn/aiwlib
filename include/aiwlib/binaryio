@@ -14,12 +14,16 @@
 #include <list>
 #include <map>
 
+template <typename T> struct aiw_dump_load { static const int mode = std::is_trivially_copyable<T>::value; }; // 0 --- возможно есть внешние dump/load, 1 --- тривиальные, 2 --- встроенные
+
+/*
 template <typename T> struct aiw_dump_load { static const int mode = 0; }; // 0 --- возможно есть внешние dump/load, 1 --- тривиальные, 2 --- встроенные
 #define AIW_POD(T) template <> struct aiw_dump_load<T> { static const int mode = 1; }
 
 AIW_POD(double); AIW_POD(int8_t);  AIW_POD(int16_t);  AIW_POD(int32_t);  AIW_POD(int64_t);
 AIW_POD(float); AIW_POD(uint8_t); AIW_POD(uint16_t); AIW_POD(uint32_t); AIW_POD(uint64_t);
 AIW_POD(bool);
+*/
 template <typename T> struct aiw_dump_load<std::complex<T> > { static const int mode = 1; };
 
 namespace aiw{	
