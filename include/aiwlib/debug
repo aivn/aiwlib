@@ -3,7 +3,7 @@
 #define AIW_DEBUG_HPP
 
 /**
- * Copyright (C) 2016, 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2017, 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -22,10 +22,12 @@ namespace aiw{
 		SplitArgForOut(const char *str);
 	};
 	//--------------------------------------------------------------------------
-	template <typename T> void debug_out(std::ostream& out, const char* str, T x){ out<<str<<"="<<x; }
+	// template <typename T> void debug_out(std::ostream& out, const char* str, T x){ out<<str<<"="<<x; }
+	inline void debug_out(std::ostream& out, const char* str){}
 	template <typename T, typename ... Args> void debug_out(std::ostream& out, const char* str, T x, Args ... args){
 		SplitArgForOut key(str);
-		out.write(str, key.end); out<<"="<<x<<", ";
+		if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
+		out<<x; if(sizeof...(Args)>0) out<<", ";
 		debug_out(out, str+key.next, args...);
 	}
 	//--------------------------------------------------------------------------
@@ -51,10 +53,10 @@ namespace aiw{
 		DebugStackTupleFrame(bool reg): BaseDebugStackTupleFrame(reg){}
 		
 		template <int I> struct counter_t{};
-		void out_node(counter_t<1>, std::ostream& out, const char* str){ out<<str<<"="<<std::get<sizeof...(Args)-1>(data);	}
+		void out_node(counter_t<0>, std::ostream& out, const char* str){} // out<<str<<"="<<std::get<sizeof...(Args)-1>(data);	}
 		template <int I> void out_node(counter_t<I>, std::ostream& out, const char* str){
-			SplitArgForOut key(str);
-			out.write(str, key.end); out<<"="<<std::get<sizeof...(Args)-I>(data)<<", ";
+			SplitArgForOut key(str); if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
+			out<<std::get<sizeof...(Args)-I>(data); if(I>1) out<<", ";
 			out_node(counter_t<I-1>(), out, str+key.next);
 		}
 		void out_msg(std::ostream &out){
