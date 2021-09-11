@@ -8,8 +8,12 @@
  **/
 
 // #ifndef SWIG
+#include <type_traits>
 #include <utility>
+#include <typeinfo>
+
 // #endif //SWIG
+#include "op_traits"
 #include "iostream"
 #include "vec"
 #include "binaryio"
@@ -173,6 +177,7 @@ namespace aiw{
 		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
 		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
+		/*
 		T operator ()(const aiw::Vec<D> &r) const { // ???
 			Ind<D> pos; Vec<D> x;
 			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
@@ -180,7 +185,23 @@ namespace aiw{
 					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
 				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
 			return interpolate(*this, pos, x, interp);
+			}*/
+		
+#ifndef SWIG
+	private:
+		template <typename U = T, typename std::enable_if<has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D> &r) const { // ???
+			Ind<D> pos; Vec<D> x;
+			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
+					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
+					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
+				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
+			return interpolate(*this, pos, x, interp);
 		}
+		template <typename U = T, typename std::enable_if<!has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D> &r) const { return (*this)[r]; }
+	public:
+#endif //SWIG
+		T operator ()(const aiw::Vec<D> &r) const { return interp_impl(r); }
+		
 		//----------------------------------------------------------------------
 		inline aiw::Ind<D> first() const { return Ind<D>(); }
 		inline bool next(aiw::Ind<D> &pos) const { ++pos; return pos^=box; }
@@ -282,8 +303,9 @@ namespace aiw{
 		//    2 --- выводить координату центра ячейки
 		//    3 --- не выводить ни номер ячейки ни координату центра ячейки
 		//   +4 --- не выводить пустую строку при изменении номера ячейки, не влияет на режим 0
-#ifndef SWIG				
-		template <typename S> void out2dat(S &&str, aiw::Ind<D> coords=Ind<D>(2), const char* prefix=nullptr) const { // , aiw::Ind<D> order=Ind<D>() ???
+#ifndef SWIG
+	private:
+		template <typename S> void out2dat_impl(S &&str, aiw::Ind<D> coords, const char* prefix) const { // , aiw::Ind<D> order=Ind<D>() ???
 			Ind<D> B1 = box, B2 = box; int nl_id = -1;
 			for(int i=0; i<D; i++){ 
 				if(coords[i]==4) coords[i] = 0;
@@ -300,6 +322,19 @@ namespace aiw{
 			}
 			str.flush();
 		}
+	public:
+		template <typename U = T, typename std::enable_if<has_std_ostream_lshift_T<U>(nullptr), int>::type = 0>
+		void out2dat(std::ostream &&str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { out2dat_impl(str, coords, prefix); }
+		template <typename U = T, typename std::enable_if<has_aiw_IOstream_lshift_T<U>(nullptr), int>::type = 0>
+		void out2dat(aiw::IOstream &&str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { out2dat_impl(str, coords, prefix); }
+		template <typename U = T, typename std::enable_if<!has_std_ostream_lshift_T<U>(nullptr), int>::type = 0>
+		void out2dat(std::ostream &&str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const {
+			std::cerr<<"[\033[31;1;5mFor call method Mesh<T="<<typeid(T{}).name()<<", D="<<D<<">::out2dat(...) you need operator << (std::ostream&, T)'\033[0m]\n";
+		}
+		template <typename U = T, typename std::enable_if<!has_aiw_IOstream_lshift_T<U>(nullptr), int>::type = 0>
+		void out2dat(aiw::IOstream &&str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const {
+			std::cerr<<"[\033[31;1;5mFor call method Mesh<T="<<typeid(T{}).name()<<", D="<<D<<">::out2dat(...) you need operator << (aiw::IOstream&, T)'\033[0m]\n";
+		}
 #endif //SWIG
 		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { 
 			out2dat(std::move(str), coords, prefix); 
@@ -308,7 +343,10 @@ namespace aiw{
 			out2dat(std::move(str), coords, prefix); 
 		}
 		//----------------------------------------------------------------------
-		bool min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
+#ifndef SWIG
+	private:
+		template <typename U = T, typename std::enable_if<(has_T_less_T<U>(nullptr) && has_T_more_T<U>(nullptr)), int>::type = 0> 
+		bool min_max_impl(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const {
 			Ind<D> pos = first(); bool is_ok = false;
 			do {
 				const T& x = (*this)[pos]; if(is_bad_value(x)) continue;
@@ -318,6 +356,11 @@ namespace aiw{
 			} while(next(pos));
 			return is_ok;
 		}
+		template <typename U = T, typename std::enable_if<!(has_T_less_T<U>(nullptr) && has_T_more_T<U>(nullptr)), int>::type = 0> 
+		bool min_max_impl(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const { return false; }
+	public:
+		bool min_max(T &a, T &b, aiw::Ind<D> &pos_a, aiw::Ind<D> &pos_b) const { return min_max_impl(a, b, pos_a, pos_b); }
+#endif //SWIG
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
 		//----------------------------------------------------------------------
 		void fill(const T &x){ out_value = x; Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
