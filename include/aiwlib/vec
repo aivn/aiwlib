@@ -29,7 +29,7 @@ namespace aiw{
 	public:
 		static int size(){ return D; }
 		
-        explicit Vec(T val=0) { for(int i=0; i<D; i++) p[i] = val; }    
+        explicit Vec(T val=T{}) { for(int i=0; i<D; i++) p[i] = val; }    
 		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v[0]; }
 
 		template <typename ... Args> explicit Vec(const Args&... xxx){ 
@@ -417,8 +417,8 @@ namespace aiw{
 		iterator begin() const { return iterator(a, b); }
 		iterator end() const { return iterator(); }
     };
-	template <int D> inline IndRange<D> range(const Ind<D> &b){ return IndRange<D>(b); }
-	template <int D> inline IndRange<D> range(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
+	template <int D> inline IndRange<D> irange(const Ind<D> &b){ return IndRange<D>(b); }
+	template <int D> inline IndRange<D> irange(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
 	//--------------------------------------------------------------------------
 	template <int D> class BoxIter {
 		Ind<D> a, b, box, pos; size_t f = 0;
