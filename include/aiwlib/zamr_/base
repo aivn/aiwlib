@@ -3,7 +3,7 @@
 #define AIW_ZIP_AMR_BASE_HPP
 
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020--21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  *
  * ZipAdaptiveMesh base methods implementation.
@@ -28,12 +28,25 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const
 	box = tbox*(1<<R0); this->set_axes(bmin_, bmax_); max_rank = R0;
 	forest.init(tbox, bmin_, bmax_);
 	for(Ind<D> pos; pos^=tbox; ++pos){
-		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&step);
+		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&step); // <<< ??? *(1<<R0) ???
 		t.max_rank = R0; t.tree.clear(); t.data.resize(1<<(R0*D)); t.root = ptile_t(0, R0, 0);
-		t.tiles.resize(2); t.tiles[0] = t.tiles[1] = R0;
-		WOUT(t.root.get_sign(), t.root.get_off(), t.root.get_rank());
+		t.tiles.clear(); t.tiles.emplace_back(R0, R0);
+		WOUT(t.root.tree, t.root.off, t.root.rank);
 	}
 	set_max_rank_box_step();
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(const Mesh<int, D> &ranks){
+	max_rank = 0; for(int r: ranks) max_rank = std::max(max_rank, r);
+	box = ranks.bbox()*(1<<max_rank); this->set_axes(ranks.bmin, ranks.bmax);
+	forest.init(ranks.bbox(), ranks.bmin, ranks.bmax);
+	for(Ind<D> pos; pos^=forest.bbox(); ++pos){
+		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin+(pos&forest.step);
+		int R = ranks[pos]; t.max_rank = R; t.tree.clear(); t.data.resize(1<<(R*D)); t.root = ptile_t(0, R, 0);
+		t.tiles.clear(); t.tiles.emplace_back(R, R);
+		WOUT(t.root.tree, t.root.off, t.root.rank);
+	}
+	set_max_rank_box_step();	
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> size_t ZipAdaptiveMesh<T, D>::memsz() const { // размер памяти в байтах
@@ -66,7 +79,7 @@ template <typename T, int D>  template <typename F> void ZipAdaptiveMesh<T, D>::
 	for(tree_t& tr: forest){ // это можно сделать параллельным
 		Cell C; if(!tr.get_first(C, min_rank)) continue;
 		WOUT(min_rank, max_rank, ti);
-		do{ f(C, ti>>(max_rank-C.rank())); } while(C.next(min_rank));
+		do{  WOUT(C.cR, C.tR, C.coff, C.toff,  C.tile, C.ptr, C.bmin(), max_rank); f(C, ti>>(max_rank-C.rank())); } while(C.next(min_rank));
 	}
 }
 //------------------------------------------------------------------------------

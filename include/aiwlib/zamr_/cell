@@ -17,7 +17,7 @@ template <typename T, int D>  Vec<D> ZipAdaptiveMesh<T, D>::Cell::bmin() const {
 template <typename T, int D> bool ZipAdaptiveMesh<T, D>::tree_t::get_first(ZipAdaptiveMesh<T, D>::Cell &cell, int min_rank){
 	if(max_rank<min_rank) return false;
 	cell.tree = this; cell.ptr = data.data(); // остальное делает конструктор Cell
-	cell.cR = tiles[0]; cell.tR = tiles[1]; cell.toff = Dbits<<(D*cell.tR);
+	cell.cR = tiles[0].cR; cell.tR = tiles[0].tR; cell.toff = Dbits<<(D*cell.tR);
 	WOUT(tiles.size(), cell.cR, cell.tR);
 	if(cell.cR>=min_rank) return true;
 	return cell.next_tile(min_rank);
@@ -27,15 +27,15 @@ template <typename T, int D> bool ZipAdaptiveMesh<T, D>::tree_t::get_first(ZipAd
 // может найти как более крупную так и более мелкую ячейки
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::tree_t::get(ZipAdaptiveMesh<T, D>::Cell &cell, uint32_t off, int rank){  // доступ к ячейке
 	if(off>=tile_sz(rank)) return false;
-	cell.tree = this;  cell.cR = cell.tR = root.get_rank();  ptile_t cursor = root;
+	cell.tree = this;  cell.cR = cell.tR = root.rank;  ptile_t cursor = root;
 	if(rank<max_rank) off <<= D*(max_rank-rank);  else off >>= D*(rank-max_rank); // приводим off к max_rank
-	while(cursor.get_sign()){  // спускаемся по дереву 
-		cursor = tree[cursor.get_off() + ((off>>(D*(max_rank-cell.cR))) & RDbits(cell.tR))]; // [+фрагмент off длиной D*tR бит]
-		cell.tR = cursor.get_rank(); cell.cR += cell.tR;
+	while(cursor.tree){  // спускаемся по дереву 
+		cursor = tree[cursor.off + ((off>>(D*(max_rank-cell.cR))) & RDbits(cell.tR))]; // [+фрагмент off длиной D*tR бит]
+		cell.tR = cursor.rank; cell.cR += cell.tR;
 	} // тут нужна проверка что ячейка такого ранга и правда сущеcтвует?
  	cell.coff = off>>(D*(max_rank-cell.cR));
 	cell.toff = cell.coff & RDbits(cell.tR);
-	cell.ptr = data.data()+cursor.get_off()+cell.toff;
+	cell.ptr = data.data()+cursor.off+cell.toff;
 	cell.toff |= Dbits<<(D*cell.tR);  // запас в старших битах для отрицательных смещений к соседям
 
 	// cell.tile = ... здесь его невозможно эффективно инициализировать ???
@@ -45,18 +45,20 @@ template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::tree_t::get(ZipAdaptiv
 //------------------------------------------------------------------------------
 // переключает ячейку на первую ячейку следующиго тайла  с рангом не ниже чем min_rank 
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::next_tile(int min_rank){
-	tile++; coff <<= D*(tree->max_rank-cR); // в процессе поиска coff имеет ранг max_rank
-	for(int sz=tree->tiles.size()/2; tile<sz; tile++){
-		cR = tree->tiles[2*tile]; tR = tree->tiles[2*tile+1];
-		if(cR>=min_rank){ coff >>= (tree->max_rank-cR)*D; toff = Dbits<<(D*tR); return true; }
-		ptr += 1<<(D*tR); coff += 1<<(D*(tR<<(tree->max_rank-cR)));
+	tile++; ptr++; coff <<= D*(tree->max_rank-cR); // в процессе поиска coff имеет ранг max_rank
+	// WOUT(cR, tR, coff, toff, ptr-tree->data.data(), tile, min_rank);
+	// for(auto t: tree->tiles) WOUT(t.cR, t.tR);
+	for(int sz=tree->tiles.size(); tile<sz; tile++){
+		cR = tree->tiles[tile].cR; tR = tree->tiles[tile].tR;
+		if(cR>=min_rank){ coff >>= (tree->max_rank-cR)*D; coff++; toff = Dbits<<(D*tR); return true; }
+		ptr += 1<<(D*tR); coff += 1<<D*(tR<<(tree->max_rank-cR));
 	}
 	return false;
 }
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::next(int min_rank){
-	WOUT(toff, coff, tR, cR);
+	// WOUT(toff, coff, tR, cR, min_rank);
 	if(++toff < (uint32_t(1)<<(D*tR+D))){ ptr++; coff++; return true; } // остаемся в рамках тайла
-	WOUT(toff, coff, tR, cR);
+	// WOUT(toff, coff, tR, cR, min_rank);
 	return next_tile(min_rank);
 }
 //------------------------------------------------------------------------------

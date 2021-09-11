@@ -2,6 +2,9 @@
 # Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 # Licensed under the Apache License, Version 2.0
 
+
+#export QT_SCREEN_SCALE_FACTORS=2
+
 import os, sys
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
 from aiwlib import qplt, qplt_canvas
@@ -9,6 +12,7 @@ from aiwlib import qplt, qplt_canvas
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
 canvas = qplt_canvas.Canvas(win)
+win.save.clicked.connect(canvas.save)
 def replot(*args):
     canvas.plt_type |= 1; canvas.update()
     win.setWindowTitle('qplt: %s[%i]'%(factory.get_file_name(win.filenum.value()).decode(), win.framenum.value()))

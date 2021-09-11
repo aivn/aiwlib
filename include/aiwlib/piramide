@@ -3,7 +3,7 @@
 #define AIW_PIRAMIDE_HPP
 
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -15,16 +15,24 @@ namespace aiw{
 		std::vector<T> data;
 		std::vector<size_t> offs;
 	public:
-		void init(int R){
-			offs.resize(R+1); data.clear();
-			for(int i=0; i<=R; i++){ offs[i] = data.size(); data.resize(data.size()+(size_t(1)<<(i*D)));	}
+		void init(int R, T v=T()){
+			offs.resize(R+1); size_t sz = 0;
+			for(int i=0; i<=R; i++){ offs[i] = sz; sz += size_t(1)<<(i*D); }
+			data.resize(sz, v);
 		}
-		void fill(const T& x){ for(T &p: data) p = x; }
+		// void fill(const T& x){ for(T &p: data) p = x; }
 		int rank(){ return offs.size(); }
+		/*
 		T& at(size_t off, int rank){ return data[offs[rank]+off]; }
 		template <typename F> void reduce(F&& f){
 			for(int R=offs.size()-1; R>0; R--) for(size_t i=0; i<(size_t(1)<<(R*D)); i++) f(at(i, R), at(i>>D, R-1));
 		}
+		*/
+		T get(size_t off, int rank) const { return data[offs[rank]+off]; }
+		void set(size_t off, int rank, T v){ data[offs[rank]+off] = v; }
+		template <typename F> void reduce(F&& f){
+			for(int R=offs.size()-1; R>0; R--) for(size_t i=0; i<(size_t(1)<<(R*D)); i++) set(i>>D, R-1, f(get(i, R), get(i>>D, R-1)));
+		}		
 	};
 	//--------------------------------------------------------------------------
 };
