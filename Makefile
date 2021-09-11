@@ -92,14 +92,18 @@ src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))
 ifndef MODULE
 #src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
-src/%.o:  src/%.cpp src/%.d include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-src/view/%.o:  src/view/%.cpp src/view/%.d  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-swig/%.o: swig/%.cxx swig/%.d include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+src/%.o:  src/%.cpp include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
+swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 else
 #$(strip $(dir $(MODULE))$(subst \,,$(shell cat $(basename $(MODULE)).d)))
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
 	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
+
+#.PHONY: cpptest
+cpptest: 
+	$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/debug.cpp)))
 #-------------------------------------------------------------------------------
 #   Mesh
 #-------------------------------------------------------------------------------
