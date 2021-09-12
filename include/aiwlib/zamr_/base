@@ -60,6 +60,7 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::dump(IOstream&& S) cons
 	// bf.tinfo.root = T()^bf.tinfo;
 	bf.dump(S); S.dump(forest.bbox()); for(auto &t: forest) t.dump(S);
 	S.flush();
+	//	WOUT(box, bmin, bmax, max_rank, forest.bbox(), forest[ind(0)].data.size(), forest[ind(0)].tree.size(), forest[ind(0)].tiles.size(), forest[ind(0)].root.off, forest[ind(0)].root.rank, forest[ind(0)].root.tree);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> bool ZipAdaptiveMesh<T, D>::load(IOstream&& S, int use_mmap, bool raise_on_error){ // mmap пока игнорируется
@@ -69,10 +70,19 @@ template <typename T, int D> bool ZipAdaptiveMesh<T, D>::load(IOstream&& S, int 
 		return false;
 	}
 	head = bf.head; logscale = bf.logscale;
-	Ind<D> box_; S>box_;  init(box_, bmin, bmax);
+	Ind<D> box_; S.load(box_);  init(box_, bmin, bmax);
+	WOUT(box, bmin, bmax);
 	for(auto &t: forest) t.load(S);
+	WOUT("for ok");
 	set_max_rank_box_step();
+	//	WOUT(box, bmin, bmax, max_rank, forest.bbox(), forest[ind(0)].data.size(), forest[ind(0)].tree.size(), forest[ind(0)].tiles.size(), forest[ind(0)].root.off, forest[ind(0)].root.rank, forest[ind(0)].root.tree);
 	return true;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D> ZipAdaptiveMesh<T, D>::operator Mesh<T, D>() const {
+	Mesh<T, D> res(box, bmin, bmax);
+	for(Ind<D> pos: irange(box)) res[pos] = get(pos);
+	return res;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D>  template <typename F> void ZipAdaptiveMesh<T, D>::foreach(F &&f, int min_rank, int ti){

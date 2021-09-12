@@ -51,6 +51,7 @@ namespace aiw{
 			uint16_t cR : 11;  // ранг разбиения
 			uint16_t tR : 5;   // ранг задающий размер тайла			
 			
+			index_t(): cR(0), tR(0){}
 			index_t(int cR_, int tR_): cR(cR_), tR(tR_){}
 			bool operator != (index_t b) const { return *(uint16_t*)this!=*(uint16_t*)&b; }
 		};
@@ -81,8 +82,18 @@ namespace aiw{
 			// std::vector<std::vector<std::pair<uint32_t, ptile_t> > > index; // индекс тайлов с данными по рангам
 			std::vector<index_t> tiles;   // по два байта на каждый тайл в data - ранг Z-кривой, ранг тайла, заменяет индекс для обхода с фиксированным рангом.
 			
-			bool dump(IOstream &S) const { return S.dump(bmin, pos, max_rank, root, tree, data, tiles); }
-			bool load(IOstream &S)       { return S.load(bmin, pos, max_rank, root, tree, data, tiles); }
+			bool dump(IOstream &S) const { //return S.dump(bmin, pos, max_rank, root, tree, data, tiles); }
+				WOUT(bmin, pos, max_rank, root.off, root.rank, root.tree, tree.size(), data.size(), tiles.size());
+				bool res = S.dump(bmin, pos, max_rank, root, tree, data, tiles);
+				WOUT(res, bmin, pos, max_rank, root.off, root.rank, root.tree, tree.size(), data.size(), tiles.size());
+				return res;
+			}
+			bool load(IOstream &S)       { //return S.load(bmin, pos, max_rank, root, tree, data, tiles); }
+				WOUT(bmin, pos, max_rank, root.off, root.rank, root.tree, tree.size(), data.size(), tiles.size());
+				bool res = S.load(bmin, pos, max_rank, root, tree, data, tiles);
+				WOUT(res, bmin, pos, max_rank, root.off, root.rank, root.tree, tree.size(), data.size(), tiles.size());
+				return res;
+			}
 #ifdef AIW_ZAMR_TEST
 			void test_out2dat(IOstream &Stree, IOstream &Sdata, IOstream &Svalues, ptile_t, Vec<D> start, int rank0, float sz, int& counter) const;
 #endif //AIW_ZAMR_TEST
@@ -173,11 +184,12 @@ namespace aiw{
 		template <typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 		void rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join, bool parallel=false, int axe=-1);
 		template <typename F_CHECK> void rebuild(F_CHECK &&f_check, bool parallel=false, int axe=-1){
-			rebuild(f_check, [](const Cell&, T*){}, [](const Cell&, T&){}, parallel, axe);
+			rebuild(f_check, [](const Cell &src, T *dst){ for(int i=0; i<(1<<D); i++) dst[i] = *src; }, [](const Cell &src, T &dst){ dst = *src; }, parallel, axe);
 		}
 		
 	protected:
 		T& get(Ind<D> pos); 
+		const T& get(Ind<D> pos) const { return ((ZipAdaptiveMesh*)this)->get(pos); } 
 	public:
 		T out_value;
 		// const T& operator [](const Ind<D> &pos) const { return get(pos); }
@@ -191,6 +203,8 @@ namespace aiw{
 		void dump(IOstream& S) const { dump(std::move(S)); }
 		bool load(IOstream&& S, int use_mmap=0, bool raise_on_error=true); // mmap пока игнорируется
 		bool load(IOstream& S, int use_mmap=0, bool raise_on_error=true){ return load(std::move(S), use_mmap, raise_on_error); }
+
+		operator Mesh<T, D>() const;
 		//----------------------------------------------------------------------
 		//   всякие обходы
 		//----------------------------------------------------------------------
@@ -225,7 +239,7 @@ namespace aiw{
 			void add_join(const Cell& cell){ js_cells.push_back(cell); js_types.push_back(false); delta_sz -=  Dbits; max_rank = std::max(max_rank, cell.cR-1); }
 			void add_split(const Cell& cell){ js_cells.push_back(cell); js_types.push_back(true); delta_sz +=  Dbits; max_rank = std::max(max_rank, cell.cR+1); }
 
-			struct unode_t{ uint16_t tile: 11; uint16_t tRmax: 5; }; // точки роста --- номер тайла и максимально возможный tR тайла
+			struct unode_t{ uint32_t tile: 24; uint32_t tRmax: 8; }; // точки роста --- номер тайла и максимально возможный tR тайла
 			std::vector<index_t> tiles;   // таблица разбитых тайлов
 			std::vector<unode_t> unodes;  // номера тайлов потенциально являющихся точками роста (которые могут являться первым октетом более крупного тайла)
 			Cell js_cell; int js_drank;   // измененная ячейка и изменение ранга за счет действия над ячейкой 

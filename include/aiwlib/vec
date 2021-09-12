@@ -420,7 +420,7 @@ namespace aiw{
 	template <int D> inline IndRange<D> irange(const Ind<D> &b){ return IndRange<D>(b); }
 	template <int D> inline IndRange<D> irange(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
 	//--------------------------------------------------------------------------
-	template <int D> class BoxIter {
+	template <int D> class BoxIter {  // для параллельной итерации, переименовать?
 		Ind<D> a, b, box, pos; size_t f = 0;
 	public:
 		BoxIter(){}
