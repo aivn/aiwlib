@@ -88,8 +88,9 @@ template <typename T, int D> ZipAdaptiveMesh<T, D>::operator Mesh<T, D>() const 
 template <typename T, int D>  template <typename F> void ZipAdaptiveMesh<T, D>::foreach(F &&f, int min_rank, int ti){
 	for(tree_t& tr: forest){ // это можно сделать параллельным
 		Cell C; if(!tr.get_first(C, min_rank)) continue;
-		WOUT(min_rank, max_rank, ti);
-		do{  WOUT(C.cR, C.tR, C.coff, C.toff,  C.tile, C.ptr, C.bmin(), max_rank); f(C, ti>>(max_rank-C.rank())); } while(C.next(min_rank));
+		// WOUT(min_rank, max_rank, ti);
+		do{ //  WOUT(C.cR, C.tR, C.coff, C.toff,  C.tile, C.ptr, C.bmin(), max_rank);
+			f(C, ti>>(max_rank-C.rank())); } while(C.next(min_rank));
 	}
 }
 //------------------------------------------------------------------------------

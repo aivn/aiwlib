@@ -18,7 +18,7 @@ template <typename T, int D> bool ZipAdaptiveMesh<T, D>::tree_t::get_first(ZipAd
 	if(max_rank<min_rank) return false;
 	cell.tree = this; cell.ptr = data.data(); // остальное делает конструктор Cell
 	cell.cR = tiles[0].cR; cell.tR = tiles[0].tR; cell.toff = Dbits<<(D*cell.tR);
-	WOUT(tiles.size(), cell.cR, cell.tR);
+	// WOUT(tiles.size(), cell.cR, cell.tR);
 	if(cell.cR>=min_rank) return true;
 	return cell.next_tile(min_rank);
 }
@@ -81,8 +81,9 @@ template <typename T, int D>  const typename ZipAdaptiveMesh<T, D>::Cell ZipAdap
 //------------------------------------------------------------------------------
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::is_bound(int axe) const {  // принимает номер оси со знаком (грань слева/справа) начиная с единицы
 	int a = abs(axe)-1;
-	if(axe<0) return tree->pos[a]==0 && !(coff&(zmasks[D]<<a)); 
-	if(tree->pos[a]==tree->msh->forest.bbox()[a]-1){ uint32_t mask = (zmasks[D]<<a)&RDbits(cR); return (coff&mask)==mask; }
+	// WOUT(a, bmin(), tree->pos[a], D, coff, zmasks[D], coff&(zmasks[D]<<a));
+	if(axe<0) return tree->pos[a]==0 && !(coff&(zmasks[D-1]<<a)); 
+	if(tree->pos[a]==tree->msh->forest.bbox()[a]-1){ uint32_t mask = (zmasks[D-1]<<a)&RDbits(cR); return (coff&mask)==mask; }
 	return false;
 }
 //------------------------------------------------------------------------------
@@ -91,23 +92,28 @@ template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::is_bound(int axe
 // ifdR - допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
 template <typename T, int D>  template <typename F>  void ZipAdaptiveMesh<T, D>::Cell::face(F&& f, int axe, int ifdR){ 
 	if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i, ifdR); face(f, i, ifdR); } return; } // шаблон крест
+	WOUT(coff, cR, toff, tR, bmin());
 	int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1;
-	Cell res = *this;  res.toff = calc_nb_zoffset<D>(a, sign, toff);
-	int32_t doff = int32_t(res.toff)-int32_t(toff);  // разница в смещениях на ранге tR, поскольку R>=tR можно не приводить ее к R
-	if(((res.toff>>(D*res.tR))&Dbits)==Dbits){ if(ifdR<2){ res.ptr += doff; res.coff += doff; f(res); } return; } // остались внутри тайла
+	Cell res = *this;  res.toff = calc_nb_zoffset<D>(a, sign, toff); WOUT(axe, a, sign, toff, res.toff, tR, res.tR, res.ptr);
+	int32_t doff = int32_t(res.toff)-int32_t(toff); if(sign==1) doff &= RDbits(tR);  // разница в смещениях на ранге tR, поскольку cR>=tR можно не приводить ее к cR
+	if(sign==1 && tR==0) doff = 1<<a; 
+	else if(((res.toff>>(D*res.tR))&Dbits)==Dbits){ if(ifdR<2){ res.ptr += doff; res.coff += doff; f(res); } WOUT("in tile", coff, res.coff); return; } // остались внутри тайла
 	if(int32_t(coff)+doff<0 || !tree->get(res, coff+doff, cR)){ // вышли за пределы дерева
+		WOUT("out tree", coff, res.coff);
 		Ind<D> tree_pos = tree->pos; tree_pos[a] += sign;
 		uint32_t off0 = (uint32_t(Dbits)<<(D*cR+D))|coff, off1 = calc_nb_zoffset<D>(a, sign, off0);		
-		if(tree_pos[a]<0 || tree->msh->forest.bbox()[a]<=tree_pos[a]){ res.ptr = nullptr; f(res); } // вышли за границу
-		tree->msh->forest[tree_pos].get(res, off1&RDbits(cR), cR);
+		if(tree_pos[a]<0 || tree->msh->forest.bbox()[a]<=tree_pos[a]){ res.ptr = nullptr; f(res); WOUT("out forest", coff, res.coff); } // вышли за границу
+		else tree->msh->forest[tree_pos].get(res, off1&RDbits(cR), cR);
 	}
-	if((res.cR<cR && !ifdR) || (res.cR==cR && ifdR<2)) f(res); // сосед того же ранга или крупнее
+	WOUT(doff, res.coff, res.cR, res.toff, res.tR, res.ptr);
+	if((res.cR<cR && !ifdR) || (res.cR==cR && ifdR<2)){ WOUT("{R>=R2"); f(res); WOUT("R>=R2}"); }  // сосед того же ранга или крупнее
 	else if(res.cR>cR && !ifdR){  // много мелких соседей
-		uint32_t max_coff = (res.coff>>(D*(cR-res.cR)))+1, mask = zmasks[D]<<a, imask = ~mask; 
+		WOUT("R<R2");
+		uint32_t max_coff = (res.coff>>(D*(res.cR-cR)))+1, mask = zmasks[D-1]<<a, imask = ~mask; 
 		if(sign<0) res.coff |= mask&RDbits(res.tree->max_rank-res.cR);
 		else res.coff &= ~(mask&RDbits(res.tree->max_rank-res.cR));
 		res.tree->get(res, res.coff, res.tree->max_rank);
-		while((res.coff>>(D*(cR-res.cR)))<max_coff){ // обходим грань
+		while((res.coff>>(D*(res.cR-cR)))<max_coff){ // обходим грань
 			f(res);
 			uint32_t fix = res.coff&mask; res.coff |= mask; res.coff++; res.coff &= imask; res.coff |= fix; 
 			if(sign<0) res.coff |= mask&RDbits(res.tree->max_rank-res.cR);
