@@ -45,14 +45,16 @@ template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::tree_t::get(ZipAdaptiv
 //------------------------------------------------------------------------------
 // переключает ячейку на первую ячейку следующиго тайла  с рангом не ниже чем min_rank 
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::next_tile(int min_rank){
-	tile++; ptr++; coff <<= D*(tree->max_rank-cR); // в процессе поиска coff имеет ранг max_rank
+	// WOUT(tree->pos, coff, cR, toff, tR, ptr-tree->data.data(), tree->max_rank);
+	tile++; ptr++; coff++; coff <<= D*(tree->max_rank-cR); // в процессе поиска coff имеет ранг max_rank
 	// WOUT(cR, tR, coff, toff, ptr-tree->data.data(), tile, min_rank);
 	// for(auto t: tree->tiles) WOUT(t.cR, t.tR);
 	for(int sz=tree->tiles.size(); tile<sz; tile++){
 		cR = tree->tiles[tile].cR; tR = tree->tiles[tile].tR;
-		if(cR>=min_rank){ coff >>= (tree->max_rank-cR)*D; coff++; toff = Dbits<<(D*tR); return true; }
-		ptr += 1<<(D*tR); coff += 1<<D*(tR<<(tree->max_rank-cR));
+		if(cR>=min_rank){ coff >>= (tree->max_rank-cR)*D; toff = Dbits<<(D*tR); return true; }
+		ptr += 1<<(D*tR); coff += 1<<D*(tree->max_rank+tR-cR);
 	}
+	// WOUT(tree->pos, "out of tree");
 	return false;
 }
 template <typename T, int D>  bool ZipAdaptiveMesh<T, D>::Cell::next(int min_rank){

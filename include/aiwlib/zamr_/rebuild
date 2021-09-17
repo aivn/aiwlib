@@ -13,6 +13,8 @@
 //------------------------------------------------------------------------------
 template <typename T, int D> template <typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 void ZipAdaptiveMesh<T, D>::rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join, bool parallel, int axe){
+	fchk_split = File("fchk-split.dat", "w"); fchk_join = File("fchk-join.dat", "w");
+	
 	if(axe==-1) axe = forest.bbox().imax(); // ищем ось отвечающую самому большому размеру леса, вдоль него пойдет волна
 	WOUT(axe);
 	int Amax = forest.bbox()[axe];                             
@@ -72,7 +74,7 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::add_tile(ZipAdaptiveMesh<T, D>::index_t t
 // рекурсивная функция для разбивки тайлов, вызывается из конструктора
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::rebuild_t::split_tile(int rank, uint32_t next_off){
 	// js_drank==-1 --- join, =1 --- split
-	WOUT(js_off, rank, js_cell.cR, js_drank, (rank+(js_drank==1)==js_cell.cR+js_drank), tiles.size());
+	WOUT(js_off, rank, next_off, js_cell.cR, js_drank, (rank+(js_drank==1)==js_cell.cR+js_drank), tiles.size());
 	if(rank+(js_drank==1)==js_cell.cR+js_drank){  // замыкание рекурсии
 		add_tile(index_t(js_cell.cR+js_drank, js_drank==1));
 		return;
@@ -89,10 +91,11 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::rebuild_t::split_tile(i
 	WOUT(js_off, tnum, tiles.size(), unodes.size());
 }
 //------------------------------------------------------------------------------
-// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell &src_chunk_start, T& dst)  
+// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние), f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell& src_chunk_data_start, T& dst)  
 template <typename T, int D> template<typename F_CHECK, typename F_SPLIT, typename F_JOIN>
-void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){	
+void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree, F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join){
 	tr = &tree; Cell c; tr->get_first(c, 0);  // проверить что ячейка найдена?
+	WOUT("\n\n\nBEGIN INIT", tr->pos);
 	js_cells.clear(); js_types.clear(); delta_sz = 0; max_rank = 0;
 	do{  // проходим дерево, накапливаем изменения в js
 		max_rank = std::max(max_rank, c.cR);
@@ -111,6 +114,8 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree,
 		} else if(c.cR<rank_lim && f_check(c)==1){ add_split(c); WOUT(c.coff, c.toff); }
 	} while(c.next(0));
 
+	for(int i=0, sz = js_cells.size(); i<sz; i++) (js_types[i]? fchk_split: fchk_join)("%\n", js_cells[i].bmin()+js_cells[i].step()/2);
+	
 	for(size_t i=0; i<js_cells.size(); i++) WOUT(i, js_types[i], js_cells[i].cR, js_cells[i].tR,  js_cells[i].coff,  js_cells[i].toff,  js_cells[i].ptr-tr->data.data());
 	WOUT(js_cells.size(), delta_sz, tr->data.size()+delta_sz);
 	// for(bool t: js_types) WOUT(t);
@@ -129,25 +134,26 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree,
 		WOUT(data.size(), delta_sz, src_pos, dst_pos, tr->tiles.size());
 		
 		//---  разбиваем тайлы данных  -----------------------------------------
-		WOUT("---  SPLIT TILES --------------\n");
-		{ WOUT("\n"); int i = 0; for(auto t: tr->tiles) WOUT(i++, t.cR, t.tR); WOUT("\n"); }
+		WOUT("---  SPLIT TILES --------------", tr->pos);
+		{ WOUT("\n tiles {"); int i = 0; for(auto t: tr->tiles) WOUT(i++, t.cR, t.tR); WOUT("}\n"); }
 		tiles.clear(); unodes.clear(); js_off = 0; src_pos = 0;  // номер тайла в tr->tiles
 		
 		for(int I=0; I<js_sz;){ //  цикл по ячейкам которые разбиваются/сливаются
-			WOUT(I, js_sz, tiles.size());
+			WOUT("begin iteration", I, js_sz, tiles.size());
 			for(int i=src_pos, sz=js_cells[I].tile; i<sz; i++) add_tile(tr->tiles[src_pos++]);  // копируем исходные тайлы которые не будут разбиваться
-			WOUT(src_pos, tiles.size());
+			WOUT("after copy head tiles", src_pos, tiles.size());
+			uint32_t next_off0 = js_off+(1<<D*(max_rank+js_cells[I].tR-js_cells[I].cR));  // конец текущего тайла
 			for(int tile_num = js_cells[I].tile; I<js_sz && tile_num==js_cells[I].tile; I++){
 				js_cell = js_cells[I];  js_drank = 2*js_types[I]-1;
-				uint32_t next_off = I<js_sz-1? js_cells[I+1].coff<<D*(max_rank-js_cells[I+1].cR): js_off+(1<<D*(max_rank+js_cell.tR-js_cell.cR));
-				WOUT(I, tile_num, js_drank, next_off);
+				uint32_t next_off = I<js_sz-1 && tile_num==js_cells[I+1].tile? js_cells[I+1].coff<<D*(max_rank-js_cells[I+1].cR): next_off0;
+				WOUT("before split tile()", I, js_sz, tile_num, js_drank, js_off, max_rank, js_cell.tR, js_cell.cR, max_rank+js_cell.tR-js_cell.cR, next_off0, next_off);
 				split_tile(0, next_off);
-				{ WOUT("{\n"); int i = 0; for(auto t: tiles) WOUT(i++, t.cR, t.tR); WOUT("}\n"); }				
+				{ WOUT("\n{"); int i = 0; for(auto t: tiles) WOUT(i++, t.cR, t.tR); WOUT("}\n"); }				
 			}
 			src_pos++; //  пропускаем исходный тайл потому что он был разбит
 		} //  конец цикла по ячейкам которые разбиваются/сливаются
 		{ WOUT("\n"); int i = 0; for(auto t: tiles) WOUT(i++, t.cR, t.tR); WOUT("\n"); }
-		for(int i=src_pos, sz=tr->tiles.size(); i<sz; i++) tiles.push_back(tr->tiles[i]);  // копируем хвост исходных тайлы которые не будут разбиваться
+		for(int i=src_pos, sz=tr->tiles.size(); i<sz; i++) tiles.push_back(tr->tiles[i]);  // копируем хвост исходных тайлов которые не будут разбиваться
 
 		{ int i = 0; for(auto t: tiles) WOUT(i++, t.cR, t.tR); }
 		for(auto u: unodes) WOUT(u.tile, u.tRmax);
@@ -155,7 +161,7 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree,
 		// exit(1);
 		
 		//---  сливаем тайлы данных и обновляем индекс дерева  -----------------
-		WOUT("---  JOIN TILES --------------\n");
+		WOUT("---  JOIN TILES --------------");
 		std::vector<unode_t> unodes2; unodes2.reserve(unodes.size()); unodes2.swap(unodes);
 		std::vector<index_t> tiles2;  tiles2.reserve(tiles.size());   tiles2.swap(tiles);
 		bool go_next;
@@ -191,10 +197,11 @@ void ZipAdaptiveMesh<T, D>::rebuild_t::init(ZipAdaptiveMesh<T, D>::tree_t &tree,
 		for(auto u: unodes) WOUT(u.tile, u.tRmax);
 		WOUT(tiles.size(), unodes.size(), data.size(), tr->tree.size(), tr->data.size());
 	}
+	WOUT("\n\n\nEND INIT", tr->pos);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::rebuild_t::commit(){
-	WOUT("#-------   COMMIT   ----------\n");
+	WOUT("\n\n\n BEGIN COMMIT", tr->pos);
 	if(js_cells.size()){
 		tr->max_rank = max_rank; max_rank = 0; for(auto t: tiles) max_rank = std::max(max_rank, uint32_t(t.cR-t.tR));
 		WOUT(max_rank);
@@ -213,12 +220,13 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::rebuild_t::commit(){
 		off = 0;  tr->tree.clear();  tr->root = build_tree(P, 0, 0, 0, tnum, off);  tr->tree.shrink_to_fit();
 		WOUT(tr->tree.size());
 	}
+	WOUT("\n\n\nEND COMMIT", tr->pos);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> typename ZipAdaptiveMesh<T, D>::ptile_t
 ZipAdaptiveMesh<T, D>::rebuild_t::build_tree(const Piramide<bool, D> &P, int cR, int tR, uint32_t zoff, uint32_t &tnum, uint32_t &data_off){
 	WOUT(cR, tR, zoff, tnum, data_off);
-	if(P.get(zoff, cR)){
+	if(P.get(zoff, cR) || tr->tree.size()>50){
 		ptile_t res(false, tr->tiles[tnum].tR, data_off); data_off += tile_sz(tr->tiles[tnum++].tR); // это можно оптимизировать внутри битовой пирамиды
 		WOUT(tnum, data_off);
 		return res;

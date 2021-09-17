@@ -94,6 +94,7 @@ namespace aiw{
 				WOUT(res, bmin, pos, max_rank, root.off, root.rank, root.tree, tree.size(), data.size(), tiles.size());
 				return res;
 			}
+
 #ifdef AIW_ZAMR_TEST
 			void test_out2dat(IOstream &Stree, IOstream &Sdata, IOstream &Svalues, ptile_t, Vec<D> start, int rank0, float sz, int& counter) const;
 #endif //AIW_ZAMR_TEST
@@ -155,6 +156,7 @@ namespace aiw{
 		void init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0=0);
 		void init(Ind<D> tbox, int R0=0){ init(tbox, vec(0.), tbox*(1<<R0), R0); }
 		void init(const Mesh<int, D> &ranks); 
+
 #ifdef AIW_ZAMR_TEST
 		void test_init();
 		void test_out2dat(const char *path) const;
@@ -180,22 +182,23 @@ namespace aiw{
 		// template <typename SEE_UP_F, typename SEE_DOWN_F> void commit(SEE_UP_F see_up_f, SEE_DOWN_F see_down_f, const std::vector<Ind<D> > &stencil){}
 
 		// f_check(const Cell&) ==> 1 (разбить), 0 (не менять), -1 (слияние),
-		// f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell &src_chunk_start, T& dst)  
+		// f_split(const Cell&src, T *dst_chunk_data), f_join(const Cell &src_chunk_data_start, T& dst)  
 		template <typename F_CHECK, typename F_SPLIT, typename F_JOIN>
 		void rebuild(F_CHECK &&f_check, F_SPLIT &&f_split, F_JOIN &&f_join, bool parallel=false, int axe=-1);
 		template <typename F_CHECK> void rebuild(F_CHECK &&f_check, bool parallel=false, int axe=-1){
-			rebuild(f_check, [](const Cell &src, T *dst){ for(int i=0; i<(1<<D); i++) dst[i] = *src; }, [](const Cell &src, T &dst){ dst = *src; }, parallel, axe);
+			rebuild(f_check, [](const Cell &src, T *dst){ for(int i=0; i<(1<<D); i++) dst[i] = *src; },
+					[](const Cell &src_chunk_data, T& dst){ dst = *src_chunk_data; }, parallel, axe);
 		}
 		
-	protected:
-		T& get(Ind<D> pos); 
-		const T& get(Ind<D> pos) const { return ((ZipAdaptiveMesh*)this)->get(pos); } 
-	public:
+		// protected:
+		Cell get(Ind<D> pos); 
+		const Cell get(Ind<D> pos) const { return ((ZipAdaptiveMesh*)this)->get(pos); } 
+		// public:
 		T out_value;
 		// const T& operator [](const Ind<D> &pos) const { return get(pos); }
-		T& operator [](const Ind<D> &pos)       { return (T&)get(pos); }
+		T& operator [](const Ind<D> &pos)       { return (T&)*get(pos); }
 		// const T& operator ()(const Vec<D> &coord) const { return get(this->coord2pos(coord)); }
-		T& operator ()(const Vec<D> &coord)       { return (T&)get(this->coord2pos(coord)); }		
+		T& operator ()(const Vec<D> &coord)       { return (T&)*get(this->coord2pos(coord)); }		
 		//----------------------------------------------------------------------
 		//   сброс и чтение с диска
 		//----------------------------------------------------------------------
@@ -261,6 +264,7 @@ namespace aiw{
 		};
 		//----------------------------------------------------------------------
 	};  // end of class ZipAdaptiveMesh
+	extern File fchk_split, fchk_join; 
 	//--------------------------------------------------------------------------
 	// template <typename T, int D> std::ostream& operator << (std::ostream &S, typename ZipAdaptiveMesh<T, D>::tree_t::index_t t){ return S<<t.cR<<' '<<t.tR; }
 	//--------------------------------------------------------------------------

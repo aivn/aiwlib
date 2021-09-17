@@ -11,35 +11,38 @@
  **/
 
 //------------------------------------------------------------------------------
-template <typename T, int D> T& ZipAdaptiveMesh<T, D>::get(Ind<D> pos){
+template <typename T, int D> typename ZipAdaptiveMesh<T, D>::Cell ZipAdaptiveMesh<T, D>::get(Ind<D> pos){
 	int r = 1<<max_rank; Cell c;
-	if(this->check_out_pos(pos) || !forest[pos/r].get(c, pos2zoff(pos%r, max_rank), max_rank)) return out_value;
-	return *c;
+	// if(this->check_out_pos(pos) || !forest[pos/r].get(c, pos2zoff(pos%r, max_rank), max_rank)) return out_value;
+	// if(this->check_out_pos(pos)){ bool res = forest[pos/r].get(c, pos2zoff(pos%r, max_rank), max_rank); WOUT(pos, r, res); } else WOUT(pos);
+	if(ind(0)<= pos && pos<box) forest[pos/r].get(c, pos2zoff(pos%r, max_rank), max_rank); 
+	return c;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::set_max_rank_box_step(){ // устанавливает max_rank, box и шаги
 	max_rank = 0; for(auto &t: forest) max_rank = std::max(t.max_rank, max_rank);
 	box = forest.bbox()*(1<<max_rank); this->set_axes(bmin, bmax);
-	for(int i=0; i<rank_lim+1; i++) steps[i] = forest.step/(1<<i);
+	WOUT(box, step, bmin, bmax, bmin+(box&step));
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int R0){
 	// заменить R0 на min_rank?
 	box = tbox*(1<<R0); this->set_axes(bmin_, bmax_); max_rank = R0;
-	forest.init(tbox, bmin_, bmax_);
+	forest.init(tbox, bmin_, bmax_);  for(int i=0; i<rank_lim+1; i++) steps[i] = forest.step/(1<<i);
 	for(Ind<D> pos; pos^=tbox; ++pos){
-		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&step); // <<< ??? *(1<<R0) ???
+		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin_+(pos&forest.step); // *(1<<R0) ???
 		t.max_rank = R0; t.tree.clear(); t.data.resize(1<<(R0*D)); t.root = ptile_t(0, R0, 0);
 		t.tiles.clear(); t.tiles.emplace_back(R0, R0);
-		WOUT(t.root.tree, t.root.off, t.root.rank);
+		WOUT(t.pos, t.bmin, t.root.tree, t.root.off, t.root.rank);
 	}
 	set_max_rank_box_step();
+	WOUT(box, tbox, bmin, bmax, R0, max_rank, forest.bbox(), forest.bmin, forest.bmax);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(const Mesh<int, D> &ranks){
 	max_rank = 0; for(int r: ranks) max_rank = std::max(max_rank, r);
 	box = ranks.bbox()*(1<<max_rank); this->set_axes(ranks.bmin, ranks.bmax);
-	forest.init(ranks.bbox(), ranks.bmin, ranks.bmax);
+	forest.init(ranks.bbox(), ranks.bmin, ranks.bmax);  for(int i=0; i<rank_lim+1; i++) steps[i] = forest.step/(1<<i);
 	for(Ind<D> pos; pos^=forest.bbox(); ++pos){
 		tree_t &t = forest[pos]; t.msh = this; t.pos = pos; t.bmin = bmin+(pos&forest.step);
 		int R = ranks[pos]; t.max_rank = R; t.tree.clear(); t.data.resize(1<<(R*D)); t.root = ptile_t(0, R, 0);
