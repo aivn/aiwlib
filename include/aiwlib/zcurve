@@ -1,0 +1,149 @@
+// -*- C++ -*-
+#ifndef AIW__HPP
+#define AIW__HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int D, typename T> struct ZCurve{ // сделать частичную специализацю при D=1?
+		static_assert(1<D && D<12, "incorrect dimention");
+				
+		T off: 8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5));
+		T rank: sizeof(T)==2? 3: (sizeof(T)==4? 4: 5);
+		
+		ZCurve(): off(0), rank(0) {}
+		ZCurve(T off_, T rank_): off(off_), rank(rank_) {}
+
+	private:
+		static constexpr T morton[2][6] = {
+			{ T(0x00000000FFFFFFFF), T(0x0000FFFF0000FFFF), T(0x00FF00FF00FF00FF), T(0x0F0F0F0F0F0F0F0F), T(0x3333333333333333), T(0x5555555555555555) }, // 2D
+			{ T(0x00000000001FFFFF), T(0xFFFF00000000FFFF), T(0x00FF0000FF0000FF), T(0xF00F00F00F00F00F), T(0x30C30C30C30C30C3), T(0x9249249249249249) }  // 3D
+		};
+		static constexpr int morton_sz = sizeof(T)==2? 4: (sizeof(T)==4? 5: 6); 
+		static constexpr int morton0 = 6-morton_sz, morton1 = 7-morton_sz;
+		T RDbits() const { return (T(1)<<rank*D)-1; }
+	public:
+		
+		ZCurve(const Ind<D> &pos, T rank_): off(0), rank(rank_) {
+			for(int axe=0; axe<D; axe++){
+				T f, x = pos[axe];
+				if(D<=3){
+					f = x & morton[D-2][morton0];
+					for(int i=morton1; i<6; i++) f = (f|(f<<(1<<(3+D-i)))) & morton[D-2][i];
+				} else { f = 0; for(int r=0; r<rank; r++) if(x&(T(1)<<r)) f |= T(1)<<r*D; }
+				off |= f<<axe;
+			}
+			off &= RDbits(); // работать с готовыми масками?
+		}
+		Ind<D> operator * () const {
+			Ind<D> pos;
+			for(int axe=0; axe<D; axe++){
+				T f = off>>axe, x;
+				if(D<=3){
+					x = f & morton[D-2][5];
+					for(int i=morton1; i<6; i++) x = (x^(x>>(1<<(i+D-3-morton0)))) & morton[D-2][morton0+5-i];
+				} else { x = 0; for(int r=0; r<rank; r++)  if(f&(T(1)<<r*D)) x |= T(1)<<r; }
+				pos[axe] = x;
+			}
+			return pos;
+		}
+
+		// операторы <<, >> для смены ранга???
+		ZCurve chrank(T rank2) const { return ZCurve(rank<rank2? off<<(rank2-rank): off>>(rank-rank2), rank2); }
+		ZCurve crop2rank() const { return ZCurve(off&RDbits(), rank); }  // работать с готовыми масками?
+		
+		operator bool () const { return off<(T(1)<<D*rank); }  // работать с готовыми масками?
+		bool operator !() const { return off>=(T(1)<<D*rank); } // работать с готовыми масками?
+		T size() const { return T(1)<<D*rank; } // работать с готовыми масками?
+		bool is_full() const { return off==size(); }
+
+		bool operator == (ZCurve z) const { return rank<z.rank? (off<<(z.rank-rank))==z.off: (z.off<<(rank-z.rank))==off; }
+		bool operator != (ZCurve z) const { return !(*this==z); }
+
+		ZCurve operator + (ZCurve tile) const {
+			return rank<tile.rank? ZCurve((off<<(tile.rank-rank))+tile.off, tile.rank):
+				/**/               ZCurve((tile.off<<(rank-tile.rank))+off,      rank);
+		}
+		void operator += (ZCurve tile){
+			if(rank<tile.rank){ off = (off<<(tile.rank-rank)) + tile.off; rank = tile.rank; }
+			else off += tile.off<<(rank-tile.rank);
+		}		
+		//----------------------------------------------------------------------
+	private:
+		static constexpr T zmasks[12] = { T(0x5555555555555555), T(0x9249249249249249), T(0x1111111111111111), T(0x1084210842108421),   // массив для
+										  T(0x1041041041041041), T(0x8102040810204081), T(0x0101010101010101), T(0x8040201008040201),   // всех возможных D
+										  T(0x1004010040100401), T(0x0080100200400801), T(0x1001001001001001), T(0x0010008004002001) };
+		static constexpr T omasks[12] = { zmasks[D-2],       T(zmasks[D-2]<<1), T(zmasks[D-2]<<2), T(zmasks[D-2]<<3), T(zmasks[D-2]<<4),  T(zmasks[D-2]<<5),  // по осям
+										  T(zmasks[D-2]<<6), T(zmasks[D-2]<<7), T(zmasks[D-2]<<8), T(zmasks[D-2]<<9), T(zmasks[D-2]<<10), T(zmasks[D-2]<<11) }; 
+		static constexpr T imasks[12] = { T(~omasks[0]), T(~omasks[1]), T(~omasks[2]), T(~omasks[3]), T(~omasks[4]),  T(~omasks[5]),
+										  T(~omasks[6]), T(~omasks[7]), T(~omasks[8]), T(~omasks[9]), T(~omasks[10]), T(~omasks[11]) }; 
+		static T lshift(T f, int axe){ return (f&omasks[axe])-1; }
+		static T rshift(T f, int axe){ return (f|imasks[axe])+1; }
+		T fixed(T f, int axe) const { return (f&omasks[axe])|(off&imasks[axe]); }
+
+	public:		
+		ZCurve left(int axe)  const { return ZCurve(fixed(lshift(off, axe), axe), rank); }
+		ZCurve right(int axe) const { return ZCurve(fixed(rshift(off, axe), axe), rank); }
+
+		ZCurve left(int axe, int dist) const {
+			T f = off; for(int i=0; i<dist; i++) f = lshift(f, axe);
+			return ZCurve(fixed(f, axe), rank);
+		}
+		ZCurve right(int axe, int dist) const {
+			T f = off; for(int i=0; i<dist; i++) f = rshift(f, axe);
+			return ZCurve(fixed(f, axe), rank);
+		}		
+		ZCurve shift(int axe, int dist) const {  // сдвиг в направлении одной оси axe
+			if(dist<0) return left(axe, -dist);
+			return right(axe, dist);
+		}
+		ZCurve operator[](const Ind<D>& Idist) const {
+			T fS = 0;
+			for(int axe=0; axe<D; axe++){
+				T f = off; int dist = Idist[axe];
+				if(dist<0) for(int k=0; k>dist; k--) f = lshift(f, axe); 
+				else       for(int k=0; k<dist; k++) f = rshift(f, axe); 
+				fS += f&omasks[axe];
+			}
+			return ZCurve(fS, rank);
+		}
+		template <typename ... Args> ZCurve operator()(Args ... args) const { return (*this)[ind(args...)]; }
+
+		ZCurve diag() const {
+			T fS = 0; for(int axe=0; axe<D; axe++) fS += rshift(off, axe)&omasks[axe];
+			return ZCurve(fS, rank);
+		}
+		ZCurve diag(int dist) const {
+			T fS = 0;
+			for(int axe=0; axe<D; axe++){
+				T f = off; for(int i=0; i<dist; i++) f = rshift(f, axe);
+				fS += f&omasks[axe];
+			}
+			return ZCurve(fS, rank);
+		}
+
+		ZCurve extend(int axes) const {  // расширяет Z-кривую заданного ранга до бесконечности  по осям согласно маске axes
+			T f = off;
+			for(int axe=0; axe<D; axe++)
+				if(axes&(1<<axe) && off&(T(1)<<(D*rank+axe))){
+					if(off&(T(1)<<(D*rank+D+axe))) f &= imasks[axe]; // был выход за границу влево, заполняем нулями axe
+					else f |= omasks[axe]&((T(1)<<D*rank)-1); 
+				}
+			return ZCurve(f, rank);
+		} // повторить то же самое, но axes параметр шаблона?
+	};  // end of struct ZCurve
+	//--------------------------------------------------------------------------
+	template <int D, typename T> std::ostream& operator << (std::ostream &S,  const ZCurve<D, T> &Z){ return S<<Z.off<<'z'<<Z.rank; }
+	//--------------------------------------------------------------------------
+	template<int D> using ZCurve16 = ZCurve<D, uint16_t>;
+	template<int D> using ZCurve32 = ZCurve<D, uint32_t>;
+	template<int D> using ZCurve64 = ZCurve<D, uint64_t>;
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_ZCURVE_HPP
