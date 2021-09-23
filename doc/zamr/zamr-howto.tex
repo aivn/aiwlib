@@ -1,0 +1,299 @@
+% -*- mode: LaTeX; coding: utf-8 -*-
+\documentclass[12pt]{article}
+\usepackage[unicode,colorlinks]{hyperref}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{eufrak}
+\usepackage{epsfig}
+%\usepackage[mathscr]{eucal}
+\usepackage{psfrag}
+\usepackage{tabularx}
+\usepackage{wrapfig}
+%\usepackage{eucal}
+\usepackage{euscript}
+\usepackage[usenames]{color}
+\usepackage{colortbl} 
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblack}{rgb}{0.1,0.,0.3}
+\definecolor{codeemph}{rgb}{0.5,0.1,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\usepackage{listings}\lstset{
+	basicstyle=\ttfamily\fontsize{10pt}{10pt}\selectfont\color{codeblack},
+    commentstyle=\color{codegray},
+	keywordstyle=\tt\bf\color{codeemph},
+	belowskip=0pt
+  }
+
+\setlength{\topmargin}{-0.5in}
+\setlength{\oddsidemargin}{-5.mm}
+\setlength{\evensidemargin}{-5.mm}
+\setlength{\textwidth}{7.in}
+\setlength{\textheight}{9.in}
+
+\def\dfdx#1#2{\frac{\partial #1}{\partial #2}}
+\def\hm#1{#1\nobreak\discretionary{}{\hbox{\m@th$#1$}}{}}
+\newcommand{\Frac}[2]{\displaystyle\frac{#1}{#2}}
+
+\def\sr#1{{\left<#1\right>}}
+\def\m{\mathbf m{}}
+
+\begin{document}
+\begin{center}
+  {\bf Про ZAMR}
+
+  Антон Иванов
+\end{center}
+
+\tableofcontents
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Создание и настройка экзмепляра класса ZAMR}
+ В настоящий момент ZAMR не поддерживается в Python, работа с ZAMR возможна только из C++.
+ Простейший пример кода:
+ % \begin{lstlisting}[language=c]
+\begin{verbatim}
+#include <aiwlib/zamr>
+using namespace aiw;
+
+int main(){
+    ZipAdaptiveMesh<float, 2> zamr1(
+        ind(1,2),  // размеры леса
+        3          // начальный ранг разбиения каждого дерева
+    );
+}
+\end{verbatim}
+%\end{lstlisting}
+ здесь создается 2D zamr1 из float с размерами леса $1\times2$  и начальным рангом разбиения каждого дерева 3,
+ всего сетка будет содержать $8\times16$ ячеек (два дерева по $8^2$ ячеек).
+
+ Как и в {\sf aiw::Mesh} можно задавать размеры сетки в некоторой глобальной системе координат при помощи дополнительных аргументов конструктора 
+\begin{verbatim}
+ZipAdaptiveMesh<float, 2> zamr2(
+    ind(1,2),    // размеры леса
+    3,           // начальный ранг разбиения каждого дерева
+    vec(4., 5.), // координаты левого нижнего угла сетки
+    vec(6., 7.)  // координаты правого верхнего угла сетки
+);
+\end{verbatim}
+ Если координаты углов сетки не заданы, по умолчанию полагается что левый нижний угол расположен в точке (0, 0, ...) а правый верхний в точке $(N_x, N_y ...)$
+ где $N_i$~--- размеры сетки в ячейках.
+
+ 
+Альтернативным вариантом является создание леса с деревьями разного ранга разбиения:
+\begin{verbatim}
+Mesh<int, 2> forest(ind(1,2));
+forest[ind(0,0)] = 2;
+forest[ind(0,1)] = 3;
+ZipAdaptiveMesh<float, 2> zamr3(forest);
+\end{verbatim}
+Здесь создается объект zamr3 из двух деревьев разного ранга~--- $4^2$ и $8^2$ ячеек.
+Координаты углов сетки zamr берутся из координат углов сетки forest.
+
+Кроме настройки объекта zamr при помощи конструктора, можно настроить объект после созания в любой момент при помощи аналогичных методов init:
+\begin{verbatim}
+zamr.init(ind(1,2), 3);
+zamr.init(ind(1,2), 3, vec(4., 5.), vec(6., 7.));
+zamr.init(forest);
+\end{verbatim}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Работа с ячейкой сетки}
+Ячейка сетки \verb'ZipAdaptiveMesh::Cell' является ключевым понятием, интерфейсом обеспечивающим реализацию основных операций.  
+С точки зрения программирования ячейку можно рассматривать как итератор, но у пользователя нет возможности переключить ячейку на следующую позицию самостоятельно.
+
+Ячейка сетки \verb'C' имеет следующие методы.
+\begin{itemize}
+\item \verb'bool(C)' и \verb'!C' --- проверяют валидность ячейки. Например ячейка оказавшаяся за границей сетки невалидна, попытка вызова любых других ее методов
+  приводит к ошибке сегментирования.
+\item \verb'C.rank()' --- возвращает целочисленный ранг разбиения.
+\item \verb'C.step()' --- возвращает размер ячейки в виде \verb'aiw::Vec<D>'.
+\item \verb'C.bmin()' --- возвращает координаты левого нижнего угла ячейки в виде \verb'aiw::Vec<D>'.
+\item \verb'*C' и \verb'C->...' --- обеспечивает доступ к данным ячейки, например для
+\begin{verbatim}
+struct MyCell{ 
+    float u, tmp_u, v, tmp_v; 
+    ...
+};
+ZipAdaptiveMesh<MyCell, ...> zamr;
+\end{verbatim}
+  вызов \verb'*C' вернет \verb'MyCell&', вызов \verb'C->u' предоставит доступ к полю \verb'u'.
+\item \verb'C[ind(di, dj, dk)]' и \verb'C(di, dj, dk)' --- обеспечивает доступ к ячейке сетки, смещенной относительно \verb'C' на \verb'(di, dj, dk)'.
+  Если соседняя ячейка с таким же рангом отсутствует, возвращенная ячейка будет невалидной\footnote{Это не устоялось и может быть изменено по запросам пользователей}.
+\item \verb'C.is_boud(int faceID)' --- проверяет является ли ячейка граничной через грань\verb'faceID',  \verb'faceID'
+  отвечает номеру оси координат ортогональной грани начиная с единицы со знаком,
+  знак задает направление смещения (влево/вправо). Например 1 отвечает проверке справа по оси $x$, -2 отвечает проверке по оси $y$ снизу.
+  \item \verb'C.face(...)' --- обходит соседей ячейки по граням, см. раздел~\ref{C:face:sec}.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+\section{Обход сетки}
+Для обхода сетки используются методы
+\begin{verbatim}
+zamr.foreach(F &&f, int min_rank=0, int ti=0);
+zamr.foreach2Xdt(F1 &&f1, F2 &&f2);
+\end{verbatim}
+Метод \verb'foreach' однократно применяет \verb'f' к каждой ячейке с рангом разбиения не меньше \verb'max_rank'.
+Метод \verb'foreach2Xdt' обходит все ячейки с учетом измельчения шага по времени и применяет к каждой ячейке две стадии численной схемы.
+Аргументы \verb'f[12]'
+должны быть вызываемыми объектами (функциями, $\lambda$--функциями или функторами) принимающими\linebreak \verb'ZipAdaptiveMesh::Cell&' и номер временного шага.
+Удобнее всего работать с $\lambda$--функциями:
+\begin{verbatim}
+ZipAdaptiveMesh<int, 2> zamr(...);
+...
+int i = 0;
+zamr.foreach([&](decltype(zamr)::Cell &C, int){ *C = i++; });
+\end{verbatim}
+проинициализирует все ячейки их номерами в порядке обхода сетки. Здесь
+\begin{verbatim}
+[&](decltype(zamr)::Cell &C, int){ *C = i++; }
+\end{verbatim}
+является $\lambda$--функцией, выражение \verb'decltype(zamr)::Cell' эквивалентно выражению\\
+\verb'ZipAdaptiveMesh<int, 2>::Cell' но имеет важное преимущество~--- при изменении параметров шаблона \verb'zamr'
+изменения придется вносить только в одном месте кода.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Обход соседей ячейки сетки}\label{C:face:sec}
+Для обхода соседей ячейки сетки предназначен метод ячейки
+\begin{verbatim}
+void face(F&& f, int faceID, int ifdR=0);
+\end{verbatim}
+Здесь \verb'f' это $\lambda$--функция пользователя принимающая по ссылке соседнюю ячейку сетки,
+\verb'faceID' задает грань по которой производится обход аналогично методу \verb'Cell::is_bound'
+(если \verb'axe==0' то производится обход по всем граням), \verb'ifdR' задает допустимую
+разницу рангов с соседними ячейками (0~--- любая, 1~--- соседи того же уровня или крупнее, 2~--- только крупнее).
+
+Например вот так можно посчитать интеграл по граням всех ячеек для значения \verb'u':
+\begin{verbatim}
+struct MyCell{ 
+    float u, u_sum; 
+    ...
+};
+...
+ZipAdaptiveMesh<MyCell, ...> zamr;
+...
+zamr.foreach([](decltype(zamr)::Cell &C, int){
+    C->u_sum = 0;
+    C.face([&](decltype(zamr)::Cell &nbC){ С->u_sum += nbC->u*nbC.face_area(); });
+});
+\end{verbatim}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Сохранение сетки на диск}
+Для сохранения сетки на диск в текстовом формате используйте метод
+\begin{verbatim}
+zamr.out2dat(File(path2file, "w"));
+\end{verbatim}
+в этом случае в файл сохраняются координаты центров ячеек, ранги разбиения ячеек и данные ячеек, по одной строке на каждую ячейку.
+
+Метод
+\begin{verbatim}
+zamr.out2dat(File(path2file, "w"), true);
+\end{verbatim}
+сохраняет координаты ячеек в виде 2D квадратиков. 
+
+Для сохранения ZAMR содержащих ячейки пользовательского типа
+\begin{verbatim}
+struct MyCell{ 
+    float u, tmp_u, v, tmp_v; 
+    ...
+};
+ZipAdaptiveMesh<MyCell, ...> zamr;
+\end{verbatim}
+необходимо определить оператор вывода этого типа в поток:
+\begin{verbatim}
+std::ostream& operator << (std::ostream &S, const MyCell &C){ return S<<C.u<<' '<<C.v; }
+\end{verbatim}
+
+Для сохранения/восстановления данных в бинарном формате используются методы
+\begin{verbatim}
+zamr.dump(File(path2file, "w"));
+zamr.load(File(path2file, "r"));
+\end{verbatim}
+Если в один фалй пишется несколько кадров:
+\begin{verbatim}
+File fout(path2file, "w");
+for(int ti=0; ti<ti_max; ti++){
+    ...
+    zamr.dump(fout);
+}
+...
+File fin(path2file, "r");
+while(zamr.dump(fin)){ ... }
+\end{verbatim}
+Запись в бинарном формате гораздо быстрее и занимает меньше места, но в настоящий момент бинарный формат еще не устоялся. 
+К концу года формат будет зафиксирован и  будет реализован вьювер для бинарного формата.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Перестроение сетки}
+{\it Пока не отлажено.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Сборка кода}
+В случае использования связки C++ c Python сборка проводится традиционным образом. Пусть есть следующие файлы.
+
+Makefile:
+\begin{verbatim}
+name=mycode
+headers=model.hpp
+modules=model.cpp
+
+include aiwlib/user.mk
+\end{verbatim}
+
+model.hpp:
+\begin{verbatim}
+#pragma once
+#include <aiwlib/zamr>
+
+class Model{
+...
+   ZipAdaptiveMesh<...> zamr;
+   void calc(); 
+...
+};
+\end{verbatim}
+
+model.cpp:
+\begin{verbatim}
+#include "model.hpp"
+
+void Model::calc(){
+    zamr.foreach(...);
+}
+\end{verbatim}
+тогда достаточно выполнить команду 
+\begin{verbatim}
+$ make
+\end{verbatim}
+для сборки обычной версии или
+\begin{verbatim}
+$ make debug=on
+\end{verbatim}
+для сборки версии с отладкой.
+
+Если Python не задействован то для сборки можно использовать команду 
+\begin{verbatim}
+$ g++ -std=c++11 -Wall -O3 -g -o mycode mycode.cpp ... -laiw
+\end{verbatim}
+Для сбокри отладочной версии необходимо добавить опцию \verb'-DEBUG', при этом включается много всяких проверок. Отладочная версия может быть существенно медленнее боевой.
+Если что то ломается и при отладке в \verb'gdb' непонятно что происходит, рекомендуется убрать опцию \verb'-O3'~--- при оптимизации порядок выполнения
+некоторых фрагментов кода может изменяться.
+
+Для отладочной опции дополнительно рекомендуются опции
+\begin{verbatim}
+-D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 
+-fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector
+\end{verbatim}
+ 
+ 
+
+\end{document}
