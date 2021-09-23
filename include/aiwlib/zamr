@@ -104,6 +104,7 @@ namespace aiw{
 		Vec<D> steps[rank_lim+1];      // шаги на разных рангах
 		int max_rank;                  // максимальный ранг по всей сетке
 		void set_max_rank_box_step();  // устанавливает rank_max, box и шаги
+		float face_areas[D];           // площади граней на минимальном ранге
 	public:		
 		class Cell {
 		protected:
@@ -114,6 +115,7 @@ namespace aiw{
 			// typename std::vector<std::pair<uint32_t, ptile_t> >::iterator index; // позиция в индексе дерева
 			uint32_t tile = 0;  // номер тайла в tree->tiles, при случайном доступе его невозможно эффективно инициализировать?
 			tree_t *tree = nullptr;
+			uint32_t nb_cR, nb_axe; // устанавливаются если ячейка сгенерирована методом face()
 			
 			friend class ZipAdaptiveMesh;
 			bool next_tile(int min_rank);  // переключает ячейку на первую ячейку следующиго тайла  с рангом не ниже чем min_rank 
@@ -148,6 +150,7 @@ namespace aiw{
 			// axe==0 --- обход по шаблону крест. axe==+/-a --- ось а, грань слева/справа
 			// ifdR --- допустимая разница рангов (0 - любая, 1 - соседи того же уровня или крупнее, 2 - только крупнее)
 			template <typename F>  void face(F&& f, int axe, int ifdR=0);	   // проверки является ли ячейка граничной?
+			float face_area() const;
 			// inline typename       meta_t<M>::meta_data_type& meta(int i)       {...}
 			// inline typename const meta_t<M>::meta_data_type& meta(int i) const {...}
 		}; // end of class Cell
@@ -170,7 +173,7 @@ namespace aiw{
 		size_t memsz() const;  // размер памяти в байтах
 
 		// void out_info() const;
-		void out2dat(IOstream&&); 
+		void out2dat(IOstream&&, bool cells=false); 
 		// void tiles2dat(IOstream&& hS, IOstream&& lS) const { for(Ind<D> pos; pos^=forest.bbox(); ++pos) tiles[pos].forest2dat(hS, lS); }
 		// void selfcheck() const { for(Ind<D> pos; pos^=tiles.bbox(); ++pos) tiles[pos].selfcheck(); }
 		

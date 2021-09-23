@@ -37,6 +37,11 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(Ind<D> tbox, const
 	}
 	set_max_rank_box_step();
 	WOUT(box, tbox, bmin, bmax, R0, max_rank, forest.bbox(), forest.bmin, forest.bmax);
+
+	for(int i=0; i<D; i++){
+		face_areas[i] = 1.;
+		for(int j=0; j<D; j++) if(i!=j) face_areas[i] *= step[j];
+	}
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(const Mesh<int, D> &ranks){
@@ -50,6 +55,10 @@ template <typename T, int D> void ZipAdaptiveMesh<T, D>::init(const Mesh<int, D>
 		WOUT(t.root.tree, t.root.off, t.root.rank);
 	}
 	set_max_rank_box_step();	
+	for(int i=0; i<D; i++){
+		face_areas[i] = 1.;
+		for(int j=0; j<D; j++) if(i!=j) face_areas[i] *= step[j];
+	}
 }
 //------------------------------------------------------------------------------
 template <typename T, int D> size_t ZipAdaptiveMesh<T, D>::memsz() const { // размер памяти в байтах
@@ -124,8 +133,8 @@ template <typename T, int D>  template <typename F1, typename F2> void ZipAdapti
 	}
 }
 //------------------------------------------------------------------------------
-template <typename T, int D>  void ZipAdaptiveMesh<T, D>::out2dat(IOstream&& S){
-	foreach([&](Cell &C, int){
+template <typename T, int D>  void ZipAdaptiveMesh<T, D>::out2dat(IOstream&& S, bool cells){
+	if(cells) foreach([&](Cell &C, int){
 			Vec<2> a = C.bmin()(0,1), b = a+C.step()(0,1); 
 			S("% % %\n", a, C.rank(), *C);
 			S("% % % %\n", a[0], b[1], C.rank(), *C);
@@ -133,6 +142,7 @@ template <typename T, int D>  void ZipAdaptiveMesh<T, D>::out2dat(IOstream&& S){
 			S("% % % %\n", b[0], a[1], C.rank(), *C);
 			S("% % %\n\n\n", a, C.rank(), *C);
 		});
+	else foreach([&](Cell &C, int){ S("% % %\n", C.bmin()+C.step()*.5, C.rank(), *C); });
 } 
 //------------------------------------------------------------------------------
 #endif //AIW_ZIP_AMR_BASE_HPP

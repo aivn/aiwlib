@@ -96,7 +96,7 @@ template <typename T, int D>  template <typename F>  void ZipAdaptiveMesh<T, D>:
 	if(axe==0){ for(int i=1; i<=D; i++){ face(f, -i, ifdR); face(f, i, ifdR); } return; } // шаблон крест
 	WOUT(coff, cR, toff, tR, bmin());
 	int sign = axe<0? -1: 1; uint32_t a = abs(axe)-1;
-	Cell res = *this;  res.toff = calc_nb_zoffset<D>(a, sign, toff); WOUT(axe, a, sign, toff, res.toff, tR, res.tR, res.ptr);
+	Cell res = *this; res.nb_axe = a; res.nb_cR = cR;  res.toff = calc_nb_zoffset<D>(a, sign, toff); WOUT(axe, a, sign, toff, res.toff, tR, res.tR, res.ptr);
 	int32_t doff = int32_t(res.toff)-int32_t(toff); if(sign==1) doff &= RDbits(tR);  // разница в смещениях на ранге tR, поскольку cR>=tR можно не приводить ее к cR
 	if(sign==1 && tR==0) doff = 1<<a; 
 	else if(((res.toff>>(D*res.tR))&Dbits)==Dbits){ if(ifdR<2){ res.ptr += doff; res.coff += doff; f(res); } WOUT("in tile", coff, res.coff); return; } // остались внутри тайла
@@ -123,6 +123,10 @@ template <typename T, int D>  template <typename F>  void ZipAdaptiveMesh<T, D>:
 			if(!res.tree->get(res, res.coff, res.cR)) return;
 		}
 	}
+}
+//------------------------------------------------------------------------------
+template <typename T, int D>  float ZipAdaptiveMesh<T, D>::Cell::face_area(){
+	return tree->msh->face_areas[nb_axe]/(1<<(D-1)*std::max(nb_cR, cR));
 }
 //------------------------------------------------------------------------------
 #endif //AIW_ZIP_AMR_CELL_HPP
