@@ -1,5 +1,5 @@
 GL_LINKOPT=-lglut -lGL -lGLU -lGLEW
-$(VIEWERS):%: AV  $(shell echo python/aiwlib/{_%.so,%.py}) $(shell echo AbstractViewer/{_viewer.so,viewer.py}) iostream swig;
+$(VIEWERS):%: AV  $(shell echo python$(python)/aiwlib/{_%.so,%.py}) $(shell echo AbstractViewer/{_viewer.so,viewer.py}) iostream swig;
 AbstractViewer/%.o: AV
 AV:
 	$(MAKE) -C AbstractViewer
@@ -32,7 +32,7 @@ $(foreach VIEW,$(VIEWERS),swig/$(VIEW).i):swig/%.i : include/aiwlib/xplt.mk
 	@echo '%array_class(float, float_array);'>>$@
 	@echo '%array_class(int, int_array);'>>$@
 define so_template=
-python/aiwlib/_$(1).so:  $$(objects_$(1)) swig/$(1)_wrap.o $(shell echo AbstractViewer/{plottable,shaderprog,viewer_template}.o) libaiw.a
+python$(python)/aiwlib/_$(1).so:  $$(objects_$(1)) swig/$(1)_wrap.o $(shell echo AbstractViewer/{plottable,shaderprog,viewer_template}.o) libaiw.a
 	$$(show_target)
 	$(CXX) -shared -o $$@ $$^ $(LINKOPT) $(GL_LINKOPT)
 endef

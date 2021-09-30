@@ -32,7 +32,7 @@ endif
 
 all: libaiw.a;
 
-iostream swig mpi4py view: %: python/aiwlib/%.py python/aiwlib/_%.so;
+iostream swig mpi4py view: %: python$(python)/aiwlib/%.py python$(python)/aiwlib/_%.so;
 .PRECIOUS: swig/%.py swig/%.o src/%.o 
 #-------------------------------------------------------------------------------
 libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{color,mesh}}.o)
@@ -52,7 +52,7 @@ swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
 swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,typeinfo,view/{color,base,mesh,sphere}})
 # +amr,zcube,umesh3D,vtexture
 
-python/aiwlib/%.py: swig/%.py
+python$(python)/aiwlib/%.py: swig/%.py
 	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
 	@echo 'except: pass' >> $@
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
@@ -62,13 +62,13 @@ swig/%.py swig/%_wrap.cxx: swig/%.i
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
-python/aiwlib/_%.so: swig/%_wrap.o libaiw.a
+python$(python)/aiwlib/_%.so: swig/%_wrap.o libaiw.a
 	$(show_target)
 	$(CXX) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   mpiCC
 #-------------------------------------------------------------------------------
-python/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
+python$(python)/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
 	$(show_target)
 	$(MPICXX) $(MPICXXOPT) -shared -o $@ $< $(LINKOPT)
 
@@ -150,13 +150,13 @@ include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python/aiwlib/_*.so   
+clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python$(python)/aiwlib/_*.so   
 cleanall: clean 
-	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python/aiwlib/$$(basename $$i){,c}; rm -f $$i python/aiwlib/$$(basename $$i){,c}; done
+	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; done
 	rm -f swig/*_wrap.cxx 
 	-@for i in $$(cat TARGETS); do echo rm -f swig/$${i%%-*}.i; rm -f swig/$${i%%-*}.i; done
-clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python/aiwlib/_$${n:6}.so
-cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python/aiwlib/$${n:9}.py{,c}
+clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python$(python)/aiwlib/_$${n:6}.so
+cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python$(python)/aiwlib/$${n:9}.py{,c}
 clean-mingw clean-windows:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
 #-------------------------------------------------------------------------------
 uninstall:; 
@@ -164,19 +164,19 @@ uninstall:;
 	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
 install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
-	-cp -r python/aiwlib  $(PYTHONDIR)
+	-cp -r python$(python)/aiwlib  $(PYTHONDIR)
 	-cp libaiw.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
 links-install install-links: all uninstall
 	-ln -s "$$(pwd)/include/aiwlib" $(INCLUDEDIR)
-	-ln -s "$$(pwd)/python/aiwlib"  $(PYTHONDIR)
+	-ln -s "$$(pwd)/python$(python)/aiwlib"  $(PYTHONDIR)
 	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
 #-------------------------------------------------------------------------------
 #   windows
 #-------------------------------------------------------------------------------
 windows: $(shell echo windows/aiwlib/{{__init__,vec,swig,tkPlot2D,tkConfView,tkWidgets,iostream,view}.py,_{iostream,swig,view}.pyd}) windows/uplt.py;
-windows/aiwlib/%.py: python/aiwlib/%.py; cp $< $@
+windows/aiwlib/%.py: python$(python)/aiwlib/%.py; cp $< $@
 windows/uplt.py: bin/uplt; cp $< $@
 mingw/%_wrap.o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/obj/%.o: src/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<

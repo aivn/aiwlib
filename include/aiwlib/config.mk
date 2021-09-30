@@ -7,7 +7,11 @@
 #-------------------------------------------------------------------------------
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки
+ifeq ($(python),2)
 PYTHONDIR=/usr/lib/python2.7
+else
+PYTHONDIR=/usr/lib/python3.6
+endif
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
@@ -26,13 +30,18 @@ ezz=on
 # mpi=on
 # mpi=off
 #-------------------------------------------------------------------------------
+python:=2
 # main settings
 # основные параметры
 CXX:=g++
 MPICXX:=mpiCC
 SWIG:=swig
 
+ifeq ($(python),2)
 PYTHON_H_PATH:=/usr/include/python2.7
+else
+PYTHON_H_PATH:=/usr/include/python3.6
+endif
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
 override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 

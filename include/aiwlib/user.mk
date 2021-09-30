@@ -39,8 +39,8 @@ all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 #-------------------------------------------------------------------------------
 all: $(name) $(notdir $(basename $(cxxmain)));
 $(name): _$(name).so $(name).py
-	@echo -ne "\033[7mCHECK IMPORT: python -c 'import $(name)' ... \033[0m"
-	@if (python -c 'import $(name)'); then echo -e "\033[7mOK\033[0m"; fi
+	@echo -ne "\033[7mCHECK IMPORT: python$(python) -c 'import $(name)' ... \033[0m"
+	@if (python$(python) -c 'import $(name)'); then echo -e "\033[7mOK\033[0m"; fi
 #	@if [ "$(aiwlibs)" ]; then make-aivlib $(foreach m,$(aivlibs),'$m') ; fi
 #-------------------------------------------------------------------------------
 aiwmake:=$(sort $(aiwmake))
@@ -111,8 +111,8 @@ $(name).i: $(MAKEFILE_LIST)
 	@$(foreach i,$(filter Sphere%,$(aiwinst)), \
 	echo '%template($(word 1,$(subst -, ,$i))) aiw::Sphere<$(word 2,$(subst -, ,$i))>;' >> $@;)
 	@$(foreach i,$(aiwinst), echo '%pythoncode %{$(word 1,$(subst -, ,$i)).__setstate__ = _setstate %}' >> $@;)
-ifneq ($(wildcard $(aiwlib)python/aiwlib/),)
-	@echo "%pythoncode %{import sys; sys.path.insert(1, '$(aiwlib)python/')%}" >> $@
+ifneq ($(wildcard $(aiwlib)python$(python)/aiwlib/),)
+	@echo "%pythoncode %{import sys; sys.path.insert(1, '$(aiwlib)python$(python)/')%}" >> $@
 endif
 ifneq ($(filter Sphere%,$(aiwinst))$(filter Mesh%,$(aiwinst)),)
 	@echo "%pythoncode %{from aiwlib.vec import *%}" >> $@
@@ -124,7 +124,7 @@ endif
 clean:; rm -f $(name)_wrap.o $(all_objects) _$(name).so $(notdir $(basename $(cxxmain))) $(addsuffix .o,$(basename $(cxxmain))) 
 cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py
 #-------------------------------------------------------------------------------
-ifeq ($(words $(wildcard $(aiwlib)python/aiwlib/ $(aiwlib)swig/ $(aiwlib)Makefile)),3)
+ifeq ($(words $(wildcard $(aiwlib)python$(python)/aiwlib/ $(aiwlib)swig/ $(aiwlib)Makefile)),3)
 aiwlib_local_check:; 
 else 
 aiwlib_local_check:; @echo Warning: local aiwlib FAILED! 
@@ -135,7 +135,7 @@ all_sources:=$(all_sources) $(name).i $(name).py $(name)_wrap.cxx
 endif
 
 ifeq ($(strip $(findstring aiwlib,$(with))),aiwlib) 
-all_sources:=$(all_sources) $(wildcard $(aiwlib)Makefile $(aiwlib)python/aiwlib/*.py) 
+all_sources:=$(all_sources) $(wildcard $(aiwlib)Makefile $(aiwlib)python$(python)/aiwlib/*.py) 
 all_sources:=$(all_sources) $(wildcard $(shell echo $(aiwlib)swig/{iostream,swig,mesh,swig}.i))
 ifeq ($(strip $(findstring swig,$(with))),swig)
 all_sources:=$(sort $(all_sources) $(wildcard $(aiwlib)swig/*.i $(aiwlib)swig/*_wrap.cxx))

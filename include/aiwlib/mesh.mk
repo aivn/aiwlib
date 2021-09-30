@@ -1,7 +1,7 @@
 # Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 
-$(MESH_NAME): python/aiwlib/$(MESH_NAME).py python/aiwlib/_$(MESH_NAME).so iostream swig; 
+$(MESH_NAME): python$(python)/aiwlib/$(MESH_NAME).py python$(python)/aiwlib/_$(MESH_NAME).so iostream swig; 
 swig/$(MESH_NAME).py swig/$(MESH_NAME)_wrap.cxx: include/aiwlib/base_mesh include/aiwlib/mesh
 swig/$(MESH_NAME).i: include/aiwlib/mesh.mk
 	$(imodule)
