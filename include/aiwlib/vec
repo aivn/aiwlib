@@ -32,6 +32,9 @@ namespace aiw{
         explicit Vec(T val=T{}) { for(int i=0; i<D; i++) p[i] = val; }    
 		Vec(const Vec<1, T> &v){ for(int i=0; i<D; i++) p[i] = v[0]; }
 
+		Vec(T const (&p_)[D]){ memcpy(p, p_, sizeof(T)*D); }
+		void operator = (T const (&p_)[D]){ memcpy(p, p_, sizeof(T)*D); }
+		
 		template <typename ... Args> explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
 			set_x(xxx...); 
