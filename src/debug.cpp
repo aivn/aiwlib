@@ -1,10 +1,13 @@
 /**
- * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <dlfcn.h>
+#include <cxxabi.h>
 #ifndef AIW_WIN32
 #include <csignal>
 #include <execinfo.h>
@@ -55,5 +58,21 @@ void aiw::init_signal_hook(int signal){
 	sigaction(signal, &act, NULL); 
 }
 void aiw::init_segfault_hook(){ init_signal_hook(SIGSEGV); }
+
+void aiw::trace_out(){
+	while(exc_counter) exc_frames[--exc_counter]->out_msg(std::cerr);
+	void* buf[4096]; int size = backtrace(buf, 4096);
+	std::cerr<<"#--------------------------------\n";
+	for(int i=1; i<size; i++){
+		Dl_info dl; dladdr(buf[i], &dl); int status; 
+		std::cerr<<"#["<<i-1<<"] ";
+		if(dl.dli_fname) std::cerr<<dl.dli_fname<<": "; else std::cerr<<"???: ";
+		char *res = abi::__cxa_demangle(dl.dli_sname, 0, 0, &status);
+		if(res) std::cerr<<res<<'\n';
+		else if(dl.dli_sname) std::cerr<<dl.dli_sname<<'\n';
+		else std::cerr<<"???\n";
+	}
+	std::cerr<<"#--------------------------------\n";
+}
 #endif //AIW_WIN32
 //------------------------------------------------------------------------------
