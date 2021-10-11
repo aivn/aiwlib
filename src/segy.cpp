@@ -198,7 +198,8 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 //------------------------------------------------------------------------------
 //   write operations
 //------------------------------------------------------------------------------
-void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow){
+void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow, const std::vector<float> prefix){
+	if(prefix.size()) S.write(prefix.data(), 4*prefix.size()); 
 	int sz = data.bbox()[0]; float buf[sz]; for(int i=0; i<sz; i++){ buf[i] = z_pow? data[ind(i)]*pow(i+1, z_pow): data[ind(i)]; }
 #ifndef AIW_WIN32
 	if(segy_ibm_format){ float buf2[sz]; ieee2ibm(buf2, buf, sz); S.write(buf2, 4*sz); }
@@ -207,31 +208,40 @@ void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow
 		S.write(buf, 4*sz); 
 }
 //------------------------------------------------------------------------------
+template <int D> void mk_zero_prefix(const Mesh<float, D> &data, std::vector<float> &prefix){
+	int iz0 = data.bmin[0]/data.step[0]+.5;
+	if(iz0>0) prefix.resize(iz0, 0.f);
+	WOUT(prefix.size());
+}
+//------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
-	SegyTraceHead tr; tr.PV = PV|0.; tr.PP = PP; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.dump(S);
-	segy_write_trace_data(S, data, z_pow);
+	std::vector<float> prefix; mk_zero_prefix(data, prefix);
+	SegyTraceHead tr; tr.PV = PV|0.; tr.PP = PP; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.dump(S);
+	segy_write_trace_data(S, data, z_pow, prefix);
 }
 //------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+	std::vector<float> prefix; mk_zero_prefix(data, prefix); 
 	if(write_file_head){
-		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]; fh.profile_sz = data.bbox()[1]; fh.dump(S);
+		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]+prefix.size(); fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
 	Vec<3> delta = vec(cos(rotate), sin(rotate), 0.)*data.step[1];
 	for(int ix=0; ix<data.bbox()[1]; ix++){ 
-		SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta*ix; tr.dump(S);
-		segy_write_trace_data(S, data.slice<1>(ind(-1, ix)), z_pow);
+		SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.PP = PP0 + delta*ix; tr.dump(S);
+		segy_write_trace_data(S, data.slice<1>(ind(-1, ix)), z_pow, prefix);
 	}
 }
 //------------------------------------------------------------------------------
 void aiw::segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+	std::vector<float> prefix; mk_zero_prefix(data, prefix);
 	if(write_file_head){
-		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]; fh.profile_sz = data.bbox()[1]; fh.dump(S);
+		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]+prefix.size(); fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
 	Vec<3> delta_x = vec(cos(rotate), sin(rotate), 0.)*data.step[1], delta_y = vec(-sin(rotate), cos(rotate), 0.)*data.step[2];
 	for(int iy=0; iy<data.bbox()[2]; iy++) 
 		for(int ix=0; ix<data.bbox()[1]; ix++){ 
-			SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]; tr.dt = data.step[0]; tr.PP = PP0 + delta_x*ix + delta_y*iy; tr.dump(S);
-			segy_write_trace_data(S, data.slice<1>(ind(-1, ix, iy)), z_pow);
+			SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.PP = PP0 + delta_x*ix + delta_y*iy; tr.dump(S);
+			segy_write_trace_data(S, data.slice<1>(ind(-1, ix, iy)), z_pow, prefix);
 		}
 }
 //------------------------------------------------------------------------------
@@ -244,7 +254,7 @@ aiw::SegyFileHead::SegyFileHead(){
 //------------------------------------------------------------------------------
 void aiw::SegyFileHead::dump(aiw::IOstream &S){
 	set_int16(12, profile_sz); // chislo trass v seysmogramme (ne v faile!) 12-13
-	set_int16(16, dt*1e6+.5);  // shag diskretizacii, mks 16-17 18-19 ???
+	set_int16(16, (dt<1? dt*1e6: dt*1e3)+.5);  // shag diskretizacii, mks 16-17 18-19 ???
 	set_int16(20, trace_sz);   // chislo otschetov v trasse 21-22
 	set_int16(22, trace_sz);   // chislo otschetov v trasse 23-24
 	set_int16(24, segy_ibm_format?1:5);	       // FORMAT
@@ -280,7 +290,7 @@ void aiw::SegyTraceHead::dump(aiw::IOstream &S){
 	set_int32(80, PP[0]+.5); 
 	set_int32(84, PP[1]+.5); 
 	set_int16(114, trace_sz);  //114 chislo otschetov v trasse
-	set_int16(116, dt*1e6+.5); //116 shag diskretizacii, mks
+	set_int16(116, (dt<1? dt*1e6: dt*1e3)+.5); //116 shag diskretizacii, mks
 	S.write(head, 240);
 }
 //------------------------------------------------------------------------------
