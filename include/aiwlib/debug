@@ -14,6 +14,8 @@
 #include <exception>
 #include <tuple>
 #include <cmath>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -75,6 +77,7 @@ namespace aiw{
 #ifndef AIW_WIN32
 	void init_signal_hook(int signal);
 	void init_segfault_hook();
+	void trace_out();
 #endif //AIW_WIN32
 	//--------------------------------------------------------------------------
 }  // end of namespace aiw 
@@ -88,25 +91,27 @@ namespace aiw{
 //# define WEXC(args...) aiw::DebugStackFrame NAME_OF_STFR2(__LINE__); WSTR(NAME_OF_STFR2(__LINE__).buf, args)
 #   define WEXC(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(false, __FILE__, __FUNCTION__, __LINE__, #args,  args);
 #   define WEXT(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(true,  __FILE__, __FUNCTION__, __LINE__, #args,  args);
-#   define WASSERT(cond, msg, args...) if(!(cond)) WRAISE((msg), args)
+#   define WASSERT(cond, args...) if(!(cond)) WRAISE(args)
 #else //EBUG
 #   define WSTR(S, args...)
 #   define WEXC(args...)
 #   define WEXT(args...)
-#   define WASSERT(cond, msg, args...)
+#   define WASSERT(cond, args...)
 #endif //EBUG
 
 #define WOUT(args...) WSTR(std::cout, args)
 #define WERR(args...) WSTR(std::cerr, args)
 #define WCHK(args...) WASSERT(!is_bad_value(args), "some values are bad: ", args) 
-#define WARNING(msg, args...){ std::cerr<<"\033[1;4m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "<<msg; \
+#define WARNING(args...){ std::cerr<<"\033[1;4m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "; \
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
 extern char bUfFoRwRaIsE0[4096];
-#define WRAISE(msg, args...) { std::stringstream	bUfFoRwRaIsE;		\
-		bUfFoRwRaIsE<<"\033[31m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "<<msg; \
+#define WRAISE(args...) { std::stringstream	bUfFoRwRaIsE;		\
+		bUfFoRwRaIsE<<"\033[31m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "; \
 		if(errno) bUfFoRwRaIsE<<" [\033[31;1;5m"<<strerror(errno)<<"\033[0m] ";	\
 		aiw::debug_out(bUfFoRwRaIsE, #args, args); bUfFoRwRaIsE<<"\n";	\
-		std::cerr<<bUfFoRwRaIsE.str(); strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; \
+		std::cerr<<bUfFoRwRaIsE.str(); aiw::trace_out();				\
+		if(fork()){ strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; } \
+		else abort();													\
 	}	
 #else //AIW_WIN32
 namespace aiw{  // это заглушка для Visual Studio etc.

@@ -47,7 +47,7 @@ override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
-override LINKOPT:=$(LINKOPT) -lgomp  
+override LINKOPT:=$(LINKOPT) -lgomp  -ldl
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 
 # устанавливать 64x битный дистрибутив питона под wine как
