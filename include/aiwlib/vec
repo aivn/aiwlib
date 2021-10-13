@@ -34,6 +34,7 @@ namespace aiw{
 
 		Vec(T const (&p_)[D]){ memcpy(p, p_, sizeof(T)*D); }
 		void operator = (T const (&p_)[D]){ memcpy(p, p_, sizeof(T)*D); }
+		void to(T (&p_)[D]) const { memcpy(p_, p, sizeof(T)*D); } 
 		
 		template <typename ... Args> explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
@@ -153,6 +154,7 @@ namespace aiw{
 	Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
 		return Vec<1+sizeof...(Args), T>(x, args...);
 	}
+	template <int D, typename T> Vec<D, T> ptr2vec(const T *p){ Vec<D, T> v; memcpy(&v, p, sizeof(T)*D); return v; }
 	//--------------------------------------------------------------------------
 	template<int D> using Vecf = Vec<D, float>;
 	template <typename ... Args> Vecf<sizeof...(Args)> vecf(Args ... args){	return Vecf<sizeof...(Args)>(args...); }
