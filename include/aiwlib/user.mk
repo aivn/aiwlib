@@ -37,6 +37,7 @@ all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 #-------------------------------------------------------------------------------
 .PRECIOUS : %.py _%.so %.o %_wrap.cxx %.i
 #-------------------------------------------------------------------------------
+.PHONY: _$(name).so
 all: $(name) $(notdir $(basename $(cxxmain)));
 $(name): _$(name).so $(name).py
 	@echo -ne "\033[7mCHECK IMPORT: python$(python) -c 'import $(name)' ... \033[0m"
@@ -73,14 +74,14 @@ $(name).py $(name)_wrap.cxx: $(name).i $(headers)
 #-------------------------------------------------------------------------------
 #   link shared library
 #-------------------------------------------------------------------------------
-_$(name).so: $(name)_wrap.o $(all_objects)
+_$(name).so: $(name)_wrap$(python).o $(all_objects)
 	$(show_target)
 	$(CXX) -shared -o $@ $^ $(libaiw_a) $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
 ifneq ($(headers),)
-$(name)_wrap.o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers))))
+$(name)_wrap$(python).o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers) $(modules))))
 endif
 %.o:; $(RUN_CXX) -I$(aiwlib_include) -o $@ -c $<
 #-------------------------------------------------------------------------------
@@ -121,7 +122,7 @@ endif
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -f $(name)_wrap.o $(all_objects) _$(name).so $(notdir $(basename $(cxxmain))) $(addsuffix .o,$(basename $(cxxmain))) 
+clean:; rm -f $(name)_wrap$(python).o $(all_objects) _$(name).so $(notdir $(basename $(cxxmain))) $(addsuffix .o,$(basename $(cxxmain))) 
 cleanall: clean; rm -f $(name).i $(name)_wrap.cxx $(name).py
 #-------------------------------------------------------------------------------
 ifeq ($(words $(wildcard $(aiwlib)python$(python)/aiwlib/ $(aiwlib)swig/ $(aiwlib)Makefile)),3)

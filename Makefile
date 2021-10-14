@@ -33,7 +33,7 @@ endif
 all: libaiw.a;
 
 iostream swig mpi4py view: %: python$(python)/aiwlib/%.py python$(python)/aiwlib/_%.so;
-.PRECIOUS: swig/%.py swig/%.o src/%.o 
+.PRECIOUS: swig/%.py swig/%_wrap$(python).o src/%.o 
 #-------------------------------------------------------------------------------
 libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{color,mesh}}.o)
 	rm -f libaiw.a; ar -csr libaiw.a $^
@@ -62,7 +62,7 @@ swig/%.py swig/%_wrap.cxx: swig/%.i
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
-python$(python)/aiwlib/_%.so: swig/%_wrap.o libaiw.a
+python$(python)/aiwlib/_%.so: swig/%_wrap$(python).o libaiw.a
 	$(show_target)
 	$(CXX) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
@@ -92,13 +92,17 @@ src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))
 ifndef MODULE
 #src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
-src/%.o:  src/%.cpp include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+src/%.o:  src/%.cpp include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp TARGET:=$@ $@
+src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp  TARGET:=$@ $@
+#swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
+#swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(subst _wrap$(python).o,_wrap.cxx,$@) $@
+swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --trace  MODULE:=$< TARGET:=$@ $@ 
 else
 #$(strip $(dir $(MODULE))$(subst \,,$(shell cat $(basename $(MODULE)).d)))
-$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
-	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
+#$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
+$(TARGET): $(filter-out %:, $(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
+	$(RUN_CXX) -o $@ -c $(MODULE)
+#	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 
 #.PHONY: cpptest
@@ -155,7 +159,7 @@ cleanall: clean
 	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; done
 	rm -f swig/*_wrap.cxx 
 	-@for i in $$(cat TARGETS); do echo rm -f swig/$${i%%-*}.i; rm -f swig/$${i%%-*}.i; done
-clean-%:; -n=$@; rm swig/$${n:6}_wrap.o python$(python)/aiwlib/_$${n:6}.so
+clean-%:; -n=$@; rm swig/$${n:6}_wrap?.o python$(python)/aiwlib/_$${n:6}.so
 cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python$(python)/aiwlib/$${n:9}.py{,c}
 clean-mingw clean-windows:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
 #-------------------------------------------------------------------------------
@@ -178,10 +182,10 @@ links-install install-links: all uninstall
 windows: $(shell echo windows/aiwlib/{{__init__,vec,swig,tkPlot2D,tkConfView,tkWidgets,iostream,view}.py,_{iostream,swig,view}.pyd}) windows/uplt.py;
 windows/aiwlib/%.py: python$(python)/aiwlib/%.py; cp $< $@
 windows/uplt.py: bin/uplt; cp $< $@
-mingw/%_wrap.o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
+mingw/%_wrap$(python).o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/obj/%.o: src/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/view/%.o: src/view/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
-windows/aiwlib/_%.pyd: mingw/%_wrap.o; $(MINGW) -shared -o $@ $^ $(MINGW_LINKOPT) 
+windows/aiwlib/_%.pyd: mingw/%_wrap$(python).o; $(MINGW) -shared -o $@ $^ $(MINGW_LINKOPT) 
 windows/aiwlib/_iostream.pyd: mingw/obj/debug.o
 windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
 #-------------------------------------------------------------------------------
