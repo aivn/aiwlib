@@ -96,7 +96,7 @@ src/%.o:  src/%.cpp include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(ba
 src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp  TARGET:=$@ $@
 #swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 #swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(subst _wrap$(python).o,_wrap.cxx,$@) $@
-swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --trace  MODULE:=$< TARGET:=$@ $@ 
+swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory  MODULE:=$< TARGET:=$@ $@ 
 else
 #$(strip $(dir $(MODULE))$(subst \,,$(shell cat $(basename $(MODULE)).d)))
 #$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
