@@ -121,6 +121,15 @@ namespace aiw{
 		uint64_t sz = 0; if(!load(s, sz)) return false;
 		K k; V v; for(size_t i=0; i<sz; i++) if(load(s, k) && load(s, v)) X[k] = v; else return false;
 		return true;
-	}		
+	}
+
+	// check load
+	template <typename T> struct BinaryLoadChecker{ T x; };
+	template <typename T> BinaryLoadChecker<T> bin_load_chk(T x){ return BinaryLoadChecker<T>({x}); }
+	template <typename S, typename T> bool load(S &s, BinaryLoadChecker<T> checker){
+		T x; if(!load(s, x)) WRAISE("incorrect binary load", s.tellg(), x);
+		if(x!=checker.x) WRAISE("incorrect binary load value", x, checker.x, "expected");
+		return true;
+	}
 } // end of namespace aiw
 #endif //AIW_BINARY_IO_HPP
