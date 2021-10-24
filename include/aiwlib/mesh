@@ -288,6 +288,15 @@ namespace aiw{
 		}
 		template <int D2> Mesh<T, D2> slice(Ind<D> pos) const { return slice<T, D2>(pos, 0); }
 		//----------------------------------------------------------------------
+#ifndef SWIG
+		template <int DV> aiw::Mesh<Vec<DV, T>, D-1> vectorize(int axe=0) const {
+			if(DV!=box[axe]) WRAISE("incorrect Mesh bbox[axe] for vectorize", D, sizeof(T), axe, DV, box);
+			Mesh<Vec<DV, T>, D-1> A; for(int i=0, j=0; i<D; i++) if(i!=axe) A.set_axe(j++, *this, i);
+			A.mem = mem; A.ptr = ptr; A.box.prod(A.sz);
+			return A;
+		}
+#endif //SWIG
+		//----------------------------------------------------------------------
 		template<int P> inline const T& periodic_bc(Ind<D> pos) const {
 			for(int i=0; i<D; i++) if(P&(1<<i)){
 					while(pos[i]<0) pos[i] += box[i];
