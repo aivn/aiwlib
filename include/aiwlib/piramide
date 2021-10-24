@@ -35,5 +35,40 @@ namespace aiw{
 		}		
 	};
 	//--------------------------------------------------------------------------
+	template <int D> class BitPiramide{
+		std::vector<uint64_t> data;
+		std::vector<size_t> offs;  // в чанках по 64 бита
+	public:
+		void init(int R){
+			offs.resize(R+1); size_t sz = 0;
+			for(int i=0; i<=R; i++){ offs[i] = sz; sz += (size_t(1)<<(i*D))/64+1; }
+			data.resize(sz, 0);
+		}
+		int rank(){ return offs.size(); }
+
+		T get(size_t off, int rank) const { WASSERT(0<=R && R<rank(), R, rank()); return data[offs[rank]+off/64]&(uint64_t(1)<<off%64); }
+		void set(size_t off, int rank, bool v){
+			WASSERT(0<=R && R<rank(), R, rank());
+			if(v) data[offs[rank]+off/64] |= (uint64_t(1)<<off%64); else data[offs[rank]+off/64] &= ~(uint64_t(1)<<off%64);
+		}
+		bool all(size_t a, size_t b, int rank) const {
+			WASSERT(0<=R && R<rank(), R, rank());
+			size_t a0 = a/64, b0 = b/64, off = offs[rank]; uint64_t mask;
+			mask = ~uint64_t(0)<<(a%64); if((data[off+a0]&mask)!=mask) return false;
+			mask = ~uint64_t(0); for(int i=a0+1; i<b0; i++) if(data[off+i]!=mask) return false;
+			mask = ~uint64_t(0)>>(b%64); if((data[off+b0]&mask)!=mask) return false;
+			return true;
+		}
+		bool any(size_t a, size_t b, int rank) const {
+			WASSERT(0<=R && R<rank(), R, rank());
+			size_t a0 = a/64, b0 = b/64, off = offs[rank]; uint64_t mask;
+			mask = ~uint64_t(0)<<(a%64); if(data[off+a0]&mask) return true;
+			mask = ~uint64_t(0); for(int i=a0+1; i<b0; i++) if(data[off+i]&mask) return true;
+			mask = ~uint64_t(0)>>(b%64); if(data[off+b0]&mask) return true;
+			return false;
+		}
+		void pushup(){} // сливает тайлы, идет снизу вверх?
+	};
+	//--------------------------------------------------------------------------
 };
 #endif //AIW_PIRAMIDE_HPP
