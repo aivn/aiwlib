@@ -68,13 +68,13 @@ int main(int argc, const char ** argv){
 		
 		if(dim==2){
 			mk_swaps(arr2D, swaps, sw_count);
-			if(use_step) for(int i=0; i<dim; i++) arr2D.step[i] = step[i]; else arr2D.step[0] *= 1e-3; // <=== to mks ???
+			if(use_step) for(int i=0; i<dim; i++) arr2D.step[i] = step[i]; // else arr2D.step[0] *= -1e3; // <=== to mks ???
 			WOUT(arr2D.bbox(), arr2D.bmin, arr2D.bmax, arr2D.step);
 			if(use_scale) for(Ind<2> pos; pos^=arr2D.bbox(); ++pos) arr2D[pos] *= scale;
 			segy_write(File(dst.c_str(), "wb"), arr2D, z_pow, PV(0,1), (use_PP0?PP0:arr2D.bmin|0.));
 		} else {
 			mk_swaps(arr3D, swaps, sw_count);
-			if(use_step) for(int i=0; i<dim; i++) arr3D.step[i] = step[i]; else arr3D.step[0] *= 1e-3; // <=== to mks ???
+			if(use_step) for(int i=0; i<dim; i++) arr3D.step[i] = step[i]; // else arr3D.step[0] *= -1e3; // <=== to mks ???
 			WOUT(arr3D.bbox(), arr3D.bmin, arr3D.bmax, arr3D.step);
 			if(use_scale) for(Ind<3> pos; pos^=arr3D.bbox(); ++pos) arr3D[pos] *= scale;
 			segy_write(File(dst.c_str(), "wb"), arr3D, z_pow, PV(0,1), (use_PP0?PP0:arr3D.bmin));			
