@@ -174,6 +174,7 @@ namespace aiw{
 		StdOstream(): f(std::cout){}
 		StdOstream(std::ostream &f_): f(f_){}
 		size_t write(const void* buf, size_t size){ f.write((const char*)buf, size); return size; } // ???
+		// long tellg() const { return f.tellg(); }
 
 		bool dump(){ return true; }
 		template <typename T, typename ... Args> bool dump(const T& x, const Args& ... args){ return stream_dump_wrapper(*this, x) && this->dump(args...); }
@@ -183,6 +184,7 @@ namespace aiw{
 		StdIstream(): f(std::cin){}
 		StdIstream(std::istream &f_): f(f_){}
 		size_t read(void* buf, size_t size){ return f.read((char*)buf, size).gcount(); }
+		long tellg() const { return f.tellg(); }
 		bool load(){ return true; }
 		template <typename T, typename ... Args> bool load(T& x, Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
 	};

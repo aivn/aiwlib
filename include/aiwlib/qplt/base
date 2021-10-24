@@ -39,14 +39,16 @@ namespace aiw{
 		std::shared_ptr<IOstream> fin;
 		int frame_;     // номер фрейма, исключительно справочная информация
 		double mem_sz;  // объем памяти необходимый для загрузки данных, в GB
+		void calc_step();
+	public:
+#ifndef SWIG
 		int dim, szT;   // размерность контейнера и размер ячейки в байтах (оси в одну ячейку выбрасываются на стороне питона)
 		std::string head, info, anames[6];
 		static const std::string default_anames[6];
 		uint32_t logscale;  // битовая маска с лог.масштабами по осям
 		Ind<6> bbox; Vecf<6> bmin, bmax, step, rstep;  // исходные параметры контейнера - размер и пределы по осям, устанавливаются при загрузке и больше не меняются
-		void calc_step();
-		//#endif //SWIG
-	public:
+#endif //SWIG
+
 		static double mem_limit;  // лимит на размер памяти, в GB
 		
 		const char* fname() const { return fin->name.c_str(); }
@@ -124,16 +126,19 @@ namespace aiw{
 	protected:
 		virtual void init(int autoscale) = 0; // вызывается из QpltContainer::plotter после настройки,  нужно что бы минимизровать дублирование кода подготовки
 		friend class QpltContainer;
-		
-		aiw::Ind<3> bbeg, bbox;  aiw::Vecf<3> bmin, bmax;  // позиция, размер и пределы области отрисовки в осях ОТРИСОВКИ, устанавливаются в prepare_scene()
-		aiw::Ind<6> spos; aiw::Ind<3> axisID; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg,  оси отрисовки и маска флипов
+#ifndef SWIG
+	public:
+		aiw::Ind<3> bbeg, bbox, axisID;  aiw::Vecf<3> bmin, bmax;  // позиция, размер и пределы области отрисовки в осях ОТРИСОВКИ, устанавливаются в prepare_scene()
+	protected:
+#endif // SWIG
+		aiw::Ind<6> spos; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg и маска флипов
 		int dim, D3scale_mode;
 		float theta, phi; aiw::Vecf<3> cell_aspect;
 		QpltAccessor accessor;
 		QpltColor color;
 		std::vector<QpltFlat> flats;
 		Ind<2> im_start, im_size;
-	public:
+	public:		
 		virtual ~QpltPlotter(){}
 		void free(){ delete this; }
 		int get_dim() const { return dim; }
@@ -143,7 +148,8 @@ namespace aiw{
 		float get_bmin(int axe) const { return bmin[axe]; }  // для настройки осей 
 		float get_bmax(int axe) const { return bmax[axe]; }  // для настройки осей 
 		bool get_logscale(int axe) const { return container->get_logscale(axisID[axe]); }  // для настройки осей 
-		float get_step(int i) const { return get_logscale(i)? exp(log(bmax[i]/bmin[i])/bbox[i]) : (bmax[i]-bmin[i])/bbox[i]; }  // для вывода информации
+		// float get_step(int i) const { return get_logscale(i)? exp(log(bmax[i]/bmin[i])/bbox[i]) : (bmax[i]-bmin[i])/bbox[i]; }  // для вывода информации
+		float get_step(int i) const { return container->get_step(axisID[i]); }  // для вывода информации
 		const char* get_axe(int i) const { return container->get_axe(axisID[i]); } 
 		int get_axeID(int axe) const { return axisID[axe]; }
 		

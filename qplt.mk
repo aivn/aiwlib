@@ -32,11 +32,15 @@ $(show_target)
 $(CXX) $(CXXOPT)
 endef
 #-------------------------------------------------------------------------------
-.PRECIOUS: swig/qplt/%.py src/qplt/%.o
+.PRECIOUS: swig/qplt/%.py src/qplt/%.o src/bin/qplt-remote.o
 
-qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so
+qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so bin/qplt-remote
 
-swig/qplt/core.py swig/qplt/core_wrap.cxx: $(shell echo include/aiwlib/qplt/{imaging,accessor,scene,base})
+swig/qplt/core.py swig/qplt/core_wrap.cxx: include/aiwlib/qplt/base
+
+bin/qplt-remote: src/bin/qplt-remote.o  $(shell echo src/qplt/{imaging,accessor,base,mesh}.o)
+	$(show_target)
+	$(CXX) -o $@ $^ -laiw $(LINKOPT)
 
 #python3/aiwlib/%.py: swig/%.py
 #	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
@@ -63,6 +67,7 @@ ifndef MODULE
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
 src/qplt/%.o:  src/qplt/%.cpp  include/aiwlib/* include/aiwlib/qplt/*; @$(MAKE) -f qplt.mk --no-print-directory MODULE:=$(basename $@).cpp $@
 swig/%.o: swig/%.cxx include/aiwlib/*; @$(MAKE) -f qplt.mk CXXOPT:='$(CXXOPT) -I$(PYTHON_H_PATH)' --no-print-directory MODULE:=$(basename $@).cxx $@
+src/bin/qplt-remote.o: src/bin/qplt-remote.cpp  include/aiwlib/* include/aiwlib/qplt/*; @$(MAKE) -f qplt.mk --no-print-directory MODULE:=$(basename $@).cpp $@
 else
 $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
 	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)

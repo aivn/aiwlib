@@ -13,6 +13,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include "debug"
 
 template <typename T> struct aiw_dump_load { static const int mode = std::is_trivially_copyable<T>::value; }; // 0 --- возможно есть внешние dump/load, 1 --- тривиальные, 2 --- встроенные
 
@@ -124,9 +125,9 @@ namespace aiw{
 	}
 
 	// check load
-	template <typename T> struct BinaryLoadChecker{ T x; };
+	template <typename T> struct BinaryLoadChecker{ T x; BinaryLoadChecker& self(){ return *this; } };
 	template <typename T> BinaryLoadChecker<T> bin_load_chk(T x){ return BinaryLoadChecker<T>({x}); }
-	template <typename S, typename T> bool load(S &s, BinaryLoadChecker<T> checker){
+	template <typename S, typename T> bool load(S &s, BinaryLoadChecker<T> &checker){
 		T x; if(!load(s, x)) WRAISE("incorrect binary load", s.tellg(), x);
 		if(x!=checker.x) WRAISE("incorrect binary load value", x, checker.x, "expected");
 		return true;
