@@ -8,7 +8,7 @@ PYTHONDIR=/usr/lib/python3/dist-packages/
 
 
 override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
-override LINKOPT:=$(LINKOPT) -lgomp  
+override LINKOPT:=$(LINKOPT) -lgomp  -ldl
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 
 # устанавливать 64x битный дистрибутив питона под wine как
@@ -32,23 +32,27 @@ $(show_target)
 $(CXX) $(CXXOPT)
 endef
 #-------------------------------------------------------------------------------
-.PRECIOUS: swig/%.py swig/%.o src/qplt/%.o
+.PRECIOUS: swig/qplt/%.py src/qplt/%.o
 
-qplt: python3/aiwlib/qplt.py python3/aiwlib/_qplt.so
+qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so
 
-swig/qplt.py swig/qplt_wrap.cxx: $(shell echo include/aiwlib/qplt/{imaging,accessor,scene,base})
+swig/qplt/core.py swig/qplt/core_wrap.cxx: $(shell echo include/aiwlib/qplt/{imaging,accessor,scene,base})
 
-python3/aiwlib/%.py: swig/%.py
+#python3/aiwlib/%.py: swig/%.py
+#	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
+#	@echo 'except: pass' >> $@
+#	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
+python3/aiwlib/qplt/%.py: swig/qplt/%.py
 	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
 	@echo 'except: pass' >> $@
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
-swig/%.py swig/%_wrap.cxx: swig/%.i 
+swig/qplt/%.py swig/qplt/%_wrap.cxx: swig/qplt/%.i 
 	$(show_target)
 	$(SWIG) $(SWIGOPT) $<
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
-python3/aiwlib/_qplt.so: swig/qplt_wrap.o $(shell echo src/qplt/{imaging,accessor,base,mesh}.o) libaiw.a
+python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imaging,accessor,base,mesh}.o) libaiw.a
 	$(show_target)
 	$(CXX) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
@@ -64,7 +68,7 @@ $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
 	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/qplt_wrap.* src/qplt/*.o  python3/aiwlib/_qplt.so python3/aiwlib/qplt.py
+clean:; rm -rf swig/qplt/core_wrap.* src/qplt/*.o  python3/aiwlib/qplt/_core.so python3/aiwlib/qplt/core.py
 links-install install-links: qplt
 	-ln -s "$$(pwd)/python3/aiwlib"  $(PYTHONDIR)
 #-------------------------------------------------------------------------------

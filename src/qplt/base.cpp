@@ -14,7 +14,7 @@ using namespace aiw;
 //------------------------------------------------------------------------------
 double aiw::QpltContainer::mem_limit = 4.; // лимит на размер памяти, в GB
 std::list<QpltContainer*> aiw::QpltContainer::mem_queue;
-const std::string aiw::QpltContainer::default_axes[8] = {"x", "y", "z", "a", "b", "c", "d", "e"};
+const std::string aiw::QpltContainer::default_anames[6] = {"x", "y", "z", "u", "v", "w"};
 
 void aiw::QpltContainer::data_load(){  // освобождает память перед загрузкой данных
 	double queue_sz = mem_sz; auto Q = mem_queue.end();
@@ -35,181 +35,187 @@ void aiw::QpltContainer::data_free(){  // освобождает память п
 	printf("free 3\n");
 }
 //------------------------------------------------------------------------------
-void aiw::QpltContainer::prepare_scene(QpltScene &S){ // устанавливает bbox, bmin, bmax
-	for(int i=0; i<3; i++) aI[i] = S.get_axe(i);
-	flips = S.get_flip(0)|S.get_flip(1)<<1|S.get_flip(2)<<2;
-	for(int a=0; a<3; a++){
-		int i = aI[a]; if(i>=dim) continue; // break?
-		if(S.get_autoscale(a)){	bbeg[a] = 0; bbox[a] = bbox0[i]; bmin[a] = bmin0[i]; bmax[a] = bmax0[i]; S.set_min_max(a, bmin[a], bmax[a], true); }
-		else {
-			bmin[a] = S.get_min(a); bmax[a] = S.get_max(a);  if(S.get_flip(a)) std::swap(bmin[a], bmax[a]); 
-			bool lgs = logscale&1<<i; double step = lgs? exp(log(bmax0[i]/bmin0[i])/bbox0[i]) : (bmax0[i]-bmin0[i])/bbox0[i];
-			// WOUT(a, S.get_min(a), S.get_max(a), bmin[a], bmax[a], lgs, step, bbeg[a], bbox[a], bbox0[a]);			
-			if(bmin[a]<bmin0[i]){ bbeg[a] = 0; bmin[a] = bmin0[i]; }
-			else {
-				bbeg[a] = lgs? log(bmin[a]/bmin0[i])/step: (bmin[a]-bmin0[i])/step;
-				bmin[a] = lgs ? bmin0[i]*pow(step, bbeg[a]) : bmin0[i] + bbeg[a]*step;
-			}
-			if(bmax[a]>bmax0[i]){ bbox[a] = bbox0[i]-bbeg[a]; bmax[a] = bmax0[i]; }
-			else {
-				bbox[a] = (lgs? log(bmax[a]/bmin[a])/step: (bmax[a]-bmin[a])/step)+.5;
-				if(bbox[a]<1){ bbox[a] = 1; } if(bbox[a]+bbeg[a]>bbox0[i]) bbox[a] = bbox0[i]-bbeg[a];
-				bmax[a] = lgs ? bmin[a]*pow(step, bbox[a]) : bmin[a] + bbox[a]*step;
-			}
-			// WOUT(a, bmin[a], bmax[a], bbeg[a], bbox[a]);
-		}
-		// S.set_min(a, bmin[a]); S.set_max(a, bmax[a]);
-		// if(S.get_flip(a)) std::swap(bmin[a], bmax[a]);
-	}
+void aiw::QpltContainer::calc_step(){
+	for(int axe=0; axe<dim; axe++)
+		if(logscale&1<<axe){ step[axe] = exp(log(bmax[axe]/bmin[axe])/bbox[axe]); rstep[axe] = 1./log(step[axe]); }
+		else{ step[axe] = (bmax[axe]-bmin[axe])/bbox[axe]; rstep[axe] = 1.f/step[axe]; }
+} 
+float aiw::QpltContainer::fpos2coord(float fpos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], fpos) : bmin[axe]+step[axe]*fpos; }
+float aiw::QpltContainer::pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); }
+int aiw::QpltContainer::coord2pos(float coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
+//------------------------------------------------------------------------------
+aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
+											   // f_opt --- 2 бита autoscale, 1 бит logscale, 1 бит модуль
+											   int f_opt, float f_lim[2], const char* paletter, int arr_lw[2], float arr_spacing, int nan_color,
+											   int ctype, int Din, int mask, int offsets[3], int diff, int vconv, bool minus,  // accessor
+											   // описание сцены в исходных осях - ползунки, пределы, интерполяция и пр., сохраняет настройки при переключениях. Пока так
+											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
+											   float th_phi[2], float cell_aspect[3], int D3scale_mode
+											   ){ // const {
+	QpltPlotter* plt = mk_plotter(mode); plt->container = this;
+	// 1. настраиваем базовые вещи в плоттере
+	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
+	plt->accessor.minus = minus; for(int i=0; i<3; i++){ plt->accessor.offsets[i] = offsets[i];  plt->accessor.rsteps[i] = rstep[axisID[i]]; }
+	plt->color.arr_length = arr_lw[0]; plt->color.arr_width = arr_lw[1]; plt->color.arr_spacing = arr_spacing;
+	plt->color.init(paletter, f_lim[0], f_lim[1], f_opt&4); plt->color.modulus = f_opt&8; plt->color.nan_color = nan_color;
+
 	for(int i=0; i<dim; i++){
-		bool lgs = logscale&1<<i; double step = lgs? exp(log(bmax0[i]/bmin0[i])/bbox0[i]) : (bmax0[i]-bmin0[i])/bbox0[i];
-		spos[i] = lgs ? log(S.get_pos(i)/bmin0[i])/step : (S.get_pos(i)-bmin0[i])/step;
-		if(spos[i]<0){ spos[i] = 0; } if(spos[i]>=bbox0[i]){ spos[i] = bbox0[i]-1; }
+		int pos = fai&(1<<(6+2*i))? 0 : coord2pos(sposf[i], i);
+		if(pos<0){ pos = 0; } if(pos>=bbox[i]){ pos = bbox[i]-1; }
+		plt->spos[i] = pos;
 	}
-}
-//------------------------------------------------------------------------------
-void aiw::QpltContainer::prepare3D(QpltScene &S, int Nx, int Ny) const {
-	if(S.theta<0) S.theta  = 0;
-	if(S.theta>180) S.theta = 180;
-						  
-	float c_ph, s_ph, c_th, s_th;  sincosf(S.phi*M_PI/180, &s_ph, &c_ph);  sincosf(S.theta*M_PI/180, &s_th, &c_th);
-	S.nS = vecf(c_ph*s_th, s_ph*s_th, c_th);  S.nX = -vecf(-s_ph, c_ph, 0.f);  S.nY = vecf(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
-	Vecf<3> d(S.dx, S.dy, S.dz);
-		
-	Vecf<2> pp[8], A, B;  int i_min; float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
-	for(int i=0; i<8; i++){  // цикл по углам
-		Vecf<3> r = -bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
-		pp[i] = vecf(r*S.nX, r*S.nY);  A <<= pp[i]; B >>= pp[i];
-		if(i==0 || r*S.nS>Zmin){ i_min = i; Zmin = r*S.nS; }
-		// WOUT(i, r, pp[i], i_min, Zmin, r*S.nS);
-	}  // конец цикла по углам
-	Vecf<2> scale(1.f);
-	if(S.D3scale_mode==0) scale[0] = scale[1] = float(std::min(Nx, Ny))/(bbox&d).abs();
-	if(S.D3scale_mode==1) scale[0] = scale[1] = std::min(Nx/(B[0]-A[0]), Ny/(B[1]-A[1]));
-	if(S.D3scale_mode==2){ scale[0] = Nx/(B[0]-A[0]); scale[1] = Ny/(B[1]-A[1]); }
-    S.nX *= scale[0];  S.nY *= scale[1];  S.flats = 0;
 	
-	for(int i=0; i<3; i++){  // цикл по осям --- ищем отображаемые грани, достаточно проверить глубину одной вершины
-		Vecf<3> r = bbox&d/2; float z_plus = S.nS*r;
-		r[i] = -r[i]; float z_minus = S.nS*r;
-		if(z_plus>z_minus) S.flats |= 2<<4*i;  // точность ???
-		if(z_plus<z_minus) S.flats |= 1<<4*i;  // точность ???
-	}
-
-	std::pair<float, int> stable[6]; int rtable[6];  // таблица для сортировки вершин и обратная таблица переходов
-	for(int i=0, j=0; i<8; i++) if(i!=i_min && i!=7-i_min){ Vecf<2> dp = pp[i]-pp[i_min]; stable[j++] = std::make_pair(atan2f(dp[1], dp[0]), i); }
-	std::sort(stable, stable+6);
-
-	Ind<3> nb_min;  for(int i=0; i<3; i++) nb_min[i] = i_min&1<<i ? i_min-(1<<i): i_min+(1<<i);  // вершины соседние центральной	
-	bool cshift = !nb_min.contains(stable[0].second);  // необходимость сдвига, что бы с центральной точкой были соединены ребра от вершин 0,2,4	
-	Vecf<2> C(Nx/2.+.5, Ny/2.+.5);	S.flcenter = C+(pp[i_min]&scale);  // центр изображения и центральная точка  
-	for(int i=0; i<6; i++){ rtable[i] = stable[(i+cshift)%6].second; S.flpoints[i] = C+(pp[rtable[i]]&scale);  }
-	S.im_a = C+(A&scale);  S.im_b = C+(B&scale);
-
-	for(int i=0; i<3; i++){  // полуцикл по парам вершин, вторая половина цикла отрабатывает тут же
-		int a[2], b[2]; for(int j=0; j<2; j++){ a[j] = rtable[(i+3*j)%6];  b[j] = rtable[(i+3*j+1)%6]; }
-		int ab = abs(a[0]-b[0]),  axe = ab==1? 0: (ab==2? 1: 2);  // ось которой отвечает пара вершин
-		bool ver = std::min((pp[a[0]]-pp[i_min]).abs(), (pp[b[0]]-pp[i_min]).abs()) < std::min((pp[a[1]]-pp[i_min]).abs(), (pp[b[1]]-pp[i_min]).abs());
-		bool inv = a[ver]>b[ver];
-		// WOUT(i, a[0], a[1], b[0], b[1], ab, axe, ver, inv, 2*axe+inv, 2*axe+1-inv);
-		S.flaxes[2*axe+inv] = (i+3*ver)%6;  S.flaxes[2*axe+1-inv] = (i+3*ver+1)%6;  // mode==auto
-		ver = (pp[a[0]]+pp[b[0]])[axe<2] > (pp[a[1]]+pp[b[1]])[axe<2];  inv = a[ver]>b[ver];  // интерпретация индексов a, b (лево/право или верх/низ)
-		S.flaxes[6+2*axe+inv] = (i+3*ver)%6;  S.flaxes[6+2*axe+1-inv] = (i+3*ver+1)%6;  // mode==1 left/bottom
-		ver = !ver;  inv = a[ver]>b[ver];  // вторая пара осей
-		S.flaxes[12+2*axe+inv] = (i+3*ver)%6;  S.flaxes[12+2*axe+1-inv] = (i+3*ver+1)%6;  // mode==2 right/top
-	}
-	//--------------------------------------------------------------------------
-	// File fouts[3]; for(int i=0; i<3; i++) fouts[i] = File("fl%.dat", "w", i);
-
-	for(int fl=0; fl<3; fl++) if(S.flats&(0xF<<fl*4)){  // цикл по флэтам
-			// Ind<2> flchk;
-			int a[2] = {(fl+1)%3, (fl+2)%3}; Vecf<2> nn[2], cf[2];  // оси флэта 
-			for(int i=0; i<2; i++){   // цикл по осям флэта, нужно спроецировать точку изображения p на оси a[0,1] получая в итоге число в диапазоне 0...bbox[a[i]]
-				int i0 = i_min, i1 = i_min;  // индексты точек в начале и конце оси a[i]
-				// if(pm==2){ i0 &= ~(1<<a[i]); i1 |= 1<<a[i]; } else { i1 &= ~(1<<a[i]); i0 |= 1<<a[i]; }
-				if(i_min&(1<<a[i])) i0 &= ~(1<<a[i]); else i1 |= 1<<a[i];
-				
-				// Vecf<2> n = (pp[i1]-pp[i0])&scale;  S.nflats[2*fl+i] = n/(n*n)*bbox[a[i]];
-				// S.cflats[2*fl+i] = C+(pp[i0]&scale); // (C+(pp[i0]&scale))*-bbox[a[i]];
-				cf[i] = C-ind(S.im_a.x, S.im_a.y)+(pp[i0]&scale);
-				nn[i] = (pp[i1]-pp[i0])&scale;
-				// WOUT(fl, i, pm, i_min, i0, i1);
-				
-				//WOUT(fl, i, n, S.nflats[2*fl+i], S.cflats[2*fl+i]);
-
-				// flchk += C-ind(S.im_a.x, S.im_a.y)+(pp[i0==i_min? i1: i0 ]&scale); // )*(1+i);
-				
-				// fouts[fl]("%\n%\n\n\n", C-ind(S.im_a.x, S.im_a.y)+(pp[i0]&scale), C-ind(S.im_a.x, S.im_a.y)+(pp[i1]&scale));
+	plt->axisID = ptr2vec<3>(axisID); plt->theta = 180-th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
+	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->D3scale_mode = D3scale_mode; plt->flips = plt->interp = plt->logscale = 0;
+	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
+		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
+		if(fai&(1<<a)) plt->flips |= 1<<i;
+		plt->interp |= (fai>>(18+2*a)&3)<<2*i; 
+		bool lgs = logscale&(1<<a); plt->logscale |= int(lgs)<<i;
+		if(fai&(1<<(7+2*a))){ plt->bmin[i] = bmin[a]; plt->bmax[i] = bmax[i]; plt->bbeg[i] = 0; plt->bbox[i] = bbox[a]; } // автошкалирование по оси
+		else { // bbox, bbeg ???
+			double A = bmin_[a], B = bmax_[a]; if((A<B)^(bmin[a]<bmax[a])) std::swap(A, B);  // ставим пределы сцены в том же порядке что и в контейнере		   
+			if((A<B && A<bmin[a])||(A>B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
+			else {
+				plt->bbeg[i] = lgs? log(A/bmin[a])/step[a]: (A-bmin[a])/step[a];
+				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
 			}
-			for(int i=0; i<2; i++){
-				Vecf<2> n_perp(nn[1-i][1], -nn[1-i][0]); n_perp /= n_perp.abs();
-				if(n_perp*nn[i]<0) n_perp = -n_perp;
-				S.nflats[2*fl+i] = n_perp/(n_perp*nn[i])*bbox[a[i]];
-				S.cflats[2*fl+i] = -cf[i]*S.nflats[2*fl+i];
-			}
-			/*
-			for(int x=0; x<S.im_b.x-S.im_a.x; x+=10)
-				for(int y=0; y<S.im_b.y-S.im_a.y; y+=10){
-					Vecf<2> r(S.nflats[2*fl]*ind(x, y)+S.cflats[2*fl], S.nflats[2*fl+1]*ind(x, y)+S.cflats[2*fl+1]);
-					if(0<r[0] && 0<r[1] && r[0]<bbox[a[0]] && r[1]<bbox[a[1]]) fouts[fl].printf("%i %i\n", x, y);
+			if((A<B && B>bmax[a])||(A>B && B<bmax[a])){ plt->bbox[i] = bbox[a]; plt->bmax[i] = bmax[a]; } // выход за правую границу
+			else {
+				plt->bbox[i] = (lgs? log(B/plt->bmin[i])/step[a]: (B-plt->bmin[i])/step[a])+.5;
+				if(plt->bbox[i]<1) plt->bbox[i] = 1;
+				if(plt->bbeg[i]+plt->bbox[i]>bbox[a]){
+					if(bbox[a]-plt->bbeg[i]>0) plt->bbox[i] = bbox[a]-plt->bbeg[i];
+					else plt->bbeg[i] = bbox[a]-plt->bbox[i];
 				}
-			*/		
-
-			// for(int i=0; i<8; i++) if((pm==1 && !(i&1<<fl)) || (pm==2 && (i&1<<fl))){ flchk += C+(pp[i]&scale); WOUT(fl, i); } flchk /= 4;
-			// flchk /= 2;
-			// fouts[fl]("%\n", flchk);
-			// WOUT(flchk, C, Nx, Ny, S.nflats[2*fl]*(flchk - S.cflats[2*fl]), S.nflats[2*fl+1]*(flchk - S.cflats[2*fl+1]));
-			// WOUT(Nx, Ny, S.nflats[2*fl]*flchk+S.cflats[2*fl], S.nflats[2*fl+1]*flchk+S.cflats[2*fl+1]);
-			// WOUT(flchk, S.nflats[2*fl], S.nflats[2*fl+1], S.cflats[2*fl], S.cflats[2*fl+1]);
-			// WOUT(S.nflats[2*fl]*flchk, S.nflats[2*fl]*S.cflats[2*fl], S.nflats[2*fl+1]*flchk,  S.nflats[2*fl+1]*S.cflats[2*fl+1]);
+				plt->bmax[i] = lgs ? plt->bmin[i]*pow(step[a], plt->bbox[i]) : plt->bmin[i] + plt->bbox[i]*step[a];
+			}
+			if(plt->flips&(1<<i)) std::swap(plt->bmin[i], plt->bmax[i]); 
 		}
+	}  // конец цикла по осям, настроены пределы отрисовки плоттера
 
-	/*
-	File fout("flats.dat", "w");
-	for(int i=0; i<7; i++) fout.printf("%i %i\n", S.flpoints[i%6].x, S.flpoints[i%6].y);
-	fout.printf("\n\n");
-	for(int i=0; i<3; i++) fout.printf("%i %i\n%i %i\n\n\n", S.flcenter.x, S.flcenter.y, S.flpoints[2*i].x, S.flpoints[2*i].y);
-	*/ 
-	//--------------------------------------------------------------------------
-	if(S.flcenter.y>=0) S.flcenter.y = Ny-1-S.flcenter.y;  // разворачиваем ось Y
-	for(int i=0; i<6; i++) if(S.flpoints[i].y>=0) S.flpoints[i].y = Ny-1-S.flpoints[i].y;  // разворачиваем ось Y
-	// S.im_a.y = Ny - S.im_a.y; S.im_b.y = Ny - S.im_b.y;
-}
-int aiw::Ind2::x0 = 0;
-int aiw::Ind2::y0 = 0;
-//------------------------------------------------------------------------------
-//   class QpltFactory
-//------------------------------------------------------------------------------
-bool aiw::QpltFactory::open_file(const char* fname){ // поддержка GZ файлов?
-	last_fin = File(fname, "r"); last_frame = 0;
-	if(last_fin){ table.emplace_back(); return true; }
-	return false;
-}
-void aiw::QpltFactory::close_file(){
-	last_fin.close();
-	if(table.back().empty()) table.pop_back();
-}
-//------------------------------------------------------------------------------
-bool aiw::QpltFactory::load_frame(){
-	printf("1234\n");
-	QpltMesh *msh = new QpltMesh;  if(msh->load(last_fin)){ msh->frame_ = last_frame++; table.back().push_back(msh); printf("678\n"); return true; }
-	else { printf("890\n"); delete msh; }
+	WOUT(plt->interp);
 	
-	return false;
+	if(!mode){ // 2D режим
+		plt->phi = 0; plt->theta = M_PI/2;
+		plt->flats.emplace_back();  auto &f = plt->flats.back();
+		f.ppf[0] = vecf(-.5f, -.5f);
+		f.ppf[1] = vecf(-.5f,  .5f);
+		f.ppf[2] = vecf( .5f,  .5f);
+		f.ppf[3] = vecf( .5f, -.5f);
+		f.bounds = 255;
+		f.spos = plt->spos; 
+		f.axis[0] = 0; 	f.axis[1] = 1;
+		plt->bmin(Ind<2>(f.axis)).to(f.bmin);
+		plt->bmax(Ind<2>(f.axis)).to(f.bmax);
+		f.spos[axisID[0]] = plt->bbeg[0];
+		f.spos[axisID[1]] = plt->bbeg[1];
+	} else { // 3D режим, настройки флэтов в плоттере
+		if(plt->theta<0) plt->theta  = 0;
+		if(plt->theta>180) plt->theta = 180;
+		float c_ph, s_ph, c_th, s_th;  sincosf(plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(plt->theta*M_PI/180, &s_th, &c_th);
+		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
+		Vecf<3> d = ptr2vec<3>(cell_aspect);
+		Vecf<2> pp[8], A, B; // float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
+		for(int i=0; i<8; i++){  // цикл по углам куба
+			Vecf<3> r = -plt->bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
+			pp[i] = vecf(r*nX, r*nY);  A <<= pp[i]; B >>= pp[i];
+			// if(i==0 || r*nS>Zmin) Zmin = r*nS; 
+		}  // конец цикла по углам куба
+
+		for(int axe=0; axe<3; axe++){  // цикл по осям --- ищем отображаемые грани, достаточно проверить глубину одной вершины
+			Vecf<3> r = plt->bbox&d/2; float z_plus = nS*r;
+			r[axe] = -r[axe]; float z_minus = nS*r;
+			if(z_plus>z_minus+1e-4f || z_plus<z_minus-1e-4f){ // точность ???
+				plt->flats.emplace_back(); QpltFlat &f = plt->flats.back(); int m = 1<<axe, fix = (z_plus>z_minus)<<axe;
+				for(int i=0, j=0; i<3; i++) if(i!=axe){ f.axis[j] = i; f.bmin[j] = plt->bmin[i]; f.bmax[j] = plt->bmax[i]; j++; }
+				f.spos = plt->spos; f.spos[axisID[axe]] = plt->bbeg[axe]+(plt->bbox[axe]-1)*((z_plus>z_minus)^bool(plt->flips&(1<<axe))); // z_plus>z_minus ???
+				for(int i=0, j=0; i<8; i++) if((i&m)==fix) f.ppf[j++] = pp[i];
+				std::swap(f.ppf[2], f.ppf[3]);
+			}
+		}
+		for(auto &f: plt->flats){
+			f.bounds = 0;
+			for(int i=0; i<4; i++){
+				Vecf<2> a = f.ppf[i], b = f.ppf[(i+1)%4];
+				if((fabs(a[0]-A[0])<1e-4 || fabs(a[0]-B[0])<1e-4 || fabs(a[1]-A[1])<1e-4 || fabs(a[1]-B[1])<1e-4) &&
+				   (fabs(b[0]-A[0])<1e-4 || fabs(b[0]-B[0])<1e-4 || fabs(b[1]-A[1])<1e-4 || fabs(b[1]-B[1])<1e-4))
+					f.bounds |= (1<<i*2) + (int(fabs(a[0]-A[0])<1e-4 || fabs(a[1]-A[1])<1e-4 || fabs(b[0]-A[0])<1e-4 || fabs(b[1]-A[1])<1e-4)<<(i*2+1));
+			}
+		}
+	} // 3D режим, флэты в плоттере настроены
+	
+	plt->init(f_opt&3);
+	return plt;
 }
-//------------------------------------------------------------------------------		
-bool aiw::QpltFactory::skip_frame(){
-	if(!load_frame()) return false;
-	free_frame(table.size()-1, table.back().size()-1); last_frame++;
-	return true;
-}
-void aiw::QpltFactory::free_frame(int fileID, int frameID){
-	delete table.at(fileID).at(frameID);
-	table[fileID].erase(table[fileID].begin()+frameID);
-	if(table[fileID].empty()) table.erase(table.begin()+fileID);
-}
-void aiw::QpltFactory::free_file(int fileID){
-	for(QpltContainer* bc: table.at(fileID)) delete bc;
-	table.erase(table.begin()+fileID);
+//------------------------------------------------------------------------------
+void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настраивает флэты согласно размеру изображения
+	im_start = ptr2vec<2>(xy1);	im_size = ptr2vec<2>(xy2) - im_start; (im_start+im_size/2).to(center);
+	Vecf<2> scale(1.f);
+	if(dim==2){
+		auto &f = flats[0]; im_start.to(f.a); (im_start+im_size).to(f.c);
+		f.b[0] = f.c[0]; f.b[1] = f.a[1]; f.d[0] = f.a[0]; f.d[1] = f.c[1];
+	} else {
+		float c_ph, s_ph, c_th, s_th;  sincosf(phi*M_PI/180, &s_ph, &c_ph); sincosf(theta*M_PI/180, &s_th, &c_th);
+		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
+		Vecf<3> d(cell_aspect);
+		Vecf<2> pp[8], A, B;  // int i_min; float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
+		for(int i=0; i<8; i++){  // цикл по углам куба
+			Vecf<3> r = -bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
+			pp[i] = vecf(r*nX, r*nY);  A <<= pp[i]; B >>= pp[i];
+			// if(i==0 || r*nS>Zmin){ i_min = i; Zmin = r*nS; }
+		}  // конец цикла по углам куба
+		if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&d).abs();
+		if(D3scale_mode==1) scale[0] = scale[1] = std::min(im_size[0]/(B[0]-A[0]), im_size[1]/(B[1]-A[1]));
+		if(D3scale_mode==2){ scale[0] = im_size[0]/(B[0]-A[0]); scale[1] = im_size[1]/(B[1]-A[1]); }
+		// nX *= scale[0];  nY *= scale[1];
+		for(auto &f: flats) for(int i=0; i<4; i++) f.abcd(i) = Ind<2>(center)+(f.ppf[i]&scale); // +vecf(.5f); ???
+	}
+
+	for(int i=0; i<2; i++) ibmin[i] = ibmax[i] = center[i];
+	for(auto &f: flats){
+		for(int i=0; i<2; i++) f.bbox[i] = bbox[f.axis[i]];
+		Vecf<2> abd[2] = {Ind<2>(f.b)-Ind<2>(f.a), Ind<2>(f.d)-Ind<2>(f.a)}, ac = Ind<2>(f.c)-Ind<2>(f.a), n_abd[2], n_perp[2];
+		for(int i=0; i<2; i++){
+			n_abd[i] = abd[i]/abd[i].abs(); n_perp[i] = vecf(-n_abd[i][1], n_abd[i][0]);
+			if(n_perp[i]*abd[1-i]<0) n_perp[i] = -n_perp[i];
+			f.rn[i] = abd[i]/f.bbox[i];
+		}
+		Vecf<2> nX = f.bbox[0]*n_perp[1]/(n_perp[1]*ac);
+		Vecf<2> nY = f.bbox[1]*n_perp[0]/(n_perp[0]*ac);
+		// r = (I-a)*nX, (I-a)*nY --> r[0] = (I[0]-a[0])*nX[0]
+		f.nX = vecf(nX[0], nY[0]);
+		f.nY = vecf(nX[1], nY[1]); 
+		// f.nX = f.bbox[0]/ab.abs()*(n_ab - p_ab*ctg_nn);
+		// f.nY = f.bbox[1]/ad.abs()*(n_ad - p_ad*ctg_nn);
+		for(int i=0; i<2; i++) for(int j=0; j<4; j++){ ibmin[i] = std::min(ibmin[i], f.abcd(j)[i]); ibmax[i] = std::max(ibmax[i], f.abcd(j)[i]); }
+
+		/*
+		WOUT(f.axis[0], f.axis[1]);
+		aiw::Vecf<2> r;
+		f.image2flat(f.a[0], f.a[1], r);
+		f.image2flat(f.b[0], f.b[1], r);
+		f.image2flat(f.c[0], f.c[1], r);
+		f.image2flat(f.d[0], f.d[1], r);
+		f.image2flat((f.a[0]+f.c[0])/2, (f.a[1]+f.c[1])/2, r);
+		f.image2flat((f.b[0]+f.d[0])/2, (f.b[1]+f.d[1])/2, r);
+		*/
+	}
+	// exit(1);
+	// if(S.flcenter.y>=0) S.flcenter.y = Ny-1-S.flcenter.y;  // разворачиваем ось Y
+	// for(int i=0; i<6; i++) if(S.flpoints[i].y>=0) S.flpoints[i].y = Ny-1-S.flpoints[i].y;  // разворачиваем ось Y
+} 
+//------------------------------------------------------------------------------
+//   factory
+//------------------------------------------------------------------------------
+std::vector<QpltContainer*> aiw::factory(const char *fname){  // поддержка GZ файлов?
+	std::vector<QpltContainer*> res;
+	File fin(fname, "r"); int frame = 0;
+	while(1){
+		QpltMesh *msh = new QpltMesh;
+		if(msh->load(fin)){ msh->frame_ = frame++; res.push_back(msh); }
+		else { delete msh; break; }
+	}
+	return res;
 }
 //------------------------------------------------------------------------------

@@ -547,7 +547,7 @@
          </sizepolicy>
         </property>
         <property name="text">
-         <string>axes</string>
+         <string>axis</string>
         </property>
        </widget>
        <widget class="QCheckBox" name="xflip">
@@ -1202,7 +1202,7 @@
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
        </property>
-       <widget class="QCheckBox" name="show_axes_info">
+       <widget class="QCheckBox" name="show_axis_info">
         <property name="geometry">
          <rect>
           <x>0</x>
@@ -1215,7 +1215,7 @@
          <string>show mesh info</string>
         </property>
         <property name="text">
-         <string>axes</string>
+         <string>axis</string>
         </property>
        </widget>
        <widget class="QLabel" name="label_13">

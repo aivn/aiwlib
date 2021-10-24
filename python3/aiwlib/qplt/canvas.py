@@ -1,21 +1,51 @@
-# Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
-# Licensed under the Apache License, Version 2.0
+# -*- mode: Python; coding: utf-8 -*-
+'''Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+Licensed under the Apache License, Version 2.0'''
 
 from PyQt5 import QtWidgets, QtGui, QtCore
-import time
-from aiwlib.tics import *
+import os, sys, time
+from .factory import *
+from .tics import *
+from .mouse import *
 #-------------------------------------------------------------------------------
 class Canvas(QtWidgets.QWidget):
     # каждый раз класс создается заново (императивно) или обновляется то что было создано (декларативно)?
     def __init__(self, win):
         super().__init__(win)
         # plt_type: 1 бит - надо ли создавать картинку,  2 бит - надо ли масштабировать картинку, 3 бит - надо ли рисовать мышь
-        self.win, self.plt_type, self.mouse_coord, self.select_mode = win, 1, (0, 0), 0  
-        self.X, self.Y, self.im = [0]*3, [0]*3, None  # границы подобластей в пикселях, нужны для обработки событий мыши и пр
-        self.slices_table = []  # номера осей отображаемых на срезах
+        #self.win, self.im, self.plt_type, self.mouse_coord, self.select_mode = win, None, 1, None, 0  
+        #self.X, self.Y, self.im = [0]*3, [0]*3, None  # границы подобластей в пикселях, нужны для обработки событий мыши и пр
+        self.win, self.im, self.D3, self.mouse_coord = win, None, False, None  
+        self.th_phi, self.slices_table = [70., 60.], [] # номера осей отображаемых на ползунках срезов
+        self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
+        self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i)) for i in os.listdir(os.path.dirname(__file__)+'/pals'))
+
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
+    def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
+    #--------------------------------------------------------------------------
+    def autopos(self, axe): return bool(self.faai&(1<<(6+2*self.axisID[axe])))
+    #def autolim(self, axe): return bool(self.faai&(1<<(7+2*self.axisID[axe])))
+    def autopos_on(self, axe):  self.faai |=   1<<(6+2*self.axisID[axe])
+    def autopos_off(self, axe): self.faai &= ~(1<<(6+2*self.axisID[axe]))
+    def autolim_on(self, axe):  self.faai |=   1<<(7+2*self.axisID[axe])
+    def autolim_off(self, axe): self.faai &= ~(1<<(7+2*self.axisID[axe]))
+    #--------------------------------------------------------------------------
+    def faai2win(self):
+        for i in range(2+bool(self.win.D3.currentIndex())):
+            a = self.axisID[i]
+            getattr(self.win, '%sflip'%'xyz'[i]).setChecked(bool(self.faai & (1<<a)))
+            getattr(self.win, '%sinterp'%'xyz'[i]).setCurrentIndex((self.faai>>(18+2*i))&3)            
+    def win2faai(self):
+        for i in range(2+bool(self.win.D3.currentIndex())):
+            a = self.axisID[i]
+            if getattr(self.win, '%sflip'%'xyz'[i]).isChecked(): self.faai |= 1<<a
+            else: self.faai &= ~(1<<a)
+            interp = getattr(self.win, '%sinterp'%'xyz'[i]).currentIndex()
+            self.faai &= ~(3<<(18+2*a)); self.faai |= interp<<(18+2*a)
+            #print('interp=', interp, 'faai=', self.faai)
+    #--------------------------------------------------------------------------
     def save(self):
         path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)')
         if ok:
@@ -26,297 +56,204 @@ class Canvas(QtWidgets.QWidget):
             #    transformMode = Qt.SmoothTransformation if self.smooth.isChecked() else Qt.FastTransformation)
             #pixmap_to_save.save(path, 'PNG')
     #--------------------------------------------------------------------------
-    def plot2D(self, paint):
-        win = self.win
-        tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
-        h_font = text_sz('1', paint, True)
-
-        # рисуем ось Y
-        paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
-        tics, max_tic_sz, stics = make_tics([mesh.get_bmin(1), mesh.get_bmax(1)], mesh.get_logscale(1),
-                                                self.Y[1]-self.Y[0], True, paint, scene.get_flip(1))
-        self.X[0] = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
-        for y in stics: paint.drawLine(self.X[0]-tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
-        for y, t in tics:
-            paint.drawLine(self.X[0]-2*tl, self.Y[1]-y, self.X[0], self.Y[1]-y)
-            paint.drawText(self.X[0]-2*tl-max_tic_sz, self.Y[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
-        if win.y_text.text():
-            paint.rotate(-90)
-            paint.drawText(-self.Y[1], 0, self.Y[1]-self.Y[0], h_font, QtCore.Qt.AlignHCenter, win.y_text.text())
-            paint.rotate(90)
-
-        # рисуем ось X
-        tics, max_tic_sz, stics = make_tics([mesh.get_bmin(0), mesh.get_bmax(0)], mesh.get_logscale(0),
-                                            self.X[1]-self.X[0], False, paint, scene.get_flip(0))
-        for x in stics: paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+tl)
-        for x, t in tics:                
-            paint.drawLine(self.X[0]+x, self.Y[1], self.X[0]+x, self.Y[1]+2*tl)
-            paint.drawText(self.X[0]+x-max_tic_sz/2, self.Y[1]+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
-        if win.x_text.text(): paint.drawText(self.X[0], self.Y[2]-h_font, self.X[1]-self.X[0], h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
-
-        # рисуем главное изображение
-        paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
-        paint.drawRect(self.X[0], self.Y[0], self.X[1]-self.X[0], self.Y[1]-self.Y[0])
-            
-        t1 = time.time()
-        qplt_im = qplt.QpltImage(self.X[1]-self.X[0]-bw, self.Y[1]-self.Y[0]-bw)#; qplt_im.fill(0xFF)
-        mesh.plot(scene, accessor, color, qplt_im)
-        return qplt_im, time.time()-t1
+    def heavy_replot(self, *args):
+        print('heavy_replot',  args)
+        win = self.win;  self.container = get_frame(win.filenum.value(), win.framenum.value())
+        win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
+        win.cellsize.setText(str(self.container.get_szT()))
+        anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
+        if len(anames)==2: win.z_frame.hide()
+        for w in (win.D3, win.D3scale_mode): w.setEnabled(len(anames)>=3)
+        if any(a>len(anames) for a in self.axisID): self.axisID = [0, 1, 2]  #???
+        for i in (0, 1, 2)[:len(anames)]: w = getattr(win, 'xyz'[i]+'_axe'); w.clear(); w.addItems(anames); w.setCurrentIndex(self.axisID[i])
+        self.faai2win()        
+        for i in range(self.container.get_dim()):
+            sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
+            sl.setValue(0 if self.autopos(i) else max(min(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
+        for i in range(self.container.get_dim(), 6): getattr(win, 'fr_slice%i'%(i+1)).hide()            
+        self.show_axis_info()
+        self.light_replot()
     #--------------------------------------------------------------------------
-    def leaveEvent(self, event):
-        self.plt_type &= 3
+    def slice_replot(self, pos, axe):
+        print('slice_replot',  args)
+        if pos: self.autopos_off(axe); self.sposf[axe] = self.container.pos2coord(pos, axe)
+        else: self.autopos_on(axe)
+        self.light_replot()
+    #--------------------------------------------------------------------------
+    def light_replot(self, *args):
+        print('light_replot',  args)
+        #if not hasattr(self, 'container'): return
+        #canvas.plt_type |= 1; canvas.update()
+        win = self.win
+        for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.container.get_bbox(self.axisID[i])))
+        for i in range(self.container.get_dim()):
+            if i in self.axisID: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
+            getattr(win, 'slicelbl%i'%(i+1)).setText(self.container.get_axe(i).decode()+'[%i]'%getattr(win, 'slicenum%i'%(i+1)))
+        if win.D3.currentIndex()  and self.container.get_dim()>2: win.z_frame.show()
+        else: win.z_frame.hide()
+
+        try: accessor_mask = int(win.cellmask.text(), base=16)
+        except: accessor_mask = 0; print('bad mask', win.cellmask.text())
+
+        self.win2faai()
+        self.plotter = self.container.plotter(win.D3.currentIndex()*(self.container.get_dim()>2), #mode
+                                              # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль
+                                              win.autoscale.isChecked()|(win.autoscale_tot.isChecked()<<1)|(win.logscale.isChecked()<<2)|(win.modulus.isChecked()<<3),    
+                                              [float(win.f_min.text()), float(win.f_max.text())], # float f_lim[2]
+                                              bytes(win.paletter.itemText(win.paletter.currentIndex()), 'utf8'), #  const char* paletter
+                                              [int(win.arr_length.text()), int(win.arr_width.text())], # int arr_lw[2],
+                                              float(win.arr_spacing.text()), int(win.nan_color.text(), base=16),  # float arr_spacing, int nan_color
+                                              win.celltype.currentIndex(), win.celldim.currentIndex()+1, accessor_mask, # int ctype, int Din, int mask
+                                              [int(getattr(win, 'offset%i'%i).text()) for i in (0,1,2)], # int offset[3], 
+                                              win.diff.currentIndex(), win.vconv.currentIndex(), win.invert.isChecked(), # int diff, int vconv, bool minus
+                                              self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
+                                              self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
+                                              win.D3scale_mode.currentIndex()) #int D3scale_mode
         self.update()
+        win.statusbar.clearMessage(); win.statusbar.showMessage(getattr(self, 'status', ''))
+    #--------------------------------------------------------------------------
+    def show_axis_info(self):
+        if self.win.show_axis_info.isChecked():
+            for i in range(self.container.get_dim()):
+                getattr(self.win, 'min%i'%(1+i)).setText('%g'%self.container.get_bmin(i))
+                getattr(self.win, 'max%i'%(1+i)).setText('%g'%self.container.get_bmax(i))
+                getattr(self.win, 'step%i'%(1+i)).setText('%g'%self.container.get_step(i))
+                getattr(self.win, 'logsc%i'%(1+i)).setText('V'*self.container.get_logscale(i))
+                getattr(self.win, 'fr_axe%i'%(1+i)).show()
+            for i in range(self.container.get_dim(), 9): getattr(self.win, 'fr_axe%i'%i).hide()
+        else:
+            for i in range(1,9): getattr(self.win, 'fr_axe%i'%i).hide()
+    #--------------------------------------------------------------------------
+    #def leaveEvent(self, event):
+    #    self.plt_type &= 3
+    #    self.update()
     def paintEvent(self, event):
-        t0, T = time.time(), 0.
-        win = self.win; wsz = win.centralwidget.size(); sz_x, sz_y = wsz.width()-262, wsz.height(); self.X[2], self.Y[2] = sz_x, sz_y
+        #   title  x0
+        # y0 ------+-
+        #          |
+        #          |
+        #          |
+        # y1 ------+-
+        #          | (x_sz, y_sz)
+        
+        print('paintEvent', event)
+        t0, T, self.D3 = time.time(), 0., (self.win.D3.currentIndex() and self.container.get_dim()>2)
+        win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-262, wsz.height(), 0
         tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
         
-        color.arr_length, color.arr_width, color.arr_spacing = int(win.arr_length.text()), int(win.arr_width.text()), float(win.arr_spacing.text())
-        if color.arr_length<=color.arr_width: color.arr_width = int(color.arr_length/1.2);  win.arr_width.setText(str(color.arr_width))
-        color.modulus, color.nan_color = win.modulus.isChecked(), int(win.nan_color.text(), base=16)
-        color.init(bytes(win.paletter.itemText(win.paletter.currentIndex()), 'utf8'),
-                   float(win.f_min.text()), float(win.f_max.text()), win.logscale.isChecked())
+        image = QtGui.QImage(sz_x, sz_y, QtGui.QImage.Format_RGB888)
+        image.fill(0xFFFFFF)
+        self.setGeometry(262, 0, sz_x, sz_y) #???
+        paint = QtGui.QPainter(image)
+        paint.setFont(QtGui.QFont(win.font.currentText(), win.font_sz.value()))        
+        h_font = text_sz('1', paint, True)
 
-        if factory.get_file_sz(win.filenum.value())==1: win.fr_framenum.hide()
-        else: win.framenum.setMaximum(factory.get_file_sz(win.filenum.value())-1); win.fr_framenum.show()
-        global mesh;  mesh = factory.get_frame(win.filenum.value(), win.framenum.value())
+        # рисуем титул
+        if win.title_text.text(): paint.drawText(0, 0, sz_x, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.title_text.text()); y0 = h_font*2
+        if win.autoscale.isChecked():  win.f_min.setText('%g'%plotter.get_f_min()); win.f_max.setText('%g'%plotter.get_f_max())
 
-        if self.plt_type&1 or self.im is None:
-            #---- рисуем главное изображение -----
-            image = QtGui.QImage(sz_x, sz_y, QtGui.QImage.Format_RGB888)
-            image.fill(0xFFFFFF)
-            
-            win.cellsize.setText(str(mesh.get_szT()))
-            
-            scene.autoscale, scene.autoscale_tot = win.autoscale.isChecked(), win.autoscale_tot.isChecked()
-            scene.D3, scene.D3scale_mode = bool(win.D3.currentIndex()), win.D3scale_mode.currentIndex()
-            for i in 'xyz': setattr(scene, 'd'+i, float(getattr(win, 'D3cell_'+i).text()))            
-            scene.set_flip(0, win.xflip.isChecked()); scene.set_interp(0, win.xinterp.currentIndex()); scene.set_axe(0, win.x_axe.currentIndex())
-            scene.set_flip(1, win.yflip.isChecked()); scene.set_interp(1, win.yinterp.currentIndex()); scene.set_axe(1, win.y_axe.currentIndex())
-            scene.set_flip(2, win.zflip.isChecked()); scene.set_interp(2, win.zinterp.currentIndex()); scene.set_axe(2, win.z_axe.currentIndex())
-            
-
-            #accessor = qplt.QpltAccessor()
-            accessor.Din, accessor.diff, accessor.vconv = win.celldim.currentIndex()+1, win.diff.currentIndex(), win.vconv.currentIndex()
-            for i in range(3): accessor.set_offset(i, int(getattr(win, 'offset%i'%i).text()))
-            accessor.ctype, accessor.minus = win.celltype.currentIndex(), win.invert.isChecked()
-            try: accessor.mask = int(win.cellmask.text(), base=16)
-            except: accessor.mask = 0; print('bad mask', win.cellmask.text())
-            if not accessor.check(): print('invalid accessor'); return
-                
-            win.xsize.setText(str(mesh.get_bbox0(scene.get_axe(0))))
-            win.ysize.setText(str(mesh.get_bbox0(scene.get_axe(1))))
-            win.zsize.setText(str(mesh.get_bbox0(scene.get_axe(2))))
-            show_axes_info()
-
-            self.slices_table, sl_axe = [], 0  # номера осей отображаемых на срезах
-            for i in range(1, mesh.get_dim()-1-scene.D3):                
-                while sl_axe in [scene.get_axe(k) for k in range(2+scene.D3)]: sl_axe += 1
-                sl, sz = getattr(win, 'slicenum%i'%i), mesh.get_bbox0(sl_axe)
-                if sz>1:
-                    getattr(win, 'fr_slice%i'%i).show(); sl.setMaximum(sz-1)
-                    #scene.set_pos(sl_axe, mesh.pos2coord(sl_axe, sl.value()))
-                    sl.setValue(mesh.coord2pos(sl_axe, scene.get_pos(sl_axe)))
-                    getattr(win, 'slicelbl%i'%i).setText(mesh.get_axe_name0(sl_axe).decode()+'[%i]'%sl.value())
-                    self.slices_table.append(sl_axe)
-                    #scene.set_pos(scene.get_axe(2), ...  ???)
-                else: getattr(win, 'fr_slice%i'%i).hide()
-                sl_axe += 1
-                if sl_axe>=mesh.get_dim(): break
-            for i in range(mesh.get_dim()-1-scene.D3, 7): getattr(win, 'fr_slice%i'%i).hide()  # скрываем лишние slices
-            if scene.D3: win.z_frame.show()
-            else: win.z_frame.hide()
-            
-            mesh.prepare(scene, accessor, color)
-            #print('color limits', color.get_min(), color.get_max())
-            
-            paint = QtGui.QPainter(image)
-            paint.setFont(QtGui.QFont(win.font.currentText(), win.font_sz.value()))
-            h_font = text_sz('1', paint, True)
+        if win.show_pal.isChecked() and pw>0:  # рисуем палитру            
+            pal_height = int(sz_y*float(win.pal_height.text()));  pal = Rect((0, sz_y/2-pal_height/2), (pw, sz_y/2+pal_height/2))
+            tics, max_tic_sz, stics = make_tics([plotter.get_f_min(), plotter.get_f_max()], win.logscale.isChecked(), pal.bbox[1], True, paint, False)
+            x1 = sz_x-ps-pw-2*tl-max_tic_sz-h_font*2*bool(win.z_text.text());  pal.move([x1+ps, 0])
+            paint.drawImage(pal.bmin[0], pal.bmin[1], self.paletters[win.paletter.itemText(win.paletter.currentIndex())].scaled(pal.bbox[0], pal.bbox[1]))
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, bw)); paint.drawRect(pal.bmin[0], pal.bmin[1], pw, pal.bbox[1])
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
+            for y in stics: paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+tl, pal.bmax[1]-y)
+            for y, t in tics:
+                paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+2*tl, pal.bmax[1]-y)
+                paint.drawText(pal.bmin[0]+pw+2*tl, pal.bmax[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignVCenter, t)
+            if win.z_text.text():
+                paint.rotate(-90)
+                paint.drawText(-pal.bmax[1], sz_x-h_font, pal.bbox[1], h_font, QtCore.Qt.AlignHCenter, win.z_text.text())
+                paint.rotate(90)
+        else: pal, x1 = False, sz_x
+                    
+        #if hasattr(self, 'plotter'):
+        if self.D3: #--- 3D mode ----------------------------------------------------
+            #main = Rect(0, y0, x_sz-pal.bmin[0]-ps, y_sz)
+            x0, y1, plotter, extend = 0, sz_y, self.plotter, [0]*4
+            plotter.set_image_size([x0,y0], [x1,y1])
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
+            axis_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
 
-            # рисуем титул
-            if win.title_text.text():
-                paint.drawText(0, 0, sz_x, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.title_text.text())
-                self.Y[0] = h_font*2
-            else: self.Y[0] = 0
+            for i in range(plotter.flats_sz()):
+                f = plotter.get_flat(i)
+                for j in range(4):
+                    if not f.bounds&(3<<2*j): continue
+                    a, b = getattr(f, 'abcd'[j]), getattr(f, 'abcda'[j+1])
+                    axe, mode, lbl = axis_modes[f.axis[j%2]]
+                    text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
+                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=0), axe==2)
+                    extend = list(map(max, extend, ext))
+            plotter.set_image_size([x0+extend[0],y0+extend[1]], [x1-extend[2],y1-extend[3]])
+            x0, y0 = plotter.ibmin;  x1, y1 = plotter.ibmax
+            t1 = time.time();  paint.drawImage(x0, y0, QtGui.QImage(plotter.plot(), x1-x0, y1-y0, QtGui.QImage.Format_RGB32));  T = time.time()-t1
 
-            self.Y[1] = sz_y if scene.D3 else sz_y-h_font-2*tl  
-            if not scene.D3 and win.x_text.text(): self.Y[1] -= h_font*2
+            #paint.setPen(QtGui.QPen(QtCore.Qt.gray))
+            for i in range(plotter.flats_sz()):
+                f = plotter.get_flat(i)
+                for j in range(4):
+                    a, b = getattr(f, 'abcd'[j]), getattr(f, 'abcda'[j+1])  
+                    paint.drawLine(*(a+b))
+                    if not f.bounds&(3<<2*j): continue
+                    axe, mode, lbl = axis_modes[f.axis[j%2]]
+                    text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
+                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=0), axe==2)
+                    for l in lines: paint.drawLine(*l)
+                    for p, t in text: paint.drawText(p[0], p[1], 1000, 1000, 0, t)
+                    if lbl_pos:
+                        if axe==2:
+                            paint.translate(lbl_pos[0], lbl_pos[1]); paint.rotate(-90)
+                            paint.drawText(0, 0, 1000, 1000, 0, lbl)
+                            paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
+                        else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
+            #paint.setPen(QtGui.QPen(QtCore.Qt.black))
+        else:  #--- 2D mode ----------------------------------------------------
+            y1 = sz_y - 2*tl - h_font*(1+2*bool(win.x_text.text()))
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
 
-            if win.show_pal.isChecked() and pw>0:  # рисуем палитру
-                pal_height = int(sz_y*float(win.pal_height.text())); self.palY = int((sz_y-pal_height)/2), sz_y-int((sz_y-pal_height)/2)
-                tics, max_tic_sz, stics = make_tics([color.get_min(), color.get_max()], color.get_logscale(), self.palY[1]-self.palY[0], True, paint, False)
-                self.X[1] = sz_x - ps - pw - 2*tl - max_tic_sz - h_font*2*bool(win.z_text.text())
-                paint.drawRect(self.X[1]+ps, self.palY[0], pw-bw, self.palY[1]-self.palY[0])                
-                t1 = time.time()
-                pal_im = qplt.QpltImage(pw-2*bw, self.palY[1]-self.palY[0]-bw) #; pal_im.fill(0xFF)
-                color.plot_pal(bytes(win.paletter.itemText(win.paletter.currentIndex()), 'utf8'), pal_im, True)
-                T += time.time()-t1
-                #qplt_im.dump(bytes('pal.ppm', 'utf8'))
-                paint.drawImage(self.X[1]+ps+bw, self.palY[0]+bw, QtGui.QImage(pal_im.buf, pal_im.Nx, pal_im.Ny, QtGui.QImage.Format_RGB32))                
-                paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
-                for y in stics: paint.drawLine(self.X[1]+ps+pw, self.palY[1]-y, self.X[1]+ps+pw+tl, self.palY[1]-y)
-                for y, t in tics:
-                    paint.drawLine(self.X[1]+ps+pw, self.palY[1]-y, self.X[1]+ps+pw+2*tl, self.palY[1]-y)
-                    paint.drawText(self.X[1]+ps+pw+2*tl, self.palY[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignVCenter, t)
-                if win.z_text.text():
-                    paint.rotate(-90)
-                    paint.drawText(-self.palY[1], sz_x-h_font, self.palY[1]-self.palY[0], h_font, QtCore.Qt.AlignHCenter, win.z_text.text())
-                    paint.rotate(90)
-            else: self.X[1] = sz_x
-                
-            if scene.D3:
-                self.X[0] = 0
-                axes_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
-                im_sz0 = self.X[1], self.Y[1]-self.Y[0];  mesh.prepare3D(scene, im_sz0[0], im_sz0[1])
-                extend = [scene.im_a.x, scene.im_a.y, im_sz0[0]-scene.im_b.x, im_sz0[1]-scene.im_b.y]  
-                qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
-                for axe, mode, lbl in axes_modes:
-                    for m in [1,2] if mode==0 else [0] if mode==1 else [] if mode==4 else [mode-1]:
-                        text, ext, lines, lbl_pos = make_tics3D((mesh.get_bmin(axe), mesh.get_bmax(axe)), mesh.get_logscale(axe),
-                                                                tuple(scene.axe3D(axe, 0, m)), tuple(scene.axe3D(axe, 1, m)),
-                                                                tuple(scene.flcenter), tl, paint, scene.get_flip(axe), lbl*(m==1 or mode!=0), axe==2)
-                        extend = list(map(max, extend, ext))
-                im_pos = [extend[0]-scene.im_a.x, extend[1]-scene.im_a.y]
-                im_sz1 = [im_sz0[0]-(im_pos[0]+extend[2]-(im_sz0[0]-scene.im_b.x)), im_sz0[1]-(im_pos[1]+extend[3]-(im_sz0[1]-scene.im_b.y))]
-                #print(extend, [scene.im_a.x, scene.im_a.y, scene.im_b.x, scene.im_b.y], im_sz1)
-                mesh.prepare3D(scene, im_sz1[0], im_sz1[1])
-                #print(im_sz0[0]-extend[0]-extend[2], im_sz0[1]-extend[1]-extend[3], scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y, '<<<<<<<<<')
+            # рисуем ось Y
+            tics, max_tic_sz, stics = make_tics([plotter.get_bmin(1), plotter.get_bmax(1)], plotter.get_logscale(1), y1-y0, True, paint, win.yflip.isChecked())            
+            x0 = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
+            for y in stics: paint.drawLine(x0-tl, y1-y, x0, y1-y)
+            for y, t in tics:
+                paint.drawLine(x0-2*tl, y1-y, x0, y1-y)
+                paint.drawText(x0-2*tl-max_tic_sz, y1-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
+            if win.y_text.text(): paint.rotate(-90);  paint.drawText(-y1, 0, y1-y0, h_font, QtCore.Qt.AlignHCenter, win.y_text.text());  paint.rotate(90)
 
-                
-                t1 = time.time()
-                qplt_im = qplt.QpltImage(scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y)#; qplt_im.fill(0xFF)
-                mesh.plot(scene, accessor, color, qplt_im)
-                T += time.time()-t1
-                im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
+            # рисуем ось X
+            tics, max_tic_sz, stics = make_tics([plotter.get_bmin(0), plotter.get_bmax(0)], plotter.get_logscale(0), x1-x0, False, paint, win.xflip.isChecked())
+            for x in stics: paint.drawLine(x0+x, y1, x0+x, y1+tl)
+            for x, t in tics:                
+                paint.drawLine(x0+x, y1, x0+x, y1+2*tl)
+                paint.drawText(x0+x-max_tic_sz/2, y1+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
+            if win.x_text.text(): paint.drawText(x0, sz_y-h_font, x1-x0, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
 
-                #paint.drawImage(self.X[0]+extend[0]+scene.im_a.x+bw, self.Y[0]+extend[1]+scene.im_a.y+bw, im)
-                #qplt.Ind2.x0.fset(extend[0]); qplt.Ind2.y0.fset(self.Y[0]+extend[1])
-
-                paint.drawImage(self.X[0]+im_pos[0]+scene.im_a.x, self.Y[0]+im_pos[1]+scene.im_a.y, im)
-
-                qplt.Ind2.x0.fset(im_pos[0]); qplt.Ind2.y0.fset(self.Y[0]+im_pos[1])
-                for i in range(6): paint.drawLine(*(tuple(scene.flpoint(i))+tuple(scene.flpoint(i+1)))) 
-                paint.setPen(QtCore.Qt.gray)
-                paint.drawEllipse(scene.flcenter.x+im_pos[0]-5, scene.flcenter.y+self.Y[0]+im_pos[1]-5, 10,  10)
-                for i in range(3): paint.drawLine(*(tuple(scene.flpoint(2*i))+tuple(scene.flcenter)))
-                paint.setPen(QtCore.Qt.black)
-
-                #print('im_sz0=%s im_sz1=%s im_pos=%s scene.im=%s'%(im_sz0, im_sz1, im_pos, [scene.im_a.x, scene.im_a.y, scene.im_b.x, scene.im_b.y]))
-                
-                for axe, mode, lbl in axes_modes:
-                    for m in [1,2] if mode==0 else [0] if mode==1 else [] if mode==4 else [mode-1]:
-                        text, ext, lines, lbl_pos = make_tics3D((mesh.get_bmin(axe), mesh.get_bmax(axe)), mesh.get_logscale(axe),
-                                                                tuple(scene.axe3D(axe, 0, m)), tuple(scene.axe3D(axe, 1, m)),
-                                                                tuple(scene.flcenter), tl, paint, scene.get_flip(axe), lbl*(m==1 or mode!=0), axe==2)
-                        for l in lines: paint.drawLine(*l)
-                        for p, t in text: paint.drawText(p[0], p[1], 1000, 1000, 0, t)
-                        if lbl_pos:
-                            if axe==2:
-                                paint.translate(lbl_pos[0], lbl_pos[1]); paint.rotate(-90)
-                                paint.drawText(0, 0, 1000, 1000, 0, lbl)
-                                paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
-                            else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
-                paint.setPen(QtCore.Qt.red)
-                paint.drawRect(self.X[0]+im_pos[0]+scene.im_a.x, self.Y[0]+im_pos[1]+scene.im_a.y, scene.im_b.x-scene.im_a.x, scene.im_b.y-scene.im_a.y)
-                paint.setPen(QtCore.Qt.black)
-            else:
-                qplt_im, dT = self.plot2D(paint);  T += dT                
-                im = QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB32) #888)
-                paint.drawImage(self.X[0]+bw, self.Y[0]+bw, im)
-            # paint.drawImage(self.X[0]+bw, self.Y[0]+bw, QtGui.QImage(qplt_im.buf, qplt_im.Nx, qplt_im.Ny, QtGui.QImage.Format_RGB888))
-    
-            if scene.autoscale:  win.f_min.setText('%g'%color.get_min()); win.f_max.setText('%g'%color.get_max())
-            
-            self.im, image = image, self.im
-            self.plt_type &= 6
-            #--------------------------------------
-        #if self.plt_type&2: print('RESIZE REPLOT!'); self.plt_type &= 5
-        #self.plt_type = 1
-
-        self.setGeometry(262, 0, sz_x, sz_y)
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, bw));  paint.drawRect(x0, y0, x1-x0, y1-y0)
+            plotter.set_image_size([x0,y0], [x1,y1])
+            t1 = time.time();  paint.drawImage(x0, y0, QtGui.QImage(plotter.plot(), x1-x0, y1-y0, QtGui.QImage.Format_RGB32));  T = time.time()-t1
+        #--- end of 2D/3D modes ------------------------------------------------
+        
+        self.im, image = image, self.im
         paint = QtGui.QPainter(self)
         paint.drawImage(0, 0, self.im)
-
-        if self.plt_type&4: # mouse move
-            for coord, C in [(self.mouse_coord, QtCore.Qt.red)]+([(self.mouse_press_coord, QtCore.Qt.green)] if self.select_mode else []):
-                x, y = coord; xy = (x-self.X[0])/(self.X[1]-self.X[0]), (self.Y[1]-y)/(self.Y[1]-self.Y[0]), (self.palY[1]-y)/(self.palY[1]-self.palY[0])
-                paint.setPen(QtGui.QPen(QtCore.Qt.gray, 1))
-                if (not self.select_mode and self.X[1]<x and self.palY[0]<y and y<self.palY[1]) or self.select_mode&1:  # палитра
-                    paint.drawLine(self.X[1]+ps, y, self.X[2], y); paint.setPen(C) 
-                    paint.drawText(self.X[1], y, self.X[2]-self.X[1], 1000, QtCore.Qt.AlignRight, '%g'%color.get_f(xy[2]))
-                if scene.D3:
-                    pass
-                else:
-                    if (not self.select_mode and x<self.X[1] and self.Y[0]<y and y<self.Y[1]) or self.select_mode&4:  # выбор по Y
-                        paint.drawLine(self.X[0], y, self.X[1], y); paint.setPen(C)
-                        paint.drawText(0, y-500, self.X[0], 1000, QtCore.Qt.AlignVCenter, '%g\n[%g]'%(mesh.get_coord(1, xy[1]), mesh.get_pos(1, xy[1])))                
-                    if (not self.select_mode and self.Y[0]<y and self.X[0]<x and x<self.X[1]) or self.select_mode&2:  # выбор по X
-                        paint.setPen(QtCore.Qt.gray); paint.drawLine(x, self.Y[0], x, self.Y[1]);  paint.setPen(C) 
-                        paint.drawText(x-500, self.Y[2]-500, 1000, 500, QtCore.Qt.AlignHCenter|QtCore.Qt.AlignBottom,
-                                       '%g\n[%g]'%(mesh.get_coord(0, xy[0]), mesh.get_pos(0, xy[0])))
-                    if not self.select_mode and self.Y[0]<y and y<self.Y[1] and self.X[0]<x and x<self.X[1]:
-                        text = mesh.get(scene, accessor, xy[0], xy[1]).decode()
-                        rect = paint.boundingRect(x, y, 1000, 1000, 0, text)
-                        paint.fillRect(rect, QtCore.Qt.white)
-                        paint.setPen(QtCore.Qt.red); paint.drawText(x, y, rect.width(), rect.height(), 0, text)
-
-        show_status = not hasattr(self, 'status')
-        if T: self.status = 'x'.join('[%i]'%mesh.get_bbox0(i) for i in range(mesh.get_dim()))+' replot %0.2g/%0.2g sec'%(T, time.time()-t0)
-        if show_status: win.statusbar.showMessage(self.status)
-    #--------------------------------------------------------------------------        
-    def mouseMoveEvent(self, event):
-        self.plt_type |= 4
-        self.mouse_coord = event.x(), event.y()
-        if scene.D3 and self.select_mode==8:
-            scene.phi += (event.x()-self.mouse_press_coord[0])*.1  
-            scene.theta -= (event.y()-self.mouse_press_coord[1])*.1
-            self.mouse_press_coord = event.x(), event.y()
-            self.plt_type = 1; self.update()
-        else: self.update()
-    def mousePressEvent(self, event):
-        x, y = event.x(), event.y()        
-        if self.X[1]<x and self.palY[0]<y and y<self.palY[1]: self.select_mode = 1   # палитра
-        if self.X[0]<x and x<self.X[1] and y>self.Y[0]: self.select_mode = 2   # X
-        if x<self.X[1] and self.Y[0]<y and y<self.Y[1]: self.select_mode |= 4  # Y
-        if scene.D3 and self.select_mode!=1: self.select_mode = 8
-        if self.select_mode: self.mouse_press_coord = x, y
-    def mouseReleaseEvent(self, event):
-        if self.select_mode:
-            X = [self.mouse_press_coord[0], min(max(event.x(), self.X[0]), self.X[1])]
-            Y = [self.mouse_press_coord[1], min(max(event.y(), self.Y[0]), self.Y[1])]
-            for i in (0, 1): X[i], Y[i] = (X[i]-self.X[0])/(self.X[1]-self.X[0]), (self.Y[1]-Y[i])/(self.Y[1]-self.Y[0])
-            X.sort(); Y.sort(); win = self.win
-        if self.select_mode==1:  # палитра
-            palY = [self.mouse_press_coord[1], min(max(event.y(), self.palY[0]), self.palY[1])]; palY.sort()
-            for i in (0, 1): palY[i] = (self.palY[1]-palY[i])/(self.palY[1]-self.palY[0])
-            win.autoscale.setChecked(False)
-            #color = qplt.QpltColor(bytes(win.paletter.itemText(win.paletter.currentIndex()), 'utf8'),
-            #                       float(win.f_min.text()), float(win.f_max.text()), win.logscale.isChecked())
-            win.f_min.setText('%g'%color.get_f(palY[0]))
-            win.f_max.setText('%g'%color.get_f(palY[1]))
-        if scene.D3:
-            self.select_mode = 0
-            #scene.phi += (event.x()-self.mouse_press_coord[0])*.003
-            #scene.theta += (event.y()-self.mouse_press_coord[1])*.003
-            #self.plt_type = 1; self.update()
-        else:
-            if self.select_mode&6: mesh = factory.get_frame(win.filenum.value(), win.framenum.value())
-            if self.select_mode&2: scene.set_min_max(0, mesh.get_coord(0, X[0]), mesh.get_coord(0, X[1]))  # ось X            
-            if self.select_mode&4: scene.set_min_max(1, mesh.get_coord(1, Y[0]), mesh.get_coord(1, Y[1]))  # ось Y
-            #print('select [%g:%g]x[%g:%g]'%(scene.get_min(0), scene.get_max(0), scene.get_min(1), scene.get_max(1)))
-            if self.select_mode: self.plt_type, self.select_mode = 1, 0; self.update()
-    def mouseDoubleClickEvent(self, event):
-        self.plt_type, x, y = 1, event.x(), event.y()
-        if self.X[1]<x and self.Y[0]<y and y<self.Y[1]:  # вернуть автошкалирование палитры
-            self.win.autoscale.setChecked(True)
-            self.update()
-        upd = False
-        if self.X[0]<x and x<self.X[1] and y>self.Y[0]: scene.set_autoscale(0, True); upd = True  # вернуть автошкалирование по X
-        if x<self.X[1] and self.Y[0]<y and y<self.Y[1]: scene.set_autoscale(1, True); upd = True  # вернуть автошкалирование по Y
-        if upd: self.update()
+        
+        win.statusbar.clearMessage()
+        win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+' replot %0.2g/%0.2g sec'%(T, time.time()-t0))
     #---------------------------------------------------------------------------
+    def mousePressEvent(self, event):
+        x, y = event.x(), event.y()
+        if self.D3: self.mouse_coord = (x, y)
+    def mouseMoveEvent(self, event):
+        x, y = event.x(), event.y()
+        if self.mouse_coord:
+            self.th_phi[0] -= (y-self.mouse_coord[1])*.1
+            self.th_phi[1] += (x-self.mouse_coord[0])*.1
+            self.mouse_coord = (x, y)
+            self.light_replot()
+    def mouseReleaseEvent(self, event): self.mouse_coord = False
+#-------------------------------------------------------------------------------
 
 
 

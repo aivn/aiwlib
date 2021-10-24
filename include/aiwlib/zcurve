@@ -7,6 +7,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <type_traits>
 #include "vec"
 
 namespace aiw{
@@ -16,9 +17,10 @@ namespace aiw{
 				
 		T off: 8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5));
 		T rank: sizeof(T)==2? 3: (sizeof(T)==4? 4: 5);
+		static const int max_rank = (8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5)))/D -1;  // запас в D бит на контроль поиcка соседей 
 		
 		ZCurve(): off(0), rank(0) {}
-		ZCurve(T off_, T rank_): off(off_), rank(rank_) {}
+		ZCurve(T off_, T rank_): off(off_), rank(rank_) { WASSERT(rank<=max_rank, rank, max_rank); }
 
 	private:
 		static constexpr T morton[2][6] = {
@@ -132,11 +134,13 @@ namespace aiw{
 			T f = off;
 			for(int axe=0; axe<D; axe++)
 				if(axes&(1<<axe) && off&(T(1)<<(D*rank+axe))){
-					if(off&(T(1)<<(D*rank+D+axe))) f &= imasks[axe]; // был выход за границу влево, заполняем нулями axe
+					if(off&(T(1)<<(D*rank+D+axe))) f &= imasks[axe]; // был выход за границу влево, заполняем нулями axe, здесь может не хватить запаса в разрядности?
 					else f |= omasks[axe]&((T(1)<<D*rank)-1); 
 				}
 			return ZCurve(f, rank);
 		} // повторить то же самое, но axes параметр шаблона?
+
+		void add_diff(T a, T b){ off += std::make_signed<T>::type(b) - std::make_signed<T>::type(a); }
 	};  // end of struct ZCurve
 	//--------------------------------------------------------------------------
 	template <int D, typename T> std::ostream& operator << (std::ostream &S,  const ZCurve<D, T> &Z){ return S<<Z.off<<'z'<<Z.rank; }

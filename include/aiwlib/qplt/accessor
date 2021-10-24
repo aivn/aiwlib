@@ -15,9 +15,9 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	struct QpltColor;
-	struct QpltImage;
-	struct QpltScene;
+	// struct QpltColor;
+	// struct QpltImage;
+	// struct QpltScene;
 	//--------------------------------------------------------------------------
 	struct QpltAccessor {
 		int ctype = 0;        // тип поля
@@ -25,12 +25,8 @@ namespace aiw{
 		/*uint64_t*/ int mask = 0;    // для обработки беззнаковых (!!!) целых полей (опционально)
 		// в будущем сюда можно добавить возможность доступа к фрагментам блоба uint64_t содержащим fixed point значения
 
-	private:
 		int offsets[3];       // смещения (в байтах) внутри ячеки контейнера
-	public:
-		int get_offset(int i) const { return offsets[i]; }
-		void set_offset(int i, int off){ offsets[i] = off; }
-
+		
 		int diff = 0;         // тип дифф. оператора (0 - выкл, 1 - div, 2 - grad2D, 3 - grad3D, 4 - rot, 5 - laplas2D, 6 - laplas3D)
 		float rsteps[3];      // обратные шаги по пространству для дифференцирования (для лапласиана обратные квадраты шагов, для остальных обратные удвоенные)
 		int vconv = 5;        // преобразование выходного вектора к скаляру (0..2 - номер компоненты, 3 - модуль, 4 - фаза для 2D, 5 - без преобразования)
@@ -148,10 +144,10 @@ namespace aiw{
 		} // :32x2 вариантов
 		//----------------------------------------------------------------------
 #define CALL(DIN, DIFF, VCONV)											\
-		if(!ctype){ FUNC::template call<(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(*this, args...); } \
-		else{ FUNC::template call<1|(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(*this, args...); } break;
+		if(!ctype){ FUNC::template call<(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(args...); } \
+		else{ FUNC::template call<1|(DIN<<1)|(DIFF<<3)|(VCONV<<6)>(args...); } break;
 		
-		template <typename FUNC, typename ... Args> void call(Args& ... args){
+		template <typename FUNC, typename ... Args> void call(Args& ... args) const {
 			// WOUT(diff, vconv, Din, ctype, get_AID());
 			// AID = (Din<<1)|(diff<<3)|(vconv<<6)
 			switch(Din){
@@ -218,9 +214,8 @@ namespace aiw{
 		friend struct call_##FUNC;										\
 		struct call_##FUNC{												\
 			template<int AID, typename ...Args>							\
-			static void call(QpltAccessor &acc, CONTAINER &cnt,			\
-							 Args& ... args){							\
-				cnt.FUNC##_impl<AID>(acc, args...);						\
+			static void call(CONTAINER &cnt, Args& ... args){			\
+				cnt.FUNC##_impl<AID>(args...);							\
 			}															\
 		}																	
 #endif //SWIG

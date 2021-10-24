@@ -2,39 +2,25 @@
 # Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 # Licensed under the Apache License, Version 2.0
 
-
 #export QT_SCREEN_SCALE_FACTORS=2
 
+#--- import modules ------------------------------------------------------------
 import os, sys
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
-from aiwlib import qplt, qplt_canvas
+import aiwlib.qplt as qplt
 
+#--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
-canvas = qplt_canvas.Canvas(win)
-win.save.clicked.connect(canvas.save)
-def replot(*args):
-    canvas.plt_type |= 1; canvas.update()
-    win.setWindowTitle('qplt: %s[%i]'%(factory.get_file_name(win.filenum.value()).decode(), win.framenum.value()))
-    win.statusbar.clearMessage(); win.statusbar.showMessage(getattr(canvas, 'status', ''))
-#def resize(*args): canvas.plt_type |= 2; canvas.update()
-#def resize(event): canvas.plt_type |= 3; canvas.update()
-win.resizeEvent = replot
+canvas = qplt.Canvas(win)
 
-#def release(*args): print('RELEASE', args)
-#win.mouseReleaseEvent = release
+#--- parse arguments and load files --------------------------------------------
+qplt.load_files(*sys.argv[1:])
+if not qplt.table_size(): print('Not input files.'); sys.exit()
+elif qplt.table_size()==1: win.fr_filenum.hide()
+else: win.filenum.setMaximum(qplt.table_size()-1)
 
-for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
-for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width'.split(): getattr(win, l).setValidator(QtGui.QIntValidator())
-#win.cellmask.setValidator(QtGui.QIntValidator())
-
-pico = (48,16)
-win.paletter.setIconSize(QtCore.QSize(*pico))
-win.paletter.addItems(map(bytes.decode, qplt.QpltColor.get_pals())) # setCurrentIcon для каждой палитры
-for i, p in enumerate(qplt.QpltColor.get_pals()):
-    win.paletter.setItemIcon(i, QtGui.QIcon(QtGui.QPixmap(QtGui.QImage(qplt.QpltColor.plot_pal(p, pico[0], pico[1], False).rgb888(),
-                                                                       pico[0], pico[1], QtGui.QImage.Format_RGB888)))) 
-win.paletter.setCurrentText('rainbow')
+#--- configurate window --------------------------------------------------------
 win.D3.addItems(['2D', '3D'])
 win.D3.setCurrentIndex(1)
 
@@ -55,71 +41,55 @@ win.ytics3D.addItems(['both', 'auto', 'down', 'up', 'off'])
 win.ztics3D.addItems(['both', 'auto', 'left', 'right', 'off'])
 
 win.D3scale_mode.addItems(['fixed', 'equal', 'full'])
-#------------------------------------------------------------------------------
-factory, scene = qplt.QpltFactory(), qplt.QpltScene()
-for f in sys.argv[1:]:
-    if factory.open_file(bytes(f, 'utf8')):
-        while factory.load_frame(): pass
-        factory.close_file()
-        print(f, 'load', factory.get_file_sz(factory.get_sz()-1), 'frames')
-    else: print('load', f, 'failed')
-if not factory.get_sz(): print('Not input files.'); sys.exit()
-qplt_canvas.qplt, qplt_canvas.factory, qplt_canvas.scene, qplt_canvas.accessor, qplt_canvas.color = qplt, factory, scene, qplt.QpltAccessor(), qplt.QpltColor()
-if factory.get_sz()==1: win.fr_filenum.hide()
-else: win.filenum.setMaximum(factory.get_sz()-1)
+
+win.save.clicked.connect(canvas.save)
+
+#def resize(*args): canvas.plt_type |= 2; canvas.update()
+#def resize(event): canvas.plt_type |= 3; canvas.update()
+win.resizeEvent = canvas.heavy_replot #???
+
+#def release(*args): print('RELEASE', args)
+#win.mouseReleaseEvent = release
+
+for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
+for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width'.split(): getattr(win, l).setValidator(QtGui.QIntValidator())
+#win.cellmask.setValidator(QtGui.QIntValidator())
+#--- config paletter -----------------------------------------------------------
+pico = (48,16)
+win.paletter.setIconSize(QtCore.QSize(*pico))
+win.paletter.addItems(canvas.paletters.keys()) # setCurrentIcon для каждой палитры
+for i, p in enumerate(canvas.paletters.keys()): win.paletter.setItemIcon(i, canvas.get_ico(p, pico))
+win.paletter.setCurrentText('rainbow')
 #-------------------------------------------------------------------------------    
-def scene_and_axe_conf(a, i):
-    i_old, l = scene.get_axe(a), 'xyz'[a]
-    scene.set_axe(a, i); getattr(win, '%s_axe'%l).setCurrentIndex(i)
-    getattr(win, '%sinterp'%l).setCurrentIndex(scene.get_interp(a))
-    getattr(win, '%sflip'%l).setChecked(scene.get_flip(a))
-    return i_old
-def axe_click(axe, ID):    
-    oldID, axe2, axe3 = scene_and_axe_conf(axe, ID), (axe+1)%3, (axe+2)%3
-    if getattr(win, '%s_axe'%'xyz'[axe2]).currentIndex()==ID: scene_and_axe_conf(axe2, oldID)
-    elif getattr(win, '%s_axe'%'xyz'[axe3]).currentIndex()==ID: scene_and_axe_conf(axe3, oldID)
-    replot()
+def axe_click(axe, ID):
+    canvas.axisID[axe], oldID, axe2, axe3 = ID, canvas.axisID[axe], (axe+1)%3, (axe+2)%3
+    if   getattr(win, '%s_axe'%'xyz'[axe2]).currentIndex()==ID: getattr(win, 'xyz'[axe2]+'_axe').setCurrentIndex(oldID); canvas.axisID[axe2] = oldID
+    elif getattr(win, '%s_axe'%'xyz'[axe3]).currentIndex()==ID: getattr(win, 'xyz'[axe3]+'_axe').setCurrentIndex(oldID); canvas.axisID[axe3] = oldID
+    # раскрашивать оси в таблице???
+    canvas.light_replot()
 win.x_axe.activated.connect(lambda ID: axe_click(0, ID))
 win.y_axe.activated.connect(lambda ID: axe_click(1, ID))
 win.z_axe.activated.connect(lambda ID: axe_click(2, ID))
 #-------------------------------------------------------------------------------
-def show_axes_info(*args):
-    if win.show_axes_info.isChecked():
-        for i in range(qplt_canvas.mesh.get_dim()):
-            getattr(win, 'min%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_bmin0(i))
-            getattr(win, 'max%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_bmax0(i))
-            getattr(win, 'step%i'%(1+i)).setText('%g'%qplt_canvas.mesh.get_step0(i))
-            getattr(win, 'logsc%i'%(1+i)).setText('V'*qplt_canvas.mesh.get_logscale0(i))
-            getattr(win, 'fr_axe%i'%(1+i)).show()
-    else:
-        for i in range(1,9): getattr(win, 'fr_axe%i'%i).hide()
-
-qplt_canvas.show_axes_info = show_axes_info        
 for i in range(1,9): getattr(win, 'fr_axe%i'%i).hide()
-win.show_axes_info.stateChanged.connect(show_axes_info)
+win.show_axis_info.stateChanged.connect(canvas.show_axis_info)
+for i in range(6): getattr(win, 'slicenum%i'%(i+1)).valueChanged.connect(lambda event, i=i: canvas.slice_replot(event, i))
 #-------------------------------------------------------------------------------
-
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
 
-for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(replot)
+for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(canvas.light_replot)
 
 def autoscale(*args):
     for l in (win.f_min, win.f_max): l.setReadOnly(win.autoscale.isChecked())    
-    if win.autoscale.isChecked(): replot()
+    if win.autoscale.isChecked(): canvas.light_replot()
 win.autoscale.stateChanged.connect(autoscale)
-for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split():
-    getattr(win, l).editingFinished.connect(replot)
-for l in 'paletter celldim celltype diff vconv xinterp yinterp D3 D3scale_mode xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(replot)
-for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(replot)
-def slice_replot(pos, sl_num):
-    mesh, sl_axe = factory.get_frame(win.filenum.value(), win.framenum.value()), canvas.slices_table[sl_num]
-    scene.set_pos(sl_axe, mesh.pos2coord(sl_axe, pos))
-    canvas.plt_type |= 1; canvas.update()
-    win.setWindowTitle('qplt: %s[%i]'%(factory.get_file_name(win.filenum.value()).decode(), win.framenum.value()))
-    win.statusbar.clearMessage(); win.statusbar.showMessage(getattr(canvas, 'status', ''))
-    
-for i in range(6): getattr(win, 'slicenum%i'%(i+1)).valueChanged.connect(lambda event, i=i: slice_replot(event, i))
-win.font.currentFontChanged.connect(replot); win.font_sz.valueChanged.connect(replot)
 
+for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split():
+    getattr(win, l).editingFinished.connect(canvas.light_replot)
+for l in 'paletter celldim celltype diff vconv xinterp yinterp zinterp D3 D3scale_mode xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(canvas.light_replot)
+for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(canvas.heavy_replot)
+win.font.currentFontChanged.connect(canvas.light_replot); win.font_sz.valueChanged.connect(canvas.light_replot)
+#--- run mainloop --------------------------------------------------------------
 win.show()
 sys.exit(app.exec_())
+#-------------------------------------------------------------------------------
