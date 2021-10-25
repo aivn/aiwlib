@@ -181,15 +181,16 @@ class Canvas(QtWidgets.QWidget):
             plotter.set_image_size([x0,y0], [x1,y1])
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
             axis_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
-
+            
             for i in range(plotter.flats_sz()):
                 f = plotter.get_flat(i)
                 for j in range(4):
-                    if not f.bounds&(3<<2*j): continue
+                    axe, mode, lbl = axis_modes[f.axis[j%2]]; fm = (f.bounds&(3<<2*j))>>2*j  # mode in 0:both, 1:auto, 2:down/left, 3:up/right, 4:off
+                    if mode==4 or not fm or (mode in (2,3) and (fm==3)^(mode==2)): continue  # это внутренняя граница флэта либо тики отключены
                     a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])
-                    axe, mode, lbl = axis_modes[f.axis[j%2]]
+                    #  print('>>>', 'xyz'[axe], i, j, (f.bounds&(3<<2*j))>>2*j, a, b)
                     text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
-                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=0), axe==2)
+                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=1 or fm==3), axe==2)
                     extend = list(map(max, extend, ext))
             plotter.set_image_size([x0+extend[0],y0+extend[1]], [x1-extend[2],y1-extend[3]])
             x0, y0 = plotter.ibmin;  x1, y1 = plotter.ibmax
@@ -201,10 +202,10 @@ class Canvas(QtWidgets.QWidget):
                 for j in range(4):
                     a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])  
                     paint.drawLine(*(a+b))
-                    if not f.bounds&(3<<2*j): continue
-                    axe, mode, lbl = axis_modes[f.axis[j%2]]
+                    axe, mode, lbl = axis_modes[f.axis[j%2]]; fm = (f.bounds&(3<<2*j))>>2*j  # mode in 0:both, 1:auto, 2:down/left, 3:up/right, 4:off
+                    if mode==4 or not fm or (mode in (2,3) and (fm==3)^(mode==2)): continue  # это внутренняя граница флэта либо тики отключены
                     text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
-                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=0), axe==2)
+                                                            tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=1 or fm==3), axe==2)
                     for l in lines: paint.drawLine(*l)
                     for p, t in text: paint.drawText(p[0], p[1], 1000, 1000, 0, t)
                     if lbl_pos:

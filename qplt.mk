@@ -41,7 +41,7 @@ swig/qplt/core.py swig/qplt/core_wrap.cxx: include/aiwlib/qplt/base
 
 bin/qplt-remote: src/bin/qplt-remote.o  $(shell echo src/qplt/{imaging,accessor,base,mesh}.o)
 	$(show_target)
-	$(CXX) -o $@ $^ -laiw $(LINKOPT)
+	$(CXX) -o $@ $^ libaiw.a $(LINKOPT)
 
 #python3/aiwlib/%.py: swig/%.py
 #	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
