@@ -66,7 +66,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		plt->spos[i] = pos;
 	}
 	
-	plt->axisID = ptr2vec<3>(axisID); plt->theta = 180-th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
+	plt->axisID = ptr2vec<3>(axisID); plt->theta = th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
 	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->D3scale_mode = D3scale_mode; plt->flips = plt->interp = plt->logscale = 0;
 	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
 		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
@@ -98,7 +98,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	// WERR(plt->axisID, plt->spos, plt->dim, dim);
 	
 	if(!mode){ // 2D режим
-		plt->phi = 0; plt->theta = M_PI/2;
+		plt->phi = 0; plt->theta = 90;
 		plt->flats.emplace_back();  auto &f = plt->flats.back();
 		f.ppf[0] = vecf(-.5f, -.5f);
 		f.ppf[1] = vecf(-.5f,  .5f);
@@ -114,7 +114,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	} else { // 3D режим, настройки флэтов в плоттере
 		if(plt->theta<0) plt->theta  = 0;
 		if(plt->theta>180) plt->theta = 180;
-		float c_ph, s_ph, c_th, s_th;  sincosf(plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(plt->theta*M_PI/180, &s_th, &c_th);
+		float c_ph, s_ph, c_th, s_th;  sincosf(-plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(-plt->theta*M_PI/180, &s_th, &c_th);
 		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
 		Vecf<3> d = ptr2vec<3>(cell_aspect);
 		Vecf<2> pp[8], A, B; // float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
@@ -157,7 +157,7 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 		auto &f = flats[0]; im_start.to(f.a); (im_start+im_size).to(f.c);
 		f.b[0] = f.c[0]; f.b[1] = f.a[1]; f.d[0] = f.a[0]; f.d[1] = f.c[1];
 	} else {
-		float c_ph, s_ph, c_th, s_th;  sincosf(phi*M_PI/180, &s_ph, &c_ph); sincosf(theta*M_PI/180, &s_th, &c_th);
+		float c_ph, s_ph, c_th, s_th;  sincosf(-phi*M_PI/180, &s_ph, &c_ph); sincosf(-theta*M_PI/180, &s_th, &c_th);
 		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
 		Vecf<3> d(cell_aspect);
 		Vecf<2> pp[8], A, B;  // int i_min; float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина

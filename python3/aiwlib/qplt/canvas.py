@@ -186,7 +186,7 @@ class Canvas(QtWidgets.QWidget):
                 f = plotter.get_flat(i)
                 for j in range(4):
                     if not f.bounds&(3<<2*j): continue
-                    a, b = getattr(f, 'abcd'[j]), getattr(f, 'abcda'[j+1])
+                    a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])
                     axe, mode, lbl = axis_modes[f.axis[j%2]]
                     text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
                                                             tl, paint, getattr(self.win, '%sflip'%'xyz'[axe]).isChecked(), lbl*(mode!=0), axe==2)
@@ -199,7 +199,7 @@ class Canvas(QtWidgets.QWidget):
             for i in range(plotter.flats_sz()):
                 f = plotter.get_flat(i)
                 for j in range(4):
-                    a, b = getattr(f, 'abcd'[j]), getattr(f, 'abcda'[j+1])  
+                    a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])  
                     paint.drawLine(*(a+b))
                     if not f.bounds&(3<<2*j): continue
                     axe, mode, lbl = axis_modes[f.axis[j%2]]

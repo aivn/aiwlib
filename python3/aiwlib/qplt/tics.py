@@ -53,7 +53,7 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
         t, l = tics[i], L[i]
         if not flow is None:  # меняем align что бы чиселка не вылезала за пределы оси
             #align[flow] = -.5 #i/len(L)*-(d[flow]<0)
-            if i in (0, len(L)-1): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
+            if i in (0, len(L)-1) and (t2p0(t)<1e-2 or t2p0(t)>.99): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
             else: align[flow] = -.5 #i/len(L)*-(d[flow]<0)
         lsz = text_sz(l, paint); lxy = list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, lsz))))
         update_extend(lxy, lsz)
