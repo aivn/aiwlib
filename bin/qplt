@@ -10,6 +10,8 @@ from PyQt5 import QtWidgets, QtGui, QtCore, uic
 sys.path.append('/home/aiv/aiwlib/python3/')
 import aiwlib.qplt as qplt
 
+if not hasattr(qplt, '__file__'):
+    for i in qplt.__path__: qplt.__file__ = i+'/'; break    
 #--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
