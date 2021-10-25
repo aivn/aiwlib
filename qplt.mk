@@ -3,7 +3,8 @@ SHELL=/bin/bash
 CXX:=g++
 SWIG:=swig
 
-PYTHON_H_PATH:=/usr/include/python3.6
+PYTHON_H_PATH:=$(shell python3 -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
+
 PYTHONDIR=/usr/lib/python3/dist-packages/
 
 
