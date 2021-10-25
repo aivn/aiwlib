@@ -7,6 +7,7 @@
 #--- import modules ------------------------------------------------------------
 import os, sys
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
+sys.path.append('/home/aiv/aiwlib/python3/')
 import aiwlib.qplt as qplt
 
 #--- create main objects -------------------------------------------------------
