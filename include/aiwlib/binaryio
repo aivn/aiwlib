@@ -124,6 +124,7 @@ namespace aiw{
 		return true;
 	}
 
+	/*
 	// check load
 	template <typename T> struct BinaryLoadChecker{ T x; BinaryLoadChecker& self(){ return *this; } };
 	template <typename T> BinaryLoadChecker<T> bin_load_chk(T x){ return BinaryLoadChecker<T>({x}); }
@@ -132,5 +133,6 @@ namespace aiw{
 		if(x!=checker.x) WRAISE("incorrect binary load value", x, checker.x, "expected");
 		return true;
 	}
+	*/
 } // end of namespace aiw
 #endif //AIW_BINARY_IO_HPP

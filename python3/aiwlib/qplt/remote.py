@@ -36,16 +36,17 @@ class Connect:
         #print('>>>', prefix, args)
         s = b''.join([struct.pack('i', x) if type(x) in (int, bool) else struct.pack('f', x) if type(x) is float else
                       struct.pack('i', len(x))+(bytes(x, 'utf8') if type(x) is str else x) if type(x) in (str, bytes)
-                      else struct.pack('i%ii'%len(x), len(x), *x)  if type(x[0]) is int else struct.pack('i%if'%len(x), len(x), *x) for x in args])
+                      else struct.pack('i'*len(x), *x)  if type(x[0]) is int else struct.pack('f'*len(x), *x) for x in args])
         #print('>>>', bytes(prefix, 'utf8')+s)
         self.cout.write(bytes(prefix, 'utf8')+s); self.cout.flush()
-    def recv(self, types): # i, f, s or I, F for arrays
-        R = [] #; print('<<<', types)
+    def recv(self, types): # i, f, s or Xi, Xf for arrays
+        R, sz = [], None #; print('<<<', types)
         for t in types:
-            if t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
+            if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
+            elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
             elif t=='f': R.append(struct.unpack('f', self.cin.read(4))[0])
             elif t=='s': R.append(self.cin.read(struct.unpack('i', self.cin.read(4))[0]))
-            else: sz = struct.unpack('i', self.cin.read(4))[0]; R.append(struct.unpack(t.lower()*sz, self.cin.read(4*sz)))
+            else: sz = int(t)
         #print('<<<', R)
         return R
 #-------------------------------------------------------------------------------
@@ -70,14 +71,14 @@ class QpltContainer:
     #int coord2pos(float coord, int axe) const;
     def __init__(self, fileID, frameID, connect):
         self._fileID, self._frameID, self._connect = fileID, frameID, connect
-        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step = connect.recv('siissIFFiF')
+        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step = connect.recv('siiss6i6f6fi6f')
         self._anames = connect.recv('s'*self._dim); self._fname = bytes(connect.host+':', 'utf8')+self._fname
     def plotter(self, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3scale_mode):
         self._connect.send('p', self._fileID, self._frameID, mode,
                            f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 	                   axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3scale_mode)
-        return QpltPlotter(self, self._connect)
+        return QpltPlotter(self, self._connect, axisID)
 #-------------------------------------------------------------------------------
 class QpltPlotter: 
     def free(self): self._connect.send('q', self._ID)
@@ -94,19 +95,19 @@ class QpltPlotter:
     def flats_sz(self): return len(self._flats)
     def get_flat(self, i): return self._flats[i]
     def get(self, xy): pass
-    def __init__(self, container, connect):
-        self.container, self._connect, self._flats = container, connect, []
-        self._ID, self._dim, self._bbox, self._bmin, self._bmax, self._axisID, self._f_lim, fsz  = connect.recv('iiIFFIFi')
+    def __init__(self, container, connect, axisID):
+        self.container, self._connect, self._axisID, self._flats = container, connect, tuple(axisID), []
+        self._ID, self._dim, self._bbox, self._bmin, self._bmax, self._f_lim, fsz  = connect.recv('ii3i3f3f2fi')
         for i in range(fsz): self._flats.append(QpltFlat(connect))
     def set_image_size(self, xy1, xy2):
         self._connect.send('s', self._ID, xy1, xy2)
-        self.center, self.ibmin, self.ibmax = self._connect.recv('III')
-        for f in self._flats: f.a, f.b, f.c, f.d = self._connect.recv('IIII')
+        self.center, self.ibmin, self.ibmax = self._connect.recv('2i2i2i')
+        for f in self._flats: f.a, f.b, f.c, f.d = self._connect.recv('2i2i2i2i')
     def plot(self):
         self._connect.send('P', self._ID)
         return self._connect.cin.read(4*(self.ibmax[0]-self.ibmin[0])*(self.ibmax[1]-self.ibmin[1]))
 #-------------------------------------------------------------------------------
 class QpltFlat:
-    def __init__(self, connect): self.axis, self.bounds, self.bmin, self.bmax = connect.recv('IiFF')
+    def __init__(self, connect): self.axis, self.bounds, self.bmin, self.bmax = connect.recv('2ii2f2f')
 #-------------------------------------------------------------------------------
 
