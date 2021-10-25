@@ -1,3 +1,4 @@
+#include <glob.h>
 #include <map>
 #include "../../include/aiwlib/binaryio"
 #include "../../include/aiwlib/qplt/base"
@@ -8,22 +9,26 @@ std::map<int, QpltPlotter*> plotters;
 int last_plotter_ID = 0;
 
 int main(){ // передавать при запуске размер памяти?
-	StdOstream stdOut; StdIstream  stdIn;  File flog("qplt.log", "w");
+	StdOstream stdOut; StdIstream  stdIn;  // File flog("qplt.log", "w");
 	while(1){
 		char A = std::cin.get(); 
 		if(A=='o'){  // открытие файла
 			std::string fname;  stdIn.load(fname); //<<< вайлдкарты bash должны быть где то тут
-			flog("open %\n", fname);
-			auto res = factory(fname.c_str());
-			flog("% frames\n", int(res.size()));
-			if(res.size()) containers.push_back(res);
-			stdOut.dump(int(containers.size())-1, int(res.size()));  // <== число фреймов
-			flog("% total files\n", int(containers.size()));
-			for(auto f: res){ // <== передаем фреймы
-				stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, 6, f->bbox, 6, f->bmin, 6, f->bmax, f->logscale, 6, f->step);
-				for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
+			glob_t glbuf; glob(fname.c_str(), 0, nullptr, &glbuf); stdOut.dump(int(glbuf.gl_pathc)); 
+			for(size_t I=0; I<glbuf.gl_pathc; I++){
+				// flog("open %\n", fname);
+				auto res = factory(glbuf.gl_pathv[I]);
+				// flog("% frames\n", int(res.size()));
+				if(res.size()) containers.push_back(res);
+				stdOut.dump(int(containers.size())-1, int(res.size()));  // <== число фреймов
+				// flog("% total files\n", int(containers.size()));
+				for(auto f: res){ // <== передаем фреймы
+					stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, 6, f->bbox, 6, f->bmin, 6, f->bmax, f->logscale, 6, f->step);
+					for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
+				}
 			}
-			flog("OK\n");
+			// flog("OK\n");
+			globfree(&glbuf);
 			std::cout.flush();
 		} else if(A=='p'){ // создаем плоттер
 			int fileID, frameID, mode, f_opt, arr_lw[2], arr_spacing, nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3scale_mode;

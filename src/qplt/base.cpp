@@ -210,12 +210,14 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 //------------------------------------------------------------------------------
 std::vector<QpltContainer*> aiw::factory(const char *fname){  // поддержка GZ файлов?
 	std::vector<QpltContainer*> res;
-	File fin(fname, "r"); int frame = 0;
-	while(1){
-		QpltMesh *msh = new QpltMesh;
-		if(msh->load(fin)){ msh->frame_ = frame++; res.push_back(msh); }
-		else { delete msh; break; }
-	}
+	try{
+		File fin(fname, "r"); int frame = 0;
+		while(1){
+			QpltMesh *msh = new QpltMesh;
+			if(msh->load(fin)){ msh->frame_ = frame++; res.push_back(msh); }
+			else { delete msh; break; }
+		}
+	} catch(...) {}
 	return res;
 }
 //------------------------------------------------------------------------------
