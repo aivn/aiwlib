@@ -34,7 +34,7 @@ endef
 #-------------------------------------------------------------------------------
 .PRECIOUS: swig/qplt/%.py src/qplt/%.o src/bin/qplt-remote.o
 
-qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so bin/qplt-remote
+qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so bin/qplt-remote qplt4win.zip
 
 swig/qplt/core.py swig/qplt/core_wrap.cxx: include/aiwlib/qplt/base
 
@@ -73,7 +73,14 @@ $(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
 	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
 endif
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/qplt/core_wrap.* src/qplt/*.o  python3/aiwlib/qplt/_core.so python3/aiwlib/qplt/core.py
+clean:; rm -rf swig/qplt/core_wrap.* src/qplt/*.o  python3/aiwlib/qplt/_core.so python3/aiwlib/qplt/core.py qplt4win.zip
 links-install install-links: qplt
 	-ln -s "$$(pwd)/python3/aiwlib"  $(PYTHONDIR)
 #-------------------------------------------------------------------------------
+qplt4win.zip: bin/qplt $(shell echo python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py) python3/aiwlib/qplt/pals/*.ppm
+	mkdir -p qplt4win/aiwlib/qplt/pals
+	cp bin/qplt qplt4win/qplt.py
+	cp python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py qplt4win/aiwlib/qplt/
+	cp python3/aiwlib/qplt/pals/*.ppm qplt4win/aiwlib/qplt/pals/
+	rm -f qplt4win.zip
+	zip qplt4win.zip qplt4win/qplt.py qplt4win/aiwlib/qplt/* qplt4win/aiwlib/qplt/pals/*

@@ -61,6 +61,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 
 	for(int i=0; i<dim; i++){
 		int pos = fai&(1<<(6+2*i))? 0 : coord2pos(sposf[i], i);
+		// WERR(i, (fai&(1<<(6+2*i))), sposf[i], pos, coord2pos(sposf[i], i));
 		if(pos<0){ pos = 0; } if(pos>=bbox[i]){ pos = bbox[i]-1; }
 		plt->spos[i] = pos;
 	}
@@ -94,7 +95,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		}
 	}  // конец цикла по осям, настроены пределы отрисовки плоттера
 
-	WOUT(plt->interp);
+	// WERR(plt->axisID, plt->spos, plt->dim, dim);
 	
 	if(!mode){ // 2D режим
 		plt->phi = 0; plt->theta = M_PI/2;

@@ -15,7 +15,7 @@ class Canvas(QtWidgets.QWidget):
         # plt_type: 1 бит - надо ли создавать картинку,  2 бит - надо ли масштабировать картинку, 3 бит - надо ли рисовать мышь
         #self.win, self.im, self.plt_type, self.mouse_coord, self.select_mode = win, None, 1, None, 0  
         #self.X, self.Y, self.im = [0]*3, [0]*3, None  # границы подобластей в пикселях, нужны для обработки событий мыши и пр
-        self.win, self.im, self.D3, self.mouse_coord = win, None, False, None  
+        self.win, self.im, self.D3, self.mouse_coord, self.plotter = win, None, False, None, None
         self.th_phi, self.slices_table = [70., 60.], [] # номера осей отображаемых на ползунках срезов
         self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
         self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i)) for i in os.listdir(os.path.dirname(__file__)+'/pals'))
@@ -25,10 +25,10 @@ class Canvas(QtWidgets.QWidget):
         self.show()
     def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
     #--------------------------------------------------------------------------
-    def autopos(self, axe): return bool(self.faai&(1<<(6+2*self.axisID[axe])))
+    def autopos(self, axe): return bool(self.faai&(1<<(6+2*axe)))
     #def autolim(self, axe): return bool(self.faai&(1<<(7+2*self.axisID[axe])))
-    def autopos_on(self, axe):  self.faai |=   1<<(6+2*self.axisID[axe])
-    def autopos_off(self, axe): self.faai &= ~(1<<(6+2*self.axisID[axe]))
+    def autopos_on(self, axe):  self.faai |=   1<<(6+2*axe)  #; print('ON', axe, self.autopos(axe), self.axisID)
+    def autopos_off(self, axe): self.faai &= ~(1<<(6+2*axe)) #; print('OFF', axe, self.autopos(axe), self.axisID)
     def autolim_on(self, axe):  self.faai |=   1<<(7+2*self.axisID[axe])
     def autolim_off(self, axe): self.faai &= ~(1<<(7+2*self.axisID[axe]))
     #--------------------------------------------------------------------------
@@ -58,11 +58,13 @@ class Canvas(QtWidgets.QWidget):
     #--------------------------------------------------------------------------
     def heavy_replot(self, *args):
         print('heavy_replot',  args)
-        win = self.win;  self.container = get_frame(win.filenum.value(), win.framenum.value())
+        win = self.win  
+        if file_size(win.filenum.value())==1: win.fr_framenum.hide()
+        else: win.fr_framenum.show(); win.framenum.setMaximum(file_size(win.filenum.value()))
+        self.container = get_frame(win.filenum.value(), win.framenum.value())
         win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
         win.cellsize.setText(str(self.container.get_szT()))
         anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
-        if len(anames)==2: win.z_frame.hide()
         for w in (win.D3, win.D3scale_mode): w.setEnabled(len(anames)>=3)
         if any(a>len(anames) for a in self.axisID): self.axisID = [0, 1, 2]  #???
         for i in (0, 1, 2)[:len(anames)]: w = getattr(win, 'xyz'[i]+'_axe'); w.clear(); w.addItems(anames); w.setCurrentIndex(self.axisID[i])
@@ -75,8 +77,8 @@ class Canvas(QtWidgets.QWidget):
         self.light_replot()
     #--------------------------------------------------------------------------
     def slice_replot(self, pos, axe):
-        print('slice_replot',  args)
-        if pos: self.autopos_off(axe); self.sposf[axe] = self.container.pos2coord(pos, axe)
+        print('slice_replot',  pos, axe)
+        if pos: self.autopos_off(axe); self.sposf[axe] = self.container.pos2coord(pos-1, axe)
         else: self.autopos_on(axe)
         self.light_replot()
     #--------------------------------------------------------------------------
@@ -84,17 +86,19 @@ class Canvas(QtWidgets.QWidget):
         print('light_replot',  args)
         #if not hasattr(self, 'container'): return
         #canvas.plt_type |= 1; canvas.update()
-        win = self.win
+        win, self.D3 = self.win, self.win.D3.currentIndex()  and self.container.get_dim()>2
         for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.container.get_bbox(self.axisID[i])))
         for i in range(self.container.get_dim()):
-            if i in self.axisID: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
-            getattr(win, 'slicelbl%i'%(i+1)).setText(self.container.get_axe(i).decode()+'[%i]'%getattr(win, 'slicenum%i'%(i+1)))
-        if win.D3.currentIndex()  and self.container.get_dim()>2: win.z_frame.show()
+            if i in self.axisID[:2+self.D3]: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
+            getattr(win, 'fr_slice%i'%(i+1)).show()
+            getattr(win, 'slicelbl%i'%(i+1)).setText(self.container.get_axe(i).decode()+'[%i]'%getattr(win, 'slicenum%i'%(i+1)).value())
+        if self.D3: win.z_frame.show()
         else: win.z_frame.hide()
 
         try: accessor_mask = int(win.cellmask.text(), base=16)
         except: accessor_mask = 0; print('bad mask', win.cellmask.text())
 
+        if self.plotter: self.plotter.free()
         self.win2faai()
         self.plotter = self.container.plotter(win.D3.currentIndex()*(self.container.get_dim()>2), #mode
                                               # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль
@@ -115,12 +119,13 @@ class Canvas(QtWidgets.QWidget):
     def show_axis_info(self):
         if self.win.show_axis_info.isChecked():
             for i in range(self.container.get_dim()):
+                getattr(self.win, 'axe%i'%(1+i)).setText(self.container.get_axe(i).decode())
                 getattr(self.win, 'min%i'%(1+i)).setText('%g'%self.container.get_bmin(i))
                 getattr(self.win, 'max%i'%(1+i)).setText('%g'%self.container.get_bmax(i))
                 getattr(self.win, 'step%i'%(1+i)).setText('%g'%self.container.get_step(i))
                 getattr(self.win, 'logsc%i'%(1+i)).setText('V'*self.container.get_logscale(i))
                 getattr(self.win, 'fr_axe%i'%(1+i)).show()
-            for i in range(self.container.get_dim(), 9): getattr(self.win, 'fr_axe%i'%i).hide()
+            for i in range(self.container.get_dim(), 8): getattr(self.win, 'fr_axe%i'%(1+i)).hide()
         else:
             for i in range(1,9): getattr(self.win, 'fr_axe%i'%i).hide()
     #--------------------------------------------------------------------------
@@ -137,7 +142,7 @@ class Canvas(QtWidgets.QWidget):
         #          | (x_sz, y_sz)
         
         print('paintEvent', event)
-        t0, T, self.D3 = time.time(), 0., (self.win.D3.currentIndex() and self.container.get_dim()>2)
+        t0, T = time.time(), 0. #; self.D3 = (self.win.D3.currentIndex() and self.container.get_dim()>2)
         win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-262, wsz.height(), 0
         tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
         
