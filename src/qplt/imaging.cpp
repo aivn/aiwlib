@@ -86,7 +86,11 @@ bool aiw::QpltColor::init(const char *pal_, float min_, float max_, bool logscal
 	return true;
 }
 void aiw::QpltColor::reinit(float min_, float max_){
-	if(modulus && min_<0) min_ = 0;
+	if(modulus){
+		float a = fabs(min_), b = fabs(max_);
+		min_ = min_*max_<0? 0.f: std::min(a, b);
+		max_ = std::max(a, b);
+	}
 	if(logscale && min_<=0) min_ = 1e-16;  // ???
 	if(min_==max_){ min_ -= .5; max_ += .5; }
 	min = min_; max = max_; mul = (logscale? 1./log(max/min) : 1./(max-min))*(pal.size()-1);

@@ -39,7 +39,8 @@ namespace aiw{
 	class QpltMeshPlotter: public QpltPlotter {
 		template <int AID> void init_impl(int autoscale);
 		template <int AID> void plot_impl(std::string &im) const;
-		template <int AID> void get_impl(int xy[2], QpltGetValue &res) const;  // принимает координаты в пикселях
+		// template <int AID> void get_impl(int xy[2], QpltGetValue &res) const;  // принимает координаты в пикселях
+		template <int AID> void get_impl(int xy[2], std::string &res) const;  // принимает координаты в пикселях
 
 		CALL_FUNC(QpltMeshPlotter, init);
 		void init(int autoscale) override { accessor.call<call_init>(*this, autoscale); }
@@ -51,7 +52,8 @@ namespace aiw{
 		std::string plot() const override { std::string im; accessor.call<call_plot>(*this, im); return im; } // лучше рисовать в область памяти, но пока что так
 
 		CALL_FUNC(const QpltMeshPlotter, get);
-		QpltGetValue get(int xy[2]) const override { QpltGetValue res; accessor.call<call_get>(*this, xy, res); return res; } // принимает координаты в пикселях
+		// QpltGetValue get(int xy[2]) const override { QpltGetValue res; accessor.call<call_get>(*this, xy, res); return res; } // принимает координаты в пикселях
+		std::string get(int xy[2]) const override { std::string res; accessor.call<call_get>(*this, xy, res); return res; } // принимает координаты в пикселях
 	}; 
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw

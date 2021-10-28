@@ -47,7 +47,7 @@ win.save.clicked.connect(canvas.save)
 
 #def resize(*args): canvas.plt_type |= 2; canvas.update()
 #def resize(event): canvas.plt_type |= 3; canvas.update()
-win.resizeEvent = canvas.heavy_replot #???
+win.resizeEvent = canvas.full_replot #???
 
 #def release(*args): print('RELEASE', args)
 #win.mouseReleaseEvent = release
@@ -67,7 +67,7 @@ def axe_click(axe, ID):
     if   getattr(win, '%s_axe'%'xyz'[axe2]).currentIndex()==ID: getattr(win, 'xyz'[axe2]+'_axe').setCurrentIndex(oldID); canvas.axisID[axe2] = oldID
     elif getattr(win, '%s_axe'%'xyz'[axe3]).currentIndex()==ID: getattr(win, 'xyz'[axe3]+'_axe').setCurrentIndex(oldID); canvas.axisID[axe3] = oldID
     # раскрашивать оси в таблице???
-    canvas.light_replot()
+    canvas.replot()
 win.x_axe.activated.connect(lambda ID: axe_click(0, ID))
 win.y_axe.activated.connect(lambda ID: axe_click(1, ID))
 win.z_axe.activated.connect(lambda ID: axe_click(2, ID))
@@ -78,18 +78,18 @@ for i in range(6): getattr(win, 'slicenum%i'%(i+1)).valueChanged.connect(lambda 
 #-------------------------------------------------------------------------------
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
 
-for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(canvas.light_replot)
+for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(canvas.replot)
 
 def autoscale(*args):
     for l in (win.f_min, win.f_max): l.setReadOnly(win.autoscale.isChecked())    
-    if win.autoscale.isChecked(): canvas.light_replot()
+    if win.autoscale.isChecked(): canvas.replot()
 win.autoscale.stateChanged.connect(autoscale)
 
 for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split():
-    getattr(win, l).editingFinished.connect(canvas.light_replot)
-for l in 'paletter celldim celltype diff vconv xinterp yinterp zinterp D3 D3scale_mode xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(canvas.light_replot)
-for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(canvas.heavy_replot)
-win.font.currentFontChanged.connect(canvas.light_replot); win.font_sz.valueChanged.connect(canvas.light_replot)
+    getattr(win, l).editingFinished.connect(canvas.replot)
+for l in 'paletter celldim celltype diff vconv xinterp yinterp zinterp D3 D3scale_mode xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(canvas.replot)
+for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(canvas.full_replot)
+win.font.currentFontChanged.connect(canvas.replot); win.font_sz.valueChanged.connect(canvas.replot)
 #--- run mainloop --------------------------------------------------------------
 win.show()
 sys.exit(app.exec_())

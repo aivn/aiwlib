@@ -94,7 +94,6 @@ class QpltPlotter:
     def get_f_max(self): return self._f_lim[1]
     def flats_sz(self): return len(self._flats)
     def get_flat(self, i): return self._flats[i]
-    def get(self, xy): pass
     def __init__(self, container, connect, axisID):
         self.container, self._connect, self._axisID, self._flats = container, connect, tuple(axisID), []
         self._ID, self._dim, self._bbox, self._bmin, self._bmax, self._f_lim, fsz  = connect.recv('ii3i3f3f2fi')
@@ -106,6 +105,7 @@ class QpltPlotter:
     def plot(self):
         self._connect.send('P', self._ID)
         return self._connect.cin.read(4*(self.ibmax[0]-self.ibmin[0])*(self.ibmax[1]-self.ibmin[1]))
+    def get(self, xy): self._connect.send('g', self._ID, xy); return self._connect.recv('s')[0]
 #-------------------------------------------------------------------------------
 class QpltFlat:
     def __init__(self, connect): self.axis, self.bounds, self.bmin, self.bmax = connect.recv('2ii2f2f')

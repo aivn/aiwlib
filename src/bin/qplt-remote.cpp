@@ -51,6 +51,7 @@ int main(){ // передавать при запуске размер памя�
 			stdOut.dump(plt->center, plt->ibmin, plt->ibmax);
 			for(int i=0; i<plt->flats_sz(); i++){ auto f = plt->get_flat(i); stdOut.dump(f.a, f.b, f.c, f.d); }			
 		} else if(A=='P'){ int pID; stdIn.load(pID); std::string im = plotters[pID]->plot(); stdOut.write(im.c_str(), im.size()); std::cout.flush(); } // отрисовка
+		else if(A=='g'){ int pID, xy[2]; stdIn.load(pID, xy); stdOut.dump(plotters[pID]->get(xy)); std::cout.flush(); } // значение в точке
 		else if(A=='E') break;
 	}
 	return 0;

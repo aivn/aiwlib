@@ -146,7 +146,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			}
 		}
 	} // 3D режим, флэты в плоттере настроены
-	
+
 	plt->init(f_opt&3);
 	return plt;
 }

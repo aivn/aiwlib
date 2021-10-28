@@ -114,53 +114,59 @@ template <int AID>  aiw::QpltMeshPlotter::calc_t<AID>  aiw::QpltMeshPlotter::get
 //   implemetation of plotter virtual functions
 //------------------------------------------------------------------------------
 template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
-	if(!autoscale) return; 
-	QpltMesh* cnt = (QpltMesh*)container; // ???
-	Ind<6> smin, smax = cnt->bbox; int dim0 = container->get_dim();
-	if(autoscale==1){ // по выделенному кубу
-		smin = spos; smax = spos; for(int i=0; i<dim0; i++) smax[i]++;
-		for(int i=0; i<dim; i++) smax[axisID[i]] += bbox[i]-1;
-	}
-	// for(int i=container->dim; i<6; i++) smax[i] = smin[i]+1; ???
-	Ind<17> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets);
-	auto I_LID = cnt->flimits.find(LID); Vecf<2> f_lim;
-	if(I_LID!=cnt->flimits.end()) f_lim = I_LID->second; 
-	else { // считаем пределы
-		constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
-		int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
-		const char* ptr = (char*)(cnt->mem->get_addr()); for(int i=0; i<dim0; i++) ptr += smin[i]*cnt->mul[i];
-		float f_min = 0,  f_max = 0; bool f_start = true;
-		Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
-#pragma omp parallel for reduction(min:f_min) reduction(max:f_max) firstprivate(f_start)
-		for(size_t i=0; i<sz; i++){
-			int pos[dim]; size_t j = i; const char *ptr1 = ptr, *nb[6] = {nullptr};   
-			for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
-			if(DIFF) for(int k=0; k<ddim; k++){
-					int a = axisID[k];
-					if(pos[a]>0) nb[2*k] = ptr1-cnt->mul[a]; else nb[2*k] = ptr1;
-					if(pos[a]<cnt->bbox[a]-1) nb[2*k+1] = ptr1+cnt->mul[a]; else nb[2*k+1] = ptr1;
-				}
-				//				WEXC(sz, i, pos[0], pos[1], pos[2], (void*)ptr1, (void*)ptr2, (void*)(nb2[0]), (void*)(nb2[1]), (void*)(nb2[2]), (void*)(nb2[3]), (void*)(nb2[4]), (void*)(nb2[5]));
-			Vecf<3> ff; accessor.conv<AID>(ptr1, (const char**)nb, &(ff[0]));
-			// if(i==15000) WOUT(AID, DIFF, ff);
-			float fres = dout==1? ff[0]: ff.abs();					
-			if(f_start || f_min>fres){ f_start = false; f_min = fres; }
-			if(f_start || f_max<fres){ f_start = false; f_max = fres; }
+	Vecf<2> f_lim(color.get_min(), color.get_max());
+	if(autoscale&1){
+		QpltMesh* cnt = (QpltMesh*)container; // ???
+		Ind<6> smin, smax = cnt->bbox; int dim0 = container->get_dim();
+		if(autoscale==1){ // по выделенному кубу
+			smin = spos; smax = spos; for(int i=0; i<dim0; i++) smax[i]++;
+			for(int i=0; i<dim; i++) smax[axisID[i]] += bbox[i]-1;
 		}
-		f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
-	} // конец расчета пределов 
+		// for(int i=container->dim; i<6; i++) smax[i] = smin[i]+1; ???
+		Ind<17> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets);
+		auto I_LID = cnt->flimits.find(LID); 
+		if(I_LID!=cnt->flimits.end()) f_lim = I_LID->second; 
+		else { // считаем пределы
+			bool acc_minus = accessor.minus; accessor.minus = false;
+			constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
+			int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
+			const char* ptr = (char*)(cnt->mem->get_addr()); for(int i=0; i<dim0; i++) ptr += smin[i]*cnt->mul[i];
+			float f_min = 0,  f_max = 0; bool f_start = true;
+			Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
+#pragma omp parallel for reduction(min:f_min) reduction(max:f_max) firstprivate(f_start)
+			for(size_t i=0; i<sz; i++){
+				int pos[dim]; size_t j = i; const char *ptr1 = ptr, *nb[6] = {nullptr};   
+				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
+				if(DIFF) for(int k=0; k<ddim; k++){
+						int a = axisID[k];
+						if(pos[a]>0) nb[2*k] = ptr1-cnt->mul[a]; else nb[2*k] = ptr1;
+						if(pos[a]<cnt->bbox[a]-1) nb[2*k+1] = ptr1+cnt->mul[a]; else nb[2*k+1] = ptr1;
+					}
+				//				WEXC(sz, i, pos[0], pos[1], pos[2], (void*)ptr1, (void*)ptr2, (void*)(nb2[0]), (void*)(nb2[1]), (void*)(nb2[2]), (void*)(nb2[3]), (void*)(nb2[4]), (void*)(nb2[5]));
+				Vecf<3> ff; accessor.conv<AID>(ptr1, (const char**)nb, &(ff[0]));
+				// if(i==15000) WOUT(AID, DIFF, ff);
+				float fres = dout==1? ff[0]: ff.abs();					
+				if(f_start || f_min>fres){ f_start = false; f_min = fres; }
+				if(f_start || f_max<fres){ f_start = false; f_max = fres; }
+			}
+			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
+			accessor.minus = acc_minus;
+		} // конец расчета пределов
+	}
+	if(accessor.minus) f_lim = -f_lim(1,0);
 	color.reinit(f_lim[0], f_lim[1]); 
 }
 //------------------------------------------------------------------------------
-template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], QpltGetValue &res) const {  // принимает координаты в пикселях
+// template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], QpltGetValue &res) const   // принимает координаты в пикселях
+template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], std::string &res) const {  // принимает координаты в пикселях
 	Vecf<2> r;
 	for(int fID=0, sz = flats.size(); fID<sz; fID++) if(flats[fID].image2flat(xy[0], xy[1], r)){
 			calc_t<AID> f = get_flat<AID>(fID);
 			Ind<2> pos; Vecf<2> X; f.mod_coord(r, pos, X); auto v = interpolate(f, pos, X, f.interp);
 			std::stringstream S; S<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
-			res.value = S.str(); for(int i=0; i<2; i++) res.xy[i] = container->fpos2coord(bbeg[f.axis[i]]+r[i], axisID[f.axis[i]]); 
-			f.flat2image(vecf(r[0], 0.f), res.a1);  f.flat2image(vecf(r[0], f.bbox[1]), res.a2);
-			f.flat2image(vecf(0.f, r[1]), res.b1);  f.flat2image(vecf(f.bbox[0], r[1]), res.b2);
+			// res.value = S.str(); for(int i=0; i<2; i++) res.xy[i] = container->fpos2coord(bbeg[f.axis[i]]+r[i], axisID[f.axis[i]]); 
+			// f.flat2image(vecf(r[0], 0.f), res.a1);  f.flat2image(vecf(r[0], f.bbox[1]), res.a2);
+			// f.flat2image(vecf(0.f, r[1]), res.b1);  f.flat2image(vecf(f.bbox[0], r[1]), res.b2);
 		}
 }
 //------------------------------------------------------------------------------

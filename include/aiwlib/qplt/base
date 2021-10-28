@@ -88,6 +88,7 @@ namespace aiw{
 		//#endif  // SWIG
 	};
 	//--------------------------------------------------------------------------	
+	/*
 	struct QpltGetValue {
 		std::string value;
 		int a1[2], a2[2], b1[2], b2[2];
@@ -96,6 +97,7 @@ namespace aiw{
 		// void pack(std::ostream&) const;
 		//#endif  // SWIG 
 	};
+	*/
 	//--------------------------------------------------------------------------
 	struct QpltFlat{
 		//          2   bmax
@@ -158,7 +160,8 @@ namespace aiw{
 		int flats_sz() const { return flats.size(); }
 		QpltFlat get_flat(int i) const { return flats[i]; }
 
-		virtual QpltGetValue get(int xy[2]) const = 0; // принимает координаты в пикселях 
+		// virtual QpltGetValue get(int xy[2]) const = 0; // принимает координаты в пикселях 
+		virtual std::string get(int xy[2]) const = 0; // принимает координаты в пикселях 
 		
 		
 		int center[2], ibmin[2], ibmax[2]; // центр и границы изображения в пикселях
