@@ -17,7 +17,7 @@ _mul = lambda A, B: A[0]*B[0]+A[1]*B[1]
 _xmul = lambda A, x: (A[0]*x, A[1]*x)
 _abs = lambda A: (A[0]**2+A[1]**2)**.5
 
-def make_tics3D(limits, logscale, A, B, C, tic_len, paint, flip, label='', is_z_label=False):  
+def make_tics3D(limits, logscale, A, B, C, tic_len, paint, label='', is_z_label=False):  
     '''возвращает [(tic_pos, tic_text)], extend, [tics_lines...], label_pos
 ось расположена на отрезке A--B, точка C --- центр изображения. Координаты A, B, С задаются в пикселях
 tic_pos задаются как (x,y) с выравниванием по умолчанию. 
@@ -28,7 +28,6 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
     if not lAB: return [], [0]*4, [], None
     d = -AB[1]/lAB*tic_len, AB[0]/lAB*tic_len   
     if _mul(d, _sub(C, A))>0: d = -d[0], -d[1]    
-    if flip: limits = limits[1], limits[0]
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
     textL = [num2strL(L, logscale) for L in ticsL]    # текстовые представления
     tszX = [sum(text_sz(t, paint, False) for t in L) for L in textL] # суммарные размеры тиков по X
@@ -53,7 +52,8 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
         t, l = tics[i], L[i]
         if not flow is None:  # меняем align что бы чиселка не вылезала за пределы оси
             #align[flow] = -.5 #i/len(L)*-(d[flow]<0)
-            if i in (0, len(L)-1) and (t2p0(t)<1e-2 or t2p0(t)>.99): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
+            #if i in (0, len(L)-1) and (t2p0(t)<1e-2 or t2p0(t)>.99): align[flow] = 0 if (A[flow]<B[flow])^bool(i)^flip else -1
+            if i in (0, len(L)-1) and (t2p0(t)<1e-2 or t2p0(t)>.99): align[flow] = 0 if (A[flow]<B[flow])^bool(i) else -1
             else: align[flow] = -.5 #i/len(L)*-(d[flow]<0)
         lsz = text_sz(l, paint); lxy = list(map(int, _add(A, _xmul(AB, t2p0(t)), d2, _and(align, lsz))))
         update_extend(lxy, lsz)
@@ -76,7 +76,7 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
     try: return list(map(T2pl, range(len(L)))),  extend, [t2p(t, 2) for t in tics]+list(map(t2p, stics)), lbl_pos
     except ValueError as e: return [], [0]*4, [], lbl_pos
 #-------------------------------------------------------------------------------
-def make_tics(limits, logscale, N, vertical, paint, flip):
+def make_tics(limits, logscale, N, vertical, paint):
     'возвращает [(tic_pos, tic_text)... ], max_tic_sz, [subtics_pos...]'
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
     #tszs = [sum(text_sz(num2str(t), paint, vertical) for t in L) for L in ticsL] # суммарные размеры тиков
@@ -88,8 +88,7 @@ def make_tics(limits, logscale, N, vertical, paint, flip):
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
     else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
-    t2p0 = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
-    t2p = lambda t: N-t2p0(t) if flip else t2p0(t)
+    t2p = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
     L = num2strL(tics, logscale)        
     try: return [(t2p(t), l) for t, l in zip(tics, L)], max(text_sz(l, paint, False) for l in L), map(t2p, stics)
     except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for t in L), [] #[0]*len(stics)
@@ -119,7 +118,7 @@ def calc_tics_normalscale(a, b, h):
     return L    
 def calc_tics(a, b, logscale):
     'принимает границы диапазона и тип шкалы, возвращает несколько вариантов расстановки тиков парами'
-    if b<a: a, b = b, a
+    #if b<a: a, b = b, a
     if logscale:
         A0, B, res = 10**floor(log10(a)), 10**ceil(log10(b)), []
         for n in range(1, 5):
@@ -129,7 +128,7 @@ def calc_tics(a, b, logscale):
                 A *= 10**n
             res.append(L)            
     else:
-        H, res = 10**ceil(log10(b-a)), []
+        H, res = 10**ceil(log10(abs(b-a))), []
         for h in [H, H/2, H/4, H/5, H/10, H/20, H/40, H/50, H/100, H/200, H/500, H/100]:
             L = calc_tics_normalscale(a, b, h)
             if len(L)<=20: res.append(L)

@@ -77,7 +77,7 @@ template <int AID> struct aiw::QpltMeshPlotter::calc_t : public QpltFlat {
 	}
 	int interp; float step2D[2]; // , rstep[2];
 	void mod_coord(Vecf<2> r, Ind<2> &pos, Vecf<2> &X) const { pos = r; X = r-pos; }
-	void mod_coord(int axe, float r, int &pos, float &x) const { // вычисляет pos и  x на основе r
+	void mod_coord2D(int axe, float r, int &pos, float &x) const { // вычисляет pos и  x на основе r
 		x = r*step2D[axe]; pos = x; x -= pos; 
 		// if(interp&(0xF<<(4*(1-axe)))) x = r*rstep[axe] - pos; // *step[axe];
 		/***
@@ -107,7 +107,7 @@ template <int AID>  aiw::QpltMeshPlotter::calc_t<AID>  aiw::QpltMeshPlotter::get
 	int a = 3-(f.axis[0]+f.axis[1]), a0 = axisID[a], a_pos = f.spos[a0]; f.mul[2] = cnt->mul[a0];  // 0+1=1-->2 || 1+2=3-->0 || 0+2-->1
 	f.diff3minus = flips&(1<<a)? (a_pos+1<cnt->bbox[a0]): (a_pos>0); 
 	f.diff3plus  = flips&(1<<a)? (a_pos>0): (a_pos+1<cnt->bbox[a0]);
-	WOUT(f.interp);
+	// WOUT(f.interp);
 	return f;
 }
 //------------------------------------------------------------------------------
@@ -159,11 +159,14 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 //------------------------------------------------------------------------------
 // template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], QpltGetValue &res) const   // принимает координаты в пикселях
 template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], std::string &res) const {  // принимает координаты в пикселях
-	Vecf<2> r;
+	Vecf<2> r; 
 	for(int fID=0, sz = flats.size(); fID<sz; fID++) if(flats[fID].image2flat(xy[0], xy[1], r)){
-			calc_t<AID> f = get_flat<AID>(fID);
-			Ind<2> pos; Vecf<2> X; f.mod_coord(r, pos, X); auto v = interpolate(f, pos, X, f.interp);
+			calc_t<AID> f = get_flat<AID>(fID); Ind<2> pos; Vecf<2> X;
+			f.mod_coord(r, pos, X); 
+			// WERR(f.a[0], f.a[1], f.nX, f.nY, xy[0], xy[1], r);
+			auto v = interpolate(f, pos, X, f.interp);
 			std::stringstream S; S<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
+			res = S.str(); break;
 			// res.value = S.str(); for(int i=0; i<2; i++) res.xy[i] = container->fpos2coord(bbeg[f.axis[i]]+r[i], axisID[f.axis[i]]); 
 			// f.flat2image(vecf(r[0], 0.f), res.a1);  f.flat2image(vecf(r[0], f.bbox[1]), res.a2);
 			// f.flat2image(vecf(0.f, r[1]), res.b1);  f.flat2image(vecf(f.bbox[0], r[1]), res.b2);
@@ -179,10 +182,10 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		calc_t<PAID> plt = get_flat<PAID>(0);
 #pragma omp parallel for 
 		for(int y=0; y<im.Ny; y++){
-			Ind<2> pos; Vecf<2> X; plt.mod_coord(1, y, pos[1], X[1]);
+			Ind<2> pos; Vecf<2> X; plt.mod_coord2D(1, y, pos[1], X[1]);
 			for(int x=0; x<im.Nx; x++){
-				plt.mod_coord(0, x, pos[0], X[0]);
-				im.set_pixel(x, y, color(interpolate(plt, pos, X, plt.interp)[0]));
+				plt.mod_coord2D(0, x, pos[0], X[0]);
+				im.set_pixel(x, y, color(interpolate(plt, pos, X, plt.interp)[0])); // ???
 			}
 		}
 		//im.dump2ppm("/tmp/qplt.ppm");
@@ -192,7 +195,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 			// WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
 			for(int iy=0; iy<Na[1]; iy++)  for(int ix=0; ix<Na[0]; ix++){
 					int x = ix*d[0]+d[0]/2,  y = iy*d[1]+d[1]/2; Ind<2> pos; Vecf<2> X;
-					plt2.mod_coord(0, x, pos[0], X[0]);	plt2.mod_coord(1, y, pos[1], X[1]);
+					plt2.mod_coord2D(0, x, pos[0], X[0]);	plt2.mod_coord2D(1, y, pos[1], X[1]);
 					// if(!y) WOUT(x, pos, X);
 					auto v = interpolate(plt2, pos, X, plt.interp);
 					color.arr_plot(x, y, (const float*)&v, im);

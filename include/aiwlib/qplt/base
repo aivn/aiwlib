@@ -90,13 +90,12 @@ namespace aiw{
 	//--------------------------------------------------------------------------	
 	/*
 	struct QpltGetValue {
-		std::string value;
-		int a1[2], a2[2], b1[2], b2[2];
-		float xy[2]; // std::string?
-		// #ifndef SWIG
-		// void pack(std::ostream&) const;
-		//#endif  // SWIG 
+		std::string val;          // значение
+		std::vector<int> slines;  // 
+		float xy[2];          // pyfxtyb
+		int xpos[2], ypos[2];
 	};
+	в  core.i  добавить  %template(std_vector_int) std::vector<int>; 
 	*/
 	//--------------------------------------------------------------------------
 	struct QpltFlat{
@@ -114,9 +113,6 @@ namespace aiw{
 		aiw::Vecf<2> nX, nY, rn[2]; aiw::Ind<2> bbox; 
 		bool image2flat(int x, int y, aiw::Vecf<2> &r) const {
 			r = (x-a[0])*nX+(y-a[1])*nY; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
-			// Ind<2> xy(x-a[0], y-a[1]); r[0] = xy*nX; r[1] = xy*nY; WOUT(x, y, xy, r, nX, nY, bbox);
-			// WOUT(x, y, r, bbox);
-			// return Vecf<2>()<=r && r<bbox;
 			return 0<=r[0] && 0<=r[1] && r[0]<=bbox[0] && r[1]<=bbox[1];
 		}
 		void flat2image(aiw::Vecf<2> r, int xy[2]) const { for(int i=0; i<2; i++) xy[i] = a[i]+r*rn[i]+.5f; }

@@ -73,7 +73,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		if(fai&(1<<a)) plt->flips |= 1<<i;
 		plt->interp |= (fai>>(18+2*a)&3)<<2*i; 
 		bool lgs = logscale&(1<<a); plt->logscale |= int(lgs)<<i;
-		if(fai&(1<<(7+2*a))){ plt->bmin[i] = bmin[a]; plt->bmax[i] = bmax[i]; plt->bbeg[i] = 0; plt->bbox[i] = bbox[a]; } // автошкалирование по оси
+		if(fai&(1<<(7+2*a))){ plt->bmin[i] = bmin[a]; plt->bmax[i] = bmax[a]; plt->bbeg[i] = 0; plt->bbox[i] = bbox[a]; } // автошкалирование по оси
 		else { // bbox, bbeg ???
 			double A = bmin_[a], B = bmax_[a]; if((A<B)^(bmin[a]<bmax[a])) std::swap(A, B);  // ставим пределы сцены в том же порядке что и в контейнере		   
 			if((A<B && A<bmin[a])||(A>B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
@@ -91,8 +91,8 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 				}
 				plt->bmax[i] = lgs ? plt->bmin[i]*pow(step[a], plt->bbox[i]) : plt->bmin[i] + plt->bbox[i]*step[a];
 			}
-			if(plt->flips&(1<<i)) std::swap(plt->bmin[i], plt->bmax[i]); 
 		}
+		if(plt->flips&(1<<i)) std::swap(plt->bmin[i], plt->bmax[i]); 
 	}  // конец цикла по осям, настроены пределы отрисовки плоттера
 
 	// WERR(plt->axisID, plt->spos, plt->dim, dim);
@@ -100,10 +100,14 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	if(!mode){ // 2D режим
 		plt->phi = 0; plt->theta = 90;
 		plt->flats.emplace_back();  auto &f = plt->flats.back();
-		f.ppf[0] = vecf(-.5f, -.5f);
-		f.ppf[1] = vecf(-.5f,  .5f);
-		f.ppf[2] = vecf( .5f,  .5f);
-		f.ppf[3] = vecf( .5f, -.5f);
+		// f.ppf[0] = vecf(-.5f, -.5f);
+		// f.ppf[1] = vecf( .5f, -.5f);
+		// f.ppf[2] = vecf( .5f,  .5f);
+		// f.ppf[3] = vecf(-.5f,  .5f);
+		f.ppf[0] = vecf(-.5f,  .5f);
+		f.ppf[1] = vecf( .5f,  .5f);
+		f.ppf[2] = vecf( .5f, -.5f);
+		f.ppf[3] = vecf(-.5f, -.5f);
 		f.bounds = 255;
 		f.spos = plt->spos; 
 		f.axis[0] = 0; 	f.axis[1] = 1;
@@ -155,8 +159,8 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 	im_start = ptr2vec<2>(xy1);	im_size = ptr2vec<2>(xy2) - im_start; (im_start+im_size/2).to(center);
 	Vecf<2> scale(1.f);
 	if(dim==2){
-		auto &f = flats[0]; im_start.to(f.a); (im_start+im_size).to(f.c);
-		f.b[0] = f.c[0]; f.b[1] = f.a[1]; f.d[0] = f.a[0]; f.d[1] = f.c[1];
+		auto &f = flats[0]; im_start.to(f.d); (im_start+im_size).to(f.b);
+		f.a[0] = f.d[0]; f.a[1] = f.b[1]; f.c[0] = f.b[0]; f.c[1] = f.d[1];
 	} else {
 		float c_ph, s_ph, c_th, s_th;  sincosf(-phi*M_PI/180, &s_ph, &c_ph); sincosf(-theta*M_PI/180, &s_th, &c_th);
 		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран

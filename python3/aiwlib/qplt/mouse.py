@@ -47,12 +47,12 @@ class MousePaletter(Rect):
     def touch(self, canvas, event): y = event.y();  self.line_text(y, self.y2f(y)); return True
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.y0 = event.y(); self.f0 = self.y2f(self.y0); return self  # левая кнопка
-        else: # elif(event.buttons()&2): pass # правая кнопка
-            win = canvas.win
-            if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
-            else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
-            canvas.replot()
-    def move(self, canvas, event): y = event.y(); self.line_text(self.y0, self.f0, 'green'); self.line_text(y, self.y2f(y)); canvas.update(); return True
+        # elif(event.buttons()&2): pass # правая кнопка
+        win = canvas.win
+        if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
+        else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
+        canvas.replot()
+    def move(self, canvas, event): y = event.y(); self.line_text(self.y0, self.f0, 'green'); self.line_text(y, self.y2f(y)); canvas.update()
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         f0, f1 = self.f0, self.y2f(event.y())
         if f0==f1: return False
@@ -62,12 +62,44 @@ class MousePaletter(Rect):
         return True
     def wheel(self, canvas, event): pass # без нажатой правой кнопки перемотка выделенной области, иначе масштабирование, по зонам движение только одной из границ?
 #-------------------------------------------------------------------------------
-class MouseFlat2D(Rect): pass
+class MouseFlat2D(Rect):
+    def check(self, event): return event.x()<self.bmax[0] and self.bmin[1]<event.y()
+    def p2f(self, axe, i): return _one2coord(self.xy_min[axe], self.xy_max[axe], self.logscale[axe],
+                                             (self.bmax[1]-i)/self.bbox[1] if axe else (i-self.bmin[0])/self.bbox[0])
+    def line_text_x(self, i, f, color='red'): self.line(i, self.bmin[1], i, self.bmax[1], 'gray'); self.text(i, self.bmax[1], '%g'%f, 'lt', color)
+    def line_text_y(self, i, f, color='red'): self.line(self.bmin[0], i, self.bmax[0], i, 'gray'); self.text(0, i, '%g'%f, 'lb', color)
+    def touch(self, canvas, event):
+        x, y, c = event.x(), event.y(), 0
+        if self.bmin[0]<x<self.bmax[0]: self.line_text_x(x, self.p2f(0, x)); c += 1
+        if self.bmin[1]<y<self.bmax[1]: self.line_text_y(y, self.p2f(1, y)); c += 1
+        if c==2: self.text(x, y, self.getval([x, y]).decode(), 'rt', 'red')
+        return bool(self.plots)
+    def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
+        if(event.buttons()&1): self.xy0 = [event.x(), event.y()]; return self  # левая кнопка
+        xy, c = [event.x(), event.y()], False
+        for a in (0, 1):
+            if self.bmin[a]<xy[a]<self.bmax[a]:
+                if canvas.autolim(a): canvas.autolim_off(a)
+                else: canvas.autolim_on(a)
+                c = True
+        if c: canvas.replot()
+    def move(self, canvas, event):
+        if self.bmin[0]<self.xy0[0]<self.bmax[0]: self.line(self.xy0[0], self.bmin[1], self.xy0[0], self.bmax[1], 'gray')
+        if self.bmin[1]<self.xy0[1]<self.bmax[1]: self.line(self.bmin[0], self.xy0[1], self.bmax[0], self.xy0[1], 'gray')
+        if self.touch(canvas, event): canvas.update(); return True
+    def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
+        xy0, xy1, c = self.xy0, [event.x(), event.y()], False
+        for a in (0, 1):
+            if xy0[a]==xy1[a]: continue
+            canvas.autolim_off(a); c, A = True, canvas.axisID[a] 
+            lim = [self.p2f(a, xy0[a]), self.p2f(a, xy1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[A]<canvas.bmax[A])
+            canvas.bmin[A], canvas.bmax[A] = lim[inv], lim[1-inv]
+        return c
 #-------------------------------------------------------------------------------
-class MouseFlat3D(Rect): pass
+#class MouseFlat3D(Rect): pass
 #-------------------------------------------------------------------------------
 # тут надо написать функцию обрабатывающую шкалирование области
-class MouseFlat:
+class MouseFlat3D:
     def __init__(self): pass
     def check(self, event): return True
     def touch(self, container, event): pass
@@ -78,7 +110,6 @@ class MouseFlat:
         container.th_phi[1] += (x-self.x)*.1
         self.x, self.y = x, y
         container.replot()
-
     def release(self, container, event): pass
     def make_up(self, container): return container.make_up() #container.light_replot()
     def wheel(self, container, event): pass
