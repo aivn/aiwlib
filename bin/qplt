@@ -72,9 +72,9 @@ win.x_axe.activated.connect(lambda ID: axe_click(0, ID))
 win.y_axe.activated.connect(lambda ID: axe_click(1, ID))
 win.z_axe.activated.connect(lambda ID: axe_click(2, ID))
 #-------------------------------------------------------------------------------
-for i in range(1,9): getattr(win, 'fr_axe%i'%i).hide()
+for i in range(1,7): getattr(win, 'fr_axe%i'%i).hide()
 win.show_axis_info.stateChanged.connect(canvas.show_axis_info)
-for i in range(6): getattr(win, 'slicenum%i'%(i+1)).valueChanged.connect(lambda event, i=i: canvas.slice_replot(event, i))
+for i in range(4): getattr(win, 'slicenum%i'%(i+1)).valueChanged.connect(lambda event, i=i: canvas.slice_replot(event, i))
 #-------------------------------------------------------------------------------
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
 

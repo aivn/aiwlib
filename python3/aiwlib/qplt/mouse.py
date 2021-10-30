@@ -72,7 +72,7 @@ class MouseFlat2D(Rect):
         x, y, c = event.x(), event.y(), 0
         if self.bmin[0]<x<self.bmax[0]: self.line_text_x(x, self.p2f(0, x)); c += 1
         if self.bmin[1]<y<self.bmax[1]: self.line_text_y(y, self.p2f(1, y)); c += 1
-        if c==2: self.text(x, y, self.getval([x, y]).decode(), 'rt', 'red')
+        if c==2: self.text(x, y, self.getval([x, y]).decode(), 'rb', 'red')
         return bool(self.plots)
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.xy0 = [event.x(), event.y()]; return self  # левая кнопка
@@ -90,16 +90,89 @@ class MouseFlat2D(Rect):
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         xy0, xy1, c = self.xy0, [event.x(), event.y()], False
         for a in (0, 1):
-            if xy0[a]==xy1[a]: continue
+            if xy0[a]==xy1[a] or xy0[a]<self.bmin[a]: continue
             canvas.autolim_off(a); c, A = True, canvas.axisID[a] 
             lim = [self.p2f(a, xy0[a]), self.p2f(a, xy1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[A]<canvas.bmax[A])
             canvas.bmin[A], canvas.bmax[A] = lim[inv], lim[1-inv]
         return c
 #-------------------------------------------------------------------------------
-#class MouseFlat3D(Rect): pass
+class MouseFlat3D(Rect):
+    def __init__(self, flat, center, bbox, logscale, getval):
+        self.plots, self.flat, self.bbox, self.ee, self.bb, self.getval, self.cflips, self.pp = [], flat, bbox, [None]*2, [None]*2, getval, [0]*2, [0]*2
+        ci = max((((flat.bounds>>((i-1)%4*2))&1)+((flat.bounds>>(i*2))&1), i) for i in range(4))[1]
+        self.c, self.cc = _Vec(*getattr(flat, 'abcd'[ci])), [None]*2; nC = center-self.c  # c, cc - вершина и орты отвечающие ВНЕШНИМ граням флэта
+        for i in (0,1):
+            self.bb[i] = self.ee[i] = _Vec(*getattr(flat, 'bd'[i]))-flat.a; self.ee[i] = self.ee[i]/bbox[i] # bb --- смещение || грани флэта в пикселях
+            self.cc[i] = getattr(flat, ('bd', 'ac', 'db', 'ca')[ci][i])-self.c; self.cc[i] *= 1/bbox[i] #/abs(self.cc[i])
+            self.cflips[i] = self.cc[i]*self.ee[i]<0  # развороты осей при переходе от сист. коорд. свяазнных с flat.a к self.c
+            self.pp[i] = _Vec(self.cc[i][1], -self.cc[i][0])
+            if self.pp[i]*nC<0: self.pp[i] = -self.pp[i]
+        self.ccbb, self.rot, self.sel, self.logscale = [v/abs(v)**2 for v in self.cc], None, None, logscale
+    def event2rpos(self, event):  # ==> rpos, mask (битовая маска, какие оси валидны)
+        xy0 = _Vec(event.x(), event.y()); xyA = xy0-self.flat.a
+        rpos = [xyA[0]*self.flat.nX[i] + xyA[1]*self.flat.nY[i] for i in (0, 1)]
+        if 0<=rpos[0]<=self.bbox[0] and 0<=rpos[1]<=self.bbox[1]: return rpos, (0,1)  # точно находимся внутри флэта
+        xyC, axis = xy0-self.c, []
+        for i in (0,1):
+            if xyC*self.pp[i]>=0: continue
+            rpos[i] = xyC*self.ccbb[i] #/(self.cc[i]) #/self.bbox[i]
+            if self.cflips[i]: rpos[i] = self.bbox[i]-rpos[i] 
+            if 0<=rpos[i]<=self.bbox[i]: axis.append(i) # ортогональная проекция на ВНЕШНЮЮ ось
+        return rpos, axis
+    def line_in(self, rpos, axe, color='gray'): #рисует линию проходящую через точку rpos ПЕРПЕНДИКУЛЯРНО оси axe, возвращает коорд. в пикс. на ВНЕШНЕЙ грани
+        xy0 = _Vec(*self.flat.a)+self.ee[axe]*rpos[axe];  xy1 = xy0+self.bb[1-axe]
+        self.line(xy0.x, xy0.y, xy1.x, xy1.y, color)
+        return list(self.c+self.cc[axe]*(self.bbox[axe]-rpos[axe] if self.cflips[axe] else rpos[axe]))
+    def check(self, event): return bool(self.event2rpos(event)[1])
+    def touch(self, canvas, event):
+        rpos, axis = self.event2rpos(event) #; print(rpos, axis)
+        if len(axis)==1: self.line(event.x(), event.y(), *self.line_in(rpos, axis[0]))
+        else: self.line_in(rpos, axis[0]); self.line_in(rpos, axis[1])
+        if axis==(0,1): xy = [event.x(), event.y()]; self.text(xy[0], xy[1], self.getval(xy).decode(), 'rb', 'red')
+        return bool(self.plots)
+    def press(self, canvas, event):  # если кнопка левая начинаем выделение/вращение, иначе выключаем/включаем выделение
+        rpos, axis = self.event2rpos(event) 
+        if(event.buttons()&1):
+            if len(axis)==2: self.rot = [event.x(), event.y()]  # вращение
+            else: self.sel = rpos, axis[0]               # начинаем выделение
+            return self
+        #replot = False  # переключаем выделение
+        for a in axis:
+            A = self.flat.axis[a]
+            #if self.flat.bmin[a]<rpos[a]<self.flat.bmax[a]:
+            if canvas.autolim(A): canvas.autolim_off(A)
+            else: canvas.autolim_on(A)
+            #replot = True
+        if axis: canvas.replot()
+    def move(self, canvas, event):
+        if self.rot:
+            x, y = event.x(), event.y()
+            canvas.th_phi[0] -= (y-self.rot[1])*.1
+            canvas.th_phi[1] += (x-self.rot[0])*.1
+            self.rot = x, y
+            canvas.replot()
+        elif self.sel:
+            self.line_in(*self.sel)
+            rpos, axis = self.event2rpos(event);  self.line_in(rpos, axis[0])
+            canvas.update()
+    def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
+        if self.rot: self.rot = None; return
+        rpos0, a = self.sel;  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
+        if rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
+        canvas.autolim_off(A); c, AA = True, canvas.axisID[A] 
+        lim = [self.p2f(a, rpos0[a]), self.p2f(a, rpos1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[AA]<canvas.bmax[AA])
+        canvas.bmin[AA], canvas.bmax[AA] = lim[inv], lim[1-inv]
+        return True
+    def p2f(self, axe, fpos): return _one2coord(self.flat.bmin[axe], self.flat.bmax[axe], self.logscale[axe], fpos/self.bbox[axe])
+    def make_up(self, container): return Rect.make_up(self, container) if self.plots else container.make_up() #container.light_replot()
+        
+    #def line_text(self, a, i, f, color='red'):
+    #    self.line(i, self.bmin[1], i, self.bmax[1], 'gray'); self.text(i, self.bmax[1], '%g'%f, 'lt', color)
+    
 #-------------------------------------------------------------------------------
+
 # тут надо написать функцию обрабатывающую шкалирование области
-class MouseFlat3D:
+class MouseFlat3D0:
     def __init__(self): pass
     def check(self, event): return True
     def touch(self, container, event): pass
@@ -114,4 +187,22 @@ class MouseFlat3D:
     def make_up(self, container): return container.make_up() #container.light_replot()
     def wheel(self, container, event): pass
     
+#-------------------------------------------------------------------------------
+class _Vec:
+    def __init__(self, x, y): self.x, self.y = x, y
+    def __repr__(self): return '_Vec(%r, %r)'%(self.x, self.y)
+    def __getitem__(self, i):
+        if 0<=i<=1: return self.y if i else self.x
+        raise IndexError(i)
+    def __setitem__(self, i, v): setattr(self, 'xy'[i], v)
+    def __mul__(self, r): return _Vec(self.x*r, self.y*r) if type(r) in (int, float) else self.x*r[0]+self.y*r[1]
+    def __rmul__(self, r): return self*r
+    def __truediv__(self, r): return _Vec(self.x/r, self.y/r)
+    def __imul__(self, r): self.x *= r; self.y *= r; return self
+    def __add__(self, r): return _Vec(self.x+r[0], self.y+r[1])
+    def __radd__(self, r): return _Vec(self.x+r[0], self.y+r[1])
+    def __sub__(self, r): return _Vec(self.x-r[0], self.y-r[1])
+    def __rsub__(self, r): return _Vec(r[0]-self.x, r[1]-self.y)
+    def __neg__(self): return _Vec(-self.x, -self.y)
+    def __abs__(self): return (self.x**2+self.y**2)**.5
 #-------------------------------------------------------------------------------

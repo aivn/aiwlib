@@ -76,12 +76,12 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		if(fai&(1<<(7+2*a))){ plt->bmin[i] = bmin[a]; plt->bmax[i] = bmax[a]; plt->bbeg[i] = 0; plt->bbox[i] = bbox[a]; } // автошкалирование по оси
 		else { // bbox, bbeg ???
 			double A = bmin_[a], B = bmax_[a]; if((A<B)^(bmin[a]<bmax[a])) std::swap(A, B);  // ставим пределы сцены в том же порядке что и в контейнере		   
-			if((A<B && A<bmin[a])||(A>B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
+			if((A<=B && A<bmin[a])||(A>=B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
 			else {
 				plt->bbeg[i] = lgs? log(A/bmin[a])/step[a]: (A-bmin[a])/step[a];
 				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
 			}
-			if((A<B && B>bmax[a])||(A>B && B<bmax[a])){ plt->bbox[i] = bbox[a]; plt->bmax[i] = bmax[a]; } // выход за правую границу
+			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]; plt->bmax[i] = bmax[a]; } // выход за правую границу
 			else {
 				plt->bbox[i] = (lgs? log(B/plt->bmin[i])/step[a]: (B-plt->bmin[i])/step[a])+.5;
 				if(plt->bbox[i]<1) plt->bbox[i] = 1;
@@ -91,6 +91,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 				}
 				plt->bmax[i] = lgs ? plt->bmin[i]*pow(step[a], plt->bbox[i]) : plt->bmin[i] + plt->bbox[i]*step[a];
 			}
+			// WERR(i, A, B, plt->bmin[i], plt->bmax[i]);
 		}
 		if(plt->flips&(1<<i)) std::swap(plt->bmin[i], plt->bmax[i]); 
 	}  // конец цикла по осям, настроены пределы отрисовки плоттера
@@ -190,10 +191,10 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 		Vecf<2> nX = f.bbox[0]*n_perp[1]/(n_perp[1]*ac);
 		Vecf<2> nY = f.bbox[1]*n_perp[0]/(n_perp[0]*ac);
 		// r = (I-a)*nX, (I-a)*nY --> r[0] = (I[0]-a[0])*nX[0]
-		f.nX = vecf(nX[0], nY[0]);
-		f.nY = vecf(nX[1], nY[1]); 
-		// f.nX = f.bbox[0]/ab.abs()*(n_ab - p_ab*ctg_nn);
-		// f.nY = f.bbox[1]/ad.abs()*(n_ad - p_ad*ctg_nn);
+		// f.nX = vecf(nX[0], nY[0]);
+		// f.nY = vecf(nX[1], nY[1]); 
+		f.nX[0] = nX[0]; f.nX[1] = nY[0];
+		f.nY[0] = nX[1]; f.nY[1] = nY[1];
 		for(int i=0; i<2; i++) for(int j=0; j<4; j++){ ibmin[i] = std::min(ibmin[i], f.abcd(j)[i]); ibmax[i] = std::max(ibmax[i], f.abcd(j)[i]); }
 
 		/*

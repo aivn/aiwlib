@@ -72,7 +72,7 @@ class Canvas(QtWidgets.QWidget):
         for i in range(self.container.get_dim()):
             sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
             sl.setValue(0 if self.autopos(i) else max(min(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
-        for i in range(self.container.get_dim(), 6): getattr(win, 'fr_slice%i'%(i+1)).hide()            
+        for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()            
         self.show_axis_info()
         self.replot()
     #--------------------------------------------------------------------------
@@ -89,16 +89,16 @@ class Canvas(QtWidgets.QWidget):
                 getattr(self.win, 'min%i'%(1+i)).setText('%g'%self.container.get_bmin(i))
                 getattr(self.win, 'max%i'%(1+i)).setText('%g'%self.container.get_bmax(i))
                 getattr(self.win, 'step%i'%(1+i)).setText('%g'%self.container.get_step(i))
-                getattr(self.win, 'logsc%i'%(1+i)).setText('V'*self.container.get_logscale(i))
+                getattr(self.win, 'logsc%i'%(1+i)).setText('logsc.'*self.container.get_logscale(i))
+                getattr(self.win, 'size%i'%(i+1)).setText(str(self.container.get_bbox(self.axisID[i])))
                 getattr(self.win, 'fr_axe%i'%(1+i)).show()
-            for i in range(self.container.get_dim(), 8): getattr(self.win, 'fr_axe%i'%(1+i)).hide()
+            for i in range(self.container.get_dim(), 6): getattr(self.win, 'fr_axe%i'%(1+i)).hide()
         else:
-            for i in range(1,9): getattr(self.win, 'fr_axe%i'%i).hide()
+            for i in range(1,7): getattr(self.win, 'fr_axe%i'%i).hide()
     #--------------------------------------------------------------------------
     def make_up(self):
         #print('make_im')
         win, t0, self.D3 = self.win, time.time(), self.win.D3.currentIndex()  and self.container.get_dim()>2
-        for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.container.get_bbox(self.axisID[i])))
         for i in range(self.container.get_dim()):
             if i in self.axisID[:2+self.D3]: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
             getattr(win, 'fr_slice%i'%(i+1)).show()
@@ -107,7 +107,7 @@ class Canvas(QtWidgets.QWidget):
         else: win.z_frame.hide()
 
         try: accessor_mask = int(win.cellmask.text(), base=16)
-        except: accessor_mask = 0; print('bad mask', win.cellmask.text())
+        except: accessor_mask = 0; print('bad accessor mask', win.cellmask.text())
 
         self.win2faai()
         if not hasattr(self, 'f_lim'): self.f_lim = [win.f_min.text(), win.f_max.text()]
@@ -125,6 +125,8 @@ class Canvas(QtWidgets.QWidget):
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
                                               self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
                                               win.D3scale_mode.currentIndex()) #int D3scale_mode
+        for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):
+            getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
         
         #    x0  title  x1
         # y0 -+---------+-
@@ -212,8 +214,10 @@ class Canvas(QtWidgets.QWidget):
                             paint.drawText(0, 0, 1000, 1000, 0, lbl)
                             paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
                         else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
+                self.mouse_table.append(MouseFlat3D(f, self.plotter.center, [self.plotter.get_bbox(f.axis[a]) for a in (0,1)],
+                                                    [self.plotter.get_logscale(f.axis[a]) for a in (0,1)], self.plotter.get))
             #paint.setPen(QtGui.QPen(QtCore.Qt.black))
-            self.mouse_table.append(MouseFlat3D())
+            #self.mouse_table.append(MouseFlat3D())
         else:  #--- 2D mode ----------------------------------------------------
             #print(self.plotter.get_bmin(0), self.plotter.get_bmax(0))
             y1 = sz_y - 2*tl - h_font*(1+2*bool(win.x_text.text()))
@@ -242,7 +246,6 @@ class Canvas(QtWidgets.QWidget):
             self.mouse_table.append(MouseFlat2D((x0, y0), (x1, y1), xy_min=list(map(self.plotter.get_bmin, (0,1))), xy_max=list(map(self.plotter.get_bmax, (0,1))),
                                                 logscale=list(map(self.plotter.get_logscale, (0,1))), getval=self.plotter.get))
         #--- end of 2D/3D modes ------------------------------------------------
-        #self.im, image = image, self.im
         self.im = image; return image
     #---------------------------------------------------------------------------
     def replot(self, *args):
@@ -259,10 +262,6 @@ class Canvas(QtWidgets.QWidget):
         else: im = self.mouse.make_up(self) if self.mouse else self.make_up()
         paint = QtGui.QPainter(self) # перенести в self.replot?
         paint.drawImage(0, 0, im)
-#        del paint
-
-        # эта фнукция вызывается всегда, при любом чихе, движении мыши и пр. Как в нее встроить то что рисует? callback?
-    #---------------------------------------------------------------------------        
     def leaveEvent(self, event): self.single_make_up = lambda slf: slf.im; self.update()
     #---------------------------------------------------------------------------
     def mousePressEvent(self, event):

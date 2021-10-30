@@ -40,7 +40,7 @@ class Connect:
         #print('>>>', bytes(prefix, 'utf8')+s)
         self.cout.write(bytes(prefix, 'utf8')+s); self.cout.flush()
     def recv(self, types): # i, f, s or Xi, Xf for arrays
-        R, sz = [], None #; print('<<<', types)
+        R, sz = [], None; #print('<<<', types)
         for t in types:
             if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
             elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
@@ -101,13 +101,13 @@ class QpltPlotter:
     def set_image_size(self, xy1, xy2):
         self._connect.send('s', self._ID, xy1, xy2)
         self.center, self.ibmin, self.ibmax = self._connect.recv('2i2i2i')
-        for f in self._flats: f.a, f.b, f.c, f.d = self._connect.recv('2i2i2i2i')
+        for f in self._flats: f.a, f.b, f.c, f.d, f.nX, f.nY = self._connect.recv('2i2i2i2i2f2f')
     def plot(self):
         self._connect.send('P', self._ID)
         return self._connect.cin.read(4*(self.ibmax[0]-self.ibmin[0])*(self.ibmax[1]-self.ibmin[1]))
     def get(self, xy): self._connect.send('g', self._ID, xy); return self._connect.recv('s')[0]
 #-------------------------------------------------------------------------------
 class QpltFlat:
-    def __init__(self, connect): self.axis, self.bounds, self.bmin, self.bmax = connect.recv('2ii2f2f')
+    def __init__(self, connect):  self.axis, self.bounds, self.bmin, self.bmax = connect.recv('2ii2f2f')
 #-------------------------------------------------------------------------------
 

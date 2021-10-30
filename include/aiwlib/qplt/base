@@ -107,12 +107,14 @@ namespace aiw{
 		int a[2], b[2], c[2], d[2];  // в пикселях, абсолютные координаты. Эти параметры пробрасываются в питон благодаря typemaps
 		int axis[2], bounds;         // оси флэта и битовая маска (какие ребра являются внешними, по два бита на ребро, внешнее:(левое-нижнее/правое-верхнее))
 		float bmin[2], bmax[2];      // и позицию +/- сюда же???
+		float nX[2], nY[2]; 
 		// #ifndef SWIG
 		aiw::Ind<2>& abcd(int i){ return *(Ind<2>*)(i%4==0? a: (i%4==1? b: (i%4==2? c: d))); }		
 		aiw::Ind<6> spos; aiw::Vecf<2> ppf[4];  // spos содержит позицию с учетом bbeg, ppf в -1...1, в размерах картинки
-		aiw::Vecf<2> nX, nY, rn[2]; aiw::Ind<2> bbox; 
+		aiw::Vecf<2> /*nX, nY,*/ rn[2]; aiw::Ind<2> bbox; 
 		bool image2flat(int x, int y, aiw::Vecf<2> &r) const {
-			r = (x-a[0])*nX+(y-a[1])*nY; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
+			// r = (x-a[0])*nX+(y-a[1])*nY; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
+			for(int i=0; i<2; i++) r[i] = (x-a[0])*nX[i]+(y-a[1])*nY[i]; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
 			return 0<=r[0] && 0<=r[1] && r[0]<=bbox[0] && r[1]<=bbox[1];
 		}
 		void flat2image(aiw::Vecf<2> r, int xy[2]) const { for(int i=0; i<2; i++) xy[i] = a[i]+r*rn[i]+.5f; }
