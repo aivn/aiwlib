@@ -93,6 +93,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			}
 			// WERR(i, A, B, plt->bmin[i], plt->bmax[i]);
 		}
+		plt->spos[a] = plt->bbeg[i];
 		if(plt->flips&(1<<i)) std::swap(plt->bmin[i], plt->bmax[i]); 
 	}  // конец цикла по осям, настроены пределы отрисовки плоттера
 
@@ -128,7 +129,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			pp[i] = vecf(r*nX, r*nY);  A <<= pp[i]; B >>= pp[i];
 			// if(i==0 || r*nS>Zmin) Zmin = r*nS; 
 		}  // конец цикла по углам куба
-
+		// WERR(plt->spos, plt->bmin, plt->bmax, plt->bbeg, plt->bbox);
 		for(int axe=0; axe<3; axe++){  // цикл по осям --- ищем отображаемые грани, достаточно проверить глубину одной вершины
 			Vecf<3> r = plt->bbox&d/2; float z_plus = nS*r;
 			r[axe] = -r[axe]; float z_minus = nS*r;
@@ -138,6 +139,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 				f.spos = plt->spos; f.spos[axisID[axe]] = plt->bbeg[axe]+(plt->bbox[axe]-1)*((z_plus>z_minus)^bool(plt->flips&(1<<axe))); // z_plus>z_minus ???
 				for(int i=0, j=0; i<8; i++) if((i&m)==fix) f.ppf[j++] = pp[i];
 				std::swap(f.ppf[2], f.ppf[3]);
+				// WERR(f.axis[0], f.axis[1], f.spos, Vecf<2>(f.bmin), Vecf<2>(f.bmax));
 			}
 		}
 		for(auto &f: plt->flats){

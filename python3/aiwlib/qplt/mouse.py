@@ -126,15 +126,15 @@ class MouseFlat3D(Rect):
     def check(self, event): return bool(self.event2rpos(event)[1])
     def touch(self, canvas, event):
         rpos, axis = self.event2rpos(event) #; print(rpos, axis)
-        if len(axis)==1: self.line(event.x(), event.y(), *self.line_in(rpos, axis[0]))
+        if len(axis)==1: self.line(event.x(), event.y(), *self.line_in(rpos, axis[0]), color='black')
         else: self.line_in(rpos, axis[0]); self.line_in(rpos, axis[1])
         if axis==(0,1): xy = [event.x(), event.y()]; self.text(xy[0], xy[1], self.getval(xy).decode(), 'rb', 'red')
         return bool(self.plots)
     def press(self, canvas, event):  # если кнопка левая начинаем выделение/вращение, иначе выключаем/включаем выделение
         rpos, axis = self.event2rpos(event) 
         if(event.buttons()&1):
-            if len(axis)==2: self.rot = [event.x(), event.y()]  # вращение
-            else: self.sel = rpos, axis[0]               # начинаем выделение
+            if len(axis)==2: self.rot = [event.x(), event.y()]     # вращение
+            else: self.sel = rpos, axis[0], [event.x(), event.y()] # начинаем выделение
             return self
         #replot = False  # переключаем выделение
         for a in axis:
@@ -152,41 +152,20 @@ class MouseFlat3D(Rect):
             self.rot = x, y
             canvas.replot()
         elif self.sel:
-            self.line_in(*self.sel)
-            rpos, axis = self.event2rpos(event);  self.line_in(rpos, axis[0])
+            self.line(*(self.sel[2]+self.line_in(*self.sel[:2])), color='red')
+            rpos, axis = self.event2rpos(event)
+            if axis: self.line(event.x(), event.y(), *self.line_in(rpos, axis[0]), color='green')
             canvas.update()
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         if self.rot: self.rot = None; return
-        rpos0, a = self.sel;  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
-        if rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
+        rpos0, a = self.sel[:2];  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
+        if not a1 or rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
         canvas.autolim_off(A); c, AA = True, canvas.axisID[A] 
         lim = [self.p2f(a, rpos0[a]), self.p2f(a, rpos1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[AA]<canvas.bmax[AA])
         canvas.bmin[AA], canvas.bmax[AA] = lim[inv], lim[1-inv]
         return True
     def p2f(self, axe, fpos): return _one2coord(self.flat.bmin[axe], self.flat.bmax[axe], self.logscale[axe], fpos/self.bbox[axe])
     def make_up(self, container): return Rect.make_up(self, container) if self.plots else container.make_up() #container.light_replot()
-        
-    #def line_text(self, a, i, f, color='red'):
-    #    self.line(i, self.bmin[1], i, self.bmax[1], 'gray'); self.text(i, self.bmax[1], '%g'%f, 'lt', color)
-    
-#-------------------------------------------------------------------------------
-
-# тут надо написать функцию обрабатывающую шкалирование области
-class MouseFlat3D0:
-    def __init__(self): pass
-    def check(self, event): return True
-    def touch(self, container, event): pass
-    def press(self, container, event): self.x, self.y = event.x(), event.y(); return self
-    def move(self, container, event):
-        x, y = event.x(), event.y()
-        container.th_phi[0] -= (y-self.y)*.1
-        container.th_phi[1] += (x-self.x)*.1
-        self.x, self.y = x, y
-        container.replot()
-    def release(self, container, event): pass
-    def make_up(self, container): return container.make_up() #container.light_replot()
-    def wheel(self, container, event): pass
-    
 #-------------------------------------------------------------------------------
 class _Vec:
     def __init__(self, x, y): self.x, self.y = x, y
