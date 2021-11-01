@@ -6,18 +6,35 @@ __all__ = ['factory', 'Connect']
 import os, sys, struct, paramiko, atexit
 
 #-------------------------------------------------------------------------------
-connect_table, command = {}, 'aiwlib/bin/qplt-remote'
+connect_table, keys_table, command = {}, {}, 'qplt-remote'
 
+#---   read config file   ------------------------------------------------------
+try: config, kmode = open(os.path.expanduser('~/.qplt')), False
+except: config = []
+for l in config:
+    l = l.strip()
+    if not l: continue
+    if l[-1]==':': kmode = l=='KEYS:'; continue
+    if not kmode: continue
+    l = l.split()
+    for k in l[:-1]:
+        a, h = k.split('=', 1) if '=' in k else (k, k)
+        u, h = h.split('@', 1) if '@' in h else (None, h)
+        keys_table[a] = (u, h, l[-1])
+#-------------------------------------------------------------------------------
 def factory(fname, host, **params):
     if not host in connect_table: connect_table[(host, params.get('port'))] = Connect(host, **params)
     return connect_table[(host, params.get('port'))].load_frames(fname)
 #-------------------------------------------------------------------------------
 class Connect:
     def __init__(self, host, **params):
-        if 'user' in params: params['username'] = params.pop('user')
         self.client, self.host = paramiko.SSHClient(), host
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.client.connect(hostname=host, **params) # password=secret
+        if host in keys_table:
+            user, host, key = keys_table[host]; params['key'] = paramiko.RSAKey.from_private_key_file(key)
+            if user and not 'user' in params: params['user'] = user
+        if 'user' in params: params['username'] = params.pop('user')
+        self.client.connect(hostname=host, compress=True, **params) # password=secret
         self.cout, self.cin, self.cerr = self.client.exec_command(command)
         atexit.register(self.close)
         #print(self.cerr.readlines())
@@ -33,22 +50,24 @@ class Connect:
     #   base protocol
     #---------------------------------------------------------------------------
     def send(self, prefix, *args):
-        #print('>>>', prefix, args)
+        print('>>>', prefix, args)
         s = b''.join([struct.pack('i', x) if type(x) in (int, bool) else struct.pack('f', x) if type(x) is float else
                       struct.pack('i', len(x))+(bytes(x, 'utf8') if type(x) is str else x) if type(x) in (str, bytes)
                       else struct.pack('i'*len(x), *x)  if type(x[0]) is int else struct.pack('f'*len(x), *x) for x in args])
         #print('>>>', bytes(prefix, 'utf8')+s)
         self.cout.write(bytes(prefix, 'utf8')+s); self.cout.flush()
     def recv(self, types): # i, f, s or Xi, Xf for arrays
-        R, sz = [], None; #print('<<<', types)
-        for t in types:
-            if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
-            elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
-            elif t=='f': R.append(struct.unpack('f', self.cin.read(4))[0])
-            elif t=='s': R.append(self.cin.read(struct.unpack('i', self.cin.read(4))[0]))
-            else: sz = int(t)
-        #print('<<<', R)
-        return R
+        try:
+            R, sz = [], None; print('<<<', types)
+            for t in types:
+                if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
+                elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
+                elif t=='f': R.append(struct.unpack('f', self.cin.read(4))[0])
+                elif t=='s': R.append(self.cin.read(struct.unpack('i', self.cin.read(4))[0]))
+                else: sz = int(t)
+            print('<<<', R)
+            return R
+        except: print('RECV %s FAILED:\n'%self.host, ''.join(self.cerr.readlines()), R); raise
 #-------------------------------------------------------------------------------
 #   remote container
 #-------------------------------------------------------------------------------

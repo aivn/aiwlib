@@ -82,6 +82,7 @@ qplt4win.zip: bin/qplt $(shell echo python3/aiwlib/qplt/{__init__,canvas,factory
 	mkdir -p qplt4win/aiwlib/qplt/pals
 	cp bin/qplt qplt4win/qplt.py
 	cp python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py python3/aiwlib/qplt/qplt.ui qplt4win/aiwlib/qplt/
+	cp .qplt qplt4win/ 
 	cp python3/aiwlib/qplt/pals/*.ppm qplt4win/aiwlib/qplt/pals/
 	rm -f qplt4win.zip
 	zip qplt4win.zip qplt4win/qplt.py qplt4win/aiwlib/qplt/* qplt4win/aiwlib/qplt/pals/*
