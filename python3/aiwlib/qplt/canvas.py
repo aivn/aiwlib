@@ -279,11 +279,11 @@ class Canvas(QtWidgets.QWidget):
             if self.mouse.release(self, event): self.mouse = None; self.replot()
             else: self.mouse = None; self.single_make_up = lambda slf: slf.im; self.update()            
     def wheelEvent(self, event):
-        if self.mouse: self.mouse.wheel(self, event); return
+        #if self.mouse: self.mouse.wheel(self, event); return
         for m in self.mouse_table:
-            if m.check(event) and m.wheel(self, event): break
+            if m.wheel(self, event): break
         
-        print(event.angleDelta(), event.buttons(), event.globalPos(), event.phase())
+        #print(event.angleDelta(), event.buttons(), event.globalPos(), event.phase())
 #-------------------------------------------------------------------------------
 
 

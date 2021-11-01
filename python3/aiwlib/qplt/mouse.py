@@ -47,11 +47,11 @@ class MousePaletter(Rect):
     def touch(self, canvas, event): y = event.y();  self.line_text(y, self.y2f(y)); return True
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.y0 = event.y(); self.f0 = self.y2f(self.y0); return self  # левая кнопка
-        # elif(event.buttons()&2): pass # правая кнопка
-        win = canvas.win
-        if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
-        else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
-        canvas.replot()
+        if(event.buttons()&2): # правая кнопка
+            win = canvas.win
+            if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
+            else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
+            canvas.replot()
     def move(self, canvas, event): y = event.y(); self.line_text(self.y0, self.f0, 'green'); self.line_text(y, self.y2f(y)); canvas.update()
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         f0, f1 = self.f0, self.y2f(event.y())
@@ -60,7 +60,21 @@ class MousePaletter(Rect):
         win = canvas.win; win.autoscale.setChecked(False)
         win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1])
         return True
-    def wheel(self, canvas, event): pass # без нажатой правой кнопки перемотка выделенной области, иначе масштабирование, по зонам движение только одной из границ?
+    def wheel(self, canvas, event):
+        x, y, win = event.x(), event.y(), canvas.win
+        if x<self.bmin[0]: return False
+        f0, f1 = float(win.f_min.text()), float(win.f_max.text())
+        sign = -1 if (event.angleDelta().y()<0)^(f0<f1) else 1
+        if self.bmin[0]<x<self.bmax[0] and self.bmin[1]<y<self.bmax[1]: w_min = (self.bmax[1]-y)/self.bbox[1]; w_max = 1-w_min  # веса зумирования
+        elif y<self.bmin[1]: w_max, w_min = 1, 0
+        elif y>self.bmax[1]: w_max, w_min = 0, 1
+        else: w_min, w_max = -1, 1
+        if self.logscale: f0, f1 = f0*pow(f1/f0, -.1*w_min*sign), f1*pow(f1/f0, .1*w_max*sign)
+        else: f0, f1 = f0-.1*(f1-f0)*w_min*sign, f1+.1*(f1-f0)*w_max*sign
+        canvas.f_lim = ['%g'%f0, '%g'%f1] if f0<f1 else ['%g'%f1, '%g'%f0]
+        win.autoscale.setChecked(False)
+        win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1])
+        canvas.replot(); return True
 #-------------------------------------------------------------------------------
 class MouseFlat2D(Rect):
     def check(self, event): return event.x()<self.bmax[0] and self.bmin[1]<event.y()
@@ -76,13 +90,14 @@ class MouseFlat2D(Rect):
         return bool(self.plots)
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.xy0 = [event.x(), event.y()]; return self  # левая кнопка
-        xy, c = [event.x(), event.y()], False
-        for a in (0, 1):
-            if self.bmin[a]<xy[a]<self.bmax[a]:
-                if canvas.autolim(a): canvas.autolim_off(a)
-                else: canvas.autolim_on(a)
-                c = True
-        if c: canvas.replot()
+        if(event.buttons()&2):  # переклюдчаем выделение
+            xy, replot = [event.x(), event.y()], False
+            for a in (0, 1):
+                if self.bmin[a]<xy[a]<self.bmax[a]:
+                    if canvas.autolim(a): canvas.autolim_off(a)
+                    else: canvas.autolim_on(a)
+                    replot = True
+            if replot: canvas.replot()
     def move(self, canvas, event):
         if self.bmin[0]<self.xy0[0]<self.bmax[0]: self.line(self.xy0[0], self.bmin[1], self.xy0[0], self.bmax[1], 'gray')
         if self.bmin[1]<self.xy0[1]<self.bmax[1]: self.line(self.bmin[0], self.xy0[1], self.bmax[0], self.xy0[1], 'gray')
@@ -95,6 +110,25 @@ class MouseFlat2D(Rect):
             lim = [self.p2f(a, xy0[a]), self.p2f(a, xy1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[A]<canvas.bmax[A])
             canvas.bmin[A], canvas.bmax[A] = lim[inv], lim[1-inv]
         return c
+    def wheel(self, canvas, event):
+        xy, replot = [event.x(), event.y()], False
+        if self.bmax[0]<xy[0] or xy[1]<self.bmin[1]: return False
+        # print(xy, bzoom)
+        for a in (0,1):
+            if not (self.bmin[a]<=xy[a]<=self.bmax[a]): continue
+            f0, f1, A = self.xy_min[a], self.xy_max[a], canvas.axisID[a]; sign = -1 if (event.angleDelta().y()<0)^(f0<f1) else 1
+            F0, F1 = canvas.container.get_bmin(A), canvas.container.get_bmax(A)
+            zoom = self.bmin[0]/2<xy[0] if a else xy[1]<(self.bmax[1]+canvas.im.height())/2
+            if zoom: w_min = (self.bmax[1]-xy[1] if a else xy[0]-self.bmin[0])/self.bbox[a];  w_max = 1-w_min 
+            else: w_min, w_max = -1, 1
+            f0, f1 = f0-.1*(f1-f0)*w_min*sign, f1+.1*(f1-f0)*w_max*sign
+            if zoom:
+                f0 = max(F0, f0) if F0<F1 else min(F0, f0)
+                f1 = min(F1, f1) if F0<F1 else max(F1, f1)
+            elif ((f0<F0 or F1<f1) if F0<F1 else (f1<F1 or F0<f0)): continue
+            canvas.bmin[A], canvas.bmax[A], replot = f0, f1, True;  canvas.autolim_off(a)
+        if replot: canvas.replot()
+        return replot    
 #-------------------------------------------------------------------------------
 class MouseFlat3D(Rect):
     def __init__(self, flat, center, bbox, logscale, getval):
@@ -105,7 +139,7 @@ class MouseFlat3D(Rect):
             self.bb[i] = self.ee[i] = _Vec(*getattr(flat, 'bd'[i]))-flat.a; self.ee[i] = self.ee[i]/bbox[i] # bb --- смещение || грани флэта в пикселях
             self.cc[i] = getattr(flat, ('bd', 'ac', 'db', 'ca')[ci][i])-self.c; self.cc[i] *= 1/bbox[i] #/abs(self.cc[i])
             self.cflips[i] = self.cc[i]*self.ee[i]<0  # развороты осей при переходе от сист. коорд. свяазнных с flat.a к self.c
-            self.pp[i] = _Vec(self.cc[i][1], -self.cc[i][0])
+            self.pp[i] = _Vec(self.cc[i][1], -self.cc[i][0]); self.pp[i] *= 1/abs(self.pp[i])
             if self.pp[i]*nC<0: self.pp[i] = -self.pp[i]
         self.ccbb, self.rot, self.sel, self.logscale = [v/abs(v)**2 for v in self.cc], None, None, logscale
     def event2rpos(self, event):  # ==> rpos, mask (битовая маска, какие оси валидны)
@@ -136,14 +170,12 @@ class MouseFlat3D(Rect):
             if len(axis)==2: self.rot = [event.x(), event.y()]     # вращение
             else: self.sel = rpos, axis[0], [event.x(), event.y()] # начинаем выделение
             return self
-        #replot = False  # переключаем выделение
-        for a in axis:
-            A = self.flat.axis[a]
-            #if self.flat.bmin[a]<rpos[a]<self.flat.bmax[a]:
-            if canvas.autolim(A): canvas.autolim_off(A)
-            else: canvas.autolim_on(A)
-            #replot = True
-        if axis: canvas.replot()
+        if(event.buttons()&2):  # переключаем выделение
+            for a in axis:
+                A = self.flat.axis[a]
+                if canvas.autolim(A): canvas.autolim_off(A)
+                else: canvas.autolim_on(A)
+            if axis: canvas.replot()
     def move(self, canvas, event):
         if self.rot:
             x, y = event.x(), event.y()
@@ -166,6 +198,28 @@ class MouseFlat3D(Rect):
         return True
     def p2f(self, axe, fpos): return _one2coord(self.flat.bmin[axe], self.flat.bmax[axe], self.logscale[axe], fpos/self.bbox[axe])
     def make_up(self, container): return Rect.make_up(self, container) if self.plots else container.make_up() #container.light_replot()
+    def wheel(self, canvas, event):
+        rpos, axis = self.event2rpos(event)
+        if not axis: return False
+        replot = False
+        for a in axis:
+            A = self.flat.axis[a]; AA = canvas.axisID[A];
+            f0, f1 = (self.flat.bmin[a], self.flat.bmax[a]) if canvas.autolim(A) else (canvas.bmin[AA], canvas.bmax[AA])
+            sign = -1 if (event.angleDelta().y()<0)^(f0<f1) else 1
+            F0, F1 = canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)            
+            zoom = self.pp[a]*(_Vec(event.x(), event.y())-self.c)>-30            
+            if zoom: w_min = rpos[a]/self.bbox[a];  w_max = 1-w_min 
+            else: w_min, w_max = -1, 1
+            #print('<<<', self.flat.axis[a], zoom, f1-f0)
+            ff = f1-f0; f0, f1 = f0-.1*ff*w_min*sign, f1+.1*ff*w_max*sign
+            if zoom:
+                f0 = max(F0, f0) if F0<F1 else min(F0, f0)
+                f1 = min(F1, f1) if F0<F1 else max(F1, f1)
+            elif ((f0<F0 or F1<f1) if F0<F1 else (f1<F1 or F0<f0)): continue
+            #print('>>>', self.flat.axis[a], zoom, f1-f0)
+            canvas.bmin[AA], canvas.bmax[AA], replot = f0, f1, True;  canvas.autolim_off(A)
+        if replot: canvas.replot()
+        return replot    
 #-------------------------------------------------------------------------------
 class _Vec:
     def __init__(self, x, y): self.x, self.y = x, y
