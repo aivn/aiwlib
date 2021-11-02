@@ -31,7 +31,7 @@ class Connect:
         self.client, self.host = paramiko.SSHClient(), host
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         if host in keys_table:
-            user, host, key = keys_table[host]; params['key'] = paramiko.RSAKey.from_private_key_file(key)
+            user, host, key = keys_table[host]; params['pkey'] = paramiko.RSAKey.from_private_key_file(key)
             if user and not 'user' in params: params['user'] = user
         if 'user' in params: params['username'] = params.pop('user')
         self.client.connect(hostname=host, compress=True, **params) # password=secret
