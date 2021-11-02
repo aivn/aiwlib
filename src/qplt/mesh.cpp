@@ -27,7 +27,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	size_t sz = szT; for(int i=0; i<dim; i++) sz *= bbox[i];
-	mem_sz = sz/1e9;  fin = S.copy();  mem_offset = S.tell(); mem.reset();if(!S.seek(sz, 1)) return false;  // файл битый, записан не до конца
+	mem_sz = sz/1e9;  fin = S.copy();  mem_offset = S.tell(); mem.reset(); if(!S.seek(sz, 1)) return false;  // файл битый, записан не до конца
 	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(&bmin_, dim*8); S.read(&bmax_, dim*8); S.seek(dim*8, 1); S.seek(szT, 1); logscale = 0;  } 
@@ -46,10 +46,10 @@ bool aiw::QpltMesh::load(IOstream &S){
 	return true;
 }
 //------------------------------------------------------------------------------
-void aiw::QpltMesh::data_free_impl(){ mem.reset(); }  // выгружает данные из памяти
+void aiw::QpltMesh::data_free_impl(){ WERR(this); mem.reset(); }  // выгружает данные из памяти
 void aiw::QpltMesh::data_load_impl(){                 // загружает данные в память
 	size_t sz = szT; for(int i=0; i<dim; i++) sz *= bbox[i];
-	fin->seek(mem_offset); mem = fin->mmap(sz, 0);
+	fin->seek(mem_offset); mem = fin->mmap(sz, 0); WERR(this, mem.get());
 	// WOUT(mem_offset, mem->get_addr());
 }
 //------------------------------------------------------------------------------

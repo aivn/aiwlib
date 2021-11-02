@@ -20,23 +20,26 @@ double aiw::QpltContainer::mem_limit = 4.; // лимит на размер па�
 std::list<QpltContainer*> aiw::QpltContainer::mem_queue;
 const std::string aiw::QpltContainer::default_anames[6] = {"x", "y", "z", "u", "v", "w"};
 
-void aiw::QpltContainer::data_load(){  // освобождает память перед загрузкой данных
-	double queue_sz = mem_sz; auto Q = mem_queue.end();
-	for(auto I=mem_queue.begin(); I!=mem_queue.end(); ++I){
-		if(*I==this){ queue_sz = 0; Q = I; break; }
-		queue_sz += (*I)->mem_sz; if(queue_sz>mem_limit) Q = I;
+void aiw::QpltContainer::data_load(){  // освобождает память перед загрузкой данных, данные лежат в очереди в порядке последнего обращения
+	// WERR(mem_limit, mem_queue.size(), mem_sz); 
+	double queue_sz = mem_sz; auto Q = mem_queue.end();  // общий размер данных в очереди и итератор на this (если есть) 
+	for(auto I=mem_queue.begin(); I!=mem_queue.end();){  // считаем размер памяти занятый очередью и при необходимости чистим ее хвост 
+		if(*I==this){  Q = I; break; }  // данные уже загружены, все ОК		
+		if(queue_sz+(*I)->mem_sz>mem_limit){ (*I)->data_free_impl(); mem_queue.erase(I++); }
+		else{ queue_sz += (*I)->mem_sz; I++; }
 	}
-	if(queue_sz>mem_limit) while(Q!=mem_queue.end()) mem_queue.erase(Q++); // нужна память для загрузки данных, чистим хвост списка
-	else if(Q!=mem_queue.end()) mem_queue.erase(Q); // данные уже загружены, просто нужно переставить элемент вперед
+	// WERR(*Q, *mem_queue.end(), queue_sz, mem_limit);
+	if(Q!=mem_queue.end()) mem_queue.erase(Q); // данные уже загружены, просто нужно переставить элемент вперед
 	else data_load_impl();
 	mem_queue.push_front(this);
+	// WERR("OK");
 }
 void aiw::QpltContainer::data_free(){  // освобождает память перед загрузкой данных
-	printf("free 0\n");
-	for(auto I=mem_queue.begin(); I!=mem_queue.end(); ++I) if(*I==this){ printf("free =\n"); mem_queue.erase(I); break; }
-	printf("free 2\n");
+	WERR("begin");
+	for(auto I=mem_queue.begin(); I!=mem_queue.end(); ++I) if(*I==this){ WERR("free"); mem_queue.erase(I); break; }
+	WERR("middle");
 	data_free_impl();
-	printf("free 3\n");
+	WERR("OK");
 }
 //------------------------------------------------------------------------------
 void aiw::QpltContainer::calc_step(){

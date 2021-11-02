@@ -9,6 +9,9 @@ std::map<int, QpltPlotter*> plotters;
 int last_plotter_ID = 0;
 
 int main(){ // передавать при запуске размер памяти?
+	qplt_global_init();
+	QpltContainer::mem_limit = .005;
+	
 	StdOstream stdOut; StdIstream  stdIn;  // File flog("qplt.log", "w");
 	while(1){
 		char A = std::cin.get(); 
@@ -53,6 +56,7 @@ int main(){ // передавать при запуске размер памя�
 			std::cout.flush();
 		} else if(A=='P'){ int pID; stdIn.load(pID); std::string im = plotters[pID]->plot(); stdOut.write(im.c_str(), im.size()); std::cout.flush(); } // отрисовка
 		else if(A=='g'){ int pID, xy[2]; stdIn.load(pID, xy); stdOut.dump(plotters[pID]->get(xy)); std::cout.flush(); } // значение в точке
+		else if(A=='m'){ float m; stdIn.load(m); QpltContainer::mem_limit = m; }  // устанавливаем лимит памяти
 		else break; //if(A=='E') break;
 	}
 	return 0;

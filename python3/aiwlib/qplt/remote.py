@@ -6,7 +6,7 @@ __all__ = ['factory', 'Connect']
 import os, sys, struct, paramiko, atexit
 
 #-------------------------------------------------------------------------------
-connect_table, keys_table, command = {}, {}, 'qplt-remote'
+connect_table, keys_table, command = {}, {}, 'bin/qplt-remote'
 
 #---   read config file   ------------------------------------------------------
 try: config, kmode = open(os.path.expanduser('~/.qplt')), False
@@ -46,6 +46,7 @@ class Connect:
             if L: res.append(L)
         return res
     def close(self): self.cout.write('E'); self.cout.flush(); self.client.close() #; print('BYE')
+    def mem_limit(self, mem_limit): self.send('m', float(mem_limit))
     #---------------------------------------------------------------------------
     #   base protocol
     #---------------------------------------------------------------------------

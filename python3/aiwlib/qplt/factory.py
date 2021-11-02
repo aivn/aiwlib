@@ -5,11 +5,13 @@ Licensed under the Apache License, Version 2.0'''
 #-------------------------------------------------------------------------------
 table, __all__ = [], ['get_frame', 'table_size', 'file_size', 'load_files']
 
-import glob
+import glob, sys
 
 try: from . import core
 except ImportError as e: core = False; print(e)
-if core: core.qplt_global_init()
+if core:
+    core.qplt_global_init()
+    if len(sys.argv)>2 and sys.argv[1].startswith('-m'): core.QpltContainer.mem_limit.fset(float(sys.argv[1][2:])); del sys.argv[1]
 
 try: from . import remote
 except ImportError as e: remote = False; print(e)
