@@ -50,22 +50,22 @@ class Connect:
     #   base protocol
     #---------------------------------------------------------------------------
     def send(self, prefix, *args):
-        print('>>>', prefix, args)
+        #print('>>>', prefix, args)
         s = b''.join([struct.pack('i', x) if type(x) in (int, bool) else struct.pack('f', x) if type(x) is float else
                       struct.pack('i', len(x))+(bytes(x, 'utf8') if type(x) is str else x) if type(x) in (str, bytes)
                       else struct.pack('i'*len(x), *x)  if type(x[0]) is int else struct.pack('f'*len(x), *x) for x in args])
-        #print('>>>', bytes(prefix, 'utf8')+s)
+        ##print('>>>', bytes(prefix, 'utf8')+s)
         self.cout.write(bytes(prefix, 'utf8')+s); self.cout.flush()
     def recv(self, types): # i, f, s or Xi, Xf for arrays
         try:
-            R, sz = [], None; print('<<<', types)
+            R, sz = [], None; #print('<<<', types)
             for t in types:
                 if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
                 elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
                 elif t=='f': R.append(struct.unpack('f', self.cin.read(4))[0])
                 elif t=='s': R.append(self.cin.read(struct.unpack('i', self.cin.read(4))[0]))
                 else: sz = int(t)
-            print('<<<', R)
+            #print('<<<', R)
             return R
         except: print('RECV %s FAILED:\n'%self.host, ''.join(self.cerr.readlines()), R); raise
 #-------------------------------------------------------------------------------

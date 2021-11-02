@@ -139,8 +139,7 @@ class MouseFlat3D(Rect):
             self.bb[i] = self.ee[i] = _Vec(*getattr(flat, 'bd'[i]))-flat.a; self.ee[i] = self.ee[i]/bbox[i] # bb --- смещение || грани флэта в пикселях
             self.cc[i] = getattr(flat, ('bd', 'ac', 'db', 'ca')[ci][i])-self.c; self.cc[i] *= 1/bbox[i] #/abs(self.cc[i])
             self.cflips[i] = self.cc[i]*self.ee[i]<0  # развороты осей при переходе от сист. коорд. свяазнных с flat.a к self.c
-            try: self.pp[i] = _Vec(self.cc[i][1], -self.cc[i][0]); self.pp[i] *= 1/abs(self.pp[i])
-            except: print('errr', i, flat.axis, self.pp[i], self.cc[i])
+            self.pp[i] = _Vec(self.cc[i][1], -self.cc[i][0]); self.pp[i] *= 1/abs(self.pp[i])
             if self.pp[i]*nC<0: self.pp[i] = -self.pp[i]
         self.ccbb, self.rot, self.sel, self.logscale = [v/abs(v)**2 for v in self.cc], None, None, logscale
     def event2rpos(self, event):  # ==> rpos, mask (битовая маска, какие оси валидны)

@@ -199,6 +199,9 @@ class Canvas(QtWidgets.QWidget):
             #paint.setPen(QtGui.QPen(QtCore.Qt.gray))
             for i in range(plotter.flats_sz()):
                 f = plotter.get_flat(i)
+                try: self.mouse_table.append(MouseFlat3D(f, self.plotter.center, [self.plotter.get_bbox(f.axis[a]) for a in (0,1)],
+                                                         [self.plotter.get_logscale(f.axis[a]) for a in (0,1)], self.plotter.get))
+                except: pass
                 for j in range(4):
                     a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])  
                     paint.drawLine(*(a+b))
@@ -214,8 +217,6 @@ class Canvas(QtWidgets.QWidget):
                             paint.drawText(0, 0, 1000, 1000, 0, lbl)
                             paint.rotate(90); paint.translate(-lbl_pos[0], -lbl_pos[1])
                         else: paint.drawText(lbl_pos[0], lbl_pos[1], 1000, 1000, 0, lbl)
-                self.mouse_table.append(MouseFlat3D(f, self.plotter.center, [self.plotter.get_bbox(f.axis[a]) for a in (0,1)],
-                                                    [self.plotter.get_logscale(f.axis[a]) for a in (0,1)], self.plotter.get))
             #paint.setPen(QtGui.QPen(QtCore.Qt.black))
             #self.mouse_table.append(MouseFlat3D())
         else:  #--- 2D mode ----------------------------------------------------

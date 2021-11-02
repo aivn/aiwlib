@@ -34,7 +34,7 @@ namespace aiw{
 		
 		void close(){ pf.reset(); } 
 		long tell() const { return ::gztell(pf.get()); }
-		void seek(long offset, int whence=0){ ::gzseek(pf.get(), offset, whence); }
+		bool seek(long offset, int whence=0){ return !::gzseek(pf.get(), offset, whence); }
 		size_t read(void* buf, size_t size){ return ::gzread(pf.get(), buf, size); }
 		size_t write(const void* buf, size_t size){ return ::gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???

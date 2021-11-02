@@ -6,8 +6,11 @@ Licensed under the Apache License, Version 2.0'''
 table, __all__ = [], ['get_frame', 'table_size', 'file_size', 'load_files']
 
 import glob
+
 try: from . import core
 except ImportError as e: core = False; print(e)
+if core: core.qplt_global_init()
+
 try: from . import remote
 except ImportError as e: remote = False; print(e)
 #-------------------------------------------------------------------------------

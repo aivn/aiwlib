@@ -3,6 +3,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <omp.h>
 #include <sstream>
 #include "../../include/aiwlib/interpolations"
 #include "../../include/aiwlib/binary_format"
@@ -12,8 +13,10 @@ using namespace aiw;
 //   load data
 //------------------------------------------------------------------------------
 bool aiw::QpltMesh::load(IOstream &S){
+	double t0 = omp_get_wtime();
 	BinaryFormat bf;  bf.box = &bbox; Vec<6> bmin_, bmax_;  bf.bmin = &bmin_;  bf.bmax = &bmax_;  bf.axes = anames;  bf.D = -1;
 	size_t s = S.tell();  if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
+	double t1 = omp_get_wtime(); WERR(t1-t0);
 	head = bf.head; dim = bf.D; szT = bf.szT; logscale = bf.logscale; 
 	for(int i=0; i<dim; i++) if(anames[i].empty()) anames[i] = default_anames[i];
 	
@@ -24,8 +27,8 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	size_t sz = szT; for(int i=0; i<dim; i++) sz *= bbox[i];
-	mem_sz = sz/1e9;  fin = S.copy();  mem_offset = S.tell(); S.seek(sz, 1);  mem.reset();
-
+	mem_sz = sz/1e9;  fin = S.copy();  mem_offset = S.tell(); mem.reset();if(!S.seek(sz, 1)) return false;  // файл битый, записан не до конца
+	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(&bmin_, dim*8); S.read(&bmax_, dim*8); S.seek(dim*8, 1); S.seek(szT, 1); logscale = 0;  } 
 	else  S.seek(s);
@@ -39,6 +42,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// segy = false;
 
 	mul[0] = szT; for(int i=1; i<dim; i++) mul[i] = mul[i-1]*bbox[i-1];
+	WERR(omp_get_wtime()-t1);
 	return true;
 }
 //------------------------------------------------------------------------------
