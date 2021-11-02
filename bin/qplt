@@ -7,7 +7,11 @@
 #--- import modules ------------------------------------------------------------
 import os, sys
 
-try: os.environ['QT_SCREEN_SCALE_FACTORS'] = [l.split()[1] for l in open(os.path.expanduser('~/.qplt')) if l.split()[0]=='qtscale'][-1]
+try:
+    conf = dict([l.strip().split(' ', 1) for l in open(os.path.expanduser('~/.qplt')) if len(l.split())>=2])
+    if 'qtscale' in conf: os.environ['QT_SCREEN_SCALE_FACTORS'] = conf['qtscale'].strip()
+    if 'aiwlib' in conf: sys.path.append(conf['aiwlib'].strip())
+    del conf
 except: pass
 
 from PyQt5 import QtWidgets, QtGui, QtCore, uic
