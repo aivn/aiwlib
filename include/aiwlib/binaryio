@@ -60,7 +60,7 @@ namespace aiw{
 	// std::string
 	template <typename S> bool dump(S &s, const std::string& x){ return dump(s, uint32_t(x.size())) && s.write(&(x[0]), x.size())==x.size(); }
 	template <typename S> bool load(S &s, std::string& x){
-		uint32_t sz=0; if(!load(s, sz)) return false;
+		uint32_t sz=0; if(!load(s, sz) || !s.check_tail(sz)) return false; 
 		x.resize(sz); if(s.read(&(x[0]), sz)!=sz){ std::string().swap(x); return false; }
 		return true;
 	}
@@ -73,7 +73,7 @@ namespace aiw{
 		return true;
 	}
 	template <typename S, typename T> bool load(S &s, std::vector<T> &v){
-		uint64_t sz; if(!load(s, sz)){ return false; } if(!sz) return true;
+		uint64_t sz; if(!load(s, sz) || !s.check_tail(sz*sizeof(T))){ return false; } if(!sz) return true;
 		v.resize(sz); bool isOK = false;
 		if(aiw_dump_load<T>::mode==1) isOK = s.read(v.data(), sizeof(T)*sz)==sizeof(T)*sz;
 		else for(T& x: v) if(!load(s, x)){  isOK = false; break; }
@@ -107,7 +107,7 @@ namespace aiw{
 		return true;
 	}		
 	template <typename S, typename T> bool load(S &s, std::list<T>& X){
-		uint64_t sz = 0; if(!load(s, sz)) return false;
+		uint64_t sz = 0; if(!load(s, sz) || !s.check_tail(sz*sizeof(T))) return false;
 		X.resize(sz); for(T &x: X) if(!load(s, x)){ std::list<T>().swap(X); return false; }
 		return true;
 	}		
