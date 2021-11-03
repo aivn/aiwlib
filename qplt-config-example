@@ -1,0 +1,13 @@
+# example of qplt config file
+# push it to ~/.qplt
+#
+# change and uncomment the following lines as needed:
+
+#aiwlib PATH-TO-aiwlib/python3/
+#qtscale VALUE-OF-QT_SCREEN_SCALE_FACTORS
+
+# open SSH keys section
+#KEYS:
+#[shortname1=][user1@]host1 PATH-TO-OPENSSH-PUBLIC-KEY1
+#[shortname2=][user2@]host2 [shortname3=][user3@]host3 ...  PATH-TO-OPENSSH-PUBLIC-KEY23...
+

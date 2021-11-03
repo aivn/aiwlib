@@ -6,14 +6,14 @@ __all__ = ['factory', 'Connect']
 import os, sys, struct, paramiko, atexit
 
 #-------------------------------------------------------------------------------
-connect_table, keys_table, command = {}, {}, 'bin/qplt-remote'
+connect_table, keys_table, command, mem_limit = {}, {}, 'bin/qplt-remote', 0
 
 #---   read config file   ------------------------------------------------------
 try: config, kmode = open(os.path.expanduser('~/.qplt')), False
 except: config = []
 for l in config:
     l = l.strip()
-    if not l: continue
+    if not l or l[0]=='#': continue
     if l[-1]==':': kmode = l=='KEYS:'; continue
     if not kmode: continue
     l = l.split()
@@ -37,6 +37,7 @@ class Connect:
         self.client.connect(hostname=host, compress=True, **params) # password=secret
         self.cout, self.cin, self.cerr = self.client.exec_command(command)
         atexit.register(self.close)
+        if mem_limit>0: self.send('m', float(mem_limit))
         #print(self.cerr.readlines())
     def load_frames(self, fname):
         self.send('o', fname); N, res = self.recv('i')[0], []
@@ -45,8 +46,9 @@ class Connect:
             for i in range(szs[1]): L.append(QpltContainer(szs[0], i, self))
             if L: res.append(L)
         return res
-    def close(self): self.cout.write('E'); self.cout.flush(); self.client.close() #; print('BYE')
-    def mem_limit(self, mem_limit): self.send('m', float(mem_limit))
+    def close(self):
+        self.cout.write('E'); self.cout.flush(); self.client.close() #; print('BYE')
+        print('FINAL REPORT %r:\n'%self.host, ' '.join(self.cerr.readlines()))
     #---------------------------------------------------------------------------
     #   base protocol
     #---------------------------------------------------------------------------

@@ -8,7 +8,7 @@
 import os, sys
 
 try:
-    conf = dict([l.strip().split(' ', 1) for l in open(os.path.expanduser('~/.qplt')) if len(l.split())>=2])
+    conf = dict([l.strip().split(' ', 1) for l in open(os.path.expanduser('~/.qplt')) if l[0]!='#' and len(l.split())>=2])
     if 'qtscale' in conf: os.environ['QT_SCREEN_SCALE_FACTORS'] = conf['qtscale'].strip()
     if 'aiwlib' in conf: sys.path.append(conf['aiwlib'].strip())
     del conf

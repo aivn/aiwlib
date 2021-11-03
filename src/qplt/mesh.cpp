@@ -13,6 +13,7 @@ using namespace aiw;
 //   load data
 //------------------------------------------------------------------------------
 bool aiw::QpltMesh::load(IOstream &S){
+	WERR(mem_limit); 
 	double t0 = omp_get_wtime();
 	BinaryFormat bf;  bf.box = &bbox; Vec<6> bmin_, bmax_;  bf.bmin = &bmin_;  bf.bmax = &bmax_;  bf.axes = anames;  bf.D = -1;
 	size_t s = S.tell();  if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
