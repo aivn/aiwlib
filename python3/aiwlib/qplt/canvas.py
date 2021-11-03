@@ -259,8 +259,13 @@ class Canvas(QtWidgets.QWidget):
     #---------------------------------------------------------------------------        
     def paintEvent(self, event):
         #print('paintEvent', self.mouse)
-        if self.single_make_up: im = self.single_make_up(self); self.single_make_up = False
-        else: im = self.mouse.make_up(self) if self.mouse else self.make_up()
+        try:
+            if self.single_make_up: im = self.single_make_up(self); self.single_make_up = False
+            else: im = self.mouse.make_up(self) if self.mouse else self.make_up()
+        except:
+            sys.excepthook(*sys.exc_info())
+            print('#\n#>>>  %s[%s]  \n#'%(self.container.fname().decode(), self.container.frame()))
+            sys.exit(1)
         paint = QtGui.QPainter(self) # перенести в self.replot?
         paint.drawImage(0, 0, im)
     def leaveEvent(self, event): self.single_make_up = lambda slf: slf.im; self.update()
