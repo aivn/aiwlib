@@ -30,7 +30,7 @@ elif qplt.table_size()==1: win.fr_filenum.hide()
 else: win.filenum.setMaximum(qplt.table_size()-1)
 
 #--- configurate window --------------------------------------------------------
-win.D3.addItems(['2D', '3D'])
+win.D3.addItems(['2D', '3D', 'XD'])
 win.D3.setCurrentIndex(1)
 
 win.celldim.addItems(['1', '2', '3'])

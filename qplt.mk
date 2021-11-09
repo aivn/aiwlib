@@ -39,7 +39,7 @@ qplt: python3/aiwlib/qplt/core.py python3/aiwlib/qplt/_core.so bin/qplt-remote q
 
 swig/qplt/core.py swig/qplt/core_wrap.cxx: include/aiwlib/qplt/base
 
-bin/qplt-remote: src/bin/qplt-remote.o  $(shell echo src/qplt/{imaging,accessor,base,mesh}.o)
+bin/qplt-remote: src/bin/qplt-remote.o  $(shell echo src/qplt/{imaging,accessor,base,mesh,vtexture}.o)
 	$(show_target)
 	$(CXX) -o $@ $^ libaiw.a $(LINKOPT)
 
@@ -57,7 +57,7 @@ swig/qplt/%.py swig/qplt/%_wrap.cxx: swig/qplt/%.i
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
-python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imaging,accessor,base,mesh}.o) libaiw.a
+python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imaging,accessor,base,mesh,vtexture}.o) libaiw.a
 	$(show_target)
 	$(CXX) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------

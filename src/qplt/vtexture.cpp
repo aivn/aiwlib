@@ -1,10 +1,10 @@
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>  with support Kintech Lab
  * Licensed under the Apache License, Version 2.0
  **/
 
 #include "../../include/aiwlib/iostream"
-#include "../../include/aiwlib/view/vtexture"
+#include "../../include/aiwlib/qplt/vtexture"
 using namespace aiw;
 //------------------------------------------------------------------------------
 //   |...\   mesh      /
@@ -17,6 +17,95 @@ using namespace aiw;
 // --+------+---0------------->
 // start  vstart         image
 //
+
+/*    / \
+     /  /|
+    |\ / |
+    | V  |
+    | | /
+     \|/
+
+*/
+
+aiw::VTexture::VTexture(const QpltPlotter &plt){
+	Matr<2, 2, float> MM[3];  // это матрицы перехода от общих координат к координатам флэта как f = MM[fID]*r
+	for(int i=0; i<3; i++) flips[i] = plt.icenter&(1<<i);
+	for(int fID=0; fID<3; fID++){
+		// File fee("vtx/ee%.dat", "w", fID);
+		const auto &f = plt.get_flat(fID);
+		for(int i=0; i<2; i++) axis[fID][i] = f.axis[i];
+		axis[fID][2] = 3 - axis[fID][0] - axis[fID][1];
+		
+		Vecf<2> ee[2] = { plt.orts[f.axis[0]], plt.orts[f.axis[1]] }; // fee("0 0\n%\n\n0 0\n%\n", ee[0], ee[1]);
+		for(int i=0; i<2; i++){   // это стандартная операция, неплохо бы ее вынести в какую то фнукцию?
+			Vecf<2> perp(-ee[i][1], ee[i][0]); if(perp*ee[1-i]<0) perp = -perp;
+			perp /= perp*ee[1-i]; MM[fID].row(1-i, perp);
+		}
+		C0[fID] = MM[fID]*plt.orts[axis[fID][2]];
+		// C1[fID] = MM[fID]*C0[fID];
+
+		// проверяем MM --- работает!
+		/*
+		File fMM("vtx/gf%.dat", "w", fID); fMM.printf("#:x y fx fy x2 y2\n");
+		Vecf<2> A(-1.f), B(1.f); // A <<= ee[0]; A <<= ee[1];  B >>= ee[0]; B >>= ee[1];
+		for(int i=0; i<101; i++) for(int j=0; j<101; j++){
+				Vecf<2> r = A + ((B-A)&vecf(i*1e-2, j*1e-2)), f = MM[fID]*r;
+				if(Vecf<2>()<=f && f<=Vecf<2>(1.f)) fMM("% % %\n", r, f, MM[fID].inv()*f);
+			} 
+		*/	
+ 	}
+	// exit(1);
+
+	// f = MM[i]*r --> r = MM[i].inv()*f, g = MM[j]*(r-off[j]) = MM[j]*MM[i].inv()*f - MM[j]*off[j]
+	for(int i=0; i<3; i++) for(int j=0; j<3; j++) M[i][j] = MM[j]*MM[i].inv();  
+	// plt.scale не имеет значения (если нет переспективы), а вот plt.bbox очень важен. Должна быть какая то однородная система координат?
+
+	/* 
+	// тут нужно вывести в .dat  файл флэты и пр, и вообще как то все протестить
+	File ff[3][3]; for(int i=0; i<3; i++) for(int j=0; j<3; j++){ ff[i][j] = File("vtx/%-%.dat", "w", i, j); ff[i][j].printf("#:fx fy x1 y1 gx gy x2 y2 l\n"); }
+	for(int fID=0; fID<3; fID++){
+		for(int i=0; i<51; i++)
+			for(int j=0; j<51; j++){
+				auto I = trace(fID, vecf(i*2e-2, j*2e-2));
+				ff[fID][I.axe]("% % % % %\n", I.fpos, MM[fID].inv()*I.fpos, I.next_fpos, M[fID][I.axe]*I.next_fpos, I.len);
+			}
+	}
+	exit(1);
+	 */
+}
+void aiw::VTexture::Iterator::conf(){ // настраивает axe, len, next_fpos
+	next_fpos = fpos - vtx->C0[flat];
+	if(Vecf<2>()<=next_fpos && next_fpos<Vecf<2>(1.f)) axe = flat; // это можно оптимизировать, для некоторых флэтов это невозможно
+	else for(int i=1; i<3; i++){
+			axe = (flat+i)%3;
+			next_fpos = vtx->M[flat][axe]*fpos - vtx->C0[axe];
+			if(Vecf<2>()<=next_fpos && next_fpos<Vecf<2>(1.f)) break; // вторая проверка лишняя?
+			// WASSERT(i!=2, "oops...", flat, axe, fpos, next_fpos);
+		}	
+	// len = vtx->Alen[flat][axe] +  vtx->Blen[flat][axe]*fpos;
+	// len = flat==axe? 1.f : 1-fpos.min();
+	// len = flat==axe? 1.f : 1+next_fpos.min()-fpos.max();
+	len = 1+next_fpos.min()-fpos.max(); if(len>1) len = 1;
+	// WASSERT(-1e-6<=len && len<=1.000001, "incorrect len", len, fpos, next_fpos, axe, flat);
+}
+
+/*
+void aiw::VTexture::VTexture(const QpltPlotter &plt){
+	// 1. определяем размер текстуры, для этого надо определить размер вокселя в пикселях и как то разбораться с системой координат
+	for(int fi=0; fi<plt->flats_sz(); fi++){
+		auto f = plt->get_flat(fi);
+		Vecf<2> pp[4]; for(int i=0; i<4; i++) pp[i] = f.ppf[i];
+		// 1.1. ищем центральную вершину, общую для всех трех флэтов. Лучше ее номер посчитать заранее в Plotter::init. Эта вершина будет являться началом коррдинат
+		// 1.2. нам надо схлопнуть каждый из флэтов вдоль ребра в bbox раз, фактически у нас есть три оси (ребра флэтов), флэт задается парой номеров ребер
+		// 1.3. после этого можно определить размер текстуры как размер изображения*размер новых флэтов/размер старых флэтов
+		// еще нам надо понять как преобразовывать rpos в точку текстуры. Номер флэта мы получаем в trace, для флэта есть флипы по каждой из двух осей???
+		
+	}
+	
+	// 2. заполняем текстуру
+	// в приниципе текстура может быть дефрагментирована, но непонятно нафига
+}
+
 void aiw::VTexture::init(){    // определяет параметры следующие далее
 	nZ = vec(-sin(theta)*cos(phi), -sin(theta)*sin(phi), -cos(theta));
 	nX = vec(-sin(phi), cos(phi), 0);
@@ -138,3 +227,4 @@ aiw::VTexture::iterator aiw::VTexture::trace(Ind<2> ij) const {
 	return I;
 }
 //------------------------------------------------------------------------------
+*/

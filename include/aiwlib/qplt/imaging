@@ -103,6 +103,7 @@ namespace aiw{
 			return (pal[i]*(1-w)+pal[i+1]*w).I;
 		}
 		float get_f(float x) const { return logscale? min*pow(max/min, x): min+(max-min)*x; }
+		bool check_in(float f) const { return (min<max && min<f && f<max) || (max<min && max<f && f<min); }
 		
 	private:
 		static std::map<uint16_t, std::pair<uint16_t, uint32_t> > arr_table;

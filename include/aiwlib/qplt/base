@@ -101,11 +101,11 @@ namespace aiw{
 	*/
 	//--------------------------------------------------------------------------
 	struct QpltFlat{
-		//          2   bmax
-        //        d---c
-        //     3 /   / 1
-		//      a---b
-		// bmin   0
+		//           2   bmax
+        //         d---c
+        //      3 /   / 1
+		//       a---b
+		//  bmin   0
 		int a[2], b[2], c[2], d[2];  // в пикселях, абсолютные координаты. Эти параметры пробрасываются в питон благодаря typemaps
 		int axis[2], bounds;         // оси флэта и битовая маска (какие ребра являются внешними, по два бита на ребро, внешнее:(левое-нижнее/правое-верхнее))
 		float bmin[2], bmax[2];      // и позицию +/- сюда же???
@@ -120,6 +120,7 @@ namespace aiw{
 			return 0<=r[0] && 0<=r[1] && r[0]<=bbox[0] && r[1]<=bbox[1];
 		}
 		void flat2image(aiw::Vecf<2> r, int xy[2]) const { for(int i=0; i<2; i++) xy[i] = a[i]+r*rn[i]+.5f; }
+		bool cflips[2];  // разворот осей оносительно icenter 
 		// какие то матрицы преобразования, проверки принадлежности, пересчет получение координат и т.д
 		//#endif  // SWIG 
 	}; 
@@ -131,22 +132,25 @@ namespace aiw{
 #ifndef SWIG
 	public:
 		aiw::Ind<3> bbeg, bbox, axisID;  aiw::Vecf<3> bmin, bmax;  // позиция, размер и пределы области отрисовки в осях ОТРИСОВКИ, устанавливаются в prepare_scene()
+		Vecf<2> orts[3]; int icenter;  // орты построенной перекошенной системы координат и номер угла куба отвечающего началу координат (для флипов в 3D)
 	protected:
 #endif // SWIG
 		aiw::Ind<6> spos; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg и маска флипов
-		int dim, D3scale_mode;
+		int dim, D3scale_mode, mode;
 		float theta, phi; aiw::Vecf<3> cell_aspect;
 		QpltAccessor accessor;
 		QpltColor color;
 		std::vector<QpltFlat> flats;
 		Ind<2> im_start, im_size;
+		Vecf<3> nS, nX, nY;   // nS --- вектор ИЗ начала координат В экран???
+		Vecf<2> Ahull, Bhull, scale; // вмещающая оболочка на сцене
 	public:		
 		virtual ~QpltPlotter(){}
 		void free(){ delete this; }
 		int get_dim() const { return dim; }
 		const QpltContainer* container; 
 
-		int get_bbox(int axe) const { return bbox[axe]; }    
+		int   get_bbox(int axe) const { return bbox[axe]; }    
 		float get_bmin(int axe) const { return bmin[axe]; }  // для настройки осей 
 		float get_bmax(int axe) const { return bmax[axe]; }  // для настройки осей 
 		bool get_logscale(int axe) const { return container->get_logscale(axisID[axe]); }  // для настройки осей 
@@ -168,25 +172,7 @@ namespace aiw{
 		void set_image_size(int xy1[2], int xy2[2]);  // настраивает флэты согласно размеру изображения
 		virtual std::string plot() const = 0; // лучше рисовать в область памяти, но пока что так
 		// virtual std::vector<float> get_line(QpltScene&, QpltAccessor&, int axe, float lpos) = 0; // 0<=lpos<=1 в размерах сцены
-		//#ifndef SWIG
-		// void pack(std::ostream&) const;
-		//#endif  // SWIG 
 	}; 
-		/*
-		virtual std::string get(float x, float y) = 0; // 0<=xy<=1 в размерах сцены
-		virtual float get_coord(int axe, float x) const {
-			if(flips&1<<axe) x = 1-x;
-			return logscale&1<<aI[axe] ? bmin[axe]*pow(bmax[axe]/bmin[axe], x) : bmin[axe]+(bmax[axe]-bmin[axe])*x;
-		}
-		virtual int get_pos(int axe, float x) const { if(flips&1<<axe){ x = 1-x; } return bbeg[axe]+bbox[axe]*x; } 
-
-		virtual int coord2pos(int i, float x) const {
-			return logscale&1<<i ? log(x/bmin0[i])/exp(log(bmax0[i]/bmin0[i])/bbox0[i]) : (x-bmin0[i])/(bmax0[i]-bmin0[i])*bbox0[i];
-		}
-		virtual float pos2coord(int i, int p) const {
-			return logscale&1<<i ? bmin0[i]*pow(exp(log(bmax0[i]/bmin0[i])/bbox0[i]), p+.5) : bmin0[i]+(bmax0[i]-bmin0[i])/bbox0[i]*(p+.5);
-		}
-		*/
 	//--------------------------------------------------------------------------
 	std::vector<QpltContainer*> factory(const char *fname);
 	//--------------------------------------------------------------------------	

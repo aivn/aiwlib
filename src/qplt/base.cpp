@@ -59,7 +59,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
 											   float th_phi[2], float cell_aspect[3], int D3scale_mode
 											   ){ // const {
-	QpltPlotter* plt = mk_plotter(mode); plt->container = this;
+	QpltPlotter* plt = mk_plotter(mode); plt->container = this; plt->mode = mode;
 	// 1. настраиваем базовые вещи в плоттере
 	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
 	plt->accessor.minus = minus; for(int i=0; i<3; i++){ plt->accessor.offsets[i] = offsets[i];  plt->accessor.rsteps[i] = rstep[axisID[i]]; }
@@ -128,33 +128,40 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		if(plt->theta<0) plt->theta  = 0;
 		if(plt->theta>180) plt->theta = 180;
 		float c_ph, s_ph, c_th, s_th;  sincosf(-plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(-plt->theta*M_PI/180, &s_th, &c_th);
-		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
-		Vecf<3> d = ptr2vec<3>(cell_aspect);
-		Vecf<2> pp[8], A, B; // float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
+		plt->nS = vecf(c_ph*s_th, s_ph*s_th, c_th); plt->nX = vecf(s_ph, -c_ph, 0.f); plt->nY = vecf(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
+		Vecf<2> pp[8];  plt->Ahull = plt->Bhull = Vecf<2>();  float Zmin = 0;  // координаты вершин 
 		for(int i=0; i<8; i++){  // цикл по углам куба
-			Vecf<3> r = -plt->bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
-			pp[i] = vecf(r*nX, r*nY);  A <<= pp[i]; B >>= pp[i];
-			// if(i==0 || r*nS>Zmin) Zmin = r*nS; 
+			Vecf<3> r = -plt->bbox&plt->cell_aspect/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
+			pp[i] = vecf(r*plt->nX, r*plt->nY);  plt->Ahull <<= pp[i]; plt->Bhull >>= pp[i];
+			if(i==0 || r*plt->nS>Zmin){ plt->icenter = i;  Zmin = r*plt->nS; }
 		}  // конец цикла по углам куба
+		WERR(plt->icenter);
+		for(int i=0; i<3; i++){
+			int j = plt->icenter;  j = j&(1<<i) ? j-(1<<i): j+(1<<i);
+			plt->orts[i] = (pp[j]-pp[plt->icenter])/plt->bbox[i];
+		}
 		// WERR(plt->spos, plt->bmin, plt->bmax, plt->bbeg, plt->bbox);
 		for(int axe=0; axe<3; axe++){  // цикл по осям --- ищем отображаемые грани, достаточно проверить глубину одной вершины
-			Vecf<3> r = plt->bbox&d/2; float z_plus = nS*r;
-			r[axe] = -r[axe]; float z_minus = nS*r;
+			Vecf<3> r = plt->bbox&plt->cell_aspect/2; float z_plus = plt->nS*r;
+			r[axe] = -r[axe]; float z_minus = plt->nS*r;
 			if(z_plus>z_minus+1e-4f || z_plus<z_minus-1e-4f){ // точность ???
 				plt->flats.emplace_back(); QpltFlat &f = plt->flats.back(); int m = 1<<axe, fix = (z_plus>z_minus)<<axe;
 				for(int i=0, j=0; i<3; i++) if(i!=axe){ f.axis[j] = i; f.bmin[j] = plt->bmin[i]; f.bmax[j] = plt->bmax[i]; j++; }
 				f.spos = plt->spos; f.spos[axisID[axe]] = plt->bbeg[axe]+(plt->bbox[axe]-1)*((z_plus>z_minus)^bool(plt->flips&(1<<axe))); // z_plus>z_minus ???
-				for(int i=0, j=0; i<8; i++) if((i&m)==fix) f.ppf[j++] = pp[i];
+				for(int i=0, j=0; i<8; i++) if((i&m)==fix){
+						if(j==0) for(int k=0; k<2; k++) f.cflips[k] = (plt->icenter&(1<<f.axis[k]))^(i&(1<<f.axis[k]));
+						f.ppf[j++] = pp[i];
+					}
 				std::swap(f.ppf[2], f.ppf[3]);
-				// WERR(f.axis[0], f.axis[1], f.spos, Vecf<2>(f.bmin), Vecf<2>(f.bmax));
+				WERR(plt->flats.size()-1, f.axis[0], f.axis[1], f.cflips[0], f.cflips[1], f.spos, Vecf<2>(f.bmin), Vecf<2>(f.bmax));
 			}
 		}
 		for(auto &f: plt->flats){
 			f.bounds = 0;
 			for(int i=0; i<4; i++){
 				Vecf<2> a = f.ppf[i], b = f.ppf[(i+1)%4];
-				int m = (fabs(a[0]-A[0])<1e-4) | (fabs(a[0]-B[0])<1e-4)<<1 | (fabs(a[1]-A[1])<1e-4)<<2 | (fabs(a[1]-B[1])<1e-4)<<3
-					| (fabs(b[0]-A[0])<1e-4)<<4 | (fabs(b[0]-B[0])<1e-4)<<5 | (fabs(b[1]-A[1])<1e-4)<<6 | (fabs(b[1]-B[1])<1e-4)<<7;
+				int m = (fabs(a[0]-plt->Ahull[0])<1e-4) | (fabs(a[0]-plt->Bhull[0])<1e-4)<<1 | (fabs(a[1]-plt->Ahull[1])<1e-4)<<2 | (fabs(a[1]-plt->Bhull[1])<1e-4)<<3
+					| (fabs(b[0]-plt->Ahull[0])<1e-4)<<4 | (fabs(b[0]-plt->Bhull[0])<1e-4)<<5 | (fabs(b[1]-plt->Ahull[1])<1e-4)<<6 | (fabs(b[1]-plt->Bhull[1])<1e-4)<<7;
 				// первый бит --- оба конца принадлежат к оболочке AB,  второй бит --- оба конца слева или (не оба конца справа и ни один из концов сверху)
 				if((m&0xF) && (m&0xF0)) f.bounds |= (1<<i*2) + (((m&17)==17 || ((m&34)!=34 && !(m&4) && !(m&64)))<<(i*2+1));
 			}
@@ -167,23 +174,14 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 //------------------------------------------------------------------------------
 void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настраивает флэты согласно размеру изображения
 	im_start = ptr2vec<2>(xy1);	im_size = ptr2vec<2>(xy2) - im_start; (im_start+im_size/2).to(center);
-	Vecf<2> scale(1.f);
+	scale = vecf(1.f, 1.f);
 	if(dim==2){
 		auto &f = flats[0]; im_start.to(f.d); (im_start+im_size).to(f.b);
 		f.a[0] = f.d[0]; f.a[1] = f.b[1]; f.c[0] = f.b[0]; f.c[1] = f.d[1];
-	} else {
-		float c_ph, s_ph, c_th, s_th;  sincosf(-phi*M_PI/180, &s_ph, &c_ph); sincosf(-theta*M_PI/180, &s_th, &c_th);
-		Vecf<3> nS(c_ph*s_th, s_ph*s_th, c_th), nX(s_ph, -c_ph, 0.f), nY(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
-		Vecf<3> d(cell_aspect);
-		Vecf<2> pp[8], A, B;  // int i_min; float Zmin;  // координаты вершин и вмещающая оболочка на сцене, номер ближайшей к сцене вершины и ее глубина
-		for(int i=0; i<8; i++){  // цикл по углам куба
-			Vecf<3> r = -bbox&d/2;  for(int k=0; k<3; k++) if(i&1<<k) r[k] = -r[k];
-			pp[i] = vecf(r*nX, r*nY);  A <<= pp[i]; B >>= pp[i];
-			// if(i==0 || r*nS>Zmin){ i_min = i; Zmin = r*nS; }
-		}  // конец цикла по углам куба
-		if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&d).abs();
-		if(D3scale_mode==1) scale[0] = scale[1] = std::min(im_size[0]/(B[0]-A[0]), im_size[1]/(B[1]-A[1]));
-		if(D3scale_mode==2){ scale[0] = im_size[0]/(B[0]-A[0]); scale[1] = im_size[1]/(B[1]-A[1]); }
+	} else { 
+		if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&cell_aspect).abs();
+		if(D3scale_mode==1) scale[0] = scale[1] = std::min(im_size[0]/(Bhull[0]-Ahull[0]), im_size[1]/(Bhull[1]-Ahull[1]));
+		if(D3scale_mode==2){ scale[0] = im_size[0]/(Bhull[0]-Ahull[0]); scale[1] = im_size[1]/(Bhull[1]-Ahull[1]); }
 		// nX *= scale[0];  nY *= scale[1];
 		for(auto &f: flats) for(int i=0; i<4; i++) f.abcd(i) = Ind<2>(center)+(f.ppf[i]&scale); // +vecf(.5f); ???
 	}
@@ -197,13 +195,10 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 			if(n_perp[i]*abd[1-i]<0) n_perp[i] = -n_perp[i];
 			f.rn[i] = abd[i]/f.bbox[i];
 		}
-		Vecf<2> nX = f.bbox[0]*n_perp[1]/(n_perp[1]*ac);
-		Vecf<2> nY = f.bbox[1]*n_perp[0]/(n_perp[0]*ac);
-		// r = (I-a)*nX, (I-a)*nY --> r[0] = (I[0]-a[0])*nX[0]
-		// f.nX = vecf(nX[0], nY[0]);
-		// f.nY = vecf(nX[1], nY[1]); 
-		f.nX[0] = nX[0]; f.nX[1] = nY[0];
-		f.nY[0] = nX[1]; f.nY[1] = nY[1];
+		Vecf<2> n2X = f.bbox[0]*n_perp[1]/(n_perp[1]*ac);
+		Vecf<2> n2Y = f.bbox[1]*n_perp[0]/(n_perp[0]*ac);
+		f.nX[0] = n2X[0]; f.nX[1] = n2Y[0];
+		f.nY[0] = n2X[1]; f.nY[1] = n2Y[1];
 		for(int i=0; i<2; i++) for(int j=0; j<4; j++){ ibmin[i] = std::min(ibmin[i], f.abcd(j)[i]); ibmax[i] = std::max(ibmax[i], f.abcd(j)[i]); }
 
 		/*

@@ -8,12 +8,12 @@
 #include "../../include/aiwlib/interpolations"
 #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/qplt/mesh"
+#include "../../include/aiwlib/qplt/vtexture"
 using namespace aiw;
 //------------------------------------------------------------------------------
 //   load data
 //------------------------------------------------------------------------------
 bool aiw::QpltMesh::load(IOstream &S){
-	WERR(mem_limit); 
 	double t0 = omp_get_wtime();
 	BinaryFormat bf;  bf.box = &bbox; Vec<6> bmin_, bmax_;  bf.bmin = &bmin_;  bf.bmax = &bmax_;  bf.axes = anames;  bf.D = -1;
 	size_t s = S.tell();  if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
@@ -50,7 +50,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 void aiw::QpltMesh::data_free_impl(){ WERR(this); mem.reset(); }  // выгружает данные из памяти
 void aiw::QpltMesh::data_load_impl(){                 // загружает данные в память
 	size_t sz = szT; for(int i=0; i<dim; i++) sz *= bbox[i];
-	fin->seek(mem_offset); mem = fin->mmap(sz, 0); WERR(this, mem.get());
+	fin->seek(mem_offset); mem = fin->mmap(sz, 0); WERR(this, mem.get(), mem_limit);
 	// WOUT(mem_offset, mem->get_addr());
 }
 //------------------------------------------------------------------------------
@@ -66,9 +66,10 @@ template <int AID> struct aiw::QpltMeshPlotter::calc_t : public QpltFlat {
 	typedef Vecf<QpltAccessor::DOUT<AID>()> cell_type;
 	static const int dim = 2;
 
+	char* get_ptr(const Ind<2> &pos) const { char *ptr = ptr0; for(int i=0; i<2; i++){ ptr += mul[i]*pos[i]; } return ptr;}
 	cell_type operator[](Ind<2> pos) const {
 		for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox0[i]){ pos[i] = bbox0[i]-1; } }
-		char *nb[6] = {nullptr}, *ptr = ptr0; for(int i=0; i<2; i++) ptr += mul[i]*pos[i];
+		char *nb[6] = {nullptr}, *ptr = get_ptr(pos); 
 		if((AID>>3)&7){  // если необходимо дифференцирование задаем соседей
 			for(int i=0; i<2; i++){
 				if(bbeg[i]+pos[i]>0) nb[2*i] = ptr-mul[i]; else nb[2*i] = ptr;
@@ -94,6 +95,7 @@ template <int AID> struct aiw::QpltMeshPlotter::calc_t : public QpltFlat {
 	}
 	// bool check_in(Vecf<2> r) const { return bbeg[0]<=r[0] && bbeg[1]<=r[1] && r[0]<bbeg[0]+bbox[0] && r[1]<bbeg[1]+bbox[1]; }
 	bool check_in(Vecf<2> r) const { return 0<=r[0] && 0<=r[1] && r[0]<bbox[0] && r[1]<bbox[1]; }
+	void pos2to3(const Ind<2> &pos2, Ind<3> &pos3) const { for(int i=0; i<2; i++) pos3[axis[i]] = cflips[i]? bbox[i]-1-pos2[i] : pos2[i]; }
 };
 //------------------------------------------------------------------------------
 template <int AID>  aiw::QpltMeshPlotter::calc_t<AID>  aiw::QpltMeshPlotter::get_flat(int flatID) const {
@@ -170,7 +172,7 @@ template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], std::string &r
 			f.mod_coord(r, pos, X); 
 			// WERR(f.a[0], f.a[1], f.nX, f.nY, xy[0], xy[1], r);
 			auto v = interpolate(f, pos, X, f.interp);
-			std::stringstream S; S<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
+			std::stringstream S; S<<r<<':'<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
 			res = S.str(); break;
 			// res.value = S.str(); for(int i=0; i<2; i++) res.xy[i] = container->fpos2coord(bbeg[f.axis[i]]+r[i], axisID[f.axis[i]]); 
 			// f.flat2image(vecf(r[0], 0.f), res.a1);  f.flat2image(vecf(r[0], f.bbox[1]), res.a2);
@@ -207,7 +209,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 					// im.set_pixel(x, y, 0xFFFFFF);
 				}
 		}
-	} else { // 3D mode
+	} else if(mode==1) { // pseudo 3D mode
 		int fl_sz = flats.size(), cID = 0; calc_t<PAID> calcs[fl_sz]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
 #pragma omp parallel for firstprivate(cID)
 		for(int y=0; y<im.Ny; y++){
@@ -225,8 +227,46 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				
 			}
 		}
+	} else { // real 3D mode
+		int fl_sz = flats.size(), cID = 0;  VTexture vtx(*this);
+		calc_t<PAID> calcs[fl_sz]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
+		int64_t deltas[3]; for(int i=0; i<3; i++) deltas[i] = icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1]))? -calcs[i].mul[2] : calcs[i].mul[2]; // ???
+		for(int i=0; i<3; i++) WERR(icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], deltas[i]);
+		QpltMesh* cnt = (QpltMesh*)container; // ???
+		// #pragma omp parallel for firstprivate(cID)
+		for(int y=0; y<im.Ny; y++){
+			char *nb[6] = {nullptr};  // ???
+			int y0 = ibmin[1]+y;
+			for(int x=0; x<im.Nx; x++){
+				int x0 = ibmin[0]+x; Vecf<2> r;
+				if(!calcs[cID].image2flat(x0, y0, r)){
+					bool miss = true;
+					for(int i=1; i<fl_sz; i++) if(calcs[(cID+i)%fl_sz].image2flat(x0, y0, r)){ miss = false; cID = (cID+i)%fl_sz; break; }
+					if(miss){ im.set_pixel0(x, y, 0xFFFFFFFF); continue; }
+				}
+				const calc_t<PAID> & flat = calcs[cID];
+				Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
+				Ind<3> pos3d; flat.pos2to3(pos, pos3d); // for(int i=0; i<2; i++) pos3d[flat.axis[i]] = pos[i]; // ??? вообще нет, надо от центральной точки идти
+				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);  float len = 0, max_len = 10;
+				while(1){
+					WEXT(pos, pos3d, x, y, cID, len, ray.axe, ptr-cnt->ptr); // std::cerr.flush();
+					if(cID==0 && x==522 && y==393){ WERR(cID,  pos3d, ray.axe, len, ptr-cnt->ptr); std::cerr.flush(); }
+					float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
+					if(color.check_in(f)){
+						len += ray.len; // тут считаем длину фрагмента и цвет
+						if(len>max_len) break;
+						C = C + QpltColor::rgb_t(color(f))*(len/max_len);
+					}
+					ray.next();  if(++pos3d[ray.axe]>=bbox[ray.axe]) break;  // переходим в следующий воксель, проверяем границу
+					ptr += deltas[ray.axe];					
+				}
+				im.set_pixel0(x, y, (C*(1/len)).I);
+				// im.set_pixel0(x, y, 0xFF<<cID*8);
+				
+			}
+		}
 	}
-	im.dump2ppm("1.ppm");
+	// im.dump2ppm("1.ppm");
 	res = im.buf;
 }
 //------------------------------------------------------------------------------

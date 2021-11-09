@@ -1,35 +1,73 @@
 // -*- C++ -*-
-#ifndef AIW_VTEXTURE_VIEW_HPP
-#define AIW_VTEXTURE_VIEW_HPP
+#ifndef AIW_QPLT_VTEXTURE_HPP
+#define AIW_QPLT_VTEXTURE_HPP
 
 /**
- * Copyright (C) 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>  with support Kintech Lab
  * Licensed under the Apache License, Version 2.0
  **/
 
 #include <vector>
 #include "../matr"
-// #include "../packer"
+#include "base"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class VTexture{
-		struct fragment_t{
-			// Хранить пойнтер вместо  оффсета?
-			
-			float len, ax_len, ay_len;  // длина луча и линейные поправки к длине луча (умножаются на off_x, off_y измеряемые в долях шага)
-			Vecf<2> d_off;              // аддитивные поправки к off_x, off_y при переходе в следующий воксель, измеряются в долях шага
-			uint32_t blob = 0;          // ось (грань) и оффсет в текстуре
-			int get_axe() const { return blob>>30; }       // ось по которой расположена грань следующего вокселя
-			int get_off() const { return blob&~(3<<30); }  // точка текстуры в которую мы попадаем перейдя в следующий воксель
-			void set_axe(int axe) { blob &= ~(3<<30); blob |= (axe&3)<<30; }
-			void set_off(int off) { blob &= 3<<30; blob |= off&~(3<<30); }
+		int axis[3][3]; // оси к которым относятся флэты, последняя ось для каждого флэта это ось которой флэт ортоганален. Скорее всего это инвариант
+		bool flips[3];  // флипы по осям, что бы координаты приводились к центру
+		Vecf<2> C0[3];  // смещения при переходе в дальний (подложенный) флэт
+		// Vecf<2> C1[3];  // смещения fpos при переходе в другой флэт
+		Matr<2, 2, float> M[3][3];  // матрицы преобразования при переходе в другой флэт
+		// float Alen[3][3]; Vecf<2> Blen[3][3]; // коэффициенты расчета длины при переходе из флэта во флэт, диагональ пока не используется
+	public:
+		VTexture(const QpltPlotter &plt);
 
-			Vec<2> p;  
+		struct Iterator{
+			const VTexture *vtx = nullptr;
+			int flat;  Vecf<2> fpos;  // позиция внутри флэта
+			int axe; float len;  Vecf<2> next_fpos;
+
+			void conf();  // настраивает axe, len, next_fpos
+			void next(){ flat = axe; fpos = next_fpos; conf(); }
+		};
+		Iterator trace(int flat, Vecf<2> fpos) const {
+			Iterator I; I.vtx = this; I.flat = flat; I.fpos = fpos;
+			for(int i=0; i<2; i++) if(flips[axis[flat][i]]) I.fpos[i] = 1.f-I.fpos[i];
+			I.conf();
+			return I;
+		} 
+	};
+	//--------------------------------------------------------------------------
+	/*
+	struct VTexture{
+		static const uint32_t max_off = ~uint32_t(0)>>2;
+		struct fragment_t{
+			uint32_t off: 30;  // оффсет следующего фрагмента в текстуре, хранить понйтер вместо оффсета?
+			uint32_t axe: 2;   // ось (грань) следующего вокселя
+			float len;         // длина фрагмента луча
+			
+			// float len, ax_len, ay_len;  // длина луча и линейные поправки к длине луча (умножаются на off_x, off_y измеряемые в долях шага)
+			// Vecf<2> d_off;              // аддитивные поправки к off_x, off_y при переходе в следующий воксель, измеряются в долях шага
+			// Vec<2> p;  
 		};
 		// public:
 		std::vector<fragment_t> fragments; // точки текстуры (и то что ниже)  определяется в init()
 		Ind<2> vtx_sz;         // размеры текстуры в точках
+
+		VTexture(const QpltPlotter &plt);
+
+		struct Iterator{
+			const fragment_t *fragments, *cursor;
+			
+			float len() const { retunr cursor->len; }
+			float axe() const { return cursor->axe; }
+			void next(){ cursor = fragments + cursor->off; }
+		};
+		Iterator trace(int flat, Vecf<2> rpos);
+		
+		//------ old version --------
+		
 		int deltas[3];         // добавки к data по разным осям при смене вокселя 
 		int grains[3];         // расположение граней вокселя относительно экрана, -1 --- левая грань дальняя, +1 --- правая грань дальняя, 0 --- грань || n
 		Matr<3, 3> prjM[3];    // матрицы для проекции пикселя на грани 
@@ -77,13 +115,7 @@ namespace aiw{
 		};
 		iterator trace(Ind<2> ij) const;
 	};
-	//--------------------------------------------------------------------------
-	/*
-#ifndef SWIG
-	inline Packer& operator < (Packer &P, const VTexture &vtx){ return P<vtx.image_sz<vtx.box<vtx.theta<vtx.phi<vtx.offset<vtx.scale; }
-	inline Packer& operator > (Packer &P,       VTexture &vtx){        P>vtx.image_sz>vtx.box>vtx.theta>vtx.phi>vtx.offset>vtx.scale; vtx.init(); return P; }
-#endif
-	*/
+		*/
 	//--------------------------------------------------------------------------
 };  // end of namespace aiw
-#endif //AIW_VTEXTURE_VIEW_HPP
+#endif //AIW_QPLT_VTEXTURE_HPP
