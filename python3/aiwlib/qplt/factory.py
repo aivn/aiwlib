@@ -9,7 +9,7 @@ import glob, sys
 
 try: from . import core
 except ImportError as e: core = False; print(e)
-if core: core.qplt_global_init(); core.set_mem_limit = False
+if core: core.qplt_global_init()
 
 try: from . import remote
 except ImportError as e: remote = False; print(e)
@@ -24,7 +24,7 @@ def load_local_file(fname):  # --> frames count
         for f in glob.glob(fname):
             table.append(core.factory(bytes(f, 'utf8'))) # <-- std::vector<BaseContainer*>
             if not table[-1]: del table[-1]; print('load', fname, '--- skipped')
-            elif not core.set_mem_limit: core.QpltContainer.mem_limit.fset(remote.mem_limit); core.set_mem_limit = True
+            elif not getattr(core, 'mem_limit', None) is None: core.QpltContainer.mem_limit.fset(core.mem_limit); core.mem_limit = None
     else: print('\tqplt core not imported, local file [', fname, '] skipped')
 #-------------------------------------------------------------------------------
 def load_remote_file(fname, **server):  # --> frames count
@@ -49,8 +49,11 @@ def load_files(*args):
         tpos = len(table)
         if arg==':': server = None; continue
         elif arg.startswith('-m'):
-            try: remote.mem_limit = float(arg[2:])
-            except: print('skipped incorrect mem_limit argumet', arg)            
+            try:
+                mem_limit = float(arg[2:])
+                if remote: remote.mem_limit = mem_limit
+                if core and not hasattr(core, 'mem_limit'): core.mem_limit = mem_limit
+            except ValueError as e: print(e, '\nskipped incorrect mem_limit argumet', arg)            
         elif arg.endswith(':'): server = parse_server(arg[:-1]); continue
         elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, **parse_server(srv))
         else: load_remote_file(arg, **server) if server else load_local_file(arg)
