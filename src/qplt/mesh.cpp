@@ -248,7 +248,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				const calc_t<PAID> & flat = calcs[cID];
 				Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 				Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
-				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);  float sum_w = 0, _max_len = 1./20, lim_w = .5;
+				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);  float sum_w = 0, _max_len = 1./50, lim_w = .95;
 
 				// im.set_pixel0(x, y, col(ray.fID+ray.gID*3));
 				// im.set_pixel0(x, y, col(ray.len));
@@ -258,21 +258,21 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 					WEXT(pos, pos3d, x, y, cID, len, ray.gID, ptr-cnt->ptr); // std::cerr.flush();
 					if(cID==0 && x==522 && y==393){ WERR(cID,  pos3d, ray.gID, len, ptr-cnt->ptr); std::cerr.flush(); }
 					float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
-					// if(color.check_in(f)){
+					if(color.check_in(f)){
 					/*
 						len += ray.len; // тут считаем длину фрагмента и цвет
 						if(len>max_len) break;
 						C = C + QpltColor::rgb_t(color(f))*(len/max_len);
 					*/
-					float w = ray.len*_max_len*(1-sum_w);
-					if(sum_w+w<lim_w) C = C + QpltColor::rgb_t(color(f))*w;
-					else { C = C + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
-						// }
+						float w = ray.len*_max_len*(1-sum_w);
+						if(sum_w+w<lim_w){ C = C + QpltColor::rgb_t(color(f))*w; sum_w += w; }
+						else { C = C + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
+					}
 					if(++pos3d[ray.gID]>=bbox[ray.gID]) break;  // переходим в следующий воксель, проверяем границу
 					ptr += deltas[ray.gID];	 				
 					ray.next();  
 				}
-				im.set_pixel0(x, y, sum_w? C.I: 0xFFFF00FF);
+				im.set_pixel0(x, y, sum_w? 0xFFFFFFFF-C.I: 0xFFFFFFFF);
 				// im.set_pixel0(x, y, col(len));
 				/* */
 				// im.set_pixel0(x, y, 0xFF<<cID*8);

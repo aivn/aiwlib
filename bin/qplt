@@ -32,7 +32,7 @@ else: win.filenum.setMaximum(qplt.table_size()-1)
 
 #--- configurate window --------------------------------------------------------
 win.D3.addItems(['2D', '3D', 'XD'])
-win.D3.setCurrentIndex(2) #(1)
+win.D3.setCurrentIndex(1)
 
 win.celldim.addItems(['1', '2', '3'])
 win.celltype.addItems(['float', 'double', 'bool', 'uint8_t', 'int8_t', 'uint16_t', 'int16_t', 'uint32_t', 'int32_t', 'uint64_t', 'int64_t'])
