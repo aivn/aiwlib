@@ -14,28 +14,27 @@
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class VTexture{
-		int axis[3][3]; // оси к которым относятся флэты, последняя ось для каждого флэта это ось которой флэт ортоганален. Скорее всего это инвариант
-		bool flips[3];  // флипы по осям, что бы координаты приводились к центру
-		Vecf<2> C0[3];  // смещения при переходе в дальний (подложенный) флэт
-		// Vecf<2> C1[3];  // смещения fpos при переходе в другой флэт
-		Matr<2, 2, float> M[3][3];  // матрицы преобразования при переходе в другой флэт
+		int main_flat;               // номер главного флэта (имеющего самоперечение) 
+		Vecf<2> C0[3];               // смещения при переходе в дальний (подложенный) флэт
+		Matr<2, 2, float> M[3][3];   // матрицы преобразования при переходе в другой флэт
+		bool flips[3][2], laxis[3];  // флипы по осям, что бы координаты приводились к центру и номер оси для неглавного флэта при расчете длины
 		// float Alen[3][3]; Vecf<2> Blen[3][3]; // коэффициенты расчета длины при переходе из флэта во флэт, диагональ пока не используется
 	public:
 		VTexture(const QpltPlotter &plt);
 
 		struct Iterator{
 			const VTexture *vtx = nullptr;
-			int flat;  Vecf<2> fpos;  // позиция внутри флэта
-			int axe; float len;  Vecf<2> next_fpos;
+			int fID, gID;  // номер текущего и следующего флэта (осей ортогональных граням вкоселя)
+			Vecf<2> f, g;  // позиции в текущем и следующем флэте
+			float len; 
 
 			void conf();  // настраивает axe, len, next_fpos
-			void next(){ flat = axe; fpos = next_fpos; conf(); }
+			void next(){ fID = gID; f = g; conf(); }
 		};
 		Iterator trace(int flat, Vecf<2> fpos) const {
-			Iterator I; I.vtx = this; I.flat = flat; I.fpos = fpos;
-			for(int i=0; i<2; i++) if(flips[axis[flat][i]]) I.fpos[i] = 1.f-I.fpos[i];
-			I.conf();
-			return I;
+			Iterator I; I.vtx = this;  I.fID = flat;
+			for(int i=0; i<2; i++) I.f[i] = flips[flat][i] ? 1.f-fpos[i]: fpos[i];
+			I.conf(); return I;
 		} 
 	};
 	//--------------------------------------------------------------------------

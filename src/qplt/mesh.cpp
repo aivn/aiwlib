@@ -172,7 +172,7 @@ template <int AID> void aiw::QpltMeshPlotter::get_impl(int xy[2], std::string &r
 			f.mod_coord(r, pos, X); 
 			// WERR(f.a[0], f.a[1], f.nX, f.nY, xy[0], xy[1], r);
 			auto v = interpolate(f, pos, X, f.interp);
-			std::stringstream S; S<<r<<':'<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
+			std::stringstream S; S/*<<r<<':'*/<<v[0]; for(int i=1; i<v.size(); i++) S<<'\n'<<v[i];
 			res = S.str(); break;
 			// res.value = S.str(); for(int i=0; i<2; i++) res.xy[i] = container->fpos2coord(bbeg[f.axis[i]]+r[i], axisID[f.axis[i]]); 
 			// f.flat2image(vecf(r[0], 0.f), res.a1);  f.flat2image(vecf(r[0], f.bbox[1]), res.a2);
@@ -231,9 +231,10 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		int fl_sz = flats.size(), cID = 0;  VTexture vtx(*this);
 		calc_t<PAID> calcs[fl_sz]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
 		int64_t deltas[3]; for(int i=0; i<3; i++) deltas[i] = icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1]))? -calcs[i].mul[2] : calcs[i].mul[2]; // ???
-		for(int i=0; i<3; i++) WERR(icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], deltas[i]);
-		QpltMesh* cnt = (QpltMesh*)container; // ???
-		// #pragma omp parallel for firstprivate(cID)
+		for(int i=0; i<3; i++) WERR(i, icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], deltas[i]);
+		// QpltMesh* cnt = (QpltMesh*)container; // ???
+		// QpltColor col("rainbow", 0, 3);
+#pragma omp parallel for firstprivate(cID)
 		for(int y=0; y<im.Ny; y++){
 			char *nb[6] = {nullptr};  // ???
 			int y0 = ibmin[1]+y;
@@ -246,27 +247,53 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				}
 				const calc_t<PAID> & flat = calcs[cID];
 				Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
-				Ind<3> pos3d; flat.pos2to3(pos, pos3d); // for(int i=0; i<2; i++) pos3d[flat.axis[i]] = pos[i]; // ??? вообще нет, надо от центральной точки идти
-				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);  float len = 0, max_len = 10;
+				Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
+				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);  float sum_w = 0, _max_len = 1./20, lim_w = .5;
+
+				// im.set_pixel0(x, y, col(ray.fID+ray.gID*3));
+				// im.set_pixel0(x, y, col(ray.len));
+
+				/* */
 				while(1){
-					WEXT(pos, pos3d, x, y, cID, len, ray.axe, ptr-cnt->ptr); // std::cerr.flush();
-					if(cID==0 && x==522 && y==393){ WERR(cID,  pos3d, ray.axe, len, ptr-cnt->ptr); std::cerr.flush(); }
+					WEXT(pos, pos3d, x, y, cID, len, ray.gID, ptr-cnt->ptr); // std::cerr.flush();
+					if(cID==0 && x==522 && y==393){ WERR(cID,  pos3d, ray.gID, len, ptr-cnt->ptr); std::cerr.flush(); }
 					float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
-					if(color.check_in(f)){
+					// if(color.check_in(f)){
+					/*
 						len += ray.len; // тут считаем длину фрагмента и цвет
 						if(len>max_len) break;
 						C = C + QpltColor::rgb_t(color(f))*(len/max_len);
-					}
-					ray.next();  if(++pos3d[ray.axe]>=bbox[ray.axe]) break;  // переходим в следующий воксель, проверяем границу
-					ptr += deltas[ray.axe];					
+					*/
+					float w = ray.len*_max_len*(1-sum_w);
+					if(sum_w+w<lim_w) C = C + QpltColor::rgb_t(color(f))*w;
+					else { C = C + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
+						// }
+					if(++pos3d[ray.gID]>=bbox[ray.gID]) break;  // переходим в следующий воксель, проверяем границу
+					ptr += deltas[ray.gID];	 				
+					ray.next();  
 				}
-				im.set_pixel0(x, y, (C*(1/len)).I);
+				im.set_pixel0(x, y, sum_w? C.I: 0xFFFF00FF);
+				// im.set_pixel0(x, y, col(len));
+				/* */
 				// im.set_pixel0(x, y, 0xFF<<cID*8);
 				
 			}
 		}
 	}
 	// im.dump2ppm("1.ppm");
+	/*
+		float w=col.w*density*(1.0f - sum.w); col.w = 1;
+	    if(sum.w + w < opacityThreshold) sum += col * w;
+	    else { sum += col * (opacityThreshold-sum.w); break; }
+		т.е. sum += col * w; пока не достигнут порог непрозрачности.
+		float4 col; -- это цвет текущей точки:
+		в простейшем варианте
+		col = im.get_color_for3D(tex3D(data3D_tex, pos_sc.x, pos_sc.y, pos_sc.z));
+		
+		по умолчанию
+		density = 0.5; opacity = 0.95;
+		можно менять, opacity = 0..1; density > 0;
+	*/	
 	res = im.buf;
 }
 //------------------------------------------------------------------------------

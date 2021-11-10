@@ -125,8 +125,7 @@ class Canvas(QtWidgets.QWidget):
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
                                               self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
                                               win.D3scale_mode.currentIndex()) #int D3scale_mode
-        for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):
-            getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
+        for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
         
         #    x0  title  x1
         # y0 -+---------+-
@@ -255,7 +254,8 @@ class Canvas(QtWidgets.QWidget):
         self.update()
         self.win.statusbar.clearMessage()
         self.win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+
-                                       ' replot %0.2g/%0.2g sec'%(self.plot_time, time.time()-t0))
+                                       ' replot %0.2g/%0.2g sec  '%(self.plot_time, time.time()-t0)+
+                                       ('x'.join(str(self.plotter.ibmax[i]-self.plotter.ibmin[i]) for i in (0,1))+' pixels' if self.plotter else ''))
     #---------------------------------------------------------------------------        
     def paintEvent(self, event):
         #print('paintEvent', self.mouse)
@@ -268,6 +268,7 @@ class Canvas(QtWidgets.QWidget):
             sys.exit(1)
         paint = QtGui.QPainter(self) # перенести в self.replot?
         paint.drawImage(0, 0, im)
+        
     def leaveEvent(self, event): self.single_make_up = lambda slf: slf.im; self.update()
     #---------------------------------------------------------------------------
     def mousePressEvent(self, event):

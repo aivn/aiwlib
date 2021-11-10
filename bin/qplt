@@ -21,6 +21,7 @@ import aiwlib.qplt as qplt
 #--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
+# win.setWindowIcon(QtGui.QIcon('web.png')) 
 canvas = qplt.Canvas(win)
 
 #--- parse arguments and load files --------------------------------------------
@@ -31,7 +32,7 @@ else: win.filenum.setMaximum(qplt.table_size()-1)
 
 #--- configurate window --------------------------------------------------------
 win.D3.addItems(['2D', '3D', 'XD'])
-win.D3.setCurrentIndex(1)
+win.D3.setCurrentIndex(2) #(1)
 
 win.celldim.addItems(['1', '2', '3'])
 win.celltype.addItems(['float', 'double', 'bool', 'uint8_t', 'int8_t', 'uint16_t', 'int16_t', 'uint32_t', 'int32_t', 'uint64_t', 'int64_t'])
