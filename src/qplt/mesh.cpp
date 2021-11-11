@@ -138,9 +138,9 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
 			int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
 			const char* ptr = (char*)(cnt->mem->get_addr()); for(int i=0; i<dim0; i++) ptr += smin[i]*cnt->mul[i];
-			float f_min = 0,  f_max = 0; bool f_start = true;
+			float f_min = HUGE_VAL,  f_max = -HUGE_VAL; 
 			Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
-#pragma omp parallel for reduction(min:f_min) reduction(max:f_max) firstprivate(f_start)
+#pragma omp parallel for reduction(min:f_min) reduction(max:f_max) 
 			for(size_t i=0; i<sz; i++){
 				int pos[dim]; size_t j = i; const char *ptr1 = ptr, *nb[6] = {nullptr};   
 				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
@@ -149,12 +149,8 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 						if(pos[a]>0) nb[2*k] = ptr1-cnt->mul[a]; else nb[2*k] = ptr1;
 						if(pos[a]<cnt->bbox[a]-1) nb[2*k+1] = ptr1+cnt->mul[a]; else nb[2*k+1] = ptr1;
 					}
-				//				WEXC(sz, i, pos[0], pos[1], pos[2], (void*)ptr1, (void*)ptr2, (void*)(nb2[0]), (void*)(nb2[1]), (void*)(nb2[2]), (void*)(nb2[3]), (void*)(nb2[4]), (void*)(nb2[5]));
 				Vecf<3> ff; accessor.conv<AID>(ptr1, (const char**)nb, &(ff[0]));
-				// if(i==15000) WOUT(AID, DIFF, ff);
-				float fres = dout==1? ff[0]: ff.abs();					
-				if(f_start || f_min>fres){ f_start = false; f_min = fres; }
-				if(f_start || f_max<fres){ f_start = false; f_max = fres; }
+				float fres = dout==1? ff[0]: ff.abs();	f_min = std::min(f_min, fres);  f_max = std::max(f_max, fres);
 			}
 			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
 			accessor.minus = acc_minus;
