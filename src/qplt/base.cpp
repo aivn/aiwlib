@@ -57,7 +57,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   int ctype, int Din, int mask, int offsets[3], int diff, int vconv, bool minus,  // accessor
 											   // описание сцены в исходных осях - ползунки, пределы, интерполяция и пр., сохраняет настройки при переключениях. Пока так
 											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
-											   float th_phi[2], float cell_aspect[3], int D3scale_mode
+											   float th_phi[2], float cell_aspect[3], int D3scale_mode, int D3deep
 											   ){ // const {
 	QpltPlotter* plt = mk_plotter(mode); plt->container = this; plt->mode = mode;
 	// 1. настраиваем базовые вещи в плоттере
@@ -74,7 +74,9 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	}
 	
 	plt->axisID = ptr2vec<3>(axisID); plt->theta = th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
-	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->D3scale_mode = D3scale_mode; plt->flips = plt->interp = plt->logscale = 0;
+	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->flips = plt->interp = plt->logscale = 0;
+	plt->D3scale_mode = D3scale_mode;  plt->D3density = D3deep&0xFF; plt->D3opacity = D3deep>>8;
+	
 	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
 		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
 		if(fai&(1<<a)) plt->flips |= 1<<i;

@@ -124,7 +124,7 @@ class Canvas(QtWidgets.QWidget):
                                               win.diff.currentIndex(), win.vconv.currentIndex(), win.invert.isChecked(), # int diff, int vconv, bool minus
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
                                               self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
-                                              win.D3scale_mode.currentIndex()) #int D3scale_mode
+                                              win.D3scale_mode.currentIndex(), win.density.value()+256*win.opacity.value()) #int D3scale_mode, D3density_opacity
         for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
         
         #    x0  title  x1
@@ -250,10 +250,15 @@ class Canvas(QtWidgets.QWidget):
     #---------------------------------------------------------------------------
     def replot(self, *args):
         #print('replot')
-        t0 = time.time()
+        t0, win  = time.time(), self.win
         self.update()
-        self.win.statusbar.clearMessage()
-        self.win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+
+        if win.D3.currentIndex()==2:
+            win.fr_D3opt.show()
+            win.densitylbl.setText("density %i%%"%win.density.value())
+            win.opacitylbl.setText("opacity %i%%"%win.opacity.value())
+        else: win.fr_D3opt.hide()
+        win.statusbar.clearMessage()
+        win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+
                                        ' replot %0.2g/%0.2g sec  '%(self.plot_time, time.time()-t0)+
                                        ('x'.join(str(self.plotter.ibmax[i]-self.plotter.ibmin[i]) for i in (0,1))+' pixels' if self.plotter else ''))
     #---------------------------------------------------------------------------        

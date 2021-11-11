@@ -62,6 +62,7 @@ namespace aiw{
 			rgb_t(int I_=0): I(I_){}
 			rgb_t  operator * (float x) const { rgb_t J; for(int i=0; i<3; i++) J.c[i] = c[i]*x; return J; }
 			rgb_t  operator + (rgb_t J) const { return I+J.I; }
+			rgb_t inv() const { return 0xFFFFFFFF-I; }
 		};
 #endif //SWIG
 		static std::map<std::string, std::vector<rgb_t> > table;

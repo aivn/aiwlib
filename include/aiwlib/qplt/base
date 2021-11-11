@@ -77,7 +77,7 @@ namespace aiw{
 							  int ctype, int Din, int mask, int offset[3], int diff, int vconv, bool minus,  // accessor
 							  // описание сцены в исходных осях - ползунки, пределы, интерполяция и пр., сохраняет настройки при переключениях. Пока так
 							  int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int faai, // 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
-							  float th_phi[2], float cell_aspect[3], int D3scale_mode
+							  float th_phi[2], float cell_aspect[3], int D3scale_mode, int D3density_opacity
 							  ); // const;
 	protected:
 		virtual QpltPlotter* mk_plotter(int mode) = 0;		
@@ -117,7 +117,7 @@ namespace aiw{
 		bool image2flat(int x, int y, aiw::Vecf<2> &r) const {
 			// r = (x-a[0])*nX+(y-a[1])*nY; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
 			for(int i=0; i<2; i++) r[i] = (x-a[0])*nX[i]+(y-a[1])*nY[i]; // (x,y) координаты в пикселях (изображения), r точка в координатах флэта
-			return 0<=r[0] && 0<=r[1] && r[0]<=bbox[0] && r[1]<=bbox[1];
+			return 0<=r[0] && 0<=r[1] && r[0]<bbox[0] && r[1]<bbox[1];
 		}
 		void flat2image(aiw::Vecf<2> r, int xy[2]) const { for(int i=0; i<2; i++) xy[i] = a[i]+r*rn[i]+.5f; }
 		bool cflips[2];  // разворот осей оносительно icenter 
@@ -136,7 +136,7 @@ namespace aiw{
 	protected:
 #endif // SWIG
 		aiw::Ind<6> spos; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg и маска флипов
-		int dim, D3scale_mode, mode;
+		int dim, D3scale_mode, D3density, D3opacity, mode;
 		float theta, phi; aiw::Vecf<3> cell_aspect;
 		QpltAccessor accessor;
 		QpltColor color;
