@@ -50,7 +50,8 @@ void signal_hook(int signum, siginfo_t * info, void * f){
 	fprintf(stderr, " -e Your-programm\n\nIf the output of the addr2line is not informative, try recompile Your code with '--static' option.\n");
 	*/
 	trace_out();
-	exit(1);
+	// exit(1);
+	abort();
 }
 void aiw::init_signal_hook(int signal){
 	struct sigaction act; 
