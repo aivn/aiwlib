@@ -166,7 +166,7 @@ class Canvas(QtWidgets.QWidget):
             for y in stics: paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+tl, pal.bmax[1]-y)
             for y, t in tics:
                 paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+2*tl, pal.bmax[1]-y)
-                paint.drawText(pal.bmin[0]+pw+4*tl, pal.bmax[1]-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignVCenter, t)
+                paint.drawText(pal.bmin[0]+pw+4*tl, int(pal.bmax[1]-y-h_font/2), max_tic_sz, h_font, QtCore.Qt.AlignVCenter, t)
             if win.f_text.text():
                 paint.rotate(-90)
                 paint.drawText(-pal.bmax[1], sz_x-h_font, pal.bbox[1], h_font, QtCore.Qt.AlignHCenter, win.f_text.text())
