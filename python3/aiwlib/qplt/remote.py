@@ -20,7 +20,12 @@ for l in config:
     for k in l[:-1]:
         a, h = k.split('=', 1) if '=' in k else (k, k)
         u, h = h.split('@', 1) if '@' in h else (None, h)
-        keys_table[a] = (u, h, l[-1])
+        h, p = h.split('/', 1) if '/' in h else (h, None)
+        keys_table[a] = (u, h, p, l[-1])
+#-------------------------------------------------------------------------------
+sshconfig = paramiko.SSHConfig()
+try: sshconfig.parse(open(os.path.expanduser('~/.ssh/config')))  # set path in .qplt???
+except: print('file ~/.ssh/config not found')
 #-------------------------------------------------------------------------------
 def factory(fname, host, **params):
     if not host in connect_table: connect_table[(host, params.get('port'))] = Connect(host, **params)
@@ -28,11 +33,15 @@ def factory(fname, host, **params):
 #-------------------------------------------------------------------------------
 class Connect:
     def __init__(self, host, **params):
-        self.client, self.host = paramiko.SSHClient(), host
+        conf = sshconfig.lookup(host)
+        self.host, self.client, host = host, paramiko.SSHClient(), conf['hostname']
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         if host in keys_table:
-            user, host, key = keys_table[host]; params['pkey'] = paramiko.RSAKey.from_private_key_file(key)
+            user, host, port, key = keys_table[host]; params['pkey'] = paramiko.RSAKey.from_private_key_file(key)
             if user and not 'user' in params: params['user'] = user
+            if port and not 'port' in params: params['port'] = port
+        if not 'port' in params and 'port' in conf: params['port'] = int(conf['port'])
+        if not 'user' in params and 'user' in conf: params['user'] = conf['user']
         if 'user' in params: params['username'] = params.pop('user')
         self.client.connect(hostname=host, compress=True, **params) # password=secret
         self.cout, self.cin, self.cerr = self.client.exec_command(command)
