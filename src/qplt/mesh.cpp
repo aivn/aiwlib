@@ -229,7 +229,11 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		int64_t deltas[3]; for(int i=0; i<3; i++) deltas[i] = icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1]))? -calcs[i].mul[2] : calcs[i].mul[2]; // ???
 		for(int i=0; i<3; i++) WERR(i, icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], deltas[i]);
 		// QpltMesh* cnt = (QpltMesh*)container; // ???
-		// QpltColor col("rainbow", 0, 3);
+
+		float _max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)), lim_w = .01*D3opacity;
+		float cr_grad = fabs(color.get_max()-color.get_min())/bbox.max()*pow(exp(log(bbox.max())*.01), D3mingrad); 
+
+
 #pragma omp parallel for firstprivate(cID)
 		for(int y=0; y<im.Ny; y++){
 			char *nb[6] = {nullptr};  // ???
@@ -245,35 +249,25 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 				Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);
-				float sum_w = 0, lim_w = .01*D3opacity, _max_len = 1.f/(1+(bbox.max()-1)*(1-.01f*D3density)); 
-
-				// im.set_pixel0(x, y, col(ray.fID+ray.gID*3));
-				// im.set_pixel0(x, y, col(ray.len));
-
-				/* */
+				float sum_w = 0, f0; if(D3mingrad) accessor.conv<PAID>(ptr, (const char**)nb, &f0);
 				while(1){
 					WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 
-					// WEXT(pos, pos3d, bbox, x, y, cID, sum_w, ray.fID, ray.gID, ptr-cnt->ptr); // std::cerr.flush();
-					// if(cID==1 && x==526 && y==160){ WERR(cID,  pos3d, ray.fID, ray.gID, sum_w, ptr-cnt->ptr); std::cerr.flush(); }
 					float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
-					if(color.check_in(f)){
-						float w = ray.len*_max_len*(1-sum_w);
+					if(!D3mingrad || fabs(f0-f)>cr_grad){
+						float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*_max_len*(1-sum_w);
 						if(sum_w+w<lim_w){ C = C + QpltColor::rgb_t(color(f)).inv()*w; sum_w += w; }
 						else { C = C + QpltColor::rgb_t(color(f)).inv()*(lim_w-sum_w); break; }
 						// v1:
 						// if(sum_w+w<lim_w){ C = C*(1-w) + QpltColor::rgb_t(color(f))*w; sum_w += w; }
 						// else { C = C*(1-w) + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
 					}
+					f0 = f;
 					if(++pos3d[ray.gID]>=bbox[ray.gID]) break;  // переходим в следующий воксель, проверяем границу
 					ptr += deltas[ray.gID];	 				
 					ray.next();  
 				}
 				im.set_pixel0(x, y, sum_w? 0xFFFFFFFF-C.I: 0xFFFFFFFF);
 				// im.set_pixel0(x, y, sum_w? C.I: 0xFFFFFFFF);  // v1
-				// im.set_pixel0(x, y, col(len));
-				/* */
-				// im.set_pixel0(x, y, 0xFF<<cID*8);
-				
 			}
 		}
 		WERR("OK");

@@ -77,7 +77,7 @@ namespace aiw{
 							  int ctype, int Din, int mask, int offset[3], int diff, int vconv, bool minus,  // accessor
 							  // описание сцены в исходных осях - ползунки, пределы, интерполяция и пр., сохраняет настройки при переключениях. Пока так
 							  int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int faai, // 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
-							  float th_phi[2], float cell_aspect[3], int D3scale_mode, int D3density_opacity
+							  float th_phi[2], float cell_aspect[3], int D3density_opacity
 							  ); // const;
 	protected:
 		virtual QpltPlotter* mk_plotter(int mode) = 0;		
@@ -136,7 +136,7 @@ namespace aiw{
 	protected:
 #endif // SWIG
 		aiw::Ind<6> spos; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg и маска флипов
-		int dim, D3scale_mode, D3density, D3opacity, mode;
+		int dim, D3density, D3opacity, D3mingrad, mode;
 		float theta, phi; aiw::Vecf<3> cell_aspect;
 		QpltAccessor accessor;
 		QpltColor color;

@@ -60,7 +60,7 @@ def base_func_call( self, *L, **D ) : # замена аргументов выр
 class get_vars :
     _D_stack = [{}]
     def __init__( self, D ) : 
-        self.G = dict([ (i, spaceOp[i]) for i in 'crc_bk fig_bk ang_bk rm_bk exp sin asin cos acos tan atan log log10 tanh sinh cosh erf asinh acosh atanh pi e fabs sqrt'.split() ])
+        self.G = dict([ (i, spaceOp[i]) for i in 'crc_bk fig_bk ang_bk rm_bk exp sin asin cos acos tan atan log log10 tanh sinh cosh asinh acosh atanh pi e fabs sqrt'.split() ])
         self.D = D; self._D_stack.append(D)
     def __getitem__( self, k ) : return self.D[k] if k in self.D else self.G[k] if k in self.G else var(k)
     def __del__(self) : self._D_stack.pop(-1)

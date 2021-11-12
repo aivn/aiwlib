@@ -25,7 +25,7 @@ for l in config:
 #-------------------------------------------------------------------------------
 sshconfig = paramiko.SSHConfig()
 try: sshconfig.parse(open(os.path.expanduser('~/.ssh/config')))  # set path in .qplt???
-except: print('file ~/.ssh/config not found')
+except: print('File ~/.ssh/config not loaded')
 #-------------------------------------------------------------------------------
 def factory(fname, host, **params):
     if not host in connect_table: connect_table[(host, params.get('port'))] = Connect(host, **params)
@@ -39,7 +39,7 @@ class Connect:
         if host in keys_table:
             user, host, port, key = keys_table[host]; params['pkey'] = paramiko.RSAKey.from_private_key_file(key)
             if user and not 'user' in params: params['user'] = user
-            if port and not 'port' in params: params['port'] = port
+            if port and not 'port' in params: params['port'] = int(port)
         if not 'port' in params and 'port' in conf: params['port'] = int(conf['port'])
         if not 'user' in params and 'user' in conf: params['user'] = conf['user']
         if 'user' in params: params['username'] = params.pop('user')
@@ -105,10 +105,10 @@ class QpltContainer:
         self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step = connect.recv('siiss6i6f6fi6f')
         self._anames = connect.recv('s'*self._dim); self._fname = bytes(connect.host+':', 'utf8')+self._fname
     def plotter(self, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
-		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3scale_mode, D3deep):
+		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep):
         self._connect.send('p', self._fileID, self._frameID, mode,
                            f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
-	                   axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3scale_mode, D3deep)
+	                   axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep)
         return QpltPlotter(self, self._connect, axisID)
 #-------------------------------------------------------------------------------
 class QpltPlotter: 

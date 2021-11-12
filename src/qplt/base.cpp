@@ -57,7 +57,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   int ctype, int Din, int mask, int offsets[3], int diff, int vconv, bool minus,  // accessor
 											   // описание сцены в исходных осях - ползунки, пределы, интерполяция и пр., сохраняет настройки при переключениях. Пока так
 											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
-											   float th_phi[2], float cell_aspect[3], int D3scale_mode, int D3deep
+											   float th_phi[2], float cell_aspect[3], int D3deep
 											   ){ // const {
 	QpltPlotter* plt = mk_plotter(mode); plt->container = this; plt->mode = mode;
 	// 1. настраиваем базовые вещи в плоттере
@@ -75,7 +75,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	
 	plt->axisID = ptr2vec<3>(axisID); plt->theta = th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
 	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->flips = plt->interp = plt->logscale = 0;
-	plt->D3scale_mode = D3scale_mode;  plt->D3density = D3deep&0xFF; plt->D3opacity = D3deep>>8;
+	plt->D3density = D3deep&0xFF; plt->D3opacity = (D3deep>>8)&0xFF;  plt->D3mingrad = (D3deep>>16)&0xFF;
 	
 	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
 		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
@@ -181,9 +181,10 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 		auto &f = flats[0]; im_start.to(f.d); (im_start+im_size).to(f.b);
 		f.a[0] = f.d[0]; f.a[1] = f.b[1]; f.c[0] = f.b[0]; f.c[1] = f.d[1];
 	} else { 
-		if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&cell_aspect).abs();
-		if(D3scale_mode==1) scale[0] = scale[1] = std::min(im_size[0]/(Bhull[0]-Ahull[0]), im_size[1]/(Bhull[1]-Ahull[1]));
-		if(D3scale_mode==2){ scale[0] = im_size[0]/(Bhull[0]-Ahull[0]); scale[1] = im_size[1]/(Bhull[1]-Ahull[1]); }
+		// if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&cell_aspect).abs();
+		// if(D3scale_mode==1)
+		scale[0] = scale[1] = std::min(im_size[0]/(Bhull[0]-Ahull[0]), im_size[1]/(Bhull[1]-Ahull[1]));
+		// if(D3scale_mode==2){ scale[0] = im_size[0]/(Bhull[0]-Ahull[0]); scale[1] = im_size[1]/(Bhull[1]-Ahull[1]); }
 		// nX *= scale[0];  nY *= scale[1];
 		for(auto &f: flats) for(int i=0; i<4; i++) f.abcd(i) = Ind<2>(center)+(f.ppf[i]&scale); // +vecf(.5f); ???
 	}

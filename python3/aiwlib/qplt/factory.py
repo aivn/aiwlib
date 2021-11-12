@@ -37,7 +37,7 @@ def load_remote_file(fname, **server):  # --> frames count
 def parse_server(arg):
     server = {}
     if '@' in arg: server['user'], arg = arg.split('@')
-    if '/' in server: arg, server['port'] = arg.split('/')
+    if '/' in arg: arg, server['port'] = arg.split('/'); server['port'] = int(server['port'])
     server['host'] = arg
     return server
 #-------------------------------------------------------------------------------

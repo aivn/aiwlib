@@ -33,15 +33,15 @@ int main(){ // передавать при запуске размер памя�
 			globfree(&glbuf);
 			std::cout.flush();
 		} else if(A=='p'){ // создаем плоттер
-			int fileID, frameID, mode, f_opt, arr_lw[2], arr_spacing, nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3scale_mode, D3deep;
+			int fileID, frameID, mode, f_opt, arr_lw[2], arr_spacing, nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3deep;
 			float f_lim[2], sposf[6], bmin_[6], bmax_[6], th_phi[2], cell_aspect[3];
 			std::string paletter;
 			stdIn.load(fileID, frameID, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color,
 					   ctype, Din, mask, offset, diff, vconv, minus, axisID, sposf, bmin_, bmax_, faai,
-					   th_phi, cell_aspect, D3scale_mode, D3deep);
+					   th_phi, cell_aspect, D3deep);
 			QpltPlotter* plt = containers[fileID][frameID]->plotter(mode, f_opt, f_lim, paletter.c_str(), arr_lw, arr_spacing, nan_color, 
 																	ctype, Din, mask, offset, diff, vconv, minus,
-																	axisID, sposf, bmin_, bmax_, faai, th_phi, cell_aspect, D3scale_mode, D3deep);
+																	axisID, sposf, bmin_, bmax_, faai, th_phi, cell_aspect, D3deep);
 			plotters[last_plotter_ID] = plt;
 			stdOut.dump(last_plotter_ID, plt->get_dim(), plt->bbox, plt->bmin, plt->bmax, plt->get_f_min(), plt->get_f_max(), plt->flats_sz());
 			for(int i=0; i<plt->flats_sz(); i++){ auto f = plt->get_flat(i); stdOut.dump(f.axis, f.bounds, f.bmin, f.bmax); }

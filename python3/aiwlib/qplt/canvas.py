@@ -65,7 +65,7 @@ class Canvas(QtWidgets.QWidget):
         win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
         win.cellsize.setText(str(self.container.get_szT()))
         anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
-        for w in (win.D3, win.D3scale_mode): w.setEnabled(len(anames)>=3)
+        win.D3.setEnabled(len(anames)>=3)
         if any(a>len(anames) for a in self.axisID): self.axisID = [0, 1, 2]  #???
         for i in (0, 1, 2)[:len(anames)]: w = getattr(win, 'xyz'[i]+'_axe'); w.clear(); w.addItems(anames); w.setCurrentIndex(self.axisID[i])
         self.faai2win()        
@@ -124,7 +124,7 @@ class Canvas(QtWidgets.QWidget):
                                               win.diff.currentIndex(), win.vconv.currentIndex(), win.invert.isChecked(), # int diff, int vconv, bool minus
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
                                               self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
-                                              win.D3scale_mode.currentIndex(), win.density.value()+256*win.opacity.value()) #int D3scale_mode, D3density_opacity
+                                              win.density.value()+256*win.opacity.value()+65536*win.mingrad.value()) #int  D3deep
         for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
         
         #    x0  title  x1
@@ -256,6 +256,7 @@ class Canvas(QtWidgets.QWidget):
             win.fr_D3opt.show()
             win.densitylbl.setText("density %i%%"%win.density.value())
             win.opacitylbl.setText("opacity %i%%"%win.opacity.value())
+            win.mingradlbl.setText("min.gr. %i%%"%win.mingrad.value())
         else: win.fr_D3opt.hide()
         win.statusbar.clearMessage()
         win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+
