@@ -290,7 +290,10 @@ class Canvas(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event):
         if self.mouse:
             if self.mouse.release(self, event): self.mouse = None; self.replot()
-            else: self.mouse = None; self.single_make_up = lambda slf: slf.im; self.update()            
+            else: self.mouse = None; self.single_make_up = lambda slf: slf.im; self.update()
+    def mouseDoubleClickEvent(self, event):
+        for m in self.mouse_table:
+            if m.check(event): m.dblclick(self, event); break        
     def wheelEvent(self, event):
         #if self.mouse: self.mouse.wheel(self, event); return
         for m in self.mouse_table:

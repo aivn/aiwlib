@@ -231,7 +231,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		// QpltMesh* cnt = (QpltMesh*)container; // ???
 
 		float _max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)), lim_w = .01*D3opacity;
-		float cr_grad = fabs(color.get_max()-color.get_min())/bbox.max()*pow(exp(log(bbox.max())*.01), D3mingrad); 
+		float cr_grad = fabs(color.get_max()-color.get_min())/(10*bbox.max())*pow(exp(log(10*bbox.max())*.01), D3mingrad); 
 
 
 #pragma omp parallel for firstprivate(cID)

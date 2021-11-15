@@ -13,6 +13,7 @@ class Rect:
     def check(self, event): return self.bmin[0]<=event.x()<=self.bmax[0] and self.bmin[1]<=event.y()<=self.bmax[1]
     def press(self, canvas, event): self.xy0 = event.x(), event.y(); return self
     def touch(self, canvas, event): self.xy = event.x(), event.y(); canvas.update(); return True
+    def dblclick(self, canvas, event): pass
     #---------------------------------------------------------------------------
     def text(self, x, y, text, align='', color=None): self.plots.append(('text', int(x), int(y), text, align, color)) # align = l|r|t|b или их комбинации        
     def line(self, x1, y1, x2, y2, color=None):
@@ -192,10 +193,19 @@ class MouseFlat3D(Rect):
         if self.rot: self.rot = None; return
         rpos0, a = self.sel[:2];  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
         if not a1 or rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
-        canvas.autolim_off(A); c, AA = True, canvas.axisID[A] 
+        canvas.autolim_off(A); AA = canvas.axisID[A] 
         lim = [self.p2f(a, rpos0[a]), self.p2f(a, rpos1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[AA]<canvas.bmax[AA])
         canvas.bmin[AA], canvas.bmax[AA] = lim[inv], lim[1-inv]
         return True
+    def dblclick(self, canvas, event):
+        rpos, axis = self.event2rpos(event) 
+        if not bool(event.buttons()&1) or len(axis)!=1: return        
+        a = axis[0]; A =self.flat.axis[a]; AA = canvas.axisID[A]
+        lim = [canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)] if canvas.autolim(A)  else [canvas.bmin[AA], canvas.bmax[AA]]
+        if rpos[a]<canvas.plotter.get_bbox(A)/2: canvas.bmin[AA], canvas.bmax[AA] = lim[0], (lim[0]+lim[1])/2
+        else: canvas.bmin[AA], canvas.bmax[AA] = (lim[0]+lim[1])/2, lim[1]
+        canvas.autolim_off(A)
+        canvas.replot()
     def p2f(self, axe, fpos): return _one2coord(self.flat.bmin[axe], self.flat.bmax[axe], self.logscale[axe], fpos/self.bbox[axe])
     def make_up(self, container): return Rect.make_up(self, container) if self.plots else container.make_up() #container.light_replot()
     def wheel(self, canvas, event):
