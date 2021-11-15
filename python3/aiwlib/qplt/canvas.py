@@ -137,12 +137,12 @@ class Canvas(QtWidgets.QWidget):
         
         #print('paintEvent', event)
         #t0, T = time.time(), 0. #; self.D3 = (self.win.D3.currentIndex() and self.container.get_dim()>2)
-        win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-262, wsz.height(), 0
+        win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-267, wsz.height(), 0
         tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
         
         image = QtGui.QImage(sz_x, sz_y, QtGui.QImage.Format_RGB888)
         image.fill(0xFFFFFF)
-        self.setGeometry(262, 0, sz_x, sz_y) #???
+        self.setGeometry(267, 0, sz_x, sz_y) #???
         paint = QtGui.QPainter(image)
         #paint = QtGui.QPainter(self)
         paint.setFont(QtGui.QFont(win.font.currentText(), win.font_sz.value()))        

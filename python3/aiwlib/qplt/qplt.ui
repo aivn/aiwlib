@@ -26,14 +26,14 @@
    <widget class="QFrame" name="color_frame">
     <property name="geometry">
      <rect>
-      <x>0</x>
+      <x>5</x>
       <y>30</y>
       <width>261</width>
       <height>91</height>
      </rect>
     </property>
     <property name="frameShape">
-     <enum>QFrame::StyledPanel</enum>
+     <enum>QFrame::NoFrame</enum>
     </property>
     <property name="frameShadow">
      <enum>QFrame::Raised</enum>
@@ -251,14 +251,14 @@
    <widget class="QFrame" name="cell_frame">
     <property name="geometry">
      <rect>
-      <x>0</x>
+      <x>5</x>
       <y>120</y>
       <width>261</width>
       <height>91</height>
      </rect>
     </property>
     <property name="frameShape">
-     <enum>QFrame::StyledPanel</enum>
+     <enum>QFrame::NoFrame</enum>
     </property>
     <property name="frameShadow">
      <enum>QFrame::Plain</enum>
@@ -439,7 +439,7 @@
      <rect>
       <x>0</x>
       <y>210</y>
-      <width>263</width>
+      <width>267</width>
       <height>1060</height>
      </rect>
     </property>
@@ -449,6 +449,9 @@
      </property>
      <property name="sizeConstraint">
       <enum>QLayout::SetMaximumSize</enum>
+     </property>
+     <property name="leftMargin">
+      <number>5</number>
      </property>
      <item>
       <widget class="QFrame" name="frame2D">
@@ -1810,7 +1813,7 @@
          <enum>QSlider::NoTicks</enum>
         </property>
        </widget>
-       <widget class="QLabel" name="mingradlbl">
+       <widget class="QLabel" name="mingardlbl">
         <property name="geometry">
          <rect>
           <x>0</x>
@@ -1903,6 +1906,19 @@
         </property>
         <property name="checked">
          <bool>true</bool>
+        </property>
+       </widget>
+       <widget class="QComboBox" name="D3scale_mode">
+        <property name="geometry">
+         <rect>
+          <x>50</x>
+          <y>0</y>
+          <width>71</width>
+          <height>27</height>
+         </rect>
+        </property>
+        <property name="toolTip">
+         <string>3D scene scale mode</string>
         </property>
        </widget>
       </widget>
@@ -2450,14 +2466,14 @@
    <widget class="QFrame" name="frame_3">
     <property name="geometry">
      <rect>
-      <x>0</x>
+      <x>5</x>
       <y>0</y>
       <width>261</width>
       <height>31</height>
      </rect>
     </property>
     <property name="frameShape">
-     <enum>QFrame::StyledPanel</enum>
+     <enum>QFrame::NoFrame</enum>
     </property>
     <property name="frameShadow">
      <enum>QFrame::Raised</enum>
