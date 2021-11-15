@@ -229,7 +229,7 @@ class Canvas(QtWidgets.QWidget):
             for y in stics: paint.drawLine(x0-tl, y1-y, x0, y1-y)
             for y, t in tics:
                 paint.drawLine(x0-2*tl, y1-y, x0, y1-y)
-                paint.drawText(x0-2*tl-max_tic_sz, y1-y-h_font/2, max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
+                paint.drawText(x0-2*tl-max_tic_sz, y1-y-int(h_font/2), max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
             if win.y_text.text(): paint.rotate(-90);  paint.drawText(-y1, 0, y1-y0, h_font, QtCore.Qt.AlignHCenter, win.y_text.text());  paint.rotate(90)
 
             # рисуем ось X
@@ -237,7 +237,7 @@ class Canvas(QtWidgets.QWidget):
             for x in stics: paint.drawLine(x0+x, y1, x0+x, y1+tl)
             for x, t in tics:                
                 paint.drawLine(x0+x, y1, x0+x, y1+2*tl)
-                paint.drawText(x0+x-max_tic_sz/2, y1+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
+                paint.drawText(x0+x-int(max_tic_sz/2), y1+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
             if win.x_text.text(): paint.drawText(x0, sz_y-h_font, x1-x0, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
 
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw));  paint.drawRect(x0, y0, x1-x0, y1-y0)
