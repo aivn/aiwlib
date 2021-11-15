@@ -98,7 +98,7 @@ class QpltContainer:
     def get_axe(self, i): return self._anames[i] 
     def get_step(self, axe): return self._step[axe]
     #float fpos2coord(float fpos, int axe) const;
-    #float pos2coord(int pos, int axe) const;
+    def pos2coord(self, pos, axe): return  self._bmin[axe]*self._step[axe]**(pos+.5) if self._logscale&1<<axe else self._bmin[axe]+self._step[axe]*(pos+.5)
     #int coord2pos(float coord, int axe) const;
     def __init__(self, fileID, frameID, connect):
         self._fileID, self._frameID, self._connect = fileID, frameID, connect
