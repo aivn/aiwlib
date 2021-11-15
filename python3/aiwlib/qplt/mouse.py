@@ -14,10 +14,10 @@ class Rect:
     def press(self, canvas, event): self.xy0 = event.x(), event.y(); return self
     def touch(self, canvas, event): self.xy = event.x(), event.y(); canvas.update(); return True
     #---------------------------------------------------------------------------
-    def text(self, x, y, text, align='', color=None): self.plots.append(('text', x, y, text, align, color)) # align = l|r|t|b или их комбинации        
+    def text(self, x, y, text, align='', color=None): self.plots.append(('text', int(x), int(y), text, align, color)) # align = l|r|t|b или их комбинации        
     def line(self, x1, y1, x2, y2, color=None):
         if color: self.plots.append(('setPen', QtGui.QPen(getattr(QtCore.Qt, color))))
-        self.plots.append(('drawLine', x1, y1, x2, y2))
+        self.plots.append(('drawLine', int(x1), int(y1), int(x2), int(y2)))
     def make_up(self, canvas):
         self.im = QtGui.QImage(canvas.im); paint = QtGui.QPainter(self.im)
         paint.setFont(QtGui.QFont(canvas.win.font.currentText(), canvas.win.font_sz.value()))
