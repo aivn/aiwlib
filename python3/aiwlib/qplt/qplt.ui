@@ -1813,7 +1813,7 @@
          <enum>QSlider::NoTicks</enum>
         </property>
        </widget>
-       <widget class="QLabel" name="mingardlbl">
+       <widget class="QLabel" name="mingradlbl">
         <property name="geometry">
          <rect>
           <x>0</x>

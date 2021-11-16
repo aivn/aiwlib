@@ -21,8 +21,17 @@ import aiwlib.qplt as qplt
 #--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
-# win.setWindowIcon(QtGui.QIcon('web.png')) 
+# win.setWindowIcon(QtGui.QIcon('web.png'))
+# app.setWindowIcon(ico)
 canvas = qplt.Canvas(win)
+
+def bindKey(widg, key, func):
+    act = QtWidgets.QAction(widg)
+    act.setShortcut(QtGui.QKeySequence(key))
+    act.triggered.connect(func)
+    widg.addAction(act)
+#def ctrlZ(*args): print(args)
+#bindKey(win, "Ctrl+z", ctrlZ)
 
 #--- parse arguments and load files --------------------------------------------
 qplt.load_files(*sys.argv[1:])
