@@ -451,7 +451,7 @@
       <enum>QLayout::SetMaximumSize</enum>
      </property>
      <property name="leftMargin">
-      <number>20</number>
+      <number>0</number>
      </property>
      <item>
       <widget class="QFrame" name="frame2D">
@@ -556,7 +556,7 @@
        <widget class="QCheckBox" name="xflip">
         <property name="geometry">
          <rect>
-          <x>-20</x>
+          <x>0</x>
           <y>20</y>
           <width>51</width>
           <height>25</height>
