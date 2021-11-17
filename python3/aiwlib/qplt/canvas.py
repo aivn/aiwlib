@@ -59,9 +59,9 @@ class Canvas(QtWidgets.QWidget):
     def full_replot(self, *args):
         #print('full_replot',  args)
         win = self.win
-        win.filelbl.setText('file[%i/%i]'%(win.filenum.value(), table_size()))
+        win.filelbl.setText(' file[%i/%i]'%(win.filenum.value(), table_size()))
         if file_size(win.filenum.value())==1: win.fr_framenum.hide()
-        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz); win.framenum.setText('frame[%i/%i]'%(win.framenum.value()/fsz))
+        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz); win.framenum.setText(' frame[%i/%i]'%(win.framenum.value()/fsz))
         self.container = get_frame(win.filenum.value(), win.framenum.value())
         win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
         win.cellsize.setText(str(self.container.get_szT()))
@@ -103,7 +103,7 @@ class Canvas(QtWidgets.QWidget):
         for i in range(self.container.get_dim()):
             if i in self.axisID[:2+self.D3]: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
             getattr(win, 'fr_slice%i'%(i+1)).show()
-            getattr(win, 'slicelbl%i'%(i+1)).setText(self.container.get_axe(i).decode()+'[%i]'%getattr(win, 'slicenum%i'%(i+1)).value())
+            getattr(win, 'slicelbl%i'%(i+1)).setText(' '+self.container.get_axe(i).decode()+'[%i]'%getattr(win, 'slicenum%i'%(i+1)).value())
         if self.D3: win.z_frame.show()
         else: win.z_frame.hide()
 
@@ -138,12 +138,12 @@ class Canvas(QtWidgets.QWidget):
         
         #print('paintEvent', event)
         #t0, T = time.time(), 0. #; self.D3 = (self.win.D3.currentIndex() and self.container.get_dim()>2)
-        win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-282, wsz.height(), 0
+        win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-272, wsz.height(), 0
         tl, tw, pw, bw, ps  = int(win.tics_length.text()), int(win.tics_width.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
         
         image = QtGui.QImage(sz_x, sz_y, QtGui.QImage.Format_RGB888)
         image.fill(0xFFFFFF)
-        self.setGeometry(282, 0, sz_x, sz_y) #???
+        self.setGeometry(272, 0, sz_x, sz_y) #???
         paint = QtGui.QPainter(image)
         #paint = QtGui.QPainter(self)
         paint.setFont(QtGui.QFont(win.font.currentText(), win.font_sz.value()))        
@@ -257,9 +257,9 @@ class Canvas(QtWidgets.QWidget):
         self.update()
         if win.D3.currentIndex()==2:
             win.fr_D3opt.show()
-            win.densitylbl.setText("density %i%%"%win.density.value())
-            win.opacitylbl.setText("opacity %i%%"%win.opacity.value())
-            win.mingradlbl.setText("min.gr. %i%%"%win.mingrad.value())
+            win.densitylbl.setText(" density %i%%"%win.density.value())
+            win.opacitylbl.setText(" opacity %i%%"%win.opacity.value())
+            win.mingradlbl.setText(" min.gr. %i%%"%win.mingrad.value())
         else: win.fr_D3opt.hide()
         win.statusbar.clearMessage()
         win.statusbar.showMessage('x'.join('[%i]'%self.container.get_bbox(i) for i in range(self.container.get_dim()))+
