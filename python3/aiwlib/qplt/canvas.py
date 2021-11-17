@@ -19,7 +19,7 @@ class Canvas(QtWidgets.QWidget):
         self.th_phi, self.slices_table = [70., 60.], []  # номера осей отображаемых на ползунках срезов
         self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
         self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i)) for i in os.listdir(os.path.dirname(__file__)+'/pals'))
-
+        
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()

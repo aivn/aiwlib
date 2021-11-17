@@ -45,7 +45,11 @@ class MousePaletter(Rect):
     def check(self, event): return self.bmin[0]<=event.x() and self.bmin[1]<=event.y()<=self.bmax[1]
     def y2f(self, y): return _one2coord(self.f_min, self.f_max, self.logscale, (self.bmax[1]-y)/self.bbox[1])
     def line_text(self, y, f, color='red'): self.line(self.bmin[0], y, self.x1, y, color); self.text(self.x1, y, '%g'%f, 'rb', color)
-    def touch(self, canvas, event): y = event.y();  self.line_text(y, self.y2f(y)); return True
+    def touch(self, canvas, event):
+        x, y = event.x(), event.y();  self.line_text(y, self.y2f(y))
+        #canvas.setCursor(QtCore.Qt.SizeVerCursor if self.bmin[0]<x<self.bmax[0] else QtCore.Qt.ArrowCursor)
+        if self.bmin[0]<x<self.bmax[0]: self.text(x, y, 'Z', 'rb', 'red')
+        return True
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.y0 = event.y(); self.f0 = self.y2f(self.y0); return self  # левая кнопка
         if(event.buttons()&2): # правая кнопка
@@ -85,6 +89,8 @@ class MouseFlat2D(Rect):
     def line_text_y(self, i, f, color='red'): self.line(self.bmin[0], i, self.bmax[0], i, 'gray'); self.text(0, i, '%g'%f, 'lb', color)
     def touch(self, canvas, event):
         x, y, c = event.x(), event.y(), 0
+        #canvas.setCursor(QtCore.Qt.SizeVerCursor if x<self.bmin[0]/2 else QtCore.Qt.SizeHorCursor if (self.bmax[1]+canvas.im.height())/2<y else QtCore.Qt.ArrowCursor)
+        if x<self.bmin[0]/2 or (self.bmax[1]+canvas.im.height())/2<y: self.text(x, y, 'Z', 'rb', 'red')
         if self.bmin[0]<x<self.bmax[0]: self.line_text_x(x, self.p2f(0, x)); c += 1
         if self.bmin[1]<y<self.bmax[1]: self.line_text_y(y, self.p2f(1, y)); c += 1
         if c==2: self.text(x, y, self.getval([x, y]).decode(), 'rb', 'red')
@@ -119,7 +125,7 @@ class MouseFlat2D(Rect):
             if not (self.bmin[a]<=xy[a]<=self.bmax[a]): continue
             f0, f1, A = self.xy_min[a], self.xy_max[a], canvas.axisID[a]; sign = -1 if (event.angleDelta().y()<0)^(f0<f1) else 1
             F0, F1 = canvas.container.get_bmin(A), canvas.container.get_bmax(A)
-            zoom = self.bmin[0]/2<xy[0] if a else xy[1]<(self.bmax[1]+canvas.im.height())/2
+            zoom = (xy[0]<self.bmin[0]/2 or self.bmin[0]<xy[0]) if a else (xy[1]<self.bmax[1] or (self.bmax[1]+canvas.im.height())/2<xy[1])
             if zoom: w_min = (self.bmax[1]-xy[1] if a else xy[0]-self.bmin[0])/self.bbox[a];  w_max = 1-w_min 
             else: w_min, w_max = -1, 1
             f0, f1 = f0-.1*(f1-f0)*w_min*sign, f1+.1*(f1-f0)*w_max*sign
@@ -160,10 +166,13 @@ class MouseFlat3D(Rect):
         return list(self.c+self.cc[axe]*(self.bbox[axe]-rpos[axe] if self.cflips[axe] else rpos[axe]))
     def check(self, event): return bool(self.event2rpos(event)[1])
     def touch(self, canvas, event):
-        rpos, axis = self.event2rpos(event) #; print(rpos, axis)
-        if len(axis)==1: self.line(event.x(), event.y(), *self.line_in(rpos, axis[0]), color='black')
+        x, y = event.x(), event.y(); rpos, axis = self.event2rpos(event) #; print(rpos, axis)
+        if len(axis)==1:
+            self.line(x, y, *self.line_in(rpos, axis[0]), color='black')
+            #canvas.setCursor(QtCore.Qt.SizeBDiagCursor if self.pp[axis[0]]*(_Vec(event.x(), event.y())-self.c)<-50 else QtCore.Qt.ArrowCursor)
+            if self.pp[axis[0]]*(_Vec(x, y)-self.c)<-40: self.text(x, y, 'Z', 'rb', 'red')
         else: self.line_in(rpos, axis[0]); self.line_in(rpos, axis[1])
-        if axis==(0,1): xy = [event.x(), event.y()]; self.text(xy[0], xy[1], self.getval(xy).decode(), 'rb', 'red')
+        if axis==(0,1): self.text(x, y, self.getval([x, y]).decode(), 'rb', 'red')
         return bool(self.plots)
     def press(self, canvas, event):  # если кнопка левая начинаем выделение/вращение, иначе выключаем/включаем выделение
         rpos, axis = self.event2rpos(event) 
@@ -213,11 +222,9 @@ class MouseFlat3D(Rect):
         if not axis: return False
         replot = False
         for a in axis:
-            A = self.flat.axis[a]; AA = canvas.axisID[A];
+            A = self.flat.axis[a]; AA = canvas.axisID[A];  F0, F1 = canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)
             f0, f1 = (self.flat.bmin[a], self.flat.bmax[a]) if canvas.autolim(A) else (canvas.bmin[AA], canvas.bmax[AA])
-            sign = -1 if (event.angleDelta().y()<0)^(f0<f1) else 1
-            F0, F1 = canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)            
-            zoom = self.pp[a]*(_Vec(event.x(), event.y())-self.c)>-30            
+            sign, zoom = (-1 if (event.angleDelta().y()<0)^(f0<f1) else 1), not -40<self.pp[a]*(_Vec(event.x(), event.y())-self.c)<0            
             if zoom: w_min = rpos[a]/self.bbox[a];  w_max = 1-w_min 
             else: w_min, w_max = -1, 1
             #print('<<<', self.flat.axis[a], zoom, f1-f0)
