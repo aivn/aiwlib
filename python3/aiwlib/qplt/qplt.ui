@@ -26,7 +26,7 @@
    <widget class="QFrame" name="color_frame">
     <property name="geometry">
      <rect>
-      <x>5</x>
+      <x>20</x>
       <y>30</y>
       <width>261</width>
       <height>91</height>
@@ -251,7 +251,7 @@
    <widget class="QFrame" name="cell_frame">
     <property name="geometry">
      <rect>
-      <x>5</x>
+      <x>20</x>
       <y>120</y>
       <width>261</width>
       <height>91</height>
@@ -439,7 +439,7 @@
      <rect>
       <x>0</x>
       <y>210</y>
-      <width>267</width>
+      <width>282</width>
       <height>1060</height>
      </rect>
     </property>
@@ -451,7 +451,7 @@
       <enum>QLayout::SetMaximumSize</enum>
      </property>
      <property name="leftMargin">
-      <number>5</number>
+      <number>20</number>
      </property>
      <item>
       <widget class="QFrame" name="frame2D">
@@ -1086,7 +1086,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1144,7 +1144,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1238,7 +1238,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1332,7 +1332,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1426,7 +1426,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1520,7 +1520,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1614,7 +1614,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1941,7 +1941,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -2466,7 +2466,7 @@
    <widget class="QFrame" name="frame_3">
     <property name="geometry">
      <rect>
-      <x>5</x>
+      <x>20</x>
       <y>0</y>
       <width>261</width>
       <height>31</height>
