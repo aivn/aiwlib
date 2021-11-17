@@ -58,5 +58,6 @@ def load_files(*args):
         elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, **parse_server(srv))
         else: load_remote_file(arg, **server) if server else load_local_file(arg)
         for f in table[tpos:]: print('load', f[0].fname().decode(), '---', len(f), 'frames')
+    print('Totally loaded', sum(len(f) for f in table), 'frames from', len(table), 'files')
 #-------------------------------------------------------------------------------
 

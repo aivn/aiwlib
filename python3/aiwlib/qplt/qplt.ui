@@ -482,9 +482,9 @@
        <widget class="QCheckBox" name="yflip">
         <property name="geometry">
          <rect>
-          <x>0</x>
+          <x>-20</x>
           <y>50</y>
-          <width>31</width>
+          <width>51</width>
           <height>25</height>
          </rect>
         </property>
@@ -556,9 +556,9 @@
        <widget class="QCheckBox" name="xflip">
         <property name="geometry">
          <rect>
-          <x>0</x>
+          <x>-20</x>
           <y>20</y>
-          <width>31</width>
+          <width>51</width>
           <height>25</height>
          </rect>
         </property>
@@ -694,9 +694,9 @@
        <widget class="QCheckBox" name="zflip">
         <property name="geometry">
          <rect>
-          <x>-10</x>
+          <x>-20</x>
           <y>0</y>
-          <width>41</width>
+          <width>51</width>
           <height>25</height>
          </rect>
         </property>
@@ -766,8 +766,8 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>48</width>
-          <height>19</height>
+          <width>81</width>
+          <height>20</height>
          </rect>
         </property>
         <property name="text">
@@ -777,9 +777,9 @@
        <widget class="QSlider" name="filenum">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
+          <width>181</width>
           <height>20</height>
          </rect>
         </property>
@@ -820,7 +820,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>48</width>
+          <width>81</width>
           <height>19</height>
          </rect>
         </property>
@@ -831,10 +831,10 @@
        <widget class="QSlider" name="framenum">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
-          <height>16</height>
+          <width>181</width>
+          <height>20</height>
          </rect>
         </property>
         <property name="orientation">
@@ -874,7 +874,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>60</width>
+          <width>81</width>
           <height>19</height>
          </rect>
         </property>
@@ -885,9 +885,9 @@
        <widget class="QSlider" name="slicenum1">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
+          <width>181</width>
           <height>20</height>
          </rect>
         </property>
@@ -931,7 +931,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>60</width>
+          <width>81</width>
           <height>19</height>
          </rect>
         </property>
@@ -942,9 +942,9 @@
        <widget class="QSlider" name="slicenum2">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
+          <width>181</width>
           <height>20</height>
          </rect>
         </property>
@@ -988,7 +988,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>60</width>
+          <width>81</width>
           <height>19</height>
          </rect>
         </property>
@@ -999,9 +999,9 @@
        <widget class="QSlider" name="slicenum3">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
+          <width>181</width>
           <height>20</height>
          </rect>
         </property>
@@ -1045,7 +1045,7 @@
          <rect>
           <x>0</x>
           <y>0</y>
-          <width>60</width>
+          <width>81</width>
           <height>19</height>
          </rect>
         </property>
@@ -1056,9 +1056,9 @@
        <widget class="QSlider" name="slicenum4">
         <property name="geometry">
          <rect>
-          <x>60</x>
+          <x>80</x>
           <y>0</y>
-          <width>201</width>
+          <width>181</width>
           <height>20</height>
          </rect>
         </property>
@@ -1877,7 +1877,7 @@
         </size>
        </property>
        <property name="frameShape">
-        <enum>QFrame::StyledPanel</enum>
+        <enum>QFrame::NoFrame</enum>
        </property>
        <property name="frameShadow">
         <enum>QFrame::Raised</enum>
@@ -1906,19 +1906,6 @@
         </property>
         <property name="checked">
          <bool>true</bool>
-        </property>
-       </widget>
-       <widget class="QComboBox" name="D3scale_mode">
-        <property name="geometry">
-         <rect>
-          <x>50</x>
-          <y>0</y>
-          <width>71</width>
-          <height>27</height>
-         </rect>
-        </property>
-        <property name="toolTip">
-         <string>3D scene scale mode</string>
         </property>
        </widget>
       </widget>

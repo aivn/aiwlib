@@ -58,9 +58,10 @@ class Canvas(QtWidgets.QWidget):
     #--------------------------------------------------------------------------
     def full_replot(self, *args):
         #print('full_replot',  args)
-        win = self.win  
+        win = self.win
+        win.filelbl.setText('file[%i/%i]'%(win.filenum.value(), table_size()))
         if file_size(win.filenum.value())==1: win.fr_framenum.hide()
-        else: win.fr_framenum.show(); win.framenum.setMaximum(file_size(win.filenum.value()))
+        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz); win.framenum.setText('frame[%i/%i]'%(win.framenum.value()/fsz))
         self.container = get_frame(win.filenum.value(), win.framenum.value())
         win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
         win.cellsize.setText(str(self.container.get_szT()))
@@ -138,7 +139,7 @@ class Canvas(QtWidgets.QWidget):
         #print('paintEvent', event)
         #t0, T = time.time(), 0. #; self.D3 = (self.win.D3.currentIndex() and self.container.get_dim()>2)
         win, plotter = self.win, self.plotter;  wsz = win.centralwidget.size(); sz_x, sz_y, y0 = wsz.width()-282, wsz.height(), 0
-        tl, pw, bw, ps  = int(win.tics_length.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
+        tl, tw, pw, bw, ps  = int(win.tics_length.text()), int(win.tics_width.text()), int(win.pal_width.text()), int(win.border_width.text()), int(win.pal_space.text())
         
         image = QtGui.QImage(sz_x, sz_y, QtGui.QImage.Format_RGB888)
         image.fill(0xFFFFFF)
@@ -162,7 +163,7 @@ class Canvas(QtWidgets.QWidget):
             x1 = sz_x-ps-pw-4*tl-max_tic_sz-h_font*2*bool(win.f_text.text());  pal.shift([x1+ps, 0])
             paint.drawImage(pal.bmin[0], pal.bmin[1], self.paletters[win.paletter.itemText(win.paletter.currentIndex())].scaled(pal.bbox[0], pal.bbox[1]))
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw)); paint.drawRect(pal.bmin[0], pal.bmin[1], pw, pal.bbox[1])
-            paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, tw))
             for y in stics: paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+tl, pal.bmax[1]-y)
             for y, t in tics:
                 paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+2*tl, pal.bmax[1]-y)
@@ -203,11 +204,12 @@ class Canvas(QtWidgets.QWidget):
                 except: pass
                 for j in range(4):
                     a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])  
-                    paint.drawLine(*(a+b))
+                    paint.setPen(QtGui.QPen(QtCore.Qt.black, bw));  paint.drawLine(*(a+b))
                     axe, mode, lbl = axis_modes[f.axis[j%2]]; fm = (f.bounds&(3<<2*j))>>2*j  # mode in 0:both, 1:auto, 2:down/left, 3:up/right, 4:off
                     if mode==4 or not fm or (mode in (2,3) and (fm==3)^(mode==2)): continue  # это внутренняя граница флэта либо тики отключены
                     text, ext, lines, lbl_pos = make_tics3D((plotter.get_bmin(axe), plotter.get_bmax(axe)), plotter.get_logscale(axe), a, b, plotter.center, 
                                                             tl, paint, lbl*(mode!=1 or fm==3), axe==2)
+                    paint.setPen(QtGui.QPen(QtCore.Qt.black, tw))
                     for l in lines: paint.drawLine(*l)
                     for p, t in text: paint.drawText(p[0], p[1], 1000, 1000, 0, t)
                     if lbl_pos:
@@ -226,6 +228,7 @@ class Canvas(QtWidgets.QWidget):
             # рисуем ось Y
             tics, max_tic_sz, stics = make_tics([plotter.get_bmin(1), plotter.get_bmax(1)], plotter.get_logscale(1), y1-y0, True, paint)            
             x0 = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
+            paint.setPen(QtGui.QPen(QtCore.Qt.black, tw))
             for y in stics: paint.drawLine(x0-tl, y1-y, x0, y1-y)
             for y, t in tics:
                 paint.drawLine(x0-2*tl, y1-y, x0, y1-y)
