@@ -25,7 +25,7 @@ int main(){ // передавать при запуске размер памя�
 				stdOut.dump(int(containers.size())-1, int(res.size()));  // <== число фреймов
 				// flog("% total files\n", int(containers.size()));
 				for(auto f: res){ // <== передаем фреймы
-					stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step);
+					stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep);
 					for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
 				}
 			}

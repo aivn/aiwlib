@@ -3,7 +3,7 @@
 Licensed under the Apache License, Version 2.0'''
 
 __all__ = ['factory', 'Connect']
-import os, sys, struct, paramiko, atexit
+import os, sys, struct, paramiko, atexit, math
 
 #-------------------------------------------------------------------------------
 connect_table, keys_table, command, mem_limit = {}, {}, 'bin/qplt-remote', 0
@@ -99,10 +99,10 @@ class QpltContainer:
     def get_step(self, axe): return self._step[axe]
     #float fpos2coord(float fpos, int axe) const;
     def pos2coord(self, pos, axe): return  self._bmin[axe]*self._step[axe]**(pos+.5) if self._logscale&1<<axe else self._bmin[axe]+self._step[axe]*(pos+.5)
-    #int coord2pos(float coord, int axe) const;
+    def coord2pos(self, coord, axe): return int(math.log(coord/self._bmin[axe])*self._rstep[axe] if self._logscale&1<<axe else (coord-self._bmin[axe])*self._rstep[axe])
     def __init__(self, fileID, frameID, connect):
         self._fileID, self._frameID, self._connect = fileID, frameID, connect
-        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step = connect.recv('siiss6i6f6fi6f')
+        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step, self._rstep = connect.recv('siiss6i6f6fi6f6f')
         self._anames = connect.recv('s'*self._dim); self._fname = bytes(connect.host+':', 'utf8')+self._fname
     def plotter(self, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep):
