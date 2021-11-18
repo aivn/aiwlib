@@ -72,7 +72,7 @@ class Canvas(QtWidgets.QWidget):
         self.faai2win()        
         for i in range(self.container.get_dim()):
             sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
-            sl.setValue(0 if self.autopos(i) else max(min(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
+            sl.setValue(0 if self.autopos(i) else min(max(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
         for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()            
         self.show_axis_info()
         self.replot()
@@ -107,9 +107,6 @@ class Canvas(QtWidgets.QWidget):
         if self.D3: win.z_frame.show()
         else: win.z_frame.hide()
 
-        try: accessor_mask = int(win.cellmask.text(), base=16)
-        except: accessor_mask = 0; print('bad accessor mask', win.cellmask.text())
-
         self.win2faai()
         if not hasattr(self, 'f_lim'): self.f_lim = [win.f_min.text(), win.f_max.text()]
         if self.plotter: self.plotter.free()
@@ -120,7 +117,7 @@ class Canvas(QtWidgets.QWidget):
                                               bytes(win.paletter.itemText(win.paletter.currentIndex()), 'utf8'), #  const char* paletter
                                               [int(win.arr_length.text()), int(win.arr_width.text())], # int arr_lw[2],
                                               float(win.arr_spacing.text()), int(win.nan_color.text(), base=16),  # float arr_spacing, int nan_color
-                                              win.celltype.currentIndex(), win.celldim.currentIndex()+1, accessor_mask, # int ctype, int Din, int mask
+                                              win.celltype.currentIndex(), win.celldim.currentIndex()+1, int(win.cellmask.text(), base=16), # int ctype, int Din, int mask
                                               [int(getattr(win, 'offset%i'%i).text()) for i in (0,1,2)], # int offset[3], 
                                               win.diff.currentIndex(), win.vconv.currentIndex(), win.invert.isChecked(), # int diff, int vconv, bool minus
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
@@ -197,10 +194,13 @@ class Canvas(QtWidgets.QWidget):
             t1 = time.time();  paint.drawImage(x0, y0, QtGui.QImage(plotter.plot(), x1-x0, y1-y0, QtGui.QImage.Format_RGB32));  self.plot_time = time.time()-t1
 
             #paint.setPen(QtGui.QPen(QtCore.Qt.gray))
+            self.uplims = [self.sposf[a] for a in self.axisID]  # пределы на гранях развернутых к пользователю
             for i in range(plotter.flats_sz()):
                 f = plotter.get_flat(i)
-                try: self.mouse_table.append(MouseFlat3D(f, self.plotter.center, [self.plotter.get_bbox(f.axis[a]) for a in (0,1)],
+                try:
+                    self.mouse_table.append(MouseFlat3D(f, self.plotter.center, [self.plotter.get_bbox(f.axis[a]) for a in (0,1)],
                                                          [self.plotter.get_logscale(f.axis[a]) for a in (0,1)], self.plotter.get))
+                    for a in (0, 1): self.uplims[f.axis[a]] =  self.mouse_table[-1].uplims[a]
                 except: pass
                 for j in range(4):
                     a, b = getattr(f, 'abda'[j]), getattr(f, 'bccd'[j])  

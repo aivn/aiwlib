@@ -68,8 +68,17 @@ win.resizeEvent = canvas.full_replot #???
 #def release(*args): print('RELEASE', args)
 #win.mouseReleaseEvent = release
 
-for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
-for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width'.split(): getattr(win, l).setValidator(QtGui.QIntValidator())
+#for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
+for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width offset0 offset1 offset2'.split():
+    getattr(win, l).setValidator(QtGui.QIntValidator())
+def_values = [(l, getattr(win, l).text(), float) for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split()]  + \
+             [(l, getattr(win, l).text(), int) for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width offset0 offset1 offset2'.split()]+\
+             [(l, getattr(win, l).text(), lambda x: int(x, base=16)) for l in 'nan_color cellmask'.split()]
+def validate_replot(*args):
+    for k, v, f in def_values:
+        try: f(getattr(win, k).text())
+        except Exception as e: print(e, ': set default value %s=%s'%(k, v)); getattr(win, k).setText(v)
+    canvas.replot()
 #win.cellmask.setValidator(QtGui.QIntValidator())
 #--- config paletter -----------------------------------------------------------
 pico = (48,16)
@@ -103,7 +112,7 @@ def autoscale(*args):
 win.autoscale.stateChanged.connect(autoscale)
 
 for l in 'f_min f_max cellmask offset0 offset1 offset2 nan_color title_text x_text y_text z_text pal_space pal_width tics_width tics_length border_width arr_length arr_width arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split():
-    getattr(win, l).editingFinished.connect(canvas.replot)
+    getattr(win, l).editingFinished.connect(validate_replot)
 for l in 'paletter celldim celltype diff vconv xinterp yinterp zinterp D3 xtics3D ytics3D ztics3D'.split(): getattr(win, l).activated.connect(canvas.replot)
 for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(canvas.full_replot)
 win.font.currentFontChanged.connect(canvas.replot); win.font_sz.valueChanged.connect(canvas.replot)

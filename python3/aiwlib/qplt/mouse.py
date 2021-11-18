@@ -141,6 +141,7 @@ class MouseFlat3D(Rect):
     def __init__(self, flat, center, bbox, logscale, getval):
         self.plots, self.flat, self.bbox, self.ee, self.bb, self.getval, self.cflips, self.pp = [], flat, bbox, [None]*2, [None]*2, getval, [0]*2, [0]*2
         ci = max((((flat.bounds>>((i-1)%4*2))&1)+((flat.bounds>>(i*2))&1), i) for i in range(4))[1]
+        self.uplims = [flat.bmin[a] if (ci if ci<2 else 5-ci)&(1<<a) else flat.bmax[a] for a in (0, 1)]  # пределы флэта которые смотрят на пользователя
         self.c, self.cc = _Vec(*getattr(flat, 'abcd'[ci])), [None]*2; nC = center-self.c  # c, cc - вершина и орты отвечающие ВНЕШНИМ граням флэта
         for i in (0,1):
             self.bb[i] = self.ee[i] = _Vec(*getattr(flat, 'bd'[i]))-flat.a; self.ee[i] = self.ee[i]/bbox[i] # bb --- смещение || грани флэта в пикселях
@@ -208,13 +209,19 @@ class MouseFlat3D(Rect):
         return True
     def dblclick(self, canvas, event):
         rpos, axis = self.event2rpos(event) 
-        if not bool(event.buttons()&1) or len(axis)!=1: return        
-        a = axis[0]; A =self.flat.axis[a]; AA = canvas.axisID[A]
-        lim = [canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)] if canvas.autolim(A)  else [canvas.bmin[AA], canvas.bmax[AA]]
-        if rpos[a]<canvas.plotter.get_bbox(A)/2: canvas.bmin[AA], canvas.bmax[AA] = lim[0], (lim[0]+lim[1])/2
-        else: canvas.bmin[AA], canvas.bmax[AA] = (lim[0]+lim[1])/2, lim[1]
-        canvas.autolim_off(A)
-        canvas.replot()
+        if not bool(event.buttons()&1): return        
+        if len(axis)==1:        
+            a = axis[0]; A =self.flat.axis[a]; AA = canvas.axisID[A]
+            lim = [canvas.container.get_bmin(AA), canvas.container.get_bmax(AA)] if canvas.autolim(A)  else [canvas.bmin[AA], canvas.bmax[AA]]
+            if rpos[a]<canvas.plotter.get_bbox(A)/2: canvas.bmin[AA], canvas.bmax[AA] = lim[0], (lim[0]+lim[1])/2
+            else: canvas.bmin[AA], canvas.bmax[AA] = (lim[0]+lim[1])/2, lim[1]
+            canvas.autolim_off(A)
+            canvas.replot()
+        else:
+            a = 3-self.flat.axis[0]-self.flat.axis[1]; A = canvas.axisID[a]; canvas.sposf[A] = canvas.uplims[a]; canvas.autopos_off(A)
+            if a!=2: canvas.axisID[a], canvas.axisID[2] = canvas.axisID[2], A
+            canvas.win.D3.setCurrentIndex(0)
+            canvas.full_replot()
     def p2f(self, axe, fpos): return _one2coord(self.flat.bmin[axe], self.flat.bmax[axe], self.logscale[axe], fpos/self.bbox[axe])
     def make_up(self, container): return Rect.make_up(self, container) if self.plots else container.make_up() #container.light_replot()
     def wheel(self, canvas, event):

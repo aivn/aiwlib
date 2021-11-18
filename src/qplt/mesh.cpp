@@ -262,7 +262,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 						// else { C = C*(1-w) + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
 					}
 					f0 = f;
-					if(++pos3d[ray.gID]>=bbox[ray.gID]) break;  // переходим в следующий воксель, проверяем границу
+					if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 					ptr += deltas[ray.gID];	 				
 					ray.next();  
 				}
