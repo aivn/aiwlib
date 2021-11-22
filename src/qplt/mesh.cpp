@@ -111,7 +111,8 @@ template <int AID>  aiw::QpltMeshPlotter::calc_t<AID>  aiw::QpltMeshPlotter::get
 		if(flips&(1<<a)){ f.ptr0 += (f.bbox[i]-1)*f.mul[i]; f.mul[i] = -f.mul[i]; }
 		f.interp |= ((interp&(3<<f.axis[i]*2))>>2*f.axis[i])<<4*(1-i); // ???
 	} // f.axe, f.axe_pos ???
-	int a = 3-(f.axis[0]+f.axis[1]), a0 = axisID[a], a_pos = f.spos[a0]; f.mul[2] = cnt->mul[a0];  // 0+1=1-->2 || 1+2=3-->0 || 0+2-->1
+	int a = 3-(f.axis[0]+f.axis[1]), a0 = axisID[a], a_pos = f.spos[a0];  // 0+1=1-->2 || 1+2=3-->0 || 0+2-->1
+	f.mul[2] = flips&(1<<a)? -cnt->mul[a0]: cnt->mul[a0];  
 	f.diff3minus = flips&(1<<a)? (a_pos+1<cnt->bbox[a0]): (a_pos>0); 
 	f.diff3plus  = flips&(1<<a)? (a_pos>0): (a_pos+1<cnt->bbox[a0]);
 	// WOUT(f.interp);
@@ -227,7 +228,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		int fl_sz = flats.size(), cID = 0;  VTexture vtx(*this);
 		calc_t<PAID> calcs[fl_sz]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
 		int64_t deltas[3]; for(int i=0; i<3; i++) deltas[i] = icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1]))? -calcs[i].mul[2] : calcs[i].mul[2]; // ???
-		for(int i=0; i<3; i++) WERR(i, icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], deltas[i]);
+		for(int i=0; i<3; i++) WERR(i, icenter&(1<<(3-calcs[i].axis[0]-calcs[i].axis[1])), icenter, calcs[i].mul[2], long(calcs[i].ptr0), deltas[i]);
 		// QpltMesh* cnt = (QpltMesh*)container; // ???
 
 		float _max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)), lim_w = .01*D3opacity;
@@ -251,6 +252,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				QpltColor::rgb_t C;  auto ray = vtx.trace(cID, X);
 				float sum_w = 0, f0; if(D3mingrad) accessor.conv<PAID>(ptr, (const char**)nb, &f0);
 				while(1){
+					// WEXT(pos, pos3d, cID, flat.axis[0], flat.axis[1]);
 					WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 
 					float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
 					if(!D3mingrad || fabs(f0-f)>cr_grad){
