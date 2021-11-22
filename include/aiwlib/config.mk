@@ -25,7 +25,7 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2s
 zlib=off
 swig=on
 bin=on
-ezz=on
+ezz=off
 #view=amr,umesh,zcube
 
 # uncomment one of these lines for PERMANENTLY use (or discarding) MPI
