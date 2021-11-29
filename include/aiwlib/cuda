@@ -1,0 +1,55 @@
+// -*- C++ -*-
+#ifndef AIW__HPP
+#define AIW__HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <memory>
+
+//--- macros -------------------------------------------------------------------
+#ifdef __NVCC__
+#define CU_HOST    __host__
+#define CU_DEVICE  __device__
+#define CU_GLOBAL  __global__
+#define CU_DEV_SYNC	cudaDeviceSynchronize()
+
+#define WOUT(...)
+#define WERR(...)
+#define WASSERT(...)
+
+
+#else // __NVCC__
+#define CU_HOST 
+#define CU_DEVICE 
+#define CU_GLOBAL 
+#define CU_DEV_SYNC	
+#endif // __NVCC__
+
+#define CU_HD CU_HOST CU_DEVICE
+#define DEF_LAUNCH(FUNC) template <typename T, typename ... Args> CU_GLOBAL void launch_##FUNC(T obj, Args ... args){ obj->NAME(args...); }
+//--- memory -------------------------------------------------------------------
+namespace aiw{
+	template <typename T> std::shared_ptr<T> ualloc(size_t sz=1, bool construct=false){		
+#ifdef __NVCC__
+		T* ptr; cudaMallocManaged((void**)&ptr, sz*sizeof(T)); if(construct) new(ptr) T[sz];		
+		return std::shared_ptr<T>(ptr, cudaFree);
+#else // __NVCC__
+		T* ptr = malloc(sz*sizeof(T)); if(construct) new(ptr) T[sz];
+		return std::shared_ptr<T>(ptr, free);
+#endif // __NVCC__
+	}
+	template <typename T, typename ... Args> std::shared_ptr<T> ualloc(size_t sz, bool construct, Args ... args){		
+#ifdef __NVCC__
+		T* ptr; cudaMallocManaged((void**)&ptr, sz*sizeof(T)); if(construct) for(size_t i=0; i<sz; i++) new(ptr+i) T(args ...);		
+		return std::shared_ptr<T>(ptr, cudaFree);
+#else // __NVCC__
+		T* ptr = malloc(sz*sizeof(T)); if(construct) for(size_t i=0; i<sz; i++) new(ptr+i) T(args...);
+		return std::shared_ptr<T>(ptr, free);
+#endif // __NVCC__
+	}
+}	
+//-------------------------------------------------------------------------------
+#endif //AIW__HPP

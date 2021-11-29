@@ -24,6 +24,41 @@ void aiw::QpltMesh::data_load_impl(){                 // загружает да
 	// WOUT(mem_offset, mem->get_addr());
 }
 //------------------------------------------------------------------------------
+#ifdef __NVCC__
+__constant__ char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];
+#define plt_cu_ (*((const aiw::QpltMeshPlotter3D<AID>*)plt_cu)) 
+
+__global__ void plotXD(int* image){
+	int x = threadIdx.x+blockIdx.x*blockDim.x, y = threadIdx.y+blockIdx.y*blockDim.y;
+
+	char *nb[6] = {nullptr};  // ???
+
+	int x0 = plt_cu_.ibmin[0]+x, y0 = ibmin[1]+y, cID;  Vecf<2> r;
+	for(cID=0; cID<3; cID++) if(plt_cu_.flats[cID].image2flat(x0, y0, r)) break;
+	if(cID==3){ image[x+y*plt_cu_.Nx] = 0xFFFFFFFF; continue; }
+
+	auto& flat = plt_cu_.flats[cID];
+	Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
+	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
+	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
+	float sum_w = 0, f0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
+	while(1){
+		float f; accessor.conv<AID>(ptr, (const char**)nb, &f);
+		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
+			float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*plt_cu_._max_len*(1-plt_cu_.sum_w);
+			if(sum_w+w<plt_cu_.lim_w){ C += plt_cu_.color(f)*w; sum_w += w; }
+			else { C += plt_cu_.color(f)*(plt_cu_.lim_w-sum_w); break; }
+		}
+		f0 = f;
+		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
+		ptr += plt_cu_.deltas[ray.gID];	 				
+		ray.next();  
+	}
+	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
+	image[x+y*Nx] = colorF2I(C); 
+}
+#endif //__NVCC__
+//------------------------------------------------------------------------------
 template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 #ifndef __NVCC__ // CPU render
 	WERR(Nx, Ny); 
@@ -58,23 +93,37 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 				ptr += deltas[ray.gID];	 				
 				ray.next();  
 			}
-			// image[x+y*Nx] = sum_w? 0xFFFFFFFF-colorF2I(C): 0xFFFFFFFF;
-			image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
+			// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
+			image[x+y*Nx] = colorF2I(C); 
 		}
 	}
 #else  //__NVCC__ GPU render
-		// 1. иницализируем плоттер и изображение
-		CuPlotter<PAID> cpu_plt;
+	// 1. иницализируем плоттер и изображение
+	cudaMemcpyToSymbol(plt_cu, this, sizeof(*this), 0, cudaMemcpyHostToDevice);
+	int *image_cu; cudaMalloc((void**)&image_cu, Nx*Ny*4);	
 
-		//2. запускаем ядро
-		CuPlotter<PAID> cpu_plt;
-		int *image; cudaMalloc((void**)&image, im_size.prod());
-		plotX(... image);    
-		
-		cudaMemcpy(&(im.buf[0]), image, im.buf.size(), cudaMemcpyDeviceToHost); // 3. копируем изображение с GPU в res
+	//2. запускаем ядро
+	plotXD<AID><<<dum3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);    
+
+	// 3. копируем изображение с GPU в res
+	cudaMemcpy(image, image_cu, Nx*Ny*4, cudaMemcpyDeviceToHost);  cudaFree(image_cu);
 #endif //__NVCC__
 }
 //------------------------------------------------------------------------------
+#ifdef QWERTY
+float f; accessor.conv<PAID>(ptr, (const char**)nb, &f);
+if(!D3mingrad || fabs(f0-f)>cr_grad){
+	float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*_max_len*(1-sum_w);
+	if(sum_w+w<lim_w){ C = C + QpltColor::rgb_t(color(f)).inv()*w; sum_w += w; }
+	else { C = C + QpltColor::rgb_t(color(f)).inv()*(lim_w-sum_w); break; }
+	// v1:
+	// if(sum_w+w<lim_w){ C = C*(1-w) + QpltColor::rgb_t(color(f))*w; sum_w += w; }
+	// else { C = C*(1-w) + QpltColor::rgb_t(color(f))*(lim_w-sum_w); break; }
+ }
+f0 = f;
+if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
+#endif
+
 
 	/*
 		float w=col.w*density*(1.0f - sum.w); col.w = 1;

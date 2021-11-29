@@ -63,6 +63,12 @@ python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imagi
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
+ifeq (on,$(cuda))
+$(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/mesh_cu.cpp)))
+	$(show_target)
+	nvcc -x cu -o $@ -c src/qplt/mesh_cu.cpp
+endif
+#-------------------------------------------------------------------------------
 ifndef MODULE
 #src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
 #swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
