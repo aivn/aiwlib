@@ -14,46 +14,46 @@ namespace aiw{
 	template <int Y, int X=Y, class Q=double> class Matr{
 		Q p[X*Y];
 
-		inline void set_row(){}
-		template <typename Q2, typename ... Args> inline void set_row(const Vec<X, Q2>& v, const Args&... vvv){
+		CU_HD void set_row(){}
+		template <typename Q2, typename ... Args> CU_HD void set_row(const Vec<X, Q2>& v, const Args&... vvv){
 			for(int x=0; x<X; x++) p[x+(Y-1-sizeof...(Args))*X] = v[x];
 			set_row(vvv...);
 		}
 	public:
 		// static Ind<2> size(){ return ind(Y, X); }
-		static Ind<2> bbox(){ return Ind<2>(Y, X); }
-		inline void fill(Q x=0){ for(int i=0; i<X*Y; i++) p[i] = x; }
-		template <typename ... Args> explicit Matr(const Args&... xxx){ 
+		CU_HD static Ind<2> bbox(){ return Ind<2>(Y, X); }
+		CU_HD void fill(Q x=0){ for(int i=0; i<X*Y; i++) p[i] = x; }
+		template <typename ... Args> CU_HD explicit Matr(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==Y, "illegal parametrs count!"); 
 			set_row(xxx...); 
 		}
-		Matr(){ for(int i=0; i<X*Y; i++) p[i] = 0; }
-		explicit Matr(const Q& v){   // единичная матрица *x
+		CU_HD Matr(){ for(int i=0; i<X*Y; i++) p[i] = 0; }
+		CU_HD explicit Matr(const Q& v){   // единичная матрица *x
 			static_assert(X==Y, "non-square matrix!");
 			for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = x==y?v:0.;
 		}
-		template <typename Q2> Matr& operator = (const Matr<Y, X, Q2> &M){
+		template <typename Q2> CU_HD Matr& operator = (const Matr<Y, X, Q2> &M){
 			for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);
 			return *this;
 		}
-		template <typename Q2> Matr(const Matr<Y, X, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
+		template <typename Q2> CU_HD Matr(const Matr<Y, X, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
 
 		
-		inline       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
-		inline       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
-		inline const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
+		CU_HD        Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		CU_HD const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		CU_HD       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
+		CU_HD const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
 		
-		inline Matr  operator +  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M; }
-		inline Matr  operator -  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
-		inline Matr  operator &  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
-		inline Matr& operator += (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
-		template <typename Q2> inline Matr& operator *= (Q2 x){ for(int i=0; i<X*Y; i++){ p[i] *= x; } return *this; }
-		template <typename Q2> inline Matr& operator /= (Q2 x){ return *this *= (1./x); }
-		inline Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
-		inline Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
+		CU_HD Matr  operator +  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]+B.p[i]; } return M; }
+		CU_HD Matr  operator -  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]-B.p[i]; } return M; }
+		CU_HD Matr  operator &  (const Matr& B) const { Matr M; for(int i=0; i<X*Y; i++){ M.p[i] = p[i]*B.p[i]; } return M; }
+		CU_HD Matr& operator += (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] += B.p[i]; } return *this; }
+		template <typename Q2> CU_HD Matr& operator *= (Q2 x){ for(int i=0; i<X*Y; i++){ p[i] *= x; } return *this; }
+		template <typename Q2> CU_HD Matr& operator /= (Q2 x){ return *this *= (1./x); }
+		CU_HD Matr& operator -= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] -= B.p[i]; } return *this; }
+		CU_HD Matr& operator &= (const Matr& B)       { for(int i=0; i<X*Y; i++){ p[i] *= B.p[i]; } return *this; }
 
-		inline Q norm() const {
+		CU_HD Q norm() const {
 		  Q res = 0.;
 			for(int x=0; x<X; x++) 
 			  for(int y=0; y<Y; y++)
@@ -61,26 +61,26 @@ namespace aiw{
 			res = sqrt(res);
 			return res;
 		}
-		inline Vec<X, Q> row(const int y) const {
+		CU_HD Vec<X, Q> row(const int y) const {
 			WASSERT(0<=y && y<Y, "illegal y: ", y, X, Y, sizeof(Q));
 			Vec<X, Q> r; for(int x=0; x<X; x++) r[x] = p[x+y*X];
 			return r;
 		}
-		inline void row(const int y, const Vec<X, Q> &r){
+		CU_HD void row(const int y, const Vec<X, Q> &r){
 			WASSERT(0<=y && y<Y, "illegal y: ", y, X, Y, sizeof(Q));
 			for(int x=0; x<X; x++) p[x+y*X] = r[x];
 		}
-		inline Vec<Y, Q> col(const int x) const {
+		CU_HD Vec<Y, Q> col(const int x) const {
 			WASSERT(0<=x && x<X, "illegal x: ", x, X, Y, sizeof(Q));
 			Vec<Y, Q> c; for(int y=0; y<Y; y++) c[y] = p[x+y*X];
 			return c;
 		}
-		inline void col(const int x, const Vec<Y, Q> &c){
+		CU_HD void col(const int x, const Vec<Y, Q> &c){
 			WASSERT(0<=x && x<X, "illegal x: ", x, X, Y, sizeof(Q));
 			for(int y=0; y<Y; y++) p[x+y*X] = c[y];
 		}
 		
-		inline Vec<Y, Q> operator * (const Vec<X, Q>& v) const { 
+		CU_HD Vec<Y, Q> operator * (const Vec<X, Q>& v) const { 
 			Vec<Y, Q> t; 
 			for(int y=0; y<Y; y++){
 				t[y] = v[0]*p[y*X];
@@ -88,7 +88,7 @@ namespace aiw{
 			}
 			return t; 
 		}
-		template <int Z>  inline Matr<Y, Z, Q> operator * (const Matr<X, Z, Q> &B ) const { 
+		template <int Z>  CU_HD Matr<Y, Z, Q> operator * (const Matr<X, Z, Q> &B ) const { 
 			Matr<Y, Z, Q> M; 
 			for(int y=0; y<Y; y++)
 				for(int z=0; z<Z; z++){ 
@@ -97,14 +97,14 @@ namespace aiw{
 				}
 			return M; 
 		}  
-		inline Matr<X, Y, Q> T() const { 
+		CU_HD Matr<X, Y, Q> T() const { 
 			Matr<X, Y, Q> M;  
 			for(int y=0; y<Y; y++)
 				for( int x=0; x<X; x++) M(x, y) = p[x+y*X]; 
 			return M;
 		}
 		
-		inline Matr<Y-1, X-1, Q> app(const int J, const int I) const {
+		CU_HD Matr<Y-1, X-1, Q> app(const int J, const int I) const {
 			Matr<Y-1, X-1, Q> M;
 			for(int y=0; y<J; y++) for(int x=0; x<I; x++) M(y, x) = p[x+y*X];
 			for(int y=0; y<J; y++) for(int x=I+1; x<X; x++) M(y, x-1) = p[x+y*X];
@@ -112,13 +112,13 @@ namespace aiw{
 			for(int y=J+1; y<Y; y++) for(int x=I+1; x<X; x++) M(y-1, x-1) = p[x+y*X];
 			return M;
 		} 
-		inline Q det() const {
+		CU_HD Q det() const {
 			if(X==1 && Y==1) return p[0]; 
 			Q D = 0.;
 			for(int x=0; x<X; x++) D += app(0, x).det()*p[x]*(1.-2.*(x%2));
 			return D;
 		}
-		inline Matr<X, Y, Q> inv() const {
+		CU_HD Matr<X, Y, Q> inv() const {
 			static_assert(X==Y, "non square matrix!");
 			Matr <X, Y, Q> M;
 			for(int x=0; x<X; x++) M(x, 0) = app(0, x).det()*(1.-2.*((x)%2));
@@ -127,38 +127,38 @@ namespace aiw{
 			for(int y=1; y<Y; y++) for(int x=0; x<X; x++) M(x, y) = app(y, x).det()*(1.-2.*((x+y)%2))*D;
 			return M;
 		}
-		inline Q tr() const {
+		CU_HD Q tr() const {
 			static_assert(X==Y, "non square matrix!");			
 			Q res = p[0]; for(int i=1; i<X; i++) res += p[i*(X+1)];
 			return res;
 		}
-		      Q* data()       { return p; }
-		const Q* data() const { return p; }
+		CU_HD       Q* data()       { return p; }
+		CU_HD const Q* data() const { return p; }
 	}; // end of class Matr
 	template <int X, typename Q, typename ... Args>
-	inline Matr<1+sizeof...(Args), X, Q> matr(const Vec<X, Q> &v, Args ... args){
+	CU_HD Matr<1+sizeof...(Args), X, Q> matr(const Vec<X, Q> &v, Args ... args){
 		return Matr<1+sizeof...(Args), X, Q>(v, args...);
 	}
 	//--------------------------------------------------------------------------
 	//  terminate recursion for reverse matrix
 	template <class Q> class Matr<0,0,Q>{ public:
-		inline Q det() const { return 1.; }
-		inline Q& operator() (int y, int x) { WRAISE("oops... ", x, y); } // { return 1.; } //???
+		CU_HD Q det() const { return 1.; }
+		CU_HD Q& operator() (int y, int x) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
 	/*
 	template <int X, class Q> class Matr<X,0,Q>{ public:
-		inline Q det() const { return 1.; }
-		inline Q& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
+		CU_HD Q det() const { return 1.; }
+		CU_HD Q& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
 	template <int Y, class Q> class Matr<0,Y,Q>{ public:
-		inline Q det() const { return 1.; }
-		inline Q& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
+		CU_HD Q det() const { return 1.; }
+		CU_HD Q& operator() (int x, int y) { WRAISE("oops... ", x, y); } // { return 1.; } //???
 	};
 	*/
 	//--------------------------------------------------------------------------
 	//                       B
 	// A|B ==> AB,   A^B ==> A
-	template <int Y, int X, typename Q> Matr<Y, X+1, Q> operator | (const Matr<Y, X, Q> &M, const Vec<Y, Q> &v){
+	template <int Y, int X, typename Q> CU_HD Matr<Y, X+1, Q> operator | (const Matr<Y, X, Q> &M, const Vec<Y, Q> &v){
 		Matr<Y, X+1, Q> R;
 		for(int y=0; y<Y; y++){
 			for(int x=0; x<X; x++) R(y, x) = M(y, x);
@@ -166,7 +166,7 @@ namespace aiw{
 		}
 		return R; 
 	}
-	template <int Y, int X, typename Q> Matr<Y, X+1, Q> operator | (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){
+	template <int Y, int X, typename Q> CU_HD Matr<Y, X+1, Q> operator | (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){
 		Matr<Y, X+1, Q> R;
 		for(int y=0; y<Y; y++){
 			R(y, 0) = v[y];
@@ -174,7 +174,7 @@ namespace aiw{
 		}
 		return R; 
 	}
-	template <int Y, int X1, int X2, typename Q> Matr<Y, X1+X2, Q> operator | (const Matr<Y, X1, Q> &M1, const Matr<Y, X2, Q> &M2){
+	template <int Y, int X1, int X2, typename Q> CU_HD Matr<Y, X1+X2, Q> operator | (const Matr<Y, X1, Q> &M1, const Matr<Y, X2, Q> &M2){
 		Matr<Y, X1+X2, Q> R;
 		for(int y=0; y<Y; y++){
 			for(int x=0; x<X1; x++) R(y, x) = M1(y, x);
@@ -183,41 +183,41 @@ namespace aiw{
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int X, int Y, typename Q> Matr<Y+1, X, Q> operator ^ (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){
+	template <int X, int Y, typename Q> CU_HD Matr<Y+1, X, Q> operator ^ (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){
 		Matr<Y+1, X, Q> R;
 		for(int x=0; x<X; x++) R(0, x) = v[x];
 		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y+1, x) = M(y, x);
 		return R; 
 	}
-	template <int X, int Y, typename Q> Matr<Y+1, X, Q> operator ^ (const Vec<X, Q> &v, const Matr<Y, X, Q> &M){
+	template <int X, int Y, typename Q> CU_HD Matr<Y+1, X, Q> operator ^ (const Vec<X, Q> &v, const Matr<Y, X, Q> &M){
 		Matr<Y+1, X, Q> R;
 		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = M(y, x);
 		for(int x=0; x<X; x++) R(Y, x) = v[x];
 		return R; 
 	}
-	template <int Y1, int Y2, int X, typename Q> Matr<Y1+Y2, X, Q> operator ^ (const Matr<Y1, X, Q> &M1, const Matr<Y2, X, Q> &M2){
+	template <int Y1, int Y2, int X, typename Q> CU_HD Matr<Y1+Y2, X, Q> operator ^ (const Matr<Y1, X, Q> &M1, const Matr<Y2, X, Q> &M2){
 		Matr<Y1+Y2, X, Q> R;
 		for(int y=0; y<Y2; y++)	for(int x=0; x<X; x++) R(y, x) = M2(y, x);
 		for(int y=0; y<Y1; y++)	for(int x=0; x<X; x++) R(Y2+y, x) = M1(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int Y, int X, typename Q> Matr<Y, X, Q> operator * (const Matr<Y, X, Q> &M, const Q &v){
+	template <int Y, int X, typename Q> CU_HD Matr<Y, X, Q> operator * (const Matr<Y, X, Q> &M, const Q &v){
 		Matr<Y, X, Q> R; for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = v*M(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int Y, int X, typename Q> Matr<Y, X, Q> operator * (const Q &v, const Matr<Y, X, Q> &M){
+	template <int Y, int X, typename Q> CU_HD Matr<Y, X, Q> operator * (const Q &v, const Matr<Y, X, Q> &M){
 		Matr<Y, X, Q> R; for(int y=0; y<Y; y++) for(int x=0; x<X; x++) R(y, x) = v*M(y, x);
 		return R; 
 	}
 	//--------------------------------------------------------------------------
-	template <int Y, int X, typename Q> inline Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){  // v as line
+	template <int Y, int X, typename Q> CU_HD Vec<X, Q> operator * (const Vec<Y, Q> &v, const Matr<Y, X, Q> &M){  // v as line
 		Vec<X, Q> t; for(int x=0; x<X; x++) t[x] = v[0]*M(0, x);
 		for(int y=1; y<Y; y++) for(int x=0; x<X; x++) t[x] += v[y]*M(y, x);
 		return t; 
 	}
-	template <int Y, int X, typename Q> Vec<Y, Q> operator * (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){  // v as column
+	template <int Y, int X, typename Q> CU_HD Vec<Y, Q> operator * (const Matr<Y, X, Q> &M, const Vec<X, Q> &v){  // v as column
 		Vec<Y, Q> t; 
 		for(int y=0; y<Y; y++){
 			t[y] = v[0]*M(y, 0);
@@ -225,7 +225,7 @@ namespace aiw{
 		}
 		return t; 
 	}
-	template <int Y, int X, typename Q> inline Matr<Y, X, Q> operator ^ (const Vec<Y, Q> &a, const Vec<X, Q> &b){  // tensor mult.
+	template <int Y, int X, typename Q> CU_HD Matr<Y, X, Q> operator ^ (const Vec<Y, Q> &a, const Vec<X, Q> &b){  // tensor mult.
 		Matr<Y, X, Q> M; 
 		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) M(y, x) = a[y]*b[x];
 		return M; 
@@ -239,11 +239,11 @@ namespace aiw{
 		return str;
 	}
 	//--------------------------------------------------------------------------
-	template <int N, typename Q, typename C> void dispense(const Matr<N, N, Q> &src, const Ind<N> &IDs, C& dst){
+	template <int N, typename Q, typename C> CU_HD void dispense(const Matr<N, N, Q> &src, const Ind<N> &IDs, C& dst){
 		for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
 	}
 	//--------------------------------------------------------------------------
-    template <typename T> Vec<3, T> eigenvalues(const Matr<3, 3, T> &A){
+    template <typename T> CU_HD Vec<3, T> eigenvalues(const Matr<3, 3, T> &A){
 		T Atr = A.tr(), q = Atr/3; Matr<3, 3, T> AqE = A; for(int i=0; i<3; i++) AqE(i, i) -= q;
 		T p = sqrt((AqE*AqE).tr()/6), detB2 = (AqE*(1/p)).det()/2;
 		T phi = detB2<=-1? M_PI/3: (detB2>=1?0: acos(detB2)/3);
@@ -251,7 +251,7 @@ namespace aiw{
 		return vals;
     }
 	//--------------------------------------------------------------------------
-    template <typename T> Vec<3, T> eigenvector(const Matr<3, 3, T> &A, const Vec<3, T> &eigvals, int n){
+    template <typename T> CU_HD Vec<3, T> eigenvector(const Matr<3, 3, T> &A, const Vec<3, T> &eigvals, int n){
 		Matr<3, 3, T> A1=A, A2=A; int i1 = (n==0), i2 = 2-(n==2); 
 		for(int i=0; i<3; i++){ A1(i, i) -= eigvals[i1]; A2(i, i) -= eigvals[i2]; }
 		Matr<3, 3, T> AA = A1*A2; Vec<3, T> cols[3] = { AA.col(0), AA.col(1), AA.col(2) };
@@ -261,7 +261,7 @@ namespace aiw{
     }
 	//--------------------------------------------------------------------------
 	// from Boris Kritskiy
-	template <int Y, typename Q>  Matr<Y, 1, Q>& operator += (Matr<Y, 1, Q> &M, const Vec<Y, Q>& B){ 
+	template <int Y, typename Q> CU_HD Matr<Y, 1, Q>& operator += (Matr<Y, 1, Q> &M, const Vec<Y, Q>& B){ 
 		for(int i=0; i<Y; i++) M(0,i) += B[i]; 
 		return M; 
 	}

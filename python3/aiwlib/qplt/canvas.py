@@ -60,8 +60,9 @@ class Canvas(QtWidgets.QWidget):
         #print('full_replot',  args)
         win = self.win
         win.filelbl.setText(' file[%i/%i]'%(win.filenum.value(), table_size()))
-        if file_size(win.filenum.value())==1: win.fr_framenum.hide()
-        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz); win.framenum.setText(' frame[%i/%i]'%(win.framenum.value()/fsz))
+        if file_size(win.filenum.value())==1: win.fr_framenum.hide(); fsz = 1
+        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz)
+        win.framelbl.setText(' frame[%i/%i]'%(win.framenum.value(), fsz))
         self.container = get_frame(win.filenum.value(), win.framenum.value())
         win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
         win.cellsize.setText(str(self.container.get_szT()))

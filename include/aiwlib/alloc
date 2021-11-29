@@ -90,6 +90,14 @@ namespace aiw{
     };
 #endif //AIW_WIN32
 //---------------------------------------------------------------------------------------------
+#ifdef __NVCC__
+	class CuMemAlloc: BaseAlloc{
+		CuMemAlloc(size_t size_): size(size_){ cudaMallocManaged((void**)&ptr, size); }
+		~CuMemAlloc(){ cudaFree(ptr); }
+		size_t get_sizeof() const { return 1; }
+	};
+#endif //__NVCC__
+//---------------------------------------------------------------------------------------------
 }
 #endif //SWIG		
 #endif //AIW_ALLOC_HPP

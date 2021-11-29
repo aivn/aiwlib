@@ -54,10 +54,12 @@ class Time(object):
     def __pos__(self): return Time(self.val)
     def __abs__(self): return Time(abs(self.val))
     def __add__(self, other):
-        if isinstance(other, Time): return Time(self.val+other.val)
-        elif isinstance(other, Date): return Date(self.val+other.val)
-        try: return self+Time(other)
-        except IllegalInitTimeValue as e: return self+Date(other)
+        try:
+            if isinstance(other, Time): return Time(self.val+other.val)
+            elif isinstance(other, Date): return Date(self.val+other.val)
+            try: return self+Time(other)
+            except IllegalInitTimeValue as e: return self+Date(other)
+        except: return self 
     def __sub__(self, other): return self+(-other)
     def __radd__(self, other): return self+other
     def __rsub__(self, other): return -self+other
@@ -71,7 +73,9 @@ class Time(object):
         raise IllegaMuleTimeValue(other)
     def __mod__(self, other): return int(self.val)%other #???
     def __rmul__(self, other): return self*other
-    def __cmp__(self, other): return cmp(self.val, Time(other).val) #precision???
+    def __cmp__(self, other):
+        try: return cmp(self.val, Time(other).val) #precision???
+        except: return False
     def __rcmp__(self, other): return cmp(Time(other).val, self.val2) #precision???
     def __nonzero__(self): return bool(self.val)
 #---------------------------------------------------------------------------------------------------------

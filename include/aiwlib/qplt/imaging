@@ -11,7 +11,11 @@
 #include <string>
 #include <vector>
 #include <map>
+#ifndef __NVCC__
 #include "../debug"
+#endif // __NVCC__
+#include "../cuda"
+#include "../vec"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -55,6 +59,30 @@ namespace aiw{
 		void dump2ppm(const char *path) const;
 	};	
 	//--------------------------------------------------------------------------
+	struct QpltColor3D{ // оовбще то это текстура, но пока так
+		aiw::Vecf<4> pal[10], nan_color; // это надо согласовывать с таблией палитр
+		float min, max, mul;
+		int up_bound;
+		bool logscale, modulus; // по хорошему надо сделать 4 разных color в зависимости от этой комбинации? шаблон параметризованный по int?
+
+		CU_HD bool check_in(float f) const { return (min<max && min<f && f<max) || (max<min && max<f && f<min); }
+		CU_HD Vecf<4> operator ()(float f) const {
+			if(modulus) f = fabs(f);
+			f = logscale? log(f/min)*mul :(f-min)*mul;
+			if(std::isnan(f)) return nan_color;
+			int i = ::floor(f);
+			if(i<0) return pal[0];
+			if(i>=up_bound) return pal[up_bound];
+			float w = f-i;
+			return pal[i]*(1-w)+pal[i+1]*w;
+		}		
+	};
+	CU_HD inline int colorF2I(const Vecf<4>& C){
+		int res = 0;
+		for(int i=0; i<3; i++){ int c = 255-std::min(255, int(C[i]*255)); res += c<<8*i; }
+		return res;
+	}
+	//--------------------------------------------------------------------------
 	class QpltColor{
 #ifndef SWIG
 		union rgb_t{
@@ -63,6 +91,7 @@ namespace aiw{
 			rgb_t  operator * (float x) const { rgb_t J; for(int i=0; i<3; i++) J.c[i] = c[i]*x; return J; }
 			rgb_t  operator + (rgb_t J) const { return I+J.I; }
 			rgb_t inv() const { return 0xFFFFFFFF-I; }
+			Vecf<3> to_vecf() const { return vecf(c[0], c[1], c[2])/255.f; }
 		};
 #endif //SWIG
 		static std::map<std::string, std::vector<rgb_t> > table;
@@ -71,6 +100,8 @@ namespace aiw{
 		float min, max, mul;
 		bool logscale; int up_bound;
 	public:
+		void conf(QpltColor3D *c3D) const; // как пробрасывать прозрачность отдельных цветов? битовая маска? 
+
 		static std::vector<std::string> get_pals();
 		static bool add_pal(const char* name, const std::vector<int>& pal);
 		static void plot_pal(const char *pal, QpltImage& image, bool vertical);
@@ -85,6 +116,7 @@ namespace aiw{
 		void reinit(float min_, float max_);
 		QpltColor(){}
 		QpltColor(const char *pal_, float min_, float max_, bool logscale_=false){ init(pal_, min_, max_, logscale_); }
+
 
 		// std::string pack() const;
 		// void unpack(const std::string &S);

@@ -61,6 +61,12 @@ std::map<std::string, std::vector<aiw::QpltColor::rgb_t> > aiw::QpltColor::table
 	 {"color",       {0xFF0000, 0xFF7F00, 0xFFFF00, 0x00FF00, 0x00FFFF, 0x0000FF, 0xFF00FF}}
 	};
 //------------------------------------------------------------------------------
+void aiw::QpltColor::conf(aiw::QpltColor3D *c3D) const { // как пробрасывать прозрачность отдельных цветов? битовая маска?
+	c3D->up_bound = 0; for(auto s: pal){ c3D->pal[c3D->up_bound++] = (Vecf<3>(1.f)-s.to_vecf())|1.f; } c3D->up_bound--;
+	c3D->mul = mul; c3D->min = min; c3D->max = max; c3D->logscale = logscale; c3D->modulus = modulus;
+	c3D->nan_color = rgb_t(nan_color).to_vecf()|1.f;
+}
+//------------------------------------------------------------------------------
 std::vector<std::string> aiw::QpltColor::get_pals(){
 	std::vector<std::string> res; for(auto I: table) res.push_back(I.first);
 	return res;

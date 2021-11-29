@@ -18,7 +18,7 @@ PYTHONDIR=$(shell python$(python) -c 'import os; print(os.path.dirname(os.__file
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
-BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2seg-Y
+BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2segY segY2arr
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 

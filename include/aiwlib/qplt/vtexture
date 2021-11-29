@@ -14,13 +14,13 @@
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class VTexture{
-		int main_flat;               // номер главного флэта (имеющего самоперечение) 
+		int main_flat;               // номер главного флэта (имеющего самопересечение) 
 		Vecf<2> C0[3];               // смещения при переходе в дальний (подложенный) флэт
 		Matr<2, 2, float> M[3][3];   // матрицы преобразования при переходе в другой флэт
 		bool flips[3][2], laxis[3];  // флипы по осям, что бы координаты приводились к центру и номер оси для неглавного флэта при расчете длины
 		// float Alen[3][3]; Vecf<2> Blen[3][3]; // коэффициенты расчета длины при переходе из флэта во флэт, диагональ пока не используется
 	public:
-		VTexture(const QpltPlotter &plt);
+		void init(const QpltPlotter &plt);
 
 		struct Iterator{
 			const VTexture *vtx = nullptr;
@@ -28,93 +28,15 @@ namespace aiw{
 			Vecf<2> f, g;  // позиции в текущем и следующем флэте
 			float len; 
 
-			void conf();  // настраивает axe, len, next_fpos
-			void next(){ fID = gID; f = g; conf(); }
+			CU_HD void conf();  // настраивает axe, len, next_fpos
+			CU_HD void next(){ fID = gID; f = g; conf(); }
 		};
-		Iterator trace(int flat, Vecf<2> fpos) const {
+		CU_HD Iterator trace(int flat, Vecf<2> fpos) const {
 			Iterator I; I.vtx = this;  I.fID = flat;
 			for(int i=0; i<2; i++) I.f[i] = flips[flat][i] ? 1.f-fpos[i]: fpos[i];
 			I.conf(); return I;
 		} 
 	};
-	//--------------------------------------------------------------------------
-	/*
-	struct VTexture{
-		static const uint32_t max_off = ~uint32_t(0)>>2;
-		struct fragment_t{
-			uint32_t off: 30;  // оффсет следующего фрагмента в текстуре, хранить понйтер вместо оффсета?
-			uint32_t axe: 2;   // ось (грань) следующего вокселя
-			float len;         // длина фрагмента луча
-			
-			// float len, ax_len, ay_len;  // длина луча и линейные поправки к длине луча (умножаются на off_x, off_y измеряемые в долях шага)
-			// Vecf<2> d_off;              // аддитивные поправки к off_x, off_y при переходе в следующий воксель, измеряются в долях шага
-			// Vec<2> p;  
-		};
-		// public:
-		std::vector<fragment_t> fragments; // точки текстуры (и то что ниже)  определяется в init()
-		Ind<2> vtx_sz;         // размеры текстуры в точках
-
-		VTexture(const QpltPlotter &plt);
-
-		struct Iterator{
-			const fragment_t *fragments, *cursor;
-			
-			float len() const { retunr cursor->len; }
-			float axe() const { return cursor->axe; }
-			void next(){ cursor = fragments + cursor->off; }
-		};
-		Iterator trace(int flat, Vecf<2> rpos);
-		
-		//------ old version --------
-		
-		int deltas[3];         // добавки к data по разным осям при смене вокселя 
-		int grains[3];         // расположение граней вокселя относительно экрана, -1 --- левая грань дальняя, +1 --- правая грань дальняя, 0 --- грань || n
-		Matr<3, 3> prjM[3];    // матрицы для проекции пикселя на грани 
-		Vec<2> step, _step;    // размер пикселя (прямой и обратный)
-		Vec<2> start, vstart;  // смещение которое как то свяано с offset
-		Vec<3> nX, nY, nZ;
-		uint64_t data_sz;
-
-		Vec<2> prj(Vec<3> r) const { return vec(r*nX - start[0], r*nY - start[1]); }  // проекция на экран
-		Vec<3> iprj(Vec<2> p, int axe, double r_axe) const { return prjM[axe]*vec(r_axe, p[0]+start[0], p[1]+start[1]); }  // проекция на грань вокселя
-
-	public:
-		Ind<2> image_sz;            // размер изображения
-		Ind<3> box;                 // размер сетки вокселей
-		double theta, phi;          // параметры нормали к экрану
-		Vec<2> offset;              // смещение центра сетки относительно центра окна в плоскости окна, задается в размерах сетки?
-		Vec<2> scale = vec(1.,1.);  // если scale==(1,1) объект точно вписывается в окно?
-		
-		void init(); 
-
-		struct iterator {
-			const fragment_t *fragments, *cursor = nullptr;
-			
-			float off_x, off_y;
-			int64_t data, data_sz;  // ID вокселя и макс. размер данных, могут быть разные алгоритмы обхода данных, это хорошо бы вынести? Пока делаем для обычных сеток
-			const int *deltas;      // смещения к следующему вокселю по разным осям
-			int vtx_width;          // ширина V-текстуры в точках, используется при расчете поправок 
-
-			float px, py, z, rx, ry, rz; int i, j, k, g; Ind<2> ixy; // for debug only
-			
-			operator bool () const { return cursor; }
-			float len() const { return cursor->len + off_x*cursor->ax_len + off_y*cursor->ay_len; }
-			void operator ++ () {
-				off_x += cursor->d_off[0];  // эти вещи накапливаются и могут влиять
-				off_y += cursor->d_off[1];  // на смену точки текстуры
-				int ioff_x = int(off_x), ioff_y = int(off_y);
-				int d_ij = vtx_width*ioff_y+ioff_x;
-				off_x -= ioff_x;
-				off_y -= ioff_y;
-				// WOUT(data, data+deltas[cursor->get_axe()])
-				data += deltas[cursor->get_axe()];
-				if(0<=data && data<data_sz)	cursor = fragments + cursor->get_off() + d_ij;
-				else cursor = nullptr; // луч прошел насквозь
-			}
-		};
-		iterator trace(Ind<2> ij) const;
-	};
-		*/
 	//--------------------------------------------------------------------------
 };  // end of namespace aiw
 #endif //AIW_QPLT_VTEXTURE_HPP

@@ -19,7 +19,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class QpltMesh: public QpltContainer {
 		std::shared_ptr<BaseAlloc> mem;
-		size_t mem_offset = 0;
+		size_t mem_offset = 0, data_sz = 0;
 
 		// 6+6 (пределы по пр-ву) 1 (AID) 1 (ctype, минус учитывается отдельно) 3 (offsets), для масок всегда перерасчет?
 		std::map< Ind<17>, Vecf<2> > flimits;  // кэш пределов
@@ -36,6 +36,7 @@ namespace aiw{
 		QpltPlotter* mk_plotter(int mode) override;
 	};
 	//--------------------------------------------------------------------------
+	template <int> struct QpltMeshFlat;
 	class QpltMeshPlotter: public QpltPlotter {
 		template <int AID> void init_impl(int autoscale);
 		template <int AID> void plot_impl(std::string &im) const;
@@ -45,8 +46,7 @@ namespace aiw{
 		CALL_FUNC(QpltMeshPlotter, init);
 		void init(int autoscale) override { accessor.call<call_init>(*this, autoscale); }
 
-		template <int> struct calc_t;
-		template <int AID> calc_t<AID> get_flat(int flatID) const; 		
+		template <int AID> QpltMeshFlat<AID> get_flat(int flatID) const; 		
 	public:
 		CALL_FUNC(const QpltMeshPlotter, plot);
 		std::string plot() const override { std::string im; accessor.call<call_plot>(*this, im); return im; } // лучше рисовать в область памяти, но пока что так

@@ -1,0 +1,68 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_MESH_CU_HPP
+#define AIW_QPLT_MESH_CU_HPP
+
+/**
+ * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+
+#include "base"
+#include "vtexture"
+#include "../cuda"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int AID> struct QpltMeshFlat : public QpltFlat {
+		QpltAccessor *acc;
+		int64_t mul[3]; Ind<2> bbeg, bbox0; Ind<2> bbox; bool diff3plus, diff3minus; // bbox0 лишний, можно обойтись флагами?
+		char *ptr0; 
+	
+		typedef Vecf<QpltAccessor::DOUT<AID>()> cell_type;
+		static const int dim = 2;
+
+		CU_HD char* get_ptr(const Ind<2> &pos) const { char *ptr = ptr0; for(int i=0; i<2; i++){ ptr += mul[i]*pos[i]; } return ptr;}
+		CU_HD cell_type operator[](Ind<2> pos) const {
+			for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox0[i]){ pos[i] = bbox0[i]-1; } }
+			char *nb[6] = {nullptr}, *ptr = get_ptr(pos); 
+			if((AID>>3)&7){  // если необходимо дифференцирование задаем соседей
+				for(int i=0; i<2; i++){
+					if(bbeg[i]+pos[i]>0) nb[2*i] = ptr-mul[i]; else nb[2*i] = ptr;
+					if(bbeg[i]+pos[i]<bbox0[i]-1) nb[2*i+1] = ptr+mul[i]; else nb[2*i+1] = ptr;
+				}
+				if(diff3minus) nb[4] = ptr-mul[2]; else nb[4] = ptr;
+				if(diff3plus)  nb[5] = ptr+mul[2]; else nb[5] = ptr;
+			}
+			cell_type f; acc->conv<AID>(ptr, (const char**)nb, &(f[0]));
+			return f;
+		}
+		int interp; float step2D[2]; // , rstep[2];
+		CU_HD void mod_coord(Vecf<2> r, Ind<2> &pos, Vecf<2> &X) const { pos = r; X = r-pos; }
+		CU_HD void mod_coord2D(int axe, float r, int &pos, float &x) const { // вычисляет pos и  x на основе r
+			x = r*step2D[axe]; pos = x; x -= pos; 
+			// if(interp&(0xF<<(4*(1-axe)))) x = r*rstep[axe] - pos; // *step[axe];
+			/***
+				if(interp&(0xF<<(4*(1-axe)))){
+				pos = std::floor(logscale&1<<axe ? log(r/bmin[axe])*rstep[axe]-.5 :(r-bmin[axe])*rstep[axe]-.5); // ???
+				x = logscale&1<<axe ? log(r/(bmin[axe]*pow(step[axe], pos)))*rstep[axe]-.5 : (r-bmin[axe])*rstep[axe]-pos-.5;
+				} else pos = logscale&1<<axe ? log(r/bmin[axe])*rstep[axe] :(r-bmin[axe])*rstep[axe];
+			***/
+		}
+		// bool check_in(Vecf<2> r) const { return bbeg[0]<=r[0] && bbeg[1]<=r[1] && r[0]<bbeg[0]+bbox[0] && r[1]<bbeg[1]+bbox[1]; }
+		CU_HD bool check_in(Vecf<2> r) const { return 0<=r[0] && 0<=r[1] && r[0]<bbox[0] && r[1]<bbox[1]; }
+		CU_HD void pos2to3(const Ind<2> &pos2, Ind<3> &pos3) const { for(int i=0; i<2; i++) pos3[axis[i]] = cflips[i]? bbox[i]-1-pos2[i] : pos2[i]; }
+	};
+	//--------------------------------------------------------------------------
+	template<int AID> struct QpltMeshPlotter3D {
+		QpltAccessor accessor; QpltColor3D color;
+		QpltMeshFlat<AID> flats[3];
+		int64_t deltas[3]; VTexture vtx;
+		float _max_len, lim_w, cr_grad;
+		int Nx, Ny; Ind<2> ibmin; Ind<3> bbox; bool D3mingrad;
+
+		void plot(int *image) const;
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_MESH_CU_HPP
