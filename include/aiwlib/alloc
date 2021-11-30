@@ -1,5 +1,5 @@
 // -*- C++ -*-
-#ifndef AIW_ALLOC_HPP
+#if !defined(AIW_ALLOC_HPP) && !defined(__NVCC__)
 #define AIW_ALLOC_HPP
 
 /**
@@ -33,7 +33,6 @@ namespace aiw{
 		virtual size_t get_sizeof() const = 0;
 	};
 //---------------------------------------------------------------------------------------------	
-#ifndef __NVCC__
 	template<typename T> struct MemAlloc: public BaseAlloc{
 		template<typename ... Args> MemAlloc(size_t sz, Args ... args){
 			size = sz; ptr = new T[sz](args...);
@@ -91,14 +90,12 @@ namespace aiw{
     };
 #endif //AIW_WIN32
 //---------------------------------------------------------------------------------------------
-#else //__NVCC__
-	class CuMemAlloc: BaseAlloc{
+/*	class CuMemAlloc: BaseAlloc{
 		CuMemAlloc(size_t size_){ size = size_; cudaMallocManaged((void**)&ptr, size); }
 		~CuMemAlloc(){ cudaFree(ptr); }
 		size_t get_sizeof() const { return 1; }
-	};
-#endif //__NVCC__
+		}; */
 //---------------------------------------------------------------------------------------------
 }
 #endif //SWIG		
-#endif //AIW_ALLOC_HPP
+#endif //AIW_ALLOC_HPP && __NVCC__

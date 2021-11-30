@@ -46,6 +46,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 	WERR(omp_get_wtime()-t1);
 	return true;
 }
+void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); fin->read(ptr, data_sz); }
 //------------------------------------------------------------------------------
 QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { 	this->data_load();  ptr = (char*)(mem->get_addr());  return new QpltMeshPlotter; }
 //------------------------------------------------------------------------------

@@ -222,8 +222,8 @@ namespace aiw{
 #endif //SWIG
 	};  // end of class Accessor
 	//--------------------------------------------------------------------------
-	template <> CU_HD float aiw::QpltAccessor::conv<0>(const char *ptr) const { return *(float*)ptr; }
-	template <> CU_HD float aiw::QpltAccessor::conv<1>(const char *ptr) const {
+	template <> CU_HD inline float aiw::QpltAccessor::conv<0>(const char *ptr) const { return *(float*)ptr; }
+	template <> CU_HD inline float aiw::QpltAccessor::conv<1>(const char *ptr) const {
 		if(ctype==1) return *(double*)ptr; 
 		if(ctype==2) return *(bool*)ptr;
 		if(mask && ctype%2){

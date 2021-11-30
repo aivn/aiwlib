@@ -11,14 +11,15 @@
 #include "../vec"
 #include "../debug"
 #include "imaging"
-// #include "scene"
 #include "accessor"
 #include "base"
 	
 namespace aiw{
 	//--------------------------------------------------------------------------
 	class QpltMesh: public QpltContainer {
+#ifndef __NVCC__
 		std::shared_ptr<BaseAlloc> mem;
+#endif //__NVCC__
 		size_t mem_offset = 0, data_sz = 0;
 
 		// 6+6 (пределы по пр-ву) 1 (AID) 1 (ctype, минус учитывается отдельно) 3 (offsets), для масок всегда перерасчет?
@@ -28,6 +29,7 @@ namespace aiw{
 		void data_load_impl() override;  // загружает данные в память
 		
 		uint64_t mul[6]; char* ptr;
+		void data_load_cuda();
 		friend class QpltMeshPlotter;
 	public:
 		bool load(IOstream &);

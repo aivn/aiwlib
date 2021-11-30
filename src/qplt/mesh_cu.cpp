@@ -10,17 +10,23 @@
 #include "../../include/aiwlib/qplt/mesh_cu"
 using namespace aiw;
 
-
 //------------------------------------------------------------------------------
-void aiw::QpltMesh::data_free_impl(){ WERR(this); mem.reset(); }  // выгружает данные из памяти
-void aiw::QpltMesh::data_load_impl(){                             // загружает данные в память
-	fin->seek(mem_offset);
+void aiw::QpltMesh::data_free_impl(){  // выгружает данные из памяти
 #ifndef __NVCC__
+	WERR(this); mem.reset();
+#else //__NVCC__
+	cudaFree(ptr);
+#endif //__NVCC__
+}  
+void aiw::QpltMesh::data_load_impl(){  // загружает данные в память
+#ifndef __NVCC__
+	fin->seek(mem_offset);
 	mem = fin->mmap(data_sz, 0);
 #else //__NVCC__
+	cudaMallocManaged((void**)&ptr, data_sz); data_load_cuda();
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
 #endif //__NVCC__
-	WERR(this, mem.get(), mem_limit);
+	// WERR(this, mem.get(), mem_limit);
 	// WOUT(mem_offset, mem->get_addr());
 }
 //------------------------------------------------------------------------------

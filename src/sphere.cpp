@@ -11,24 +11,24 @@
 using namespace aiw;
 
 static const int MAX_RANK=12;
-using Ind2 = Vec<2,uint64_t>;
-using Ind3 = Vec<3,uint64_t>;
-using Ind6 = Vec<6,uint64_t>;
+using ULInd2 = Vec<2,uint64_t>;
+using ULInd3 = Vec<3,uint64_t>;
+using ULInd6 = Vec<6,uint64_t>;
 static int current_rank = -1;
 //------------------------------------------------------------------------------
 static Vec<3>* cell_centers[MAX_RANK] = INIT_ARR_ZERO;    // центры ячеек
 static double* cell_areas[MAX_RANK] = INIT_ARR_ZERO;      // площади ячеек
-static Ind3* cell_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ячейки
+static ULInd3* cell_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ячейки
 static Vec<3>* vertex = nullptr;                          // координаты вершин
-static Ind3* cell_neighbours[MAX_RANK] = INIT_ARR_ZERO;   // индексы соседних ячеек (для ячейки)
-static Ind6* vertex_cells[MAX_RANK] = INIT_ARR_ZERO;      // индексы ячеек (для вершины)
+static ULInd3* cell_neighbours[MAX_RANK] = INIT_ARR_ZERO;   // индексы соседних ячеек (для ячейки)
+static ULInd6* vertex_cells[MAX_RANK] = INIT_ARR_ZERO;      // индексы ячеек (для вершины)
 static Vec<3>* normals[MAX_RANK] = INIT_ARR_ZERO;         // нормали (хранятся тройками?)
 
-static Ind3* cell_edges[MAX_RANK] = INIT_ARR_ZERO;        // индексы ребер ячейки (в оппозит вершинам)
-static Ind2* edge_cells[MAX_RANK] = INIT_ARR_ZERO;        // индексы ячеeк ребра
-static Ind2* edge_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ребра
-static Ind6* vertex_vertex[MAX_RANK] = INIT_ARR_ZERO;     // индексы соседних вершин (для вершины)
-static Ind6* vertex_edges[MAX_RANK] = INIT_ARR_ZERO;      // индексы соседних ребер (для вершины)
+static ULInd3* cell_edges[MAX_RANK] = INIT_ARR_ZERO;        // индексы ребер ячейки (в оппозит вершинам)
+static ULInd2* edge_cells[MAX_RANK] = INIT_ARR_ZERO;        // индексы ячеeк ребра
+static ULInd2* edge_vertex[MAX_RANK] = INIT_ARR_ZERO;       // индексы вершин ребра
+static ULInd6* vertex_vertex[MAX_RANK] = INIT_ARR_ZERO;     // индексы соседних вершин (для вершины)
+static ULInd6* vertex_edges[MAX_RANK] = INIT_ARR_ZERO;      // индексы соседних ребер (для вершины)
 static double* vertex_areas[MAX_RANK] = INIT_ARR_ZERO;    // площади ячеек при разбиении по вершинам 
 static double* edge_areas[MAX_RANK] = INIT_ARR_ZERO;      // площади ячеек при разбиении по ребрам 
 static Vec<3>* edge_centers[MAX_RANK] = INIT_ARR_ZERO;    // координаты центров ребер
@@ -61,16 +61,16 @@ inline Vec<5, uint64_t> down_nb(Vec<5, uint64_t> ind){
 	ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
 	Vec<5,int64_t> nb;
 	if ( ind[4]<2 ) {
-		Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
+		Vec<3,int64_t> tmp = ULInd3(ind[0],ind[1],ind[2]);
 		tmp[ind[3]] = -tmp[ind[3]];
 		nb =  tmp | (ind[3]+1+ind[4])%3 | (5-ind[4]+1)%5;
 	} else {
 		if ( ind[4]==4 ) {
-			Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
+			Vec<3,int64_t> tmp = ULInd3(ind[0],ind[1],ind[2]);
 			tmp[(ind[3]+1)%3] = -tmp[(ind[3]+1)%3];
 			nb = tmp|ind[3]|ind[4];
 		} else {
-			Vec<3,int64_t> tmp = Ind3(ind[0],ind[1],ind[2]);
+			Vec<3,int64_t> tmp = ULInd3(ind[0],ind[1],ind[2]);
 			nb = tmp|(ind[3]+4-ind[4])%3|(5-ind[4]);
 		}
 	}
@@ -167,9 +167,9 @@ void init_zero_rank(){
 	const double edge = 2.*sqrt(2./_edge_arg); //длина ребра додекаэдра
 	const Vec<3> vect0[2] = {Vec<3>( .5*edge, 0, sqrt( 1. - .25*edge*edge ) ),
 							 Vec<3>(1./ sqrt(3) )}; //2 вершины додеккаэдра додекаэдра
-	cell_vertex[0] = new Ind3[60];
-	vertex_cells[0] = new Ind6[32];
-	cell_neighbours[0] = new Ind3[60];
+	cell_vertex[0] = new ULInd3[60];
+	vertex_cells[0] = new ULInd6[32];
+	cell_neighbours[0] = new ULInd3[60];
 	//if (!vertex) vertex = new Vec<3>[32];//impossible
 	int ver = 0;
 	bool* tmp = new bool[60];
@@ -193,7 +193,7 @@ void init_zero_rank(){
 		for(int k=0; k<5; k++){
 			if ( !tmp[5*i+k] ) {
 				//Задание треугольников инцидентных вершине.
-				Ind6 buf;
+				ULInd6 buf;
 				buf[0] = 5*i+k;
 				buf[5] = 5*i+((k+1)%5);
 				Vec<5,uint64_t> tmp2 = down_nb(ind|ind3|((k+1)%5));
@@ -220,7 +220,7 @@ void init_zero_rank(){
 		}
 		vertex[ver]  = cent/cent.abs();
 		cell_centers[0][60+i] = vertex[ver];
-		vertex_cells[0][ver] = Ind6( 5*i, 5*i+1,5*i+2, 5*i+3, 5*i+4, -1);
+		vertex_cells[0][ver] = ULInd6( 5*i, 5*i+1,5*i+2, 5*i+3, 5*i+4, -1);
 		for(int p=0; p<5;p++){
 			cell_vertex[0][ vertex_cells[0][ver][p] ][1] = ver;
 		}
@@ -228,7 +228,7 @@ void init_zero_rank(){
 	}
 	if (tmp) {delete [] tmp;tmp=0;}
 	for(int i =0 ; i<32;i++){
-		Ind6 cur = vertex_cells[0][i];
+		ULInd6 cur = vertex_cells[0][i];
 		if (cur[5]!=uint64_t(-1)){
 			for(int j=0; j<6;j++){
 				cell_neighbours[0][cur[j]][((j%2)*2+1)%3] = cur[(j+1)%6];//Здесь тоже есть лажа, но этого не видно, может её и нет?
@@ -279,9 +279,9 @@ void mass_finish(int rank){
 	}
 	//соседи
 	if(!cell_neighbours[rank]){
-		cell_neighbours[rank] = new Ind3[CurN];
+		cell_neighbours[rank] = new ULInd3[CurN];
 		for(int k =0; k< 32; k++){
-			Ind6 cur  = vertex_cells[rank][k];
+			ULInd6 cur  = vertex_cells[rank][k];
 			if(cur[5] != uint64_t(-1)) {
 				for(int i=0; i<6; i++){
 					int num = (i%2)*2;
@@ -297,7 +297,7 @@ void mass_finish(int rank){
 			}
 		}
 		for(uint64_t k =32; k< PrevVN; k++){
-			Ind6 cur  = vertex_cells[rank][k];
+			ULInd6 cur  = vertex_cells[rank][k];
 			for(int i =0; i<6;i++){
 				int num = cur[i]%4 - 1;//0 быть не должно
 				//нужно узнать номер вершины для удобного задания порядка
@@ -306,12 +306,12 @@ void mass_finish(int rank){
 			}
 		}
 		for(uint64_t k = PrevVN; k<CurVN; k++){
-			Ind6 cur = vertex_cells[rank][k];
+			ULInd6 cur = vertex_cells[rank][k];
 			int num[2] = {int(5 - cur[0]%4 - cur[2]%4), int(5 - cur[3]%4 - cur[5]%4)}; // приведение типов???
-			Ind3 vni[3] = {
-				Ind3(1,0,2),
-				Ind3(2,1,0),
-				Ind3(0,2,1)
+			ULInd3 vni[3] = {
+				ULInd3(1,0,2),
+				ULInd3(2,1,0),
+				ULInd3(0,2,1)
 			};// номера вершин в соответствующих треугольниках
 			for(int i=0; i<3; i++){
 				cell_neighbours[rank][cur[i]][(vni[num[0]][i]+1)%3] = cur[(i+1)%6];
@@ -335,19 +335,19 @@ void arrs_init(int rank){
 		uint64_t PrevN = CurN/4;//Для читаемости.
 		uint64_t CurVN = sph_vertex_num(rank);
 		uint64_t PrevVN = sph_vertex_num(rank-1);
-		cell_vertex[rank] = new Ind3[CurN];
-		vertex_cells[rank] = new Ind6[CurVN];
+		cell_vertex[rank] = new ULInd3[CurN];
+		vertex_cells[rank] = new ULInd6[CurVN];
 		bool* tmp = new bool[PrevN*3];//т.к. в нашем обходе вершины могут (и будут) встречаться дважды, мы будем проверять, что они ещё не пройдены
 		for (uint64_t i = 0; i < PrevN*3; i++) tmp[i] = 0;
-		Ind3  cni[3] = {
-			Ind3(3,0,2),
-			Ind3(1,0,3),
-			Ind3(2,0,1)
+		ULInd3  cni[3] = {
+			ULInd3(3,0,2),
+			ULInd3(1,0,3),
+			ULInd3(2,0,1)
 		};//треугольники при вершине со стороны 0 ,1 или 2
-		Ind3  vni[3] = {
-			Ind3(1,0,2),
-			Ind3(2,1,0),
-			Ind3(0,2,1)
+		ULInd3  vni[3] = {
+			ULInd3(1,0,2),
+			ULInd3(2,1,0),
+			ULInd3(0,2,1)
 		};// номера вершин в соответствующих треугольниках
 		int exch[3] = {2, 1, 0};//перестановка (2,0)
 		uint64_t ver = PrevVN;
@@ -360,8 +360,8 @@ void arrs_init(int rank){
 					bool orient = (cell_vertex[rank-1][i][1]==cell_vertex[rank-1][nb][1]);
 					vertex[ver] = vertex[ cell_vertex[rank-1][i][(num+1)%3] ] + vertex[cell_vertex[rank-1][i][(num+2)%3]];
 					vertex[ver]*=1/vertex[ver].abs();
-					Ind3 ind(i*4);
-					Ind3 inb(nb*4);
+					ULInd3 ind(i*4);
+					ULInd3 inb(nb*4);
 					vertex_cells[rank][ver] = (ind+cni[num])|(inb+cni[ exch[num]*orient +(1-orient)*num ]);//ещё пройтись по всем из vertex_cells  и записать в cell_vertex
 					for(int l = 0; l < 3; l++){
 						cell_vertex[rank][ vertex_cells[rank][ver][l] ] [ vni[num][l] ] = ver;
@@ -379,17 +379,17 @@ void arrs_init(int rank){
 			// uint64_t Prev2N = PrevN/4;
 			uint64_t Prev2VN = sph_vertex_num(rank-2);
 			for(uint64_t i = 0; i< Prev2VN; i++ ){
-				Ind6 cur  = vertex_cells[rank-1][i];
-				Ind6 next = Ind6(cur[0]%4,cur[1]%4,cur[2]%4, cur[3]%4, cur[4]%4, cur[5]>0?cur[5]%4:3 );
+				ULInd6 cur  = vertex_cells[rank-1][i];
+				ULInd6 next = ULInd6(cur[0]%4,cur[1]%4,cur[2]%4, cur[3]%4, cur[4]%4, cur[5]>0?cur[5]%4:3 );
 				vertex_cells[rank][i] = cur * 4 + next;
 				for(int l = 0; l <(cur[5]==uint64_t(-1)?5:6); l++){
 					cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l]-1 ] = i;
 				}//next[l] не может быть 0, т.к. 0 инцидентны только вершинам появившимся на текущем уровне
 			}
 			for(uint64_t i = Prev2VN; i < PrevVN; i++ ){//Вершины появившиеся на предыдущем уровне рекурсии
-				Ind6 cur =vertex_cells[rank-1][i];
+				ULInd6 cur =vertex_cells[rank-1][i];
 				int num1 = 5 - (cur[0]%4) -(cur[2]%4), num2 = 5 - (cur[3]%4) - (cur[5]%4);
-				Ind6 next = (vni[num1]|vni[num2])+ Ind6((uint64_t)1);
+				ULInd6 next = (vni[num1]|vni[num2])+ ULInd6((uint64_t)1);
 				vertex_cells[rank][i] = cur * 4 +next;
 				for(int l =0 ; l<6; l++){
 					cell_vertex[rank][ vertex_cells[rank][i][l] ][next[l] -1] = i;
@@ -397,8 +397,8 @@ void arrs_init(int rank){
 			}
 		} else {
 			for(int i=0; i< 32; i++){
-				Ind6 cur = vertex_cells[0][i];
-				Ind6 next = (cur[5]!=uint64_t(-1))? Ind6(1,3,1,3,1,3):Ind6(2,2,2,2,2,3);
+				ULInd6 cur = vertex_cells[0][i];
+				ULInd6 next = (cur[5]!=uint64_t(-1))? ULInd6(1,3,1,3,1,3):ULInd6(2,2,2,2,2,3);
 				vertex_cells[rank][i] = cur*4+next;
 				for(int l = 0; l < (cur[5]==uint64_t(-1)?5:6); l++){
 					cell_vertex[rank][ vertex_cells[rank][i][l] ] [ next[l] -1 ] = i;
@@ -410,27 +410,27 @@ void arrs_init(int rank){
 	
 	// добиваем вершины и грани
 	uint64_t cells_sz = sph_cells_num(rank), vertex_sz = sph_vertex_num(rank), edges_sz = sph_edges_num(rank);
-	cell_edges[rank] = new Ind3[cells_sz];       // индексы ребер ячейки (в оппозит вершинам)
-	edge_cells[rank] = new Ind2[edges_sz];       // индексы ячеeк ребра
-	edge_vertex[rank] = new Ind2[edges_sz];      // индексы вершин ребра
-	vertex_vertex[rank] = new Ind6[vertex_sz];   // индексы соседних вершин (для вершины)
-	vertex_edges[rank] = new Ind6[vertex_sz];    // индексы соседних ребер (для вершины)
+	cell_edges[rank] = new ULInd3[cells_sz];       // индексы ребер ячейки (в оппозит вершинам)
+	edge_cells[rank] = new ULInd2[edges_sz];       // индексы ячеeк ребра
+	edge_vertex[rank] = new ULInd2[edges_sz];      // индексы вершин ребра
+	vertex_vertex[rank] = new ULInd6[vertex_sz];   // индексы соседних вершин (для вершины)
+	vertex_edges[rank] = new ULInd6[vertex_sz];    // индексы соседних ребер (для вершины)
 	vertex_areas[rank] = new double[vertex_sz];  // площади ячеек при разбиении по вершинам 
 	edge_areas[rank] = new double[edges_sz];     // площади ячеек при разбиении по ребрам 
 	edge_centers[rank] = new Vec<3>[edges_sz];   // координаты центров ребер
 
 	for(size_t i=0; i<vertex_sz; i++){
-		vertex_vertex[rank][i] = vertex_edges[rank][i] = Ind6(uint64_t(-1));
+		vertex_vertex[rank][i] = vertex_edges[rank][i] = ULInd6(uint64_t(-1));
 		vertex_areas[rank][i] = 0.;
 	}
 	
-	std::map<Ind2, size_t> edges_table; // таблица пары ячеек: - ID ребер
+	std::map<ULInd2, size_t> edges_table; // таблица пары ячеек: - ID ребер
 	for(size_t i=0; i<cells_sz; i++){
 		const Vec<3> &c0 = cell_centers[rank][i];
-		Ind3& cids = cell_neighbours[rank][i]; // ID ячеек
-		Ind3& vids = cell_vertex[rank][i];     // ID вершин
+		ULInd3& cids = cell_neighbours[rank][i]; // ID ячеек
+		ULInd3& vids = cell_vertex[rank][i];     // ID вершин
 		for(int k=0; k<3; k++){ 
-			Ind2 ec = Ind2(i, cids[k]).sort(), ev(vids[(k+1)%3], vids[(k+2)%3]);
+			ULInd2 ec = ULInd2(i, cids[k]).sort(), ev(vids[(k+1)%3], vids[(k+2)%3]);
 			size_t eID = edges_table.size(); auto I = edges_table.find(ec);
 			if(I==edges_table.end()){
 				edges_table[ec] = eID; edge_cells[rank][eID] = ec; 
@@ -525,12 +525,12 @@ double aiw::sph_cell_area(size_t ID, int rank){ // площадь ячейки
 	return cell_areas[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind3& aiw::sph_cell_vert(size_t ID, int rank){ // индексы вершин ячейки
+const ULInd3& aiw::sph_cell_vert(size_t ID, int rank){ // индексы вершин ячейки
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind3& aiw::sph_cell_cell(size_t ID, int rank){ // близжайшие соседи ячейки
+const ULInd3& aiw::sph_cell_cell(size_t ID, int rank){ // близжайшие соседи ячейки
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_neighbours[rank][ID];
 }
@@ -541,32 +541,32 @@ const Vec<3>& aiw::sph_vert(size_t ID, int rank){ // вершина (узел) �
 	return vertex[ID];
 }
 //------------------------------------------------------------------------------
-const Ind6& aiw::sph_vert_cell(size_t ID, int rank){ // ячейки, к которым относится вершина
+const ULInd6& aiw::sph_vert_cell(size_t ID, int rank){ // ячейки, к которым относится вершина
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex_cells[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind3& aiw::sph_cell_edge(size_t ID, int rank){ // индексы ребер ячейки (в оппозит вершинам)
+const ULInd3& aiw::sph_cell_edge(size_t ID, int rank){ // индексы ребер ячейки (в оппозит вершинам)
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return cell_edges[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind2& aiw::sph_edge_cell(size_t ID, int rank){ // индексы ячеeк ребра
+const ULInd2& aiw::sph_edge_cell(size_t ID, int rank){ // индексы ячеeк ребра
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return edge_cells[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind2& aiw::sph_edge_vert(size_t ID, int rank){  // индексы вершин ребра
+const ULInd2& aiw::sph_edge_vert(size_t ID, int rank){  // индексы вершин ребра
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return edge_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind6& aiw::sph_vert_vert(size_t ID, int rank){ // индексы соседних вершин (для вершины)
+const ULInd6& aiw::sph_vert_vert(size_t ID, int rank){ // индексы соседних вершин (для вершины)
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex_vertex[rank][ID];
 }
 //------------------------------------------------------------------------------
-const Ind6& aiw::sph_vert_edge(size_t ID, int rank){  // индексы соседних ребер (для вершины)
+const ULInd6& aiw::sph_vert_edge(size_t ID, int rank){  // индексы соседних ребер (для вершины)
 	WASSERT(0<=rank && rank<=current_rank, "illegal rank: ", rank, current_rank); // ЗАГЛУШКА
 	return vertex_edges[rank][ID];
 }
