@@ -1,11 +1,15 @@
 // -*- C++ -*-
-#if !defined(AIW_IOSTREAM_HPP) && !defined(__NVCC__)
+#ifndef AIW_IOSTREAM_HPP
 #define AIW_IOSTREAM_HPP
 
 /**
  * Copyright (C) 2016, 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
+
+#ifdef __NVCC__
+namespace aiw { class IOstream; }
+#else // __NVCC__
 
 #include <cstdio>
 #include <string>
@@ -205,4 +209,6 @@ namespace aiw{
 #endif //SWIG 
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
-#endif //AIW_IOSTREAM_HPP && __NVCC__
+
+#endif //__NVCC__
+#endif //AIW_IOSTREAM_HPP

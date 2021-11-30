@@ -42,6 +42,7 @@ void aiw::QpltContainer::data_free(){  // освобождает память п
 	WERR("OK");
 }
 //------------------------------------------------------------------------------
+const char* aiw::QpltContainer::fname() const { return fin->name.c_str(); }
 void aiw::QpltContainer::calc_step(){
 	for(int axe=0; axe<dim; axe++)
 		if(logscale&1<<axe){ step[axe] = exp(log(bmax[axe]/bmin[axe])/bbox[axe]); rstep[axe] = 1./log(step[axe]); }

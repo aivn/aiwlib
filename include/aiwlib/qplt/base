@@ -56,7 +56,7 @@ namespace aiw{
 
 		static double mem_limit;  // лимит на размер памяти, в GB
 		
-		const char* fname() const { return fin->name.c_str(); }
+		const char* fname() const; 
 		int frame() const { return frame_; }
 		
 		int get_dim() const { return dim; }
