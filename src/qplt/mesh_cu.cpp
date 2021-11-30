@@ -13,18 +13,24 @@ using namespace aiw;
 //------------------------------------------------------------------------------
 void aiw::QpltMesh::data_free_impl(){  // выгружает данные из памяти
 #ifndef __NVCC__
-	WERR(this); mem.reset();
+	WERR(this); mem.reset(); mem_ptr = nullptr;
 #else //__NVCC__
-	cudaFree(ptr);
+	cudaFree(mem_ptr); mem_ptr = nullptr;
 #endif //__NVCC__
 }  
 void aiw::QpltMesh::data_load_impl(){  // загружает данные в память
 #ifndef __NVCC__
 	fin->seek(mem_offset);
 	mem = fin->mmap(data_sz, 0);
-	ptr = (char*)(mem->get_addr());
+	// printf("cpp0: ptr=%p\n", mem_ptr);
+	mem_ptr = (char*)(mem->get_addr());
+	// printf("cpp1: ptr=%p\n", mem_ptr);
 #else //__NVCC__
-	cudaMallocManaged((void**)&ptr, data_sz); data_load_cuda();
+        // printf("cu0: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
+	cudaMallocManaged((void**)&mem_ptr, data_sz); 
+	// printf("cu1: ptr=%p, err=%i\n", mem_ptr, err);
+	data_load_cuda();
+        // printf("cu2: ptr=%p\n", mem_ptr);
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
 #endif //__NVCC__
 	// WERR(this, mem.get(), mem_limit);

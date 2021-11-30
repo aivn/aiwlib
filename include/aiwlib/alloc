@@ -1,5 +1,5 @@
 // -*- C++ -*-
-#if !defined(AIW_ALLOC_HPP) && !defined(__NVCC__)
+#ifndef AIW_ALLOC_HPP
 #define AIW_ALLOC_HPP
 
 /**
@@ -8,6 +8,8 @@
  **/
 
 #ifndef SWIG		
+
+#ifndef __NVCC__
 
 #ifndef AIW_WIN32
 #    include <sys/mman.h>
@@ -19,6 +21,7 @@
 #include <memory>
 #include "debug"
 
+#endif //__NVCC__
 namespace aiw{
 //---------------------------------------------------------------------------------------------
 	class BaseAlloc{
@@ -32,7 +35,10 @@ namespace aiw{
 		virtual ~BaseAlloc(){}
 		virtual size_t get_sizeof() const = 0;
 	};
+}
 //---------------------------------------------------------------------------------------------	
+#ifndef __NVCC__
+namespace aiw{
 	template<typename T> struct MemAlloc: public BaseAlloc{
 		template<typename ... Args> MemAlloc(size_t sz, Args ... args){
 			size = sz; ptr = new T[sz](args...);
@@ -97,5 +103,6 @@ namespace aiw{
 		}; */
 //---------------------------------------------------------------------------------------------
 }
+#endif //__NVCC__
 #endif //SWIG		
 #endif //AIW_ALLOC_HPP && __NVCC__

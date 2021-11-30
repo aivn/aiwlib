@@ -8,9 +8,26 @@
  **/
 
 #ifdef __NVCC__
-namespace aiw { class IOstream; }
+#include <string>
+
+namespace aiw { class IOstream{
+       protected:
+                long max_sz = -1;
+        public:
+                long max_size() const { return max_sz; }
+                
+                std::string name;
+                virtual ~IOstream(){}
+                virtual operator bool () const = 0;
+                inline bool operator !() const { return !*this; }
+                
+                virtual void close() = 0;
+
+
+}; }
 #else // __NVCC__
 
+// #include <iostream>
 #include <cstdio>
 #include <string>
 #include <stdarg.h>

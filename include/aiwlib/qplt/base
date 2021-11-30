@@ -39,9 +39,7 @@ namespace aiw{
 
 		// friend class QpltFactory;
 
-#ifndef __NVCC__
 		std::shared_ptr<IOstream> fin;
-#endif //__NVCC__
 		int frame_;     // номер фрейма, исключительно справочная информация
 		double mem_sz;  // объем памяти необходимый для загрузки данных, в GB
 		void calc_step();
