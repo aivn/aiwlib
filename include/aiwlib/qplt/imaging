@@ -79,7 +79,7 @@ namespace aiw{
 	};
 	CU_HD inline int colorF2I(const Vecf<4>& C){
 		int res = 0;
-		for(int i=0; i<3; i++){ int c = 255-std::min(255, int(C[i]*255)); res += c<<8*i; }
+		for(int i=0; i<3; i++){ int c = 255-int(C[i]*255); res += (c<0?0:c)<<8*i; }
 		return res;
 	}
 	//--------------------------------------------------------------------------

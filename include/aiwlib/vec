@@ -8,9 +8,7 @@
 
 #ifndef SWIG
 #include <cmath>
-#ifndef __NVCC__
 #include "debug"
-#endif //__NVCC__
 #include "cuda"
 #endif //SWIG
 

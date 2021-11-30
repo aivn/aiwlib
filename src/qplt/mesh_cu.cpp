@@ -13,12 +13,12 @@ using namespace aiw;
 
 //------------------------------------------------------------------------------
 void aiw::QpltMesh::data_free_impl(){ WERR(this); mem.reset(); }  // выгружает данные из памяти
-void aiw::QpltMesh::data_load_impl(){                 // загружает данные в память
+void aiw::QpltMesh::data_load_impl(){                             // загружает данные в память
 	fin->seek(mem_offset);
 #ifndef __NVCC__
 	mem = fin->mmap(data_sz, 0);
 #else //__NVCC__
-	mem = std::shared_ptr<T>(new CuMemAlloc(data_sz)); fin->fread(mem->get_addr(), data_sz);
+	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
 #endif //__NVCC__
 	WERR(this, mem.get(), mem_limit);
 	// WOUT(mem_offset, mem->get_addr());
@@ -28,14 +28,15 @@ void aiw::QpltMesh::data_load_impl(){                 // загружает да
 __constant__ char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];
 #define plt_cu_ (*((const aiw::QpltMeshPlotter3D<AID>*)plt_cu)) 
 
-__global__ void plotXD(int* image){
+template <int AID> __global__ void plotXD(int* image){
 	int x = threadIdx.x+blockIdx.x*blockDim.x, y = threadIdx.y+blockIdx.y*blockDim.y;
-
+	if(plt_cu_.Nx<=x || plt_cu_.Ny<=y) return;
+	
 	char *nb[6] = {nullptr};  // ???
 
-	int x0 = plt_cu_.ibmin[0]+x, y0 = ibmin[1]+y, cID;  Vecf<2> r;
+	int x0 = plt_cu_.ibmin[0]+x, y0 = plt_cu_.ibmin[1]+y, cID;  Vecf<2> r;
 	for(cID=0; cID<3; cID++) if(plt_cu_.flats[cID].image2flat(x0, y0, r)) break;
-	if(cID==3){ image[x+y*plt_cu_.Nx] = 0xFFFFFFFF; continue; }
+	if(cID==3){ image[x+y*plt_cu_.Nx] = 0xFFFFFFFF; return; }
 
 	auto& flat = plt_cu_.flats[cID];
 	Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
@@ -43,9 +44,9 @@ __global__ void plotXD(int* image){
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
 	float sum_w = 0, f0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
-		float f; accessor.conv<AID>(ptr, (const char**)nb, &f);
+		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
 		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
-			float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*plt_cu_._max_len*(1-plt_cu_.sum_w);
+			float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*plt_cu_._max_len*(1-sum_w);
 			if(sum_w+w<plt_cu_.lim_w){ C += plt_cu_.color(f)*w; sum_w += w; }
 			else { C += plt_cu_.color(f)*(plt_cu_.lim_w-sum_w); break; }
 		}
@@ -55,7 +56,7 @@ __global__ void plotXD(int* image){
 		ray.next();  
 	}
 	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
-	image[x+y*Nx] = colorF2I(C); 
+	image[x+y*plt_cu_.Nx] = colorF2I(C); 
 }
 #endif //__NVCC__
 //------------------------------------------------------------------------------
@@ -103,7 +104,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 	int *image_cu; cudaMalloc((void**)&image_cu, Nx*Ny*4);	
 
 	//2. запускаем ядро
-	plotXD<AID><<<dum3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);    
+	plotXD<AID><<<dim3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);    
 
 	// 3. копируем изображение с GPU в res
 	cudaMemcpy(image, image_cu, Nx*Ny*4, cudaMemcpyDeviceToHost);  cudaFree(image_cu);

@@ -7,6 +7,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifndef __NVCC__
+
 #include <cerrno>
 #include <cstring>
 #include <iostream>
@@ -134,4 +136,11 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 #define NAME_OF_AUTODOC2(num) NAME_OF_AUTODOC1(num)
 #define AUTODOC(C) static constexpr const char * NAME_OF_AUTODOC2(__LINE__) = __FILE__ ":" C;
 //------------------------------------------------------------------------------
+
+#else //__NVCC__
+#define WOUT(...)
+#define WERR(...)
+#define WASSERT(...)
+#define WRAISE(...)
+#endif //__NVCC__
 #endif //AIW_DEBUG_HPP
