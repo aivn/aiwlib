@@ -180,7 +180,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	//   Wrap std::iostream
 	//--------------------------------------------------------------------------
-#ifndef SWIG
+#if !defined(SWIG) && !defined(__NVCC__)
 	struct StdOstream {
 		std::ostream &f;
 		StdOstream(): f(std::cout){}
@@ -202,7 +202,7 @@ namespace aiw{
 		bool load(){ return true; }
 		template <typename T, typename ... Args> bool load(T& x, Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
 	};
-#endif //SWIG
+#endif //!SWIG && !__NVCC__
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif //AIW_IOSTREAM_HPP

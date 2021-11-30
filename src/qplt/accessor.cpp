@@ -30,35 +30,3 @@ CU_HD int aiw::QpltAccessor::Ddiff() const { // размерность прос�
 	return 3;
 }
 //------------------------------------------------------------------------------
-template <> CU_HD float aiw::QpltAccessor::conv<0>(const char *ptr) const { return *(float*)ptr; }
-template <> CU_HD float aiw::QpltAccessor::conv<1>(const char *ptr) const {
-	if(ctype==1) return *(double*)ptr; 
-	if(ctype==2) return *(bool*)ptr;
-	if(mask && ctype%2){
-		typedef int mask_t;
-		mask_t x = 0, r = 0; int j = 0, sz = 0;
-		switch(ctype){
-		case 3:  x =  *(uint8_t*)ptr; sz =  8; break;
-		case 5:  x = *(uint16_t*)ptr; sz = 16; break; 
-		case 7:  x = *(uint32_t*)ptr; sz = 32; break;
-	    default: x = *(uint64_t*)ptr; sz = 64; 
-		}
-		for(int i=0; i<sz; i++){
-			mask_t m = mask_t(1)<<i;
-			if(m&mask) r |= mask_t(bool(m&x))<<(j++);
-		}
-		return r;
-	}
-	switch(ctype){
-	case 3:  return   *(uint8_t*)ptr;
-	case 4:  return    *(int8_t*)ptr;
-	case 5:  return  *(uint16_t*)ptr;
-	case 6:  return   *(int16_t*)ptr;
-	case 7:  return  *(uint32_t*)ptr;
-	case 8:  return   *(int32_t*)ptr;
-	case 9:  return  *(uint64_t*)ptr;
-	default:  return  *(int64_t*)ptr;
-	}
-	return 0.f;
-}
-//------------------------------------------------------------------------------

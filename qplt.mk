@@ -53,7 +53,7 @@ python3/aiwlib/qplt/%.py: swig/qplt/%.py
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 swig/qplt/%.py swig/qplt/%_wrap.cxx: swig/qplt/%.i 
 	$(show_target)
-	$(SWIG) $(SWIGOPT) $<
+	$(SWIG) $(SWIGOPT) -DCU_HD $<
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
@@ -67,6 +67,9 @@ ifeq (on,$(cuda))
 $(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/mesh_cu.cpp)))
 	$(show_target)
 	nvcc -x cu -o $@ -c src/qplt/mesh_cu.cpp
+#$(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/vtexture.cpp)))
+#	$(show_target)
+#	nvcc -x cu -o $@ -c src/qplt/vtexture.cpp
 endif
 #-------------------------------------------------------------------------------
 ifndef MODULE
@@ -93,3 +96,4 @@ qplt4win.zip: bin/qplt $(shell echo python3/aiwlib/qplt/{__init__,canvas,factory
 	cp python3/aiwlib/qplt/pals/*.ppm qplt4win/aiwlib/qplt/pals/
 	rm -f qplt4win.zip
 	zip qplt4win.zip qplt4win/qplt.py qplt4win/aiwlib/qplt/* qplt4win/aiwlib/qplt/pals/*
+#-------------------------------------------------------------------------------

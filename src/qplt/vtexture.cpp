@@ -80,22 +80,3 @@ void aiw::VTexture::init(const QpltPlotter &plt){
 	*/
 }
 //------------------------------------------------------------------------------
-CU_HD void aiw::VTexture::Iterator::conf(){ // настраивает axe, len, next_fpos
-	// посчитать координаты сразу в трех флэтах, построить битовую маску попаданий 0...7 и выбрать номер первого бита по таблице?
-	if(fID==vtx->main_flat){
-		g = f - vtx->C0[fID];
-		if(Vecf<2>()<=g && g<=Vecf<2>(1.f)){ gID = fID; len = 1; return; }
-	}
-	for(int i=1; i<3; i++){
-		gID = (fID+i)%3;  g = vtx->M[fID][gID]*f - vtx->C0[gID];
-		if(i==2 || (Vecf<2>()<=g && g<=Vecf<2>(1.f))){  // вторая проверка лишняя?
-			if(gID!=vtx->main_flat){
-				if(fID==vtx->main_flat) len = g[vtx->laxis[gID]];
-				else len =  g[vtx->laxis[gID]] - f[vtx->laxis[fID]];
-			} else len = 1 - f[vtx->laxis[fID]];
-			return;
-		}
-			// WASSERT(i!=2, "oops...", flat, axe, fpos, next_fpos);
-	}
-}
-//------------------------------------------------------------------------------
