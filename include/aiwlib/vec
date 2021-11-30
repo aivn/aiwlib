@@ -2,7 +2,7 @@
 #ifndef AIW_VEC_HPP
 #define AIW_VEC_HPP
 /**
- * Copyright (C) 2009-2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2009-2021 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -155,7 +155,12 @@ namespace aiw{
 		CU_HD T* end(){ return p+D; }
 		CU_HD const T* begin() const { return p; }
 		CU_HD const T* end() const { return p+D; }
-	}; // end of class Vec
+	}; //--- end of class Vec --------------------------------------------------
+	using Vec1 = Vec<1>;
+	using Vec2 = Vec<2>;
+	using Vec3 = Vec<3>;
+	using Vec4 = Vec<4>;
+	//--------------------------------------------------------------------------
 	template <typename T, typename ... Args> CU_HD 
 	Vec<1+sizeof...(Args), T> vec(T x, Args ... args){
 		return Vec<1+sizeof...(Args), T>(x, args...);
@@ -165,6 +170,10 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template<int D> using Vecf = Vec<D, float>;
 	template <typename ... Args> CU_HD Vecf<sizeof...(Args)> vecf(Args ... args){	return Vecf<sizeof...(Args)>(args...); }
+	using Vecf1 = Vecf<1>;
+	using Vecf2 = Vecf<2>;
+	using Vecf3 = Vecf<3>;
+	using Vecf4 = Vecf<4>;	
 	//--------------------------------------------------------------------------
 	//  compare 
 	//--------------------------------------------------------------------------
@@ -268,14 +277,14 @@ namespace aiw{
 		return r;														\
 	}																	\
 	template <int D, typename T1, typename T2>							\
-	CU_HD typename std::enable_if<(D>1), VEC(D, ROP)>::type		\
+	CU_HD typename std::enable_if<(D>1), VEC(D, ROP)>::type				\
 	operator OP (const Vec<D, T1> &a, const Vec<1, T2> &b){				\
 		VEC(D, ROP) r;													\
 		for(int i=0; i<D; i++) r[i] = ED1;								\
 		return r;														\
 	}																	\
 	template <int D, typename T1, typename T2>							\
-    CU_HD typename std::enable_if<(D>1), VEC(D, ROP)>::type					\
+    CU_HD typename std::enable_if<(D>1), VEC(D, ROP)>::type				\
 	operator OP (const Vec<1, T1> &a, const Vec<D, T2> &b){				\
 		VEC(D, ROP) r;													\
 		for(int i=0; i<D; i++) r[i] = E1D;								\
@@ -358,6 +367,11 @@ namespace aiw{
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> CU_HD Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
 
+	using Ind1 = Ind<1>;  using UInd1 = UInd<1>;
+	using Ind2 = Ind<2>;  using UInd2 = UInd<2>;
+	using Ind3 = Ind<3>;  using UInd3 = UInd<3>;
+	using Ind4 = Ind<4>;  using UInd4 = UInd<4>;
+	//--------------------------------------------------------------------------
 	template<int D> CU_HD Ind<D>& operator ++ (Ind<D> &I){ I[0]++; return I; }
 	template<int D> CU_HD bool operator ^= (Ind<D> &pos, const Ind<D> &Up){
 		for(int i=0; i<D-1; i++) 
@@ -448,7 +462,7 @@ namespace aiw{
 }   // end of namespace aiw
 
 namespace std{
-//---------------------------------------------------------------------------
+	//--------------------------------------------------------------------------
 	template<typename T> struct less;
 #ifndef AIVV_LESS
 #define AIVV_LESS
