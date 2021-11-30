@@ -28,7 +28,7 @@ namespace aiw{
 		void data_free_impl() override;  // выгружает данные из памяти
 		void data_load_impl() override;  // загружает данные в память
 		
-		uint64_t mul[6]; char* ptr;
+		uint64_t mul[6]; char* ptr = nullptr;
 		void data_load_cuda();
 		friend class QpltMeshPlotter;
 	public:

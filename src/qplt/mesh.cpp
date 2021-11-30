@@ -28,7 +28,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	data_sz = szT; for(int i=0; i<dim; i++) data_sz *= bbox[i];
-	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); mem.reset(); if(!S.seek(data_sz, 1)) return false;  // файл битый, записан не до конца
+	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, 1)) return false;  // файл битый, записан не до конца
 	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(&bmin_, dim*8); S.read(&bmax_, dim*8); S.seek(dim*8, 1); S.seek(szT, 1); logscale = 0;  } 
@@ -48,12 +48,12 @@ bool aiw::QpltMesh::load(IOstream &S){
 }
 void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); fin->read(ptr, data_sz); }
 //------------------------------------------------------------------------------
-QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { 	this->data_load();  ptr = (char*)(mem->get_addr());  return new QpltMeshPlotter; }
+QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { 	this->data_load();  return new QpltMeshPlotter; }
 //------------------------------------------------------------------------------
 template <int AID>  aiw::QpltMeshFlat<AID>  aiw::QpltMeshPlotter::get_flat(int flatID) const {
 	const QpltMesh* cnt = dynamic_cast<const QpltMesh*>(container);
 	QpltMeshFlat<AID> f; (QpltFlat&)f = QpltPlotter::get_flat(flatID);  f.acc = (QpltAccessor*)&accessor;  f.interp = 0; // жуткая жуть с const--> не const?
-	f.ptr0 = (char*)(cnt->mem->get_addr()); for(int i=0; i<cnt->dim; i++) f.ptr0 += cnt->mul[i]*f.spos[i];
+	f.ptr0 = cnt->ptr; for(int i=0; i<cnt->dim; i++) f.ptr0 += cnt->mul[i]*f.spos[i];
 	for(int i=0; i<2; i++){
 		int a = f.axis[i], a0 = axisID[a];
 		f.bbeg[i] = bbeg[a]; f.bbox[i] = bbox[a];
@@ -90,12 +90,12 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			bool acc_minus = accessor.minus; accessor.minus = false;
 			constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
 			int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
-			const char* ptr = (char*)(cnt->mem->get_addr()); for(int i=0; i<dim0; i++) ptr += smin[i]*cnt->mul[i];
+			const char* ptr0 = cnt->ptr; for(int i=0; i<dim0; i++) ptr0 += smin[i]*cnt->mul[i];
 			float f_min = HUGE_VAL,  f_max = -HUGE_VAL; 
 			Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max) 
 			for(size_t i=0; i<sz; i++){
-				int pos[dim]; size_t j = i; const char *ptr1 = ptr, *nb[6] = {nullptr};   
+				int pos[dim]; size_t j = i; const char *ptr1 = ptr0, *nb[6] = {nullptr};   
 				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
 				if(DIFF) for(int k=0; k<ddim; k++){
 						int a = axisID[k];

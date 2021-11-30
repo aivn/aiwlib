@@ -777,9 +777,9 @@
        <widget class="QSlider" name="filenum">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>
@@ -831,9 +831,9 @@
        <widget class="QSlider" name="framenum">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>
@@ -885,9 +885,9 @@
        <widget class="QSlider" name="slicenum1">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>
@@ -942,9 +942,9 @@
        <widget class="QSlider" name="slicenum2">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>
@@ -999,9 +999,9 @@
        <widget class="QSlider" name="slicenum3">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>
@@ -1056,9 +1056,9 @@
        <widget class="QSlider" name="slicenum4">
         <property name="geometry">
          <rect>
-          <x>85</x>
+          <x>105</x>
           <y>0</y>
-          <width>181</width>
+          <width>161</width>
           <height>20</height>
          </rect>
         </property>

@@ -59,12 +59,12 @@ class Canvas(QtWidgets.QWidget):
     def full_replot(self, *args):
         #print('full_replot',  args)
         win = self.win
-        win.filelbl.setText(' file[%i/%i]'%(win.filenum.value(), table_size()))
+        win.filelbl.setText(' file[%i/%i]'%(win.filenum.value()+1, table_size()))
         if file_size(win.filenum.value())==1: win.fr_framenum.hide(); fsz = 1
-        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz)
-        win.framelbl.setText(' frame[%i/%i]'%(win.framenum.value(), fsz))
+        else: win.fr_framenum.show(); fsz = file_size(win.filenum.value()); win.framenum.setMaximum(fsz-1)
+        win.framelbl.setText(' fr.[%i/%i]'%(win.framenum.value()+1, fsz))
         self.container = get_frame(win.filenum.value(), win.framenum.value())
-        win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()))
+        win.setWindowTitle('qplt: %s[%i]'%(self.container.fname().decode(), self.container.frame()+1))
         win.cellsize.setText(str(self.container.get_szT()))
         anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
         win.D3.setEnabled(len(anames)>=3)

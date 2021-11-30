@@ -22,6 +22,7 @@ void aiw::QpltMesh::data_load_impl(){  // загружает данные в п�
 #ifndef __NVCC__
 	fin->seek(mem_offset);
 	mem = fin->mmap(data_sz, 0);
+	ptr = (char*)(mem->get_addr());
 #else //__NVCC__
 	cudaMallocManaged((void**)&ptr, data_sz); data_load_cuda();
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
@@ -48,7 +49,7 @@ template <int AID> __global__ void plotXD(int* image){
 	Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
-	float sum_w = 0, f0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
+	float sum_w = 0, f0 = 0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
 		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
@@ -85,7 +86,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 			Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 			Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 			Vecf<4> C;  auto ray = vtx.trace(cID, X);
-			float sum_w = 0, f0;  if(D3mingrad) accessor.conv<AID>(ptr, (const char**)nb, &f0);
+			float sum_w = 0, f0 = 0;  if(D3mingrad) accessor.conv<AID>(ptr, (const char**)nb, &f0);
 			while(1){
 				// WEXT(pos, pos3d, cID, flat.axis[0], flat.axis[1]);
 				WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 

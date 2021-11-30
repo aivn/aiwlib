@@ -2,13 +2,17 @@ SHELL=/bin/bash
 
 CXX:=g++
 SWIG:=swig
+LINKER:=g++
+ifeq (on,$(cuda))
+LINKER:=nvcc
+endif
 
 PYTHON_H_PATH:=$(shell python3 -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
 
 PYTHONDIR=/usr/lib/python3/dist-packages/
 
 
-override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
+override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3
 override LINKOPT:=$(LINKOPT) -lgomp  -ldl
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 
@@ -41,7 +45,7 @@ swig/qplt/core.py swig/qplt/core_wrap.cxx: include/aiwlib/qplt/base
 
 bin/qplt-remote: src/bin/qplt-remote.o  $(shell echo src/qplt/{imaging,accessor,base,mesh,mesh_cu,vtexture}.o)
 	$(show_target)
-	$(CXX) -o $@ $^ libaiw.a $(LINKOPT)
+	$(LINKER) -o $@ $^ libaiw.a $(LINKOPT)
 
 #python3/aiwlib/%.py: swig/%.py
 #	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
@@ -59,14 +63,14 @@ swig/qplt/%.py swig/qplt/%_wrap.cxx: swig/qplt/%.i
 #-------------------------------------------------------------------------------
 python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imaging,accessor,base,mesh,mesh_cu,vtexture}.o) libaiw.a
 	$(show_target)
-	$(CXX) -shared -o $@ $^ $(LINKOPT)
+	$(LINKER) -shared -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
 ifeq (on,$(cuda))
 $(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/mesh_cu.cpp)))
 	$(show_target)
-	nvcc -x cu -o $@ -c src/qplt/mesh_cu.cpp
+	nvcc -x cu --compiler-options -fPIC -O3 -o $@ -c src/qplt/mesh_cu.cpp
 #$(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/vtexture.cpp)))
 #	$(show_target)
 #	nvcc -x cu -o $@ -c src/qplt/vtexture.cpp
