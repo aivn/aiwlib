@@ -45,7 +45,7 @@ template <int AID> __global__ void plotXD(int* image){
 	int x = threadIdx.x+blockIdx.x*blockDim.x, y = threadIdx.y+blockIdx.y*blockDim.y;
 	if(plt_cu_.Nx<=x || plt_cu_.Ny<=y) return;
 	
-	char *nb[6] = {nullptr};  // ???
+	const char *nb[6] = {nullptr};  // ???
 
 	int x0 = plt_cu_.ibmin[0]+x, y0 = plt_cu_.ibmin[1]+y, cID;  Vecf<2> r;
 	for(cID=0; cID<3; cID++) if(plt_cu_.flats[cID].image2flat(x0, y0, r)) break;
@@ -55,6 +55,8 @@ template <int AID> __global__ void plotXD(int* image){
 	Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
+	constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
+	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
 	float sum_w = 0, f0 = 0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
@@ -66,6 +68,7 @@ template <int AID> __global__ void plotXD(int* image){
 		f0 = f;
 		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 		ptr += plt_cu_.deltas[ray.gID];	 				
+		if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
 		ray.next();  
 	}
 	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
@@ -76,10 +79,11 @@ template <int AID> __global__ void plotXD(int* image){
 template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 #ifndef __NVCC__ // CPU render
 	WERR(Nx, Ny); 
-	int cID = 0;
+	int cID = 0;  constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
+	
 #pragma omp parallel for firstprivate(cID)
 	for(int y=0; y<Ny; y++){
-		char *nb[6] = {nullptr};  // ???
+		const char *nb[6] = {nullptr};  // ???
 		int y0 = ibmin[1]+y;
 		for(int x=0; x<Nx; x++){
 			int x0 = ibmin[0]+x; Vecf<2> r;
@@ -92,11 +96,12 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 			Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 			Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 			Vecf<4> C;  auto ray = vtx.trace(cID, X);
+			if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
 			float sum_w = 0, f0 = 0;  if(D3mingrad) accessor.conv<AID>(ptr, (const char**)nb, &f0);
 			while(1){
 				// WEXT(pos, pos3d, cID, flat.axis[0], flat.axis[1]);
 				WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 
-				float f; accessor.conv<AID>(ptr, (const char**)nb, &f);
+				float f = 0; accessor.conv<AID>(ptr, (const char**)nb, &f);
 				if(!D3mingrad || fabs(f0-f)>cr_grad){
 					float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*_max_len*(1-sum_w);
 					if(sum_w+w<lim_w){ C += color(f)*w; sum_w += w; }
@@ -104,7 +109,9 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 				}
 				f0 = f;
 				if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
-				ptr += deltas[ray.gID];	 				
+				ptr += deltas[ray.gID];
+				if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+ 				
 				ray.next();  
 			}
 			// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;

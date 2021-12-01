@@ -21,9 +21,15 @@ import aiwlib.qplt as qplt
 #--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
+win.setStyleSheet("QWidget:focus { border: 3px solid #FF0000; border-radius: 4px; }")
+#ui->lineEdit->setStyleSheet("QWidget:focus { border: 3px solid #FF0000; border-radius: 4px; }");
+#ui->horizontalSlider->setStyleSheet("QWidget:focus { border: 3px solid #FF0000; border-radius: 4px; }");
+#ui->comboBox->setStyleSheet("QWidget:focus { border: 3px solid #FF0000; border-radius: 4px; }");
 # win.setWindowIcon(QtGui.QIcon('web.png'))
 # app.setWindowIcon(ico)
 canvas = qplt.Canvas(win)
+
+
 
 def bindKey(widg, key, func):
     act = QtWidgets.QAction(widg)
