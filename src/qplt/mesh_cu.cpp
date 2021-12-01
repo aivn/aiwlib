@@ -56,7 +56,7 @@ template <int AID> __global__ void plotXD(int* image){
 	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
 	constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
-	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 	float sum_w = 0, f0 = 0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
@@ -68,7 +68,7 @@ template <int AID> __global__ void plotXD(int* image){
 		f0 = f;
 		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 		ptr += plt_cu_.deltas[ray.gID];	 				
-		if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+		if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 		ray.next();  
 	}
 	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
