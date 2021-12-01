@@ -15,10 +15,8 @@ using namespace aiw;
 //------------------------------------------------------------------------------
 bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load0: %p\n", mem_ptr);
-	double t0 = omp_get_wtime();
 	BinaryFormat bf;  bf.box = &bbox; Vec<6> bmin_, bmax_;  bf.bmin = &bmin_;  bf.bmax = &bmax_;  bf.axes = anames;  bf.D = -1;
 	size_t s = S.tell();  if(!bf.load(S) || bf.D&(0xFFFF<<16) || !(bf.D&0xFF)){ S.seek(s); return false; }
-	double t1 = omp_get_wtime(); WERR(t1-t0);
 	head = bf.head; dim = bf.D; szT = bf.szT; logscale = bf.logscale; 
 	for(int i=0; i<dim; i++) if(anames[i].empty()) anames[i] = default_anames[i];
 	
@@ -44,7 +42,6 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// segy = false;
 
 	mul[0] = szT; for(int i=1; i<dim; i++) mul[i] = mul[i-1]*bbox[i-1];
-	WERR(omp_get_wtime()-t1);
 	// printf("load1: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
 	return true;
 }
@@ -89,6 +86,9 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 		auto I_LID = cnt->flimits.find(LID); 
 		if(I_LID!=cnt->flimits.end()) f_lim = I_LID->second; 
 		else { // считаем пределы
+#ifdef PROFILE
+			double t0 = omp_get_wtime();
+#endif //PROFILE
 			bool acc_minus = accessor.minus; accessor.minus = false;
 			constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
 			int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
@@ -109,6 +109,9 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			}
 			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
 			accessor.minus = acc_minus;
+#ifdef PROFILE
+			fprintf(stderr, "limits %g sec\n", omp_get_wtime()-t0);
+#endif //PROFILE
 		} // конец расчета пределов
 	}
 	if(accessor.minus) f_lim = -f_lim(1,0);
@@ -136,6 +139,9 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 	// for(int i=0; i<100; i++) printf("%06X %06X\n", 0xFFFFFFFF-QpltColor::rgb_t(c2D(i*1e-2)).inv().I, colorF2I(c3D(i*1e-2))); // std::cout<<c3D(i*1e-2)<<'\n'; 
 	// exit(0);
 
+#ifdef PROFILE
+	double t0 = omp_get_wtime();
+#endif //PROFILE
 	
 	constexpr int dout = QpltAccessor::DOUT<AID>();
 	constexpr int PAID = dout==1? AID: (AID&0x7F)|(3<<6); // если итоговое поле векторное - рисуем его модуль
@@ -201,6 +207,9 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 	}
 	// im.dump2ppm("1.ppm");
 	std::swap(res, im.buf);
+#ifdef PROFILE
+	fprintf(stderr, "plot %g sec\n", omp_get_wtime()-t0);
+#endif //PROFILE
 }
 //------------------------------------------------------------------------------
 

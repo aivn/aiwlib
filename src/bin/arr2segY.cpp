@@ -31,7 +31,7 @@ Vec<3> atoV(const char *s){
 
 template <int D> void mk_swaps(Mesh<float, D> &arr, Ind<2> *swaps, int sw_count){
 	for(int sw=0; sw<sw_count; sw++){
-		if(swaps[sw][0]==-1) arr = arr.flip(swaps[sw][0]);
+		if(swaps[sw][0]==-1) arr = arr.flip(swaps[sw][1]);
 		else arr = arr.transpose(swaps[sw][0], swaps[sw][1]);
 	}
 }
