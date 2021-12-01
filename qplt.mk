@@ -91,7 +91,7 @@ clean:; rm -rf swig/qplt/core_wrap.* src/qplt/*.o  python3/aiwlib/qplt/_core.so 
 links-install install-links: qplt
 	-ln -s "$$(pwd)/python3/aiwlib"  $(PYTHONDIR)
 #-------------------------------------------------------------------------------
-qplt4win.zip: bin/qplt $(shell echo python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py) python3/aiwlib/qplt/pals/*.ppm
+qplt4win.zip: bin/qplt $(shell echo python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py) python3/aiwlib/qplt/pals/*.ppm python3/aiwlib/qplt/pals/size
 	mkdir -p qplt4win/aiwlib/qplt/pals
 	cp bin/qplt qplt4win/qplt.py
 	cp python3/aiwlib/qplt/{__init__,canvas,factory,mouse,remote,tics}.py python3/aiwlib/qplt/qplt.ui qplt4win/aiwlib/qplt/

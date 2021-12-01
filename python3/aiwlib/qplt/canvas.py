@@ -16,10 +16,12 @@ class Canvas(QtWidgets.QWidget):
         #self.win, self.im, self.plt_type, self.mouse_coord, self.select_mode = win, None, 1, None, 0  
         #self.X, self.Y, self.im = [0]*3, [0]*3, None  # границы подобластей в пикселях, нужны для обработки событий мыши и пр
         self.win, self.im, self.D3, self.plotter, self.single_make_up, self.mouse, self.mouse_table, self.plot_time = win, None, False, None, None, None, [], 0
+        self.wheel = False # fucking Qt update!!!!
         self.th_phi, self.slices_table = [70., 60.], []  # номера осей отображаемых на ползунках срезов
         self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
-        self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i)) for i in os.listdir(os.path.dirname(__file__)+'/pals'))
-        
+        self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i))
+                              for i in os.listdir(os.path.dirname(__file__)+'/pals') if i[-4:]=='.ppm')
+        self.old_pal, self.D3tmask, self.pals_sz = None, 0, dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
@@ -100,7 +102,7 @@ class Canvas(QtWidgets.QWidget):
     #--------------------------------------------------------------------------
     def make_up(self):
         #print('make_im')
-        win, t0, self.D3 = self.win, time.time(), self.win.D3.currentIndex()  and self.container.get_dim()>2
+        win, t0, self.D3 = self.win, time.time(), self.win.D3.currentIndex()*(self.container.get_dim()>2)
         for i in range(self.container.get_dim()):
             if i in self.axisID[:2+self.D3]: getattr(win, 'fr_slice%i'%(i+1)).hide(); continue
             getattr(win, 'fr_slice%i'%(i+1)).show()
@@ -110,8 +112,11 @@ class Canvas(QtWidgets.QWidget):
 
         self.win2faai()
         if not hasattr(self, 'f_lim'): self.f_lim = [win.f_min.text(), win.f_max.text()]
+        if self.old_pal!=win.paletter.currentIndex():
+            self.old_pal, self.D3tmask = win.paletter.currentIndex(), 0x3ff
+            self.pal_len = int(self.pals_sz[win.paletter.itemText(self.old_pal)])
         if self.plotter: self.plotter.free()
-        self.plotter = self.container.plotter(win.D3.currentIndex()*(self.container.get_dim()>2), #mode
+        self.plotter = self.container.plotter(self.D3, #mode
                                               # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль
                                               win.autoscale.isChecked()|(win.autoscale_tot.isChecked()<<1)|(win.logscale.isChecked()<<2)|(win.modulus.isChecked()<<3),    
                                               [float(win.f_min.text()), float(win.f_max.text())], # float f_lim[2]
@@ -123,7 +128,7 @@ class Canvas(QtWidgets.QWidget):
                                               win.diff.currentIndex(), win.vconv.currentIndex(), win.invert.isChecked(), # int diff, int vconv, bool minus
                                               self.axisID, self.sposf, self.bmin, self.bmax, self.faai, # 6 бит флипы, 12 бит autoscale, 12 бит интерполяция
                                               self.th_phi, [float(getattr(win, 'D3cell_'+i).text()) for i in 'xyz'], #float th_phi[2], float cell_aspect[3]
-                                              win.density.value()+256*win.opacity.value()+65536*win.mingrad.value()) #int  D3deep
+                                              int(win.density.value()+128*win.opacity.value()+16384*win.mingrad.value()+2097152*self.D3tmask)) #int  D3deep
         for i in range(2+bool(win.D3.currentIndex() and self.container.get_dim()>2)):  getattr(win, 'xyz'[i]+'size').setText(str(self.plotter.get_bbox(i)))
         
         #    x0  title  x1
@@ -163,6 +168,11 @@ class Canvas(QtWidgets.QWidget):
             tics, max_tic_sz, stics = make_tics([plotter.get_f_min(), plotter.get_f_max()], win.logscale.isChecked(), pal.bbox[1], True, paint)
             x1 = sz_x-ps-pw-4*tl-max_tic_sz-h_font*2*bool(win.f_text.text());  pal.shift([x1+ps, 0])
             paint.drawImage(pal.bmin[0], pal.bmin[1], self.paletters[win.paletter.itemText(win.paletter.currentIndex())].scaled(pal.bbox[0], pal.bbox[1]))
+            if self.D3==2:
+                paint.setPen(QtGui.QPen(QtCore.Qt.gray, 5)); dy = int(pal.bbox[1]/(self.pal_len-1))
+                for i in range(self.pal_len-1):
+                    a, b = int(bool(self.D3tmask&(1<<i))*max_tic_sz/2), int(bool(self.D3tmask&(1<<i+1))*max_tic_sz/2)
+                    paint.drawLine(pal.bmin[0]-a, pal.bmax[1]-i*dy, pal.bmin[0]-b, pal.bmax[1]-(i+1)*dy)
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw)); paint.drawRect(pal.bmin[0], pal.bmin[1], pw, pal.bbox[1])
             paint.setPen(QtGui.QPen(QtCore.Qt.black, tw))
             for y in stics: paint.drawLine(pal.bmin[0]+pw, pal.bmax[1]-y, pal.bmin[0]+pw+tl, pal.bmax[1]-y)
@@ -256,7 +266,7 @@ class Canvas(QtWidgets.QWidget):
         self.im = image; return image
     #---------------------------------------------------------------------------
     def replot(self, *args):
-        #print('replot')
+        #print('replot', getattr(self, 'single_make_up', None), self.mouse)
         t0, win  = time.time(), self.win
         self.update()
         if win.D3.currentIndex()==2:
@@ -271,9 +281,9 @@ class Canvas(QtWidgets.QWidget):
                                        ('x'.join(str(self.plotter.ibmax[i]-self.plotter.ibmin[i]) for i in (0,1))+' pixels' if self.plotter else ''))
     #---------------------------------------------------------------------------        
     def paintEvent(self, event):
-        #print('paintEvent', self.mouse)
+        #print('paintEvent', self.mouse, self.single_make_up)
         try:
-            if self.single_make_up: im = self.single_make_up(self); self.single_make_up = False
+            if self.single_make_up: im, self.single_make_up = self.single_make_up(self), False 
             else: im = self.mouse.make_up(self) if self.mouse else self.make_up()
         except:
             sys.excepthook(*sys.exc_info())
@@ -288,6 +298,7 @@ class Canvas(QtWidgets.QWidget):
         for m in self.mouse_table:
             if m.check(event): self.mouse = m.press(self, event); break
     def mouseMoveEvent(self, event):
+        if self.wheel: self.wheel = False; return
         if self.mouse: self.mouse.move(self, event); return
         for m in self.mouse_table:
             if m.check(event) and m.touch(self, event):
@@ -304,7 +315,7 @@ class Canvas(QtWidgets.QWidget):
     def wheelEvent(self, event):
         #if self.mouse: self.mouse.wheel(self, event); return
         for m in self.mouse_table:
-            if m.wheel(self, event): break
+            if m.wheel(self, event): self.wheel = True; break
         
         #print(event.angleDelta(), event.buttons(), event.globalPos(), event.phase())
 #-------------------------------------------------------------------------------

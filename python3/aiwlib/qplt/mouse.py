@@ -53,10 +53,15 @@ class MousePaletter(Rect):
     def press(self, canvas, event): # если кнопка левая начинаем выделение, иначе выключаем/включаем выделение
         if(event.buttons()&1): self.y0 = event.y(); self.f0 = self.y2f(self.y0); return self  # левая кнопка
         if(event.buttons()&2): # правая кнопка
-            win = canvas.win
-            if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
-            else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
-            canvas.replot()
+            if event.x()>self.bmax[0]:  # autoscale on/off
+                win = canvas.win
+                if win.autoscale.isChecked(): win.f_min.setText(canvas.f_lim[0]); win.f_max.setText(canvas.f_lim[1]); win.autoscale.setChecked(False)
+                else: canvas.f_lim = [win.f_min.text(), win.f_max.text()]; win.autoscale.setChecked(True)
+                canvas.replot()
+            elif canvas.D3==2:    # transparency on/off
+                n = int((int((self.bmax[1]-event.y())/self.bbox[1]*(canvas.pal_len-1)*2+.5)+1)//2)
+                canvas.D3tmask = canvas.D3tmask&~(1<<n) if canvas.D3tmask&(1<<n) else canvas.D3tmask|(1<<n)
+                canvas.replot()
     def move(self, canvas, event): y = event.y(); self.line_text(self.y0, self.f0, 'green'); self.line_text(y, self.y2f(y)); canvas.update()
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         f0, f1 = self.f0, self.y2f(event.y())

@@ -191,7 +191,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		}
 	} else { // real 3D mode
 		QpltMeshPlotter3D<PAID> plt;
-		plt.vtx.init(*this);  color.conf(&plt.color); plt.accessor = accessor; plt.D3mingrad = D3mingrad;
+		plt.vtx.init(*this);  color.conf(&plt.color, D3tmask); plt.accessor = accessor; plt.D3mingrad = D3mingrad;
 		plt.Nx = im.Nx; plt.Ny = im.Ny; plt.ibmin = ibmin; plt.bbox = bbox;
 		int fl_sz = flats.size();  for(int i=0; i<fl_sz; i++) plt.flats[i] = get_flat<PAID>(i);
 		for(int i=0; i<3; i++) plt.deltas[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -plt.flats[i].mul[2] : plt.flats[i].mul[2];

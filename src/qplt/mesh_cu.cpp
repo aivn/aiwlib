@@ -61,9 +61,10 @@ template <int AID> __global__ void plotXD(int* image){
 	while(1){
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
 		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
-			float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*plt_cu_._max_len*(1-sum_w);
-			if(sum_w+w<plt_cu_.lim_w){ C += plt_cu_.color(f)*w; sum_w += w; }
-			else { C += plt_cu_.color(f)*(plt_cu_.lim_w-sum_w); break; }
+			Vecf<4> dC = plt_cu_.color(f);
+			float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*plt_cu_._max_len*(1-sum_w);
+			if(sum_w+w<plt_cu_.lim_w){ C += dC*w; sum_w += w; }
+			else { C += dC*(plt_cu_.lim_w-sum_w); break; }
 		}
 		f0 = f;
 		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
@@ -103,9 +104,10 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 				WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 
 				float f = 0; accessor.conv<AID>(ptr, (const char**)nb, &f);
 				if(!D3mingrad || fabs(f0-f)>cr_grad){
-					float w = /*(1+10*fabs(f0-f)*_df)*/ray.len*_max_len*(1-sum_w);
-					if(sum_w+w<lim_w){ C += color(f)*w; sum_w += w; }
-					else { C += color(f)*(lim_w-sum_w); break; }
+					Vecf<4> dC = color(f);
+					float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*_max_len*(1-sum_w);
+					if(sum_w+w<lim_w){ C += dC*w; sum_w += w; }
+					else { C += dC*(lim_w-sum_w); break; }
 				}
 				f0 = f;
 				if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу

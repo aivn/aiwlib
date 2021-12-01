@@ -137,7 +137,7 @@ namespace aiw{
 	protected:
 #endif // SWIG
 		aiw::Ind<6> spos; int flips, interp, logscale;  // положения срезов в базовых осях с учетом  bbeg и маска флипов
-		int dim, D3density, D3opacity, D3mingrad, mode;
+		int dim, D3density, D3opacity, D3mingrad, D3tmask, mode;
 		float theta, phi; aiw::Vecf<3> cell_aspect;
 		QpltAccessor accessor;
 		QpltColor color;
