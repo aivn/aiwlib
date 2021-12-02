@@ -19,7 +19,7 @@
 #include "../include/aiwlib/mpi4py"
 using namespace aiw;
 
-const char *racs_help = "опции командной строки:\n"
+const char *racs_help = "опции командной строки:\n" 
 	"  key=value --- задает значение параметра расчета key, возможно задание серии значений параметра как\n"
 	"  key=[x1,x2,...,xn]  --- перечисление значений через запятую\n"
 	"  key=[x1,x2..xn]     --- хаскелль-стиль для арифметической прогрессии\n"
@@ -49,9 +49,9 @@ const char *racs_help = "опции командной строки:\n"
 	"                            завершение расчета\n"
 	"  -c|--copies=1 --- число копий процесса при проведении расчетов с серийными\n"
 	"                    параметрами\n"
-#ifndef AIW_NO_MPI
+#ifdef AIW_MPI
 	"  --mpi[=N] --- для запуска из под MPI.\n\n"
-#endif //AIW_NO_MPI
+#endif //AIW_MPI
 	;
 //------------------------------------------------------------------------------
 bool startswith(const std::string &str, const char *substr){
@@ -98,9 +98,9 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		   parse_opt(a, "-s", this->symlink) || parse_opt(a, "--symlink", this->symlink) ||
 		   parse_opt(a, "-S", schecker) || parse_opt(a, "--statechecker", schecker) ||
 		   parse_opt(a, "-c=", copies) || parse_opt(a, "--copies=", copies) 
-#ifndef AIW_NO_MPI
+#ifndef AIW_MPI
 		   || parse_opt(a, "--mpi", use_mpi)
-#endif //AIW_NO_MPI
+#endif //AIW_MPI
 		   ) continue;
 		size_t eq_pos = 0; while(eq_pos<a.size() && a[eq_pos]!='=') ++eq_pos;
 		if(eq_pos<a.size()){
@@ -141,7 +141,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		}
 		std::vector<int> qpos(qparams.size(), 0);  // позиция в сетке значений для пакетного запуска
 		if(use_mpi){
-#ifndef AIW_NO_MPI
+#ifdef AIW_MPI
 			MPI_Init(&argc, (char***)&argv);
 			int procID = mpi_proc_number(), proc_count = mpi_proc_count();
 			if(procID==0){ // головной процесс
@@ -175,7 +175,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 			}
 			MPI_Finalize();
 			exit(0);
-#endif //AIW_NO_MPI
+#endif //AIW_MPI
 		} else { // not MPI
 			std::ostream *logs[2]; out_preambule(logs, "/tmp/", argc, argv, copies,  qkeys, qgrid);
 			std::list<pid_t> pids; int wstatus;

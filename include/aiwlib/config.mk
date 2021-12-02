@@ -8,11 +8,6 @@
 python:=2
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки
-#ifeq ($(python),2)
-#PYTHONDIR=/usr/lib/python2.7
-#else
-#PYTHONDIR=/usr/lib/python3.6
-#endif
 PYTHONDIR=$(shell python$(python) -c 'import os; print(os.path.dirname(os.__file__))')
 
 LIBDIR=/usr/lib
@@ -22,9 +17,10 @@ BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2s
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
-zlib=off
+zlib=on
 swig=on
 bin=on
+cuda=off
 ezz=off
 #view=amr,umesh,zcube
 
@@ -38,20 +34,23 @@ ezz=off
 CXX:=g++
 MPICXX:=mpiCC
 SWIG:=swig
+NVCC:=nvcc
 
-#ifeq ($(python),2)
-#PYTHON_H_PATH:=/usr/include/python2.7
-#else
-#PYTHON_H_PATH:=/usr/include/python3.6
-#endif
+CULD:=g++
+ifeq (on,$(cuda))
+CULD:=$(NVCC)
+endif
+
 PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
-override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -O3 $(CXXOPT) 
+override CXXOPT_DBG:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  -ldl
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
+override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
 # устанавливать 64x битный дистрибутив питона под wine как
 # wine64 ~/.wine/drive_c/windows/explorer.exe python-2.7.18.amd64.msi
@@ -80,10 +79,10 @@ override CXXOPT:=$(CXXOPT) -DAIW_NO_ZLIB
 override SWIGOPT:=$(SWIGOPT) -DAIW_NO_ZLIB
 endif
 
-ifeq (on,$(swig))
-override CXXOPT:=$(CXXOPT) -I$(PYTHON_H_PATH)
-override MPICXXOPT:=$(MPICXXOPT) -I$(PYTHON_H_PATH)
-endif
+#ifeq (on,$(swig))
+#override CXXOPT:=$(CXXOPT) -I$(PYTHON_H_PATH)
+#override MPICXXOPT:=$(MPICXXOPT) -I$(PYTHON_H_PATH)
+#endif
 
 ifeq (on,$(debug)) 
 override CXXOPT:=$(CXXOPT) -DEBUG
@@ -109,11 +108,16 @@ define RUN_CXX
 $(show_target)
 $(CXX) $(CXXOPT)
 endef
+define RUN_CXX_DBG
+
+$(show_target)
+$(CXX) $(CXXOPT_DBG)
+endef
 endif
 #-------------------------------------------------------------------------------
-ifeq (off,$(mpi))
-override CXXOPT:=$(CXXOPT) -DAIW_NO_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_NO_MPI
+ifeq (on,$(mpi))
+override CXXOPT:=$(CXXOPT) -DAIW_MPI
+override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
 define RUN_MPICXX
 
 $(show_target)
@@ -127,14 +131,14 @@ define RUN_MPICXX
 
 $(show_target)
 $(MPICXX) $(MPICXXOPT)
+override CXXOPT:=$(CXXOPT) -DAIW_MPI
+override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
 endef
 else
-override CXXOPT:=$(CXXOPT) -DAIW_NO_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_NO_MPI
 define RUN_MPICXX
 
 $(show_target)
-@echo -e "\033[31;1;5mCompiler \"$(MPICXX)\" is not available, MPI DISABLED! Using $(CXX) -DAIW_NO_MPI...\033[0m"
+@echo -e "\033[31;1;5mCompiler \"$(MPICXX)\" is not available, MPI DISABLED!\033[0m"
 $(CXX) $(CXXOPT)
 endef
 endif

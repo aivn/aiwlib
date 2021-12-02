@@ -33,7 +33,7 @@ namespace aiw{
 		if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
 		out<<x; if(sizeof...(Args)>0) out<<", ";
 		debug_out(out, str+key.next, args...);
-	}
+	} 
 	//--------------------------------------------------------------------------
 	template <typename T> bool is_bad_value(T){ return false; }
 	inline bool is_bad_value(float  x){ return (std::isnan(x)) || (std::isinf(x)); }

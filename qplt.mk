@@ -23,8 +23,8 @@ override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
 # запускать вьювер как
 # wine ~/.wine/drive_c/Python27/python.exe uplt.py ИМЕНА-ФАЙЛОВ
 MINGW:=x86_64-w64-mingw32-g++
-MINGW_LINKOPT:=-L ~/.wine/drive_c/Python36/libs/ -lpython36 -lgomp
-MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python36/include/ -fopenmp -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64
+MINGW_LINKOPT:=-L ~/.wine/drive_c/Python34/libs/ -lpython34 -lgomp
+MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python34/include/ -fopenmp -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64
 #-------------------------------------------------------------------------------
 define show_target
 @echo

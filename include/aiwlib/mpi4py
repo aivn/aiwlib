@@ -1,13 +1,11 @@
 // -*- C++ -*-
-#ifndef AIW_MPI4PY_HPP
+#if !defined(AIW_MPI4PY_HPP) && defined(AIW_MPI)
 #define AIW_MPI4PY_HPP
 
 /**
- * Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
-
-#ifndef AIW_NO_MPI
 
 #ifndef SWIG		
 #include <mpi.h>
@@ -49,5 +47,4 @@ namespace aiw{
 	}
 //------------------------------------------------------------------------------
 }
-#endif //AIW_NO_MPI
-#endif //AIW_MPI4PY_HPP
+#endif //AIW_MPI4PY_HPP && AIW_MPI
