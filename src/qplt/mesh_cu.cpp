@@ -22,13 +22,10 @@ void aiw::QpltMesh::data_load_impl(){  // загружает данные в п�
 #ifndef __NVCC__
 	fin->seek(mem_offset);
 	mem = fin->mmap(data_sz, 0);
-	// printf("cpp0: ptr=%p\n", mem_ptr);
 	mem_ptr = (char*)(mem->get_addr());
-	// printf("cpp1: ptr=%p\n", mem_ptr);
 #else //__NVCC__
-        // printf("cu0: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
-	cudaMallocManaged((void**)&mem_ptr, data_sz); 
-	// printf("cu1: ptr=%p, err=%i\n", mem_ptr, err);
+	int err = cudaMallocManaged((void**)&mem_ptr, data_sz); 
+	if(err){ fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%ld, err=%i)\n", __FILE__, __FUNC__, __LINE__,  data_sz, err); exit(1); }
 	data_load_cuda();
         // printf("cu2: ptr=%p\n", mem_ptr);
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
@@ -123,7 +120,9 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 #else  //__NVCC__ GPU render
 	// 1. иницализируем плоттер и изображение
 	cudaMemcpyToSymbol(plt_cu, this, sizeof(*this), 0, cudaMemcpyHostToDevice);
-	int *image_cu; cudaMalloc((void**)&image_cu, Nx*Ny*4);	
+	int *image_cu; int err = cudaMalloc((void**)&image_cu, Nx*Ny*4);
+	if(err){ fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%ld, err=%i)\n", __FILE__, __FUNC__, __LINE__,  Nx*Ny*4, err); exit(1); }
+
 
 	//2. запускаем ядро
 	plotXD<AID><<<dim3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);    
