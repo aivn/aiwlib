@@ -2,9 +2,11 @@ SHELL=/bin/bash
 
 CXX:=g++
 SWIG:=swig
+NVCC:=nvcc
+override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 LINKER:=g++
 ifeq (on,$(cuda))
-LINKER:=nvcc
+LINKER:=$(NVCC)
 endif
 
 PYTHON_H_PATH:=$(shell python3 -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
@@ -70,7 +72,7 @@ python3/aiwlib/qplt/_core.so: swig/qplt/core_wrap.o $(shell echo src/qplt/{imagi
 ifeq (on,$(cuda))
 $(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/mesh_cu.cpp)))
 	$(show_target)
-	nvcc -x cu --compiler-options -fPIC -O3 -o $@ -c src/qplt/mesh_cu.cpp
+	$(NVCC) $(NVCCOPT) -o $@ -c src/qplt/mesh_cu.cpp
 #$(strip src/qplt/$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/qplt/vtexture.cpp)))
 #	$(show_target)
 #	nvcc -x cu -o $@ -c src/qplt/vtexture.cpp
