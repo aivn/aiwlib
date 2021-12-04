@@ -1,9 +1,14 @@
 # Copyright (C) 2017,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 
-$(MESH_NAME): python$(python)/aiwlib/$(MESH_NAME).py python$(python)/aiwlib/_$(MESH_NAME).so iostream swig; 
-build/swig/$(MESH_NAME).py build/swig/$(MESH_NAME)_wrap.cxx: build/src/mesh.d
-build/swig/$(MESH_NAME).i: swig/mesh.mk
+ifeq (on,$(debug))
+$(MESH_NAME): $(dst)python$(python)/aiwlib/$(MESH_NAME).py $(dst)python$(python)/aiwlib/_dbg_$(MESH_NAME)$(so) iostream swig; 
+else
+$(MESH_NAME): $(dst)python$(python)/aiwlib/$(MESH_NAME).py $(dst)python$(python)/aiwlib/_$(MESH_NAME)$(so) iostream swig; 
+endif
+$(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(MESH_NAME)_wrap.cxx: $(dst)build/src/$(MESH_NAME).d
+
+$(dst)build/swig/$(MESH_NAME).i: swig/mesh.mk
 	@mkdir -p build/swig
 	$(imodule)
 	@echo '%{#include "../include/aiwlib/mesh"%}' >> $@
