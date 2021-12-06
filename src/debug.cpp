@@ -30,7 +30,7 @@ BaseDebugStackTupleFrame::BaseDebugStackTupleFrame(bool reg){ if(reg && exc_coun
 BaseDebugStackTupleFrame::~BaseDebugStackTupleFrame(){ if(exc_counter>0 && exc_frames[exc_counter-1]==this) exc_counter--; } 
 //------------------------------------------------------------------------------
 #ifndef AIW_WIN32
-void signal_hook(int signum, siginfo_t * info, void * f){
+void signal_hook(int /*signum*/, siginfo_t* info, void* /*f*/){
 	while(exc_counter) exc_frames[--exc_counter]->out_msg(std::cerr);
 	fprintf(stderr, "\n\n\nProgram terminated with signal=%d (%s), si_code=%d\n", info->si_signo, strsignal(info->si_signo), info->si_code);
 	if(info->si_errno) fprintf(stderr, "[%s]\n", strerror(errno));

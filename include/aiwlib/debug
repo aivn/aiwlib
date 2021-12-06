@@ -27,7 +27,7 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 	// template <typename T> void debug_out(std::ostream& out, const char* str, T x){ out<<str<<"="<<x; }
-	inline void debug_out(std::ostream& out, const char* str){}
+	inline void debug_out(std::ostream&, const char*){}
 	template <typename T, typename ... Args> void debug_out(std::ostream& out, const char* str, T x, Args ... args){
 		SplitArgForOut key(str);
 		if(str[0]!='"'){ out.write(str, key.end); out<<"="; }

@@ -49,7 +49,7 @@ override CXXOPT_DBG:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wsha
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT) -DAIW_MPI
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  -ldl
-override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
+override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
 # устанавливать 64x битный дистрибутив питона под wine как
@@ -87,20 +87,24 @@ endif
 #   macros
 #-------------------------------------------------------------------------------
 define show_target
-@echo --------------------------------------------------------------------------------
 @echo TARGET: "$@"
 @if [ -f "$@" ]; then if [ "$(filter-out /usr/%,$?)" ]; then echo NEW: $(filter-out /usr/%,$?); else echo NEW: $?; fi; fi
 @echo ALL: $(filter-out /usr/%,$^)
 @echo
 endef
+define show_line
+@echo --------------------------------------------------------------------------------
+endef
 #-------------------------------------------------------------------------------
 define run_swig
 @mkdir -p $$(dirname $@)
 $(show_target)
-$(SWIG) $(SWIGOPT) -outdir $$(dirname $@) $<
+$(SWIG) $(SWIGOPT) -outdir $$(dirname $@) -o "$@" $<
+$(show_line)
 endef
 #-------------------------------------------------------------------------------
 define patch_py
+@mkdir -p $$(dirname $@)
 @echo '#--- begin of aiwlib patch ---' > $@ 
 @echo 'try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' >> $@
 @echo 'except: pass' >> $@
@@ -113,52 +117,18 @@ define patch_py
 @cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag and support debug mode\033[0m"
 endef
 #-------------------------------------------------------------------------------
-ifeq (on,$(mpi))
+ifeq (on,$(debug))
 define run_cxx
-
 $(show_target)
-$(MPICXX) $(MPICXXOPT)
+$(CXX) $(CXXOPT_DBG) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
+$(show_line)
 endef
 else
 define run_cxx
-
 $(show_target)
-$(CXX) $(CXXOPT)
+$(CXX) $(CXXOPT) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
+$(show_line)
 endef
-define run_cxx_dbg
-
-$(show_target)
-$(CXX) $(CXXOPT_DBG)
-endef
-endif
-#-------------------------------------------------------------------------------
-ifeq (on,$(mpi))
-override CXXOPT:=$(CXXOPT) -DAIW_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
-define RUN_MPICXX
-
-$(show_target)
-$(CXX) $(CXXOPT)
-endef
-endif
-#-------------------------------------------------------------------------------
-ifeq '$(mpi)' ''
-ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
-define RUN_MPICXX
-
-$(show_target)
-$(MPICXX) $(MPICXXOPT)
-override CXXOPT:=$(CXXOPT) -DAIW_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
-endef
-else
-define RUN_MPICXX
-
-$(show_target)
-@echo -e "\033[31;1;5mCompiler \"$(MPICXX)\" is not available, MPI DISABLED!\033[0m"
-$(CXX) $(CXXOPT)
-endef
-endif
 endif
 #-------------------------------------------------------------------------------
 .SUFFIXES :
@@ -192,5 +162,9 @@ define imodule
 @echo '%include "std_string.i"' >> $@
 @echo "%inline %{ namespace aiw{}; %}" >> $@
 @echo "%define CONFIGURATE(ARGS...) %enddef" >> $@
+@echo "%define CU_HOST %enddef" >> $@
+@echo "%define CU_DEVICE %enddef" >> $@
+@echo "%define CU_GLOBAL %enddef" >> $@
+@echo "%define CU_HD %enddef" >> $@
 endef
 #-------------------------------------------------------------------------------

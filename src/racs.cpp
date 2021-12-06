@@ -127,7 +127,7 @@ aiw::RacsCalc::RacsCalc(int argc, const char **argv){
 		}
 	}
 	if(qparams.empty()){ // нет пакетного запуска
-		if(!path_.empty() && clean_path && system(("rm -rf "+path_+"/*").c_str()));
+		if(!path_.empty() && clean_path && system(("rm -rf "+path_+"/*").c_str())){} // for supress -Wunused-result system(...) call
 		if(!path_.empty()) calc_configure();
 	} else { // есть пакетный запуск
 		starttime = omp_get_wtime();
