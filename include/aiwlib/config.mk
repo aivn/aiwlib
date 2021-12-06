@@ -43,7 +43,7 @@ endif
 
 PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -O3 $(CXXOPT) 
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) -I$(PYTHON_H_PATH)
 override CXXOPT_DBG:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
 #override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)

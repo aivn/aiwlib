@@ -58,7 +58,7 @@ python$(python)/aiwlib/%.py: swig/%.py
 	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
 swig/%.py swig/%_wrap.cxx: swig/%.i 
 	$(show_target)
-	$(SWIG) $(SWIGOPT) $<
+	$(SWIG) $(SWIGOPT) -I$(PYTHON_H_PATH) $<
 #-------------------------------------------------------------------------------
 #   make shared library
 #-------------------------------------------------------------------------------
@@ -72,9 +72,9 @@ python$(python)/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
 	$(show_target)
 	$(MPICXX) $(MPICXXOPT) -shared -o $@ $< $(LINKOPT)
 
-src/racs.cpp: include/aiwlib/mpi4py
-src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
-	$(RUN_MPICXX) -o $@ -c $< 
+#src/racs.cpp: include/aiwlib/mpi4py
+#src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
+#	$(RUN_MPICXX) -o $@ -c $< 
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
