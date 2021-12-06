@@ -165,7 +165,8 @@ class Canvas(QtWidgets.QWidget):
             pal = MousePaletter((0, sz_y/2-pal_height/2), (pw, sz_y/2+pal_height/2), x1=sz_x,
                                 f_min=plotter.get_f_min(), f_max=plotter.get_f_max(), logscale=win.logscale.isChecked())
             self.mouse_table.append(pal)
-            tics, max_tic_sz, stics = make_tics([plotter.get_f_min(), plotter.get_f_max()], win.logscale.isChecked(), pal.bbox[1], True, paint)
+            try: tics, max_tic_sz, stics = make_tics([plotter.get_f_min(), plotter.get_f_max()], win.logscale.isChecked(), pal.bbox[1], True, paint)
+            except: tics, max_tic_sz, stics = [], 0, []
             x1 = sz_x-ps-pw-4*tl-max_tic_sz-h_font*2*bool(win.f_text.text());  pal.shift([x1+ps, 0])
             paint.drawImage(pal.bmin[0], pal.bmin[1], self.paletters[win.paletter.itemText(win.paletter.currentIndex())].scaled(pal.bbox[0], pal.bbox[1]))
             if self.D3==2:
