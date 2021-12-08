@@ -3,9 +3,9 @@
 %feature("autodoc", "1");
 %include "std_string.i"
 %{
-#include "../include/aiwlib/iostream"
-#include "../include/aiwlib/gzstream"
+#include "include/aiwlib/iostream"
+#include "include/aiwlib/gzstream"
 %}
-%include "../include/aiwlib/iostream"
-%include "../include/aiwlib/gzstream"
+%include "include/aiwlib/iostream"
+%include "include/aiwlib/gzstream"
 

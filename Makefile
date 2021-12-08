@@ -51,9 +51,9 @@ so=.so
 
 all: $(dst)libaiw$(_dbg).a;
 
-.PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/qplt/%_wrap.cxx
-.PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d $(dst)build/swig/qplt/%.d
-.PRECIOUS: $(dst)build/src/%.o $(dst)build/src/bin/%.o $(dst)build/src/qplt/%.o $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)build/swig/qplt/%.o
+.PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/%/core_wrap.cxx
+.PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d $(dst)build/swig/%/$(python)_core.d
+.PRECIOUS: $(dst)build/src/%.o $(dst)build/src/bin/%.o $(dst)build/src/qplt/%.o $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o
 #-------------------------------------------------------------------------------
 #   C++ core
 #-------------------------------------------------------------------------------
