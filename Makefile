@@ -21,7 +21,7 @@ include include/aiwlib/config.mk
 libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
 ifeq (on,$(bin))
-bin_n=qplt-remote,arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
+bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
 #dat2mesh,fv-slice,uplt-remote
 endif
 #-------------------------------------------------------------------------------
@@ -50,8 +50,6 @@ dst=
 so=.so
 
 all: $(dst)libaiw$(_dbg).a;
-#iostream swig mpi4py: %: $(dst)python$(python)/aiwlib/%.py $(dst)python$(python)/aiwlib/_$(dbg_)%$(so);
-#qplt: $(dst)python3/aiwlib/qplt/core.py $(dst)python3/aiwlib/qplt/_$(dbg_)core$(so);
 
 .PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/qplt/%_wrap.cxx
 .PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d $(dst)build/swig/qplt/%.d
@@ -80,7 +78,7 @@ $(dst)build/src/qplt/%.d: src/qplt/%.cpp
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/qplt/dbg/qplt_" > $@
 	@$(CXX) -M $< >> $@
 
-include $(shell echo $(dst)build/src/{$(libaiw_n)}.d $(dst)build/src/bin/{$(bin_n)}.d $(dst)build/src/qplt/{$(qplt_n)}.d)
+-include $(shell echo $(dst)build/src/{$(libaiw_n)}.d $(dst)build/src/bin/{$(bin_n)}.d $(dst)build/src/qplt/{$(qplt_n)}.d)
 
 $(dst)build/src/$(dbg_)%.o: src/%.cpp $(dst)build/src/%.d; $(run_cxx) 
 $(dst)build/src/bin/$(dbg_)%.o: src/bin/%.cpp $(dst)build/src/bin/%.d; $(run_cxx)
@@ -88,13 +86,10 @@ $(dst)build/src/qplt/$(dbg_)%.o: src/qplt/%.cpp $(dst)build/src/qplt/%.d; $(run_
 #-------------------------------------------------------------------------------
 #   run swig and make shared libs
 #-------------------------------------------------------------------------------
-$(dst)python$(python)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg_){$(qplt_n)}.o)
-
-$(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
-$(dst)build/swig/%/core.py $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
-
-#$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; $(patch_py)
-#$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; $(patch_py)
+$(dst)build/swig/%.py: $(dst)build/swig/%_wrap.cxx;
+$(dst)build/swig/%/core.py: $(dst)build/swig/%/core_wrap.cxx;
+$(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
+$(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
 $(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
 $(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
 
@@ -116,12 +111,14 @@ $(dst)build/swig/%/$(python)_core.d: $(dst)build/swig/%/core_wrap.cxx
 #endif
 #endif
 
-ifndef SWIG_MODULE
-iostream swig mpi4py:; @$(MAKE) --no-print-directory SWIG_MODULE:=$(python)_$@ $(dst)python$(python)/aiwlib/$@.py $(dst)python$(python)/aiwlib/_$(dbg_)$@$(so)
-qplt:; @$(MAKE) --no-print-directory SWIG_MODULE:=$@/$(python)_core $(dst)python3/aiwlib/$@/core.py $(dst)python3/aiwlib/$@/_$(dbg_)core$(so)
-else
-include $(dst)build/swig/$(SWIG_MODULE).d
-endif
+iostream swig mpi4py: %: $(dst)python$(python)/aiwlib/%.py $(dst)python$(python)/aiwlib/_$(dbg_)%$(so);
+
+#ifndef SWIG_MODULE
+#iostream swig mpi4py:; @$(MAKE) --no-print-directory SWIG_MODULE:=$(python)_$@ $(dst)python$(python)/aiwlib/$@.py $(dst)python$(python)/aiwlib/_$(dbg_)$@$(so)
+#qplt: bin/qplt-remote; @$(MAKE) --no-print-directory SWIG_MODULE:=$@/$(python)_core $(dst)python3/aiwlib/$@/core.py $(dst)python3/aiwlib/$@/_$(dbg_)core$(so)
+#else
+#include $(dst)build/swig/$(SWIG_MODULE).d
+#endif
 
 $(dst)build/swig/$(python)_$(dbg_)%_wrap.o: $(dst)build/swig/%_wrap.cxx $(dst)build/swig/$(python)_%.d; $(run_cxx) 
 $(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o: $(dst)build/swig/%/core_wrap.cxx $(dst)build/swig/%/$(python)_core.d; $(run_cxx) 
@@ -133,6 +130,8 @@ $(dst)python$(python)/aiwlib/%/_$(dbg_)core$(so): $(dst)build/swig/%/$(python)_$
 	$(show_target)
 	$(CU_LD) -shared -o $@ $^ $(LINKOPT)  $(dst)libaiw$(_dbg).a
 #---  qplt  --------------------------------------------------------------------
+$(dst)python$(python)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg_){$(qplt_n)}.o)
+qplt: $(dst)python3/aiwlib/qplt/core.py $(dst)python3/aiwlib/qplt/_$(dbg_)core$(so) $(dst)bin/qplt-remote;
 ifeq (on,$(cuda))
 $(dst)build/src/qplt/%_cu.o: src/qplt/%_cu.cpp $(dst)build/src/qplt/%_cu.d
 	$(show_target)
@@ -157,13 +156,10 @@ else
 include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d
 endif
 #-------------------------------------------------------------------------------
-#-------------------------------------------------------------------------------
 #   utils
 #-------------------------------------------------------------------------------
-#bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
-#bin/arr2seg-Y: src/segy.o
-#bin/isolines: src/isolines.o
-#bin/arr2segY bin/segY2arr bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff bin/uplt-remote bin/sph2dat: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
+bin/%: $(dst)build/src/bin/%.o; $(CXX) -o $@ $^ $(dst)libaiw.a $(LINKOPT)
+bin/qplt-remote: $(dst)build/src/bin/qplt-remote.o $(shell echo $(dst)build/src/qplt/{$(qplt_n)}.o); $(CU_LD) -o $@ $^ $(dst)libaiw.a $(LINKOPT)  
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------
@@ -188,6 +184,9 @@ cleanall:
 clean:
 	rm -f $(dst)python$(python)/aiwlib/{,qplt/}_*$(so) $(dst)python$(python)/aiwlib/{iosteam,swig,mpi4py}.py{,c} $(dst)python$(python)/aiwlib/qplt/core.py{,c}
 	rm -f $(dst)python$(python)/aiwlib/{Mesh,Sphere}*.py{,c}
+clean-bin:;	rm -f bin/{$(bin_n)} $(dst)build/src/bin/*.o
+clean-qplt:; rm -rf bin/qplt-remote $(dst)python3/aiwlib/{core.py,_core$(so),_dbg_core$(so)} $(dst)build/src/qplt $(dst)build/src/bin/{dbg_,}qplt-remote.o
+clean-qplt-cu:; rm -f bin/qplt-remote $(dst)python3/aiwlib/{_core$(so),_dbg_core$(so)} $(dst)build/src/qplt/*_cu.o
 #clean-%:; -n=$@; rm swig/$${n:6}_wrap?.o python$(python)/aiwlib/_$${n:6}.so
 #clean-mingw clean-windows:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
 #-------------------------------------------------------------------------------

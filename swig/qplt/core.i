@@ -71,10 +71,10 @@
 %define CU_HD %enddef
 
 %{
-#include "../../include/aiwlib/qplt/base"
+#include "include/aiwlib/qplt/base"
 %}
 		 
-%include "../../include/aiwlib/qplt/base"
+%include "include/aiwlib/qplt/base"
 
 %template(std_vector_QpltContainer) std::vector<aiw::QpltContainer*>;
 

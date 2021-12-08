@@ -2,7 +2,7 @@
 
 import os, sys
 
-fname = sys.argv[1]
+fname = sys.argv[1] #if len(sys.argv)==3 or sys.argv[1].endswith('_wrap.cxx') else sys.argv[1][:-3]+'_wrap.cxx'
 src, itable = open(fname).readlines(), []
 
 if fname.endswith('_wrap.cxx'):
@@ -11,11 +11,14 @@ if fname.endswith('_wrap.cxx'):
         if 'SWIG_init' in l: itable.append((i0, l[-1]))
         if len(l)==3 and l[0]=='#define' and l[1]=='SWIG_name': break
     name = l[2][1:-1]
-    src[i0:i0+1] = ['#ifndef EBUG\n', '#define SWIG_name "%s"\n'%name, '#else\n', '#define SWIG_name "_dbg%s"\n'%name, '#endif\n']
+    src[i0:i0+1] = ['// aiwlib patch <<<\n','#ifndef EBUG\n', '#define SWIG_name "%s"\n'%name,
+                    '#else\n', '#define SWIG_name "_dbg%s"\n'%name, '#endif\n', '// >>>\n']
     for i, n in reversed(itable):
-        src[i:i+1] = ['#ifndef EBUG\n', '#define SWIG_init %s\n'%n, '#else\n', '#define SWIG_init %s_dbg_%s\n'%tuple(n.rsplit('_', 1)), '#endif\n']
+        src[i:i+1] = ['// aiwlib patch <<<\n', '#ifndef EBUG\n', '#define SWIG_init %s\n'%n,
+                      '#else\n', '#define SWIG_init %s_dbg_%s\n'%tuple(n.rsplit('_', 1)), '#endif\n', '// >>>\n']
         
     open(fname, 'w').writelines(src)
+    print('\033[7m    file', fname, 'patched    \033[0m')
 
 elif fname.endswith('.py'):
     name = '_'+os.path.basename(fname).split('.')[0]
@@ -23,8 +26,9 @@ elif fname.endswith('.py'):
         if l.split()[-2:] == ['import', name]: itable.append(i0)
     for i in reversed(itable[:2]):
         l = src[i]; p, l = l[:len(l)-len(l.lstrip())], ' '.join(l.split()[:-1])
-        src[i:i+1] = [p+"if os.environ.get('debug')=='on': "+l+' _dbg%s as %s\n'%(name, name), p+'else: %s %s\n'%(l, name)]
+        src[i:i+1] = [p+"if os.environ.get('debug')=='on': "+l+' _dbg%s as %s  # aiwlib patch\n'%(name, name), p+'else: %s %s  # aiwlib patch\n'%(l, name)]
 
     try: os.makedirs(os.path.dirname(sys.argv[2]))
     except OSError: pass
-    open(sys.argv[2], 'w').writelines(['try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())\n', 'except: pass\n']+src)
+    open(sys.argv[2], 'w').writelines(['try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())  # aiwlib patch\n', 'except: pass  # aiwlib patch\n']+src)
+    print('\033[7m    file', fname, 'patched and copied to', sys.argv[2], '   \033[0m')
