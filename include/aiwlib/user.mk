@@ -1,5 +1,5 @@
 #    user modules Makefile
-# Copyright (C) 2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2017, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #-------------------------------------------------------------------------------
 define reset
@@ -20,17 +20,20 @@ cxxmain= # .cpp files with main() functions for make
 endef
 #-------------------------------------------------------------------------------
 aiwlib_include:=$(shell dirname $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))))
+include $(aiwlib_include)/aiwlib/config.mk
+
 aiwlib:=$(dir $(aiwlib_include))
 ifeq ($(wildcard $(aiwlib)libaiw.a),)
-libaiw_a:=-laiw
+libaiw_a:=-laiw$(_dbg)
 else
-libaiw_a:=$(aiwlib)libaiw.a
-libaiw_a_file:=$(aiwlib)libaiw.a
+libaiw_a:=$(aiwlib)libaiw$(_dbg).a
+libaiw_a_file:=$(aiwlib)libaiw$(_dbg).a
 endif
+
 #ifeq ($(wildcard $(aiwlib)python/,)
 #aiwlib:=
 #endif
-include $(aiwlib_include)/aiwlib/config.mk
+
 all_sources:=$(sources) $(sort $(filter-out /usr/%,$(MAKEFILE_LIST)) $(foreach m,$(headers) $(modules),$(filter-out $(notdir $(basename $m)).o: /usr/%,$(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $m)))))			
 sources:=$(sort $(filter-out $(aiwlib_include)/%,$(all_sources)))
 all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
@@ -83,7 +86,9 @@ _$(name).so: $(name)_wrap$(python).o $(all_objects)
 ifneq ($(headers),)
 $(name)_wrap$(python).o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers) $(modules))))
 endif
-%.o:; $(RUN_CXX) -I$(aiwlib_include) -o $@ -c $<
+%.o:
+	$(show_target)
+	$(CXX) $(CXXOPT) -I$(PYTHON_H_PATH) -I$(aiwlib_include) -o $@ -c $<
 #-------------------------------------------------------------------------------
 #   .i file
 #-------------------------------------------------------------------------------
@@ -172,7 +177,7 @@ endif
 mkextras:=$(firstword $(MAKEFILE_LIST)).extras
 $(shell echo '# This file is generated automatically, do not edit it!' > $(mkextras))
 $(shell echo '# The file contains additional dependencies and rules for building your project.' >> $(mkextras))
-$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects) $(libaiw_a_file); $$(RUN_CXX) -o $$@ $$^ $(libaiw_a) $(LINKOPT)';done >> $(mkextras))
+$(shell for i in $(cxxmain); do echo `basename $${i%.*}`:$${i%.*}.o '$(all_objects) $(libaiw_a_file); $$(run_cxx) -o $$@ $$^ $(libaiw_a) $(LINKOPT)';done >> $(mkextras))
 $(shell for m in $(modules) $(cxxmain); do echo -n `dirname $$m`/; $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $$m; done >> $(mkextras))
 include $(mkextras)
 #-------------------------------------------------------------------------------

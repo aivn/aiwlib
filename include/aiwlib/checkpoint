@@ -18,7 +18,7 @@ namespace aiw{
 		std::vector<std::string> table;
 		std::vector<std::string>::iterator cursor;
 #ifndef SWIG
-		void dump_load_arg(bool wmode){}
+		void dump_load_arg(bool){}
 		template <typename T, typename ... Args> void dump_load_arg(bool wmode, T& x, Args& ... args){
 			if(wmode) stream<x; else stream>x;
 			dump_load_arg(wmode, args...);

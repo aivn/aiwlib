@@ -215,7 +215,7 @@ namespace aiw{
 	struct StdIstream {
 		std::istream &f;
 		long max_size() const { return -1; }
-		bool check_tail(size_t sz) const { return true; }
+		bool check_tail(size_t) const { return true; }
 		StdIstream(): f(std::cin){}
 		StdIstream(std::istream &f_): f(f_){}
 		size_t read(void* buf, size_t size){ return f.read((char*)buf, size).gcount(); }

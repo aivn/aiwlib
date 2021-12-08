@@ -65,6 +65,11 @@
   }
 }
 
+%define CU_HOST %enddef
+%define CU_DEVICE %enddef
+%define CU_GLOBAL %enddef
+%define CU_HD %enddef
+
 %{
 #include "../../include/aiwlib/qplt/base"
 %}

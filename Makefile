@@ -1,146 +1,173 @@
-# Copyright (C) 2016-2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2016-2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #
 # Usage:
-#    make [CXX=<custom compiler>] [MPICXX=<custom MPI compiler>] 
+#    make [CXX|MPICXX|NVCC|MINGW=<custom compiler>] 
 # or edit file 'include/aiwlib/config.mk' for select custom compilers permanently;
 #
 #    make [zlib=off] [swig=off] [png=off] [pil=off] [bin=off] 
 # or edit file 'include/aiwlib/config.mk' for change main target 'all' and list of aiwlib C++-core modules.  
 #
+#    make ... debug=on   for make debug version
+#
 # See include/aiwlib/config.mk and doc/aiwlib.pdf for details.
 
 include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
+#   main targets
+#-------------------------------------------------------------------------------
+#.PHONY: clean all install-links
+
+libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format
+qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
+ifeq (on,$(bin))
+bin_n=qplt-remote,arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
+#dat2mesh,fv-slice,uplt-remote
+endif
+#-------------------------------------------------------------------------------
 ifeq (on,$(swig)) 
-all: iostream swig view MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 MeshUS2-uint16_t-2 MeshUS3-uint16_t-3 SphereD-double SphereF-float SphereUS-uint16_t $(shell if [ -f TARGETS ]; then cat TARGETS; fi)
+all: iostream swig MeshF1-float-1 MeshF2-float-2 MeshF3-float-3 SphereF-float $(shell if [ -f $(dst)TARGETS ]; then cat $(dst)TARGETS; fi)
+#all:  MeshUS2-uint16_t-2 MeshUS3-uint16_t-3 SphereD-double SphereUS-uint16_t 
 endif
 
-ifneq (off,$(mpi)) 
-ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
-all: mpi4py
-endif
-endif
-
-ifeq (on,$(bin)) 
-all: $(shell echo bin/{arr2segY,segY2arr,isolines,dat2mesh,fv-slice,uplt-remote,sph2dat})
-endif
+all: $(shell echo $(dst)bin/{$(bin_n)})
 
 ifeq (on,$(ezz))
 all: mplt fplt splt
 endif
 
-all: libaiw.a;
+ifeq (3,$(python))
+all: qplt
+endif
 
-iostream swig mpi4py view: %: python$(python)/aiwlib/%.py python$(python)/aiwlib/_%.so;
-.PRECIOUS: swig/%.py swig/%_wrap$(python).o src/%.o 
+#ifeq (on,$(mpi)) 
+#ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
+#all: mpi4py
+#endif
+#endif
 #-------------------------------------------------------------------------------
-libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format,view/{color,mesh}}.o)
-	rm -f libaiw.a; ar -csr libaiw.a $^
+dst=
+so=.so
 
-#,amr,zcube,umesh3D,vtexture
+all: $(dst)libaiw$(_dbg).a;
+#iostream swig mpi4py: %: $(dst)python$(python)/aiwlib/%.py $(dst)python$(python)/aiwlib/_$(dbg_)%$(so);
+#qplt: $(dst)python3/aiwlib/qplt/core.py $(dst)python3/aiwlib/qplt/_$(dbg_)core$(so);
 
-#libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,amrview,view/{images,color,mesh}}.o); rm -f libaiw.a; ar -csr libaiw.a $^
-#libaiw.a: $(shell echo src/{debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,plot2D,farfield}.o); rm -f libaiw.a; ar -csr libaiw.a $^
+.PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/qplt/%_wrap.cxx
+.PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d $(dst)build/swig/qplt/%.d
+.PRECIOUS: $(dst)build/src/%.o $(dst)build/src/bin/%.o $(dst)build/src/qplt/%.o $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)build/swig/qplt/%.o
 #-------------------------------------------------------------------------------
-#   run SWIG
+#   C++ core
 #-------------------------------------------------------------------------------
-swig/swig.py swig/swig_wrap.cxx: include/aiwlib/swig
-swig/iostream.py swig/iostream_wrap.cxx: include/aiwlib/iostream include/aiwlib/gzstream 
-swig/mpi4py.py swig/mpi4py_wrap.cxx: include/aiwlib/mpi4py
-#swig/plot2D.py swig/plot2D_wrap.cxx: $(shell echo include/aiwlib/{vec,mesh,sphere,amrview,plot2D,view/{images,color}})
-swig/view.py swig/view_wrap.cxx: $(shell echo include/aiwlib/{vec,typeinfo,view/{color,base,mesh,sphere}})
-# +amr,zcube,umesh3D,vtexture
+src_o=$(shell echo $(dst)build/src/$(dbg_){$(libaiw_n)}.o)
 
-python$(python)/aiwlib/%.py: swig/%.py
-	@echo 'try: import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $@
-	@echo 'except: pass' >> $@
-	@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
-swig/%.py swig/%_wrap.cxx: swig/%.i 
+$(dst)libaiw$(_dbg).a: $(src_o)
 	$(show_target)
-	$(SWIG) $(SWIGOPT) -I$(PYTHON_H_PATH) $<
-#-------------------------------------------------------------------------------
-#   make shared library
-#-------------------------------------------------------------------------------
-python$(python)/aiwlib/_%.so: swig/%_wrap$(python).o libaiw.a
-	$(show_target)
-	$(CXX) -shared -o $@ $^ $(LINKOPT)
-#-------------------------------------------------------------------------------
-#   mpiCC
-#-------------------------------------------------------------------------------
-python$(python)/aiwlib/_mpi4py.so: swig/mpi4py_wrap.cxx include/aiwlib/mpi4py
-	$(show_target)
-	$(MPICXX) $(MPICXXOPT) -shared -o $@ $< $(LINKOPT)
-
-#src/racs.cpp: include/aiwlib/mpi4py
-#src/$(subst \,,$(shell $(CXX) $(CXXOPT) -M -DAIW_NO_MPI src/racs.cpp))  
-#	$(RUN_MPICXX) -o $@ -c $< 
+	rm -f $@; ar -csr $@ $^
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
-#%.d: %.cpp
-#	$(show_target)
-#	echo -n $@ ' src/' > $@
-#	$(CXX) $(CXXOPT) -M $< > $@
+$(dst)build/src/%.d: src/%.cpp
+	@mkdir -p $(dst)build/src
+	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/dbg_" > $@
+	@$(CXX) -M $< >> $@
+$(dst)build/src/bin/%.d: src/bin/%.cpp
+	@mkdir -p $(dst)build/src/bin
+	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/bin/dbg_" > $@
+	@$(CXX) -M $< >> $@
+$(dst)build/src/qplt/%.d: src/qplt/%.cpp
+	@mkdir -p $(dst)build/src/qplt
+	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/qplt/dbg/qplt_" > $@
+	@$(CXX) -M $< >> $@
 
-#include src/*.d
+include $(shell echo $(dst)build/src/{$(libaiw_n)}.d $(dst)build/src/bin/{$(bin_n)}.d $(dst)build/src/qplt/{$(qplt_n)}.d)
 
-#src/%.o: src/%.cpp src/%.d
-#	$(show_target)
-#	$(CXX) $(CXXOPT) -c  $<
+$(dst)build/src/$(dbg_)%.o: src/%.cpp $(dst)build/src/%.d; $(run_cxx) 
+$(dst)build/src/bin/$(dbg_)%.o: src/bin/%.cpp $(dst)build/src/bin/%.d; $(run_cxx)
+$(dst)build/src/qplt/$(dbg_)%.o: src/qplt/%.cpp $(dst)build/src/qplt/%.d; $(run_cxx)
+#-------------------------------------------------------------------------------
+#   run swig and make shared libs
+#-------------------------------------------------------------------------------
+$(dst)python$(python)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg_){$(qplt_n)}.o)
 
-ifndef MODULE
-#src/%.o:  src/%.cpp  include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp $@
-#swig/%.o: swig/%.cxx include/aiwlib/* include/aiwlib/magnets/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
-src/%.o:  src/%.cpp include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp TARGET:=$@ $@
-src/view/%.o:  src/view/%.cpp  include/aiwlib/* include/aiwlib/view/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cpp  TARGET:=$@ $@
-#swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(basename $@).cxx $@
-#swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory MODULE:=$(subst _wrap$(python).o,_wrap.cxx,$@) $@
-swig/%_wrap$(python).o: swig/%_wrap.cxx include/aiwlib/*; @$(MAKE) --no-print-directory  MODULE:=$< TARGET:=$@ $@ 
+$(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
+$(dst)build/swig/%/core.py $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
+
+#$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; $(patch_py)
+#$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; $(patch_py)
+$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
+$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
+
+$(dst)build/swig/$(python)_%.d: $(dst)build/swig/%_wrap.cxx
+	@mkdir -p $(dst)build/swig
+	@p=$$(basename $@); echo -n "$@ " $(dst)build/swig/$(python)_dbg_$${p%.*}_wrap.o $(dst)build/swig/$(python)_ > $@
+	@$(CXX) -I$(PYTHON_H_PATH) -I./ -M $< >> $@
+$(dst)build/swig/%/$(python)_core.d: $(dst)build/swig/%/core_wrap.cxx
+	@mkdir -p $$(dirname $@)
+	@p=$$(dirname $@); echo -n "$@ " $$p/$(python)_dbg_core_wrap.o $$p/$(python)_ > $@
+	@$(CXX) -I$(PYTHON_H_PATH) -I./ -M $< >> $@
+
+
+#ifeq (on,$(swig))
+#include $(shell echo $(dst)build/swig/$(python)_{iostream,swig}.d)
+##, mpi4py
+#ifeq (3,$(python))
+#include $$(dst)build/swig/qplt/$(python)_core.d
+#endif
+#endif
+
+ifndef SWIG_MODULE
+iostream swig mpi4py:; @$(MAKE) --no-print-directory SWIG_MODULE:=$(python)_$@ $(dst)python$(python)/aiwlib/$@.py $(dst)python$(python)/aiwlib/_$(dbg_)$@$(so)
+qplt:; @$(MAKE) --no-print-directory SWIG_MODULE:=$@/$(python)_core $(dst)python3/aiwlib/$@/core.py $(dst)python3/aiwlib/$@/_$(dbg_)core$(so)
 else
-#$(strip $(dir $(MODULE))$(subst \,,$(shell cat $(basename $(MODULE)).d)))
-#$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
-$(TARGET): $(filter-out %:, $(subst \,,$(shell $(CXX) $(CXXOPT) -M $(MODULE))))
-	$(RUN_CXX) -o $@ -c $(MODULE)
-#	$(RUN_CXX) -o $(basename $(MODULE)).o -c $(MODULE)
+include $(dst)build/swig/$(SWIG_MODULE).d
 endif
 
-#.PHONY: cpptest
-cpptest: 
-	$(strip $(dir $(MODULE))$(subst \,,$(shell $(CXX) $(CXXOPT) -M src/debug.cpp)))
-#-------------------------------------------------------------------------------
-#   Mesh
-#-------------------------------------------------------------------------------
+$(dst)build/swig/$(python)_$(dbg_)%_wrap.o: $(dst)build/swig/%_wrap.cxx $(dst)build/swig/$(python)_%.d; $(run_cxx) 
+$(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o: $(dst)build/swig/%/core_wrap.cxx $(dst)build/swig/%/$(python)_core.d; $(run_cxx) 
+
+$(dst)python$(python)/aiwlib/_$(dbg_)%$(so): $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)libaiw$(_dbg).a
+	$(show_target)
+	$(CXX) -shared -o $@ $^ $(LINKOPT)  $(dst)libaiw$(_dbg).a
+$(dst)python$(python)/aiwlib/%/_$(dbg_)core$(so): $(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o $(dst)libaiw$(_dbg).a
+	$(show_target)
+	$(CU_LD) -shared -o $@ $^ $(LINKOPT)  $(dst)libaiw$(_dbg).a
+#---  qplt  --------------------------------------------------------------------
+ifeq (on,$(cuda))
+$(dst)build/src/qplt/%_cu.o: src/qplt/%_cu.cpp $(dst)build/src/qplt/%_cu.d
+	$(show_target)
+	$(NVCC) $(NVCCOPT) -o $@ -c $<
+endif
+#---  Mesh  --------------------------------------------------------------------
 ifndef MESH_NAME
 Mesh%: 
 	@$(MAKE) --no-print-directory $(word 1,$(subst -, ,$@)) MESH_NAME:=$(word 1,$(subst -, ,$@)) \
 	MESH_TYPE:="$(word 2,$(subst -, ,$@))" MESH_DIM:="$(word 3,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include include/aiwlib/mesh.mk
+include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d
 endif
-#-------------------------------------------------------------------------------
-#   Sphere
-#-------------------------------------------------------------------------------
+#---  Sphere  ------------------------------------------------------------------
 ifndef SPHERE_NAME
 Sphere%: 
 	@$(MAKE) --no-print-directory $(word 1,$(subst -, ,$@)) SPHERE_NAME:=$(word 1,$(subst -, ,$@)) \
 	SPHERE_TYPE:="$(word 2,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include include/aiwlib/sphere.mk
+include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d
 endif
+#-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------
 #   utils
 #-------------------------------------------------------------------------------
 #bin/arr2seg-Y: src/bin/arr2seg-Y.o src/segy.o; $(CXX) -DEBUG -o bin/arr2seg-Y src/bin/arr2seg-Y.o src/segy.o -lz
 #bin/arr2seg-Y: src/segy.o
 #bin/isolines: src/isolines.o
-bin/arr2segY bin/segY2arr bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff bin/uplt-remote bin/sph2dat: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
+#bin/arr2segY bin/segY2arr bin/arrconv bin/isolines bin/dat2mesh bin/fv-slice bin/aiw-diff bin/uplt-remote bin/sph2dat: bin/%: src/bin/%.o libaiw.a; $(RUN_CXX) -o $@ $^ $(LINKOPT)
 #-------------------------------------------------------------------------------
 #   viewers
 #-------------------------------------------------------------------------------
-VIEWERS:=splt mplt fplt
+#VIEWERS:=splt mplt fplt
 headers_splt = AbstractViewer/plottable.hpp include/aiwlib/fv_interface.hpp
 objects_splt =
 headers_mplt = AbstractViewer/plottable.hpp include/aiwlib/mview_format.hpp
@@ -150,31 +177,34 @@ objects_fplt =
 aiwinst_splt =
 aiwinst_mplt =
 aiwinst_fplt = MeshF3-float-3
-include include/aiwlib/xplt.mk
+#include include/aiwlib/xplt.mk
 #-------------------------------------------------------------------------------
 #   other targets
 #-------------------------------------------------------------------------------
-clean:; rm -rf swig/*.o src/*.o src/view/*.o src/bin/*.o python$(python)/aiwlib/_*.so   
-cleanall: clean 
-	@for i in $$(ls swig/*.py 2> /dev/null); do echo rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; rm -f $$i python$(python)/aiwlib/$$(basename $$i){,c}; done
-	rm -f swig/*_wrap.cxx 
-	-@for i in $$(cat TARGETS); do echo rm -f swig/$${i%%-*}.i; rm -f swig/$${i%%-*}.i; done
-clean-%:; -n=$@; rm swig/$${n:6}_wrap?.o python$(python)/aiwlib/_$${n:6}.so
-cleanall-%: clean-%; -n=$@; rm swig/$${n:9}.py swig/$${n:9}_wrap.cxx swig/$${n:9}.i python$(python)/aiwlib/$${n:9}.py{,c}
-clean-mingw clean-windows:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
+cleanall:
+	rm -rf $(dst)build
+	$(MAKE) python=2 dst=$(dst) clean
+	$(MAKE) python=3 dst=$(dst) clean
+clean:
+	rm -f $(dst)python$(python)/aiwlib/{,qplt/}_*$(so) $(dst)python$(python)/aiwlib/{iosteam,swig,mpi4py}.py{,c} $(dst)python$(python)/aiwlib/qplt/core.py{,c}
+	rm -f $(dst)python$(python)/aiwlib/{Mesh,Sphere}*.py{,c}
+#clean-%:; -n=$@; rm swig/$${n:6}_wrap?.o python$(python)/aiwlib/_$${n:6}.so
+#clean-mingw clean-windows:; rm -f mingw/*.o mingw/obj/*.o mingw/view/*.o windows/aiwlib/* windows/uplt 
 #-------------------------------------------------------------------------------
-uninstall:; 
-	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw.a 
+uninstall: 
+	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw{,-dbg}.a 
 	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
 install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python$(python)/aiwlib  $(PYTHONDIR)
 	-cp libaiw.a $(LIBDIR)/
+	-cp libaiw-dbg.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
 links-install install-links: all uninstall
 	-ln -s "$$(pwd)/include/aiwlib" $(INCLUDEDIR)
 	-ln -s "$$(pwd)/python$(python)/aiwlib"  $(PYTHONDIR)
 	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
+	-ln -s "$$(pwd)/libaiw-dbg.a"  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
 #-------------------------------------------------------------------------------
 #   windows

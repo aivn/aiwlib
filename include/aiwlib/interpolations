@@ -35,7 +35,7 @@ namespace aiw{
 		return y[0]*w[0]+y[1]*w[1]+y[2]*w[2]+y[3]*w[3];
 	}
 	template<typename T, int D, typename C, typename V> CU_HD 
-	T interpolate(const C& arr, const Ind<D> &pos, const Vec<D, V> &x, uint64_t interp, const Ind<D> &point){ return arr[pos+point]; }  // recursion final
+	T interpolate(const C& arr, const Ind<D> &pos, const Vec<D, V>& /*x*/, uint64_t /*interp*/, const Ind<D> &point){ return arr[pos+point]; }  // recursion final
 	// frontend
 	template<typename C, typename V> CU_HD 
 	typename C::cell_type interpolate(const C& arr,             // container

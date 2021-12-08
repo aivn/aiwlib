@@ -1,15 +1,17 @@
 # Copyright (C) 2017, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 
-$(SPHERE_NAME): python$(python)/aiwlib/$(SPHERE_NAME).py python$(python)/aiwlib/_$(SPHERE_NAME).so iostream swig; 
-#python/aiwlib/_$(SPHERE_NAME).so: src/sphere.o
-build/swig/$(SPHERE_NAME).py build/swig/$(SPHERE_NAME)_wrap.cxx: build/src/sphere.d
-build/swig/$(SPHERE_NAME).i: swig/sphere.mk
-	@mkdir -p build/swig
+$(SPHERE_NAME): $(dst)python$(python)/aiwlib/$(SPHERE_NAME).py $(dst)python$(python)/aiwlib/_$(dbg_)$(SPHERE_NAME)$(so) iostream swig; 
+$(dst)build/swig/$(SPHERE_NAME).py $(dst)build/swig/$(SPHERE_NAME)_wrap.cxx: $(dst)build/swig/$(SPHERE_NAME).i; $(run_swig)
+#$(dst)build/swig/$(SPHERE_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(SPHERE_NAME)_wrap.o: $(dst)build/swig/$(python)_$(SPHERE_NAME).d
+#$(dst)python/aiwlib$(python)/_$(dbg_)$(SPHERE_NAME)$(so): $(dst)build/dbg/sphere.o
+
+$(dst)build/swig/$(SPHERE_NAME).i: swig/sphere.mk
+	@mkdir -p $(dst)build/swig
 	$(imodule)
-	@echo '%{#include "../include/aiwlib/sphere"%}' >> $@
-	@echo '%include "../include/aiwlib/vec"' >> $@
-	@echo '%include "../include/aiwlib/sphere"' >> $@
+	@echo '%{#include "include/aiwlib/sphere"%}' >> $@
+	@echo '%include "include/aiwlib/vec"' >> $@
+	@echo '%include "include/aiwlib/sphere"' >> $@
 	@echo '%template($(SPHERE_NAME)) aiw::Sphere<$(SPHERE_TYPE) >;' >> $@
 	@echo '%pythoncode %{$(SPHERE_NAME).__setstate__ = _setstate %}' >> $@
 	@echo '%pythoncode %{from vec import *%}' >> $@	

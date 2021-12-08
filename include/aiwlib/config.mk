@@ -9,10 +9,10 @@ python:=2
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки
 PYTHONDIR=$(shell python$(python) -c 'import os; print(os.path.dirname(os.__file__))')
-
 LIBDIR=/usr/lib
 INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
+
 BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2segY segY2arr
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
@@ -36,20 +36,26 @@ MPICXX:=mpiCC
 SWIG:=swig
 NVCC:=nvcc
 
-CULD:=g++
+CU_LD:=g++
 ifeq (on,$(cuda))
-CULD:=$(NVCC)
+CU_LD:=$(NVCC)
 endif
 
 PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
-#override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g -O3 -DAIW_TYPEINFO
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) -I$(PYTHON_H_PATH)
-override CXXOPT_DBG:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
-#override CXXOPT:=$(CXXOPT) -std=c++11 -Wall -fopenmp -fPIC -g 
-override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
+ifeq (on,$(debug))
+#override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
+#LINKOPT += -lasan -lubsan
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
+#LINKOPT += -lasan -lubsan
+else
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+endif
+
+override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT) -DAIW_MPI
+
 #  -I/usr/lib/openmpi/include/
 override LINKOPT:=$(LINKOPT) -lgomp  -ldl
-override SWIGOPT:=$(SWIGOPT) -Wall -python -c++
+override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
 # устанавливать 64x битный дистрибутив питона под wine как
@@ -72,6 +78,11 @@ MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -fopenmp -
 #-------------------------------------------------------------------------------
 SHELL=/bin/bash
 
+ifeq (on,$(debug))
+_dbg=-dbg
+dbg_=dbg_
+endif
+
 ifeq (on,$(zlib)) 
 override LINKOPT:=$(LINKOPT) -lz
 else
@@ -83,66 +94,42 @@ endif
 #override CXXOPT:=$(CXXOPT) -I$(PYTHON_H_PATH)
 #override MPICXXOPT:=$(MPICXXOPT) -I$(PYTHON_H_PATH)
 #endif
-
-ifeq (on,$(debug)) 
-override CXXOPT:=$(CXXOPT) -DEBUG
-override MPICXXOPT:=$(MPICXXOPT) -DEBUG
-endif
+#-------------------------------------------------------------------------------
+#   macros
 #-------------------------------------------------------------------------------
 define show_target
 @echo
-@echo TARGET: "$@"
+@echo -e '\033[44mTARGET: "$@"\033[0m'
 @if [ -f "$@" ]; then if [ "$(filter-out /usr/%,$?)" ]; then echo NEW: $(filter-out /usr/%,$?); else echo NEW: $?; fi; fi
 @echo ALL: $(filter-out /usr/%,$^)
+@echo
 endef
 #-------------------------------------------------------------------------------
-ifeq (on,$(mpi))
-define RUN_CXX
-
+define run_swig
+@mkdir -p $$(dirname $@)
 $(show_target)
-$(MPICXX) $(MPICXXOPT)
+$(SWIG) $(SWIGOPT) -outdir $$(dirname $@) -o "$@" $<
+./patch_swig.py $@
 endef
-else
-define RUN_CXX
-
-$(show_target)
-$(CXX) $(CXXOPT)
-endef
-define RUN_CXX_DBG
-
-$(show_target)
-$(CXX) $(CXXOPT_DBG)
-endef
-endif
 #-------------------------------------------------------------------------------
-ifeq (on,$(mpi))
-override CXXOPT:=$(CXXOPT) -DAIW_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
-define RUN_MPICXX
-
-$(show_target)
-$(CXX) $(CXXOPT)
+define patch_py
+@mkdir -p $$(dirname $@)
+@echo '#--- begin of aiwlib patch ---' > $@ 
+@echo 'try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' >> $@
+@echo 'except: pass' >> $@
+@echo "if os.environ.get('debug')=='on':" >> $@
+@p=$$(basename $@); echo "  if __package__ or '.' in __name__: from . import _dbg_$${p%.*}" >> $@
+@p=$$(basename $@); echo "  else: import _dbg_$${p%.*}" >> $@
+@p=$$(basename $@); echo "  sys.modules['_$${p%.*}'] = _dbg_$${p%.*}" >> $@
+@echo '#--- end of aiwlib patch ---' >> $@ 
+@echo >> $@ 
+@cat $< >> $@; echo -e "\033[7m  File \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag and support debug mode  \033[0m"
 endef
-endif
 #-------------------------------------------------------------------------------
-ifeq '$(mpi)' ''
-ifeq ($(shell if $(MPICXX) -v &> /dev/null; then echo OK; fi),OK)
-define RUN_MPICXX
-
+define run_cxx
 $(show_target)
-$(MPICXX) $(MPICXXOPT)
-override CXXOPT:=$(CXXOPT) -DAIW_MPI
-override SWIGOPT:=$(SWIGOPT) -DAIW_MPI
+$(CXX) $(CXXOPT) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
 endef
-else
-define RUN_MPICXX
-
-$(show_target)
-@echo -e "\033[31;1;5mCompiler \"$(MPICXX)\" is not available, MPI DISABLED!\033[0m"
-$(CXX) $(CXXOPT)
-endef
-endif
-endif
 #-------------------------------------------------------------------------------
 .SUFFIXES :
 #-------------------------------------------------------------------------------
@@ -175,5 +162,9 @@ define imodule
 @echo '%include "std_string.i"' >> $@
 @echo "%inline %{ namespace aiw{}; %}" >> $@
 @echo "%define CONFIGURATE(ARGS...) %enddef" >> $@
+@echo "%define CU_HOST %enddef" >> $@
+@echo "%define CU_DEVICE %enddef" >> $@
+@echo "%define CU_GLOBAL %enddef" >> $@
+@echo "%define CU_HD %enddef" >> $@
 endef
 #-------------------------------------------------------------------------------

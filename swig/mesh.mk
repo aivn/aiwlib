@@ -1,15 +1,17 @@
 # Copyright (C) 2017,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 
-$(MESH_NAME): python$(python)/aiwlib/$(MESH_NAME).py python$(python)/aiwlib/_$(MESH_NAME).so iostream swig; 
-build/swig/$(MESH_NAME).py build/swig/$(MESH_NAME)_wrap.cxx: build/src/mesh.d
-build/swig/$(MESH_NAME).i: swig/mesh.mk
-	@mkdir -p build/swig
+$(MESH_NAME): $(dst)python$(python)/aiwlib/$(MESH_NAME).py $(dst)python$(python)/aiwlib/_$(dbg_)$(MESH_NAME)$(so) iostream swig; 
+$(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(MESH_NAME)_wrap.cxx: $(dst)build/swig/$(MESH_NAME).i; $(run_swig)
+#$(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(MESH_NAME)_wrap.o: $(dst)build/swig/$(python)_$(MESH_NAME).d
+
+$(dst)build/swig/$(MESH_NAME).i: swig/mesh.mk
+	@mkdir -p $(dst)build/swig
 	$(imodule)
-	@echo '%{#include "../include/aiwlib/mesh"%}' >> $@
-	@echo '%include "../include/aiwlib/vec"' >> $@
-	@echo '%include "../include/aiwlib/base_mesh"' >> $@
-	@echo '%include "../include/aiwlib/mesh"' >> $@
+	@echo '%{#include "include/aiwlib/mesh"%}' >> $@
+	@echo '%include "include/aiwlib/vec"' >> $@
+	@echo '%include "include/aiwlib/base_mesh"' >> $@
+	@echo '%include "include/aiwlib/mesh"' >> $@
 	@echo '%template(Base$(MESH_NAME)) aiw::BaseMesh<$(MESH_DIM)>;' >> $@
 	@echo '%template($(MESH_NAME)) aiw::Mesh<$(MESH_TYPE), $(MESH_DIM)>;' >> $@
 	@for D in `seq 1 $$(($(MESH_DIM)-1))`; do echo "%inline %{inline aiw::Mesh<$(MESH_TYPE), $$D> "\
