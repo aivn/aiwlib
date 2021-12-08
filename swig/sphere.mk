@@ -3,7 +3,7 @@
 
 $(SPHERE_NAME): $(dst)python$(python)/aiwlib/$(SPHERE_NAME).py $(dst)python$(python)/aiwlib/_$(dbg_)$(SPHERE_NAME)$(so) iostream swig; 
 $(dst)build/swig/$(SPHERE_NAME).py $(dst)build/swig/$(SPHERE_NAME)_wrap.cxx: $(dst)build/swig/$(SPHERE_NAME).i; $(run_swig)
-#$(dst)build/swig/$(SPHERE_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(SPHERE_NAME)_wrap.o: $(dst)build/swig/$(SPHERE_NAME).d
+#$(dst)build/swig/$(SPHERE_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(SPHERE_NAME)_wrap.o: $(dst)build/swig/$(python)_$(SPHERE_NAME).d
 #$(dst)python/aiwlib$(python)/_$(dbg_)$(SPHERE_NAME)$(so): $(dst)build/dbg/sphere.o
 
 $(dst)build/swig/$(SPHERE_NAME).i: swig/sphere.mk

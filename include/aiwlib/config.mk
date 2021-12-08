@@ -42,9 +42,14 @@ CU_LD:=$(NVCC)
 endif
 
 PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.dirname(sysconfig.get_config_h_filename()))')
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -O3 $(CXXOPT) 
-
-override CXXOPT_DBG:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
+ifeq (on,$(debug))
+#override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
+#LINKOPT += -lasan -lubsan
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
+#LINKOPT += -lasan -lubsan
+else
+override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+endif
 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT) -DAIW_MPI
 #  -I/usr/lib/openmpi/include/
@@ -72,6 +77,11 @@ MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -fopenmp -
 #-------------------------------------------------------------------------------
 SHELL=/bin/bash
 
+ifeq (on,$(debug))
+_dbg=-dbg
+dbg_=dbg_
+endif
+
 ifeq (on,$(zlib)) 
 override LINKOPT:=$(LINKOPT) -lz
 else
@@ -87,20 +97,18 @@ endif
 #   macros
 #-------------------------------------------------------------------------------
 define show_target
-@echo TARGET: "$@"
+@echo
+@echo -e '\033[44mTARGET: "$@"\033[0m'
 @if [ -f "$@" ]; then if [ "$(filter-out /usr/%,$?)" ]; then echo NEW: $(filter-out /usr/%,$?); else echo NEW: $?; fi; fi
 @echo ALL: $(filter-out /usr/%,$^)
 @echo
-endef
-define show_line
-@echo --------------------------------------------------------------------------------
 endef
 #-------------------------------------------------------------------------------
 define run_swig
 @mkdir -p $$(dirname $@)
 $(show_target)
 $(SWIG) $(SWIGOPT) -outdir $$(dirname $@) -o "$@" $<
-$(show_line)
+./patch_swig.py $@
 endef
 #-------------------------------------------------------------------------------
 define patch_py
@@ -114,22 +122,13 @@ define patch_py
 @p=$$(basename $@); echo "  sys.modules['_$${p%.*}'] = _dbg_$${p%.*}" >> $@
 @echo '#--- end of aiwlib patch ---' >> $@ 
 @echo >> $@ 
-@cat $< >> $@; echo -e "\033[7mFile \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag and support debug mode\033[0m"
+@cat $< >> $@; echo -e "\033[7m  File \"$@\" patched for load shared library with RTLD_GLOBAL=0x00100 flag and support debug mode  \033[0m"
 endef
 #-------------------------------------------------------------------------------
-ifeq (on,$(debug))
-define run_cxx
-$(show_target)
-$(CXX) $(CXXOPT_DBG) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
-$(show_line)
-endef
-else
 define run_cxx
 $(show_target)
 $(CXX) $(CXXOPT) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
-$(show_line)
 endef
-endif
 #-------------------------------------------------------------------------------
 .SUFFIXES :
 #-------------------------------------------------------------------------------

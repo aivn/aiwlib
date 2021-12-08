@@ -16,6 +16,8 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 #   main targets
 #-------------------------------------------------------------------------------
+#.PHONY: clean all install-links
+
 libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
 ifeq (on,$(bin))
@@ -47,18 +49,13 @@ endif
 dst=
 so=.so
 
-ifeq (on,$(debug))
-_dbg=-dbg
-dbg_=dbg_
-endif
-
 all: $(dst)libaiw$(_dbg).a;
-iostream swig mpi4py: %: $(dst)python$(python)/aiwlib/%.py $(dst)python$(python)/aiwlib/_$(dbg_)%$(so);
-qplt: $(dst)python3/aiwlib/qplt/core.py $(dst)python3/aiwlib/qplt/_$(dbg_)core$(so);
+#iostream swig mpi4py: %: $(dst)python$(python)/aiwlib/%.py $(dst)python$(python)/aiwlib/_$(dbg_)%$(so);
+#qplt: $(dst)python3/aiwlib/qplt/core.py $(dst)python3/aiwlib/qplt/_$(dbg_)core$(so);
 
-.PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/%_wrap.o
-.PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d
-.PRECIOUS: $(dst)build/src/%.o $(dst)build/src/bin/%.o $(dst)build/src/qplt/%.o $(dst)build/swig/%.o
+.PRECIOUS: $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx $(dst)build/swig/qplt/%_wrap.cxx
+.PRECIOUS: $(dst)build/src/%.d $(dst)build/src/bin/%.d $(dst)build/src/qplt/%.d $(dst)build/swig/%.d $(dst)build/swig/qplt/%.d
+.PRECIOUS: $(dst)build/src/%.o $(dst)build/src/bin/%.o $(dst)build/src/qplt/%.o $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)build/swig/qplt/%.o
 #-------------------------------------------------------------------------------
 #   C++ core
 #-------------------------------------------------------------------------------
@@ -67,7 +64,6 @@ src_o=$(shell echo $(dst)build/src/$(dbg_){$(libaiw_n)}.o)
 $(dst)libaiw$(_dbg).a: $(src_o)
 	$(show_target)
 	rm -f $@; ar -csr $@ $^
-	$(show_line)
 #-------------------------------------------------------------------------------
 #   compile object files
 #-------------------------------------------------------------------------------
@@ -92,44 +88,55 @@ $(dst)build/src/qplt/$(dbg_)%.o: src/qplt/%.cpp $(dst)build/src/qplt/%.d; $(run_
 #-------------------------------------------------------------------------------
 #   run swig and make shared libs
 #-------------------------------------------------------------------------------
+$(dst)python$(python)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg_){$(qplt_n)}.o)
+
 $(dst)build/swig/%.py $(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
 $(dst)build/swig/%/core.py $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
 
-$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; $(patch_py)
-$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; $(patch_py)
+#$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; $(patch_py)
+#$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; $(patch_py)
+$(dst)python$(python)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
+$(dst)python$(python)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
 
-$(dst)build/swig/%.d: $(dst)build/swig/%_wrap.cxx
+$(dst)build/swig/$(python)_%.d: $(dst)build/swig/%_wrap.cxx
 	@mkdir -p $(dst)build/swig
-	@p=$$(basename $@); echo -n "$@ $(dst)build/swig/{2,3}_dbg_$${p%.*}_wrap.o $(dst)build/swig/2_$${p%.*}_wrap.o $(dst)build/swig/3_" > $@
+	@p=$$(basename $@); echo -n "$@ " $(dst)build/swig/$(python)_dbg_$${p%.*}_wrap.o $(dst)build/swig/$(python)_ > $@
 	@$(CXX) -I$(PYTHON_H_PATH) -I./ -M $< >> $@
-$(dst)build/swig/%/core.d: $(dst)build/swig/%/core_wrap.cxx
+$(dst)build/swig/%/$(python)_core.d: $(dst)build/swig/%/core_wrap.cxx
 	@mkdir -p $$(dirname $@)
-	@p=$$(dirname $@); echo -n "$@ $$p/{2,3}_dbg_core_wrap.o $$p/2_core_wrap.o $$p/3_" > $@
+	@p=$$(dirname $@); echo -n "$@ " $$p/$(python)_dbg_core_wrap.o $$p/$(python)_ > $@
 	@$(CXX) -I$(PYTHON_H_PATH) -I./ -M $< >> $@
 
-ifeq (on,$(swig))
-include $(shell echo $(dst)build/swig/{iostream,swig,qplt/core}.d)
-#, mpi4py
+
+#ifeq (on,$(swig))
+#include $(shell echo $(dst)build/swig/$(python)_{iostream,swig}.d)
+##, mpi4py
+#ifeq (3,$(python))
+#include $$(dst)build/swig/qplt/$(python)_core.d
+#endif
+#endif
+
+ifndef SWIG_MODULE
+iostream swig mpi4py:; @$(MAKE) --no-print-directory SWIG_MODULE:=$(python)_$@ $(dst)python$(python)/aiwlib/$@.py $(dst)python$(python)/aiwlib/_$(dbg_)$@$(so)
+qplt:; @$(MAKE) --no-print-directory SWIG_MODULE:=$@/$(python)_core $(dst)python3/aiwlib/$@/core.py $(dst)python3/aiwlib/$@/_$(dbg_)core$(so)
+else
+include $(dst)build/swig/$(SWIG_MODULE).d
 endif
 
-$(dst)build/swig/$(python)_$(dbg_)%_wrap.o: $(dst)build/swig/%_wrap.cxx $(dst)build/swig/%.d; $(run_cxx) 
-$(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o: $(dst)build/swig/%/core_wrap.cxx $(dst)build/swig/%/core.d; $(run_cxx) 
+$(dst)build/swig/$(python)_$(dbg_)%_wrap.o: $(dst)build/swig/%_wrap.cxx $(dst)build/swig/$(python)_%.d; $(run_cxx) 
+$(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o: $(dst)build/swig/%/core_wrap.cxx $(dst)build/swig/%/$(python)_core.d; $(run_cxx) 
 
-$(dst)python$(python)/aiwlib/_$(dbg_)%$(so): $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(src_o)
+$(dst)python$(python)/aiwlib/_$(dbg_)%$(so): $(dst)build/swig/$(python)_$(dbg_)%_wrap.o $(dst)libaiw$(_dbg).a
 	$(show_target)
-	$(CXX) -shared -o $@ $^ $(LINKOPT)
-	$(show_line)
-$(dst)python$(python)/aiwlib/%/_$(dbg_)core$(so): $(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o $(src_o)
+	$(CXX) -shared -o $@ $^ $(LINKOPT)  $(dst)libaiw$(_dbg).a
+$(dst)python$(python)/aiwlib/%/_$(dbg_)core$(so): $(dst)build/swig/%/$(python)_$(dbg_)core_wrap.o $(dst)libaiw$(_dbg).a
 	$(show_target)
-	$(CU_LD) -shared -o $@ $^ $(LINKOPT)
-	$(show_line)
+	$(CU_LD) -shared -o $@ $^ $(LINKOPT)  $(dst)libaiw$(_dbg).a
 #---  qplt  --------------------------------------------------------------------
-$(dst)python$(python)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg_){$(qplt_n)}.o)
 ifeq (on,$(cuda))
 $(dst)build/src/qplt/%_cu.o: src/qplt/%_cu.cpp $(dst)build/src/qplt/%_cu.d
 	$(show_target)
 	$(NVCC) $(NVCCOPT) -o $@ -c $<
-	$(show_line)
 endif
 #---  Mesh  --------------------------------------------------------------------
 ifndef MESH_NAME
@@ -138,7 +145,7 @@ Mesh%:
 	MESH_TYPE:="$(word 2,$(subst -, ,$@))" MESH_DIM:="$(word 3,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/mesh.mk $(dst)build/swig/$(MESH_NAME).d
+include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d
 endif
 #---  Sphere  ------------------------------------------------------------------
 ifndef SPHERE_NAME
@@ -147,7 +154,7 @@ Sphere%:
 	SPHERE_TYPE:="$(word 2,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/sphere.mk $(dst)build/swig/$(SPHERE_NAME).d
+include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d
 endif
 #-------------------------------------------------------------------------------
 #-------------------------------------------------------------------------------

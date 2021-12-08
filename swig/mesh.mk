@@ -3,7 +3,7 @@
 
 $(MESH_NAME): $(dst)python$(python)/aiwlib/$(MESH_NAME).py $(dst)python$(python)/aiwlib/_$(dbg_)$(MESH_NAME)$(so) iostream swig; 
 $(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(MESH_NAME)_wrap.cxx: $(dst)build/swig/$(MESH_NAME).i; $(run_swig)
-#$(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(MESH_NAME)_wrap.o: $(dst)build/swig/$(MESH_NAME).d
+#$(dst)build/swig/$(MESH_NAME).py $(dst)build/swig/$(python)_$(dbg_)$(MESH_NAME)_wrap.o: $(dst)build/swig/$(python)_$(MESH_NAME).d
 
 $(dst)build/swig/$(MESH_NAME).i: swig/mesh.mk
 	@mkdir -p $(dst)build/swig
