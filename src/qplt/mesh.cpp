@@ -45,7 +45,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load1: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
 	return true;
 }
-void aiw::QpltMesh::data_load_cuda(){ WERR(int(mem_ptr)); fin->seek(mem_offset); fin->read(mem_ptr, data_sz); }
+void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); fin->read(mem_ptr, data_sz); }
 //------------------------------------------------------------------------------
 QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { this->data_load(); return new QpltMeshPlotter; }
 //------------------------------------------------------------------------------

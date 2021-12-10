@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifndef AIW_WIN32
+
 #include <time.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -80,3 +82,4 @@ std::string aiw::date2string(time_t d){
 	return buf;
 }
 //------------------------------------------------------------------------------
+#endif //AIW_WIN32

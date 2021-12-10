@@ -73,7 +73,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 		if(pos<0){ pos = 0; } if(pos>=bbox[i]){ pos = bbox[i]-1; }
 		plt->spos[i] = pos;
 	}
-	
+
 	plt->axisID = ptr2vec<3>(axisID); plt->theta = th_phi[0]; plt->phi = th_phi[1]; plt->dim = 2+bool(mode);
 	plt->cell_aspect = ptr2vec<3>(cell_aspect); plt->flips = plt->interp = plt->logscale = 0;
 	plt->D3density = D3deep&0x7F; plt->D3opacity = (D3deep>>7)&0x7F;  plt->D3mingrad = (D3deep>>14)&0x7F; plt->D3tmask = D3deep>>21; // 11 осталось
@@ -226,7 +226,7 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 std::vector<QpltContainer*> aiw::factory(const char *fname){  // поддержка GZ файлов?
 	std::vector<QpltContainer*> res;
 	try{
-		File fin(fname, "r"); int frame = 0;
+		File fin(fname, "rb"); int frame = 0;
 		while(1){
 			QpltMesh *msh = new QpltMesh;
 			if(msh->load(fin)){ msh->frame_ = frame++; res.push_back(msh); }

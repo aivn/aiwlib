@@ -6,9 +6,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#ifndef AIW_WIN32
 #include <dlfcn.h>
 #include <cxxabi.h>
-#ifndef AIW_WIN32
 #include <csignal>
 #include <execinfo.h>
 #endif //AIW_WIN32

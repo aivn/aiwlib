@@ -51,10 +51,13 @@ else
 override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
 endif
 
-override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT) -DAIW_MPI
+override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
+AR:=ar
 
 #  -I/usr/lib/openmpi/include/
-override LINKOPT:=$(LINKOPT) -lgomp  -ldl
+ifneq (on,$(mingw))
+override LINKOPT:=$(LINKOPT) -lgomp -lz -ldl
+endif
 override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
@@ -62,10 +65,17 @@ override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 # wine64 ~/.wine/drive_c/windows/explorer.exe python-2.7.18.amd64.msi
 # запускать вьювер как
 # wine ~/.wine/drive_c/Python27/python.exe uplt.py ИМЕНА-ФАЙЛОВ
-MINGW:=x86_64-w64-mingw32-g++
-#MINGW:=i686-w64-mingw32-g++
-MINGW_LINKOPT:=-L ~/.wine/drive_c/Python27/libs/ -lpython27 -lgomp
-MINGW_OPT:=-Wall -O3  -std=c++11 -I ~/.wine/drive_c/Python27/include/ -fopenmp -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64
+
+ifeq (on,$(mingw))
+CXX:=x86_64-w64-mingw32-g++ -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64
+#CXX:=i686-w64-mingw32-g++
+LINKOPT:=-L ~/.wine/drive_c/Python38/libs/ -lpython38 -lgomp
+#CXXOPT:=-Wall -O3  -std=c++11  -fopenmp 
+PYTHON_H_PATH:=~/.wine/drive_c/Python38/include/
+AR:=x86_64-w64-mingw32-ar
+CU_LD:=$(CXX)
+so:=.pyd
+endif
 #-------------------------------------------------------------------------------
 #CXX:=i586-mingw32msvc-g++
 #CXXOPT:= -O3 -DMINGW -g 
@@ -108,7 +118,7 @@ endef
 define run_swig
 @mkdir -p $$(dirname $@)
 $(show_target)
-$(SWIG) $(SWIGOPT) -outdir $$(dirname $@) -o "$@" $<
+$(SWIG) $(SWIGOPT) -I$(PYTHON_H_PATH) -outdir $$(dirname $@) -o "$@" $<
 ./patch_swig.py $@
 endef
 #-------------------------------------------------------------------------------
@@ -128,7 +138,7 @@ endef
 #-------------------------------------------------------------------------------
 define run_cxx
 $(show_target)
-$(CXX) $(CXXOPT) -I$(PYTHON_H_PATH) -I./  -o $@ -c $<
+$(CXX) $(CXXOPT) -I $(PYTHON_H_PATH) -I./  -o $@ -c $<
 endef
 #-------------------------------------------------------------------------------
 .SUFFIXES :

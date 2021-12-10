@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifndef AIW_WIN32
+
 //#include <mpi.h>
 #include <omp.h>
 #include <stdlib.h>
@@ -295,3 +297,4 @@ void aiw::RacsCalc::out_close_log(std::ostream **logs, const char *logdir){
 	rename(logfile1, logfile2);
 }
 //------------------------------------------------------------------------------
+#endif //AIW_WIN32

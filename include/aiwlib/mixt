@@ -1,5 +1,5 @@
 // -*- C++ -*-
-#ifndef AIW_MIXT_HPP
+#if !defined(AIW_MIXT_HPP) && !defined(AIW_WIN32)
 #define AIW_MIXT_HPP
 
 /**

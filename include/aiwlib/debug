@@ -80,6 +80,10 @@ namespace aiw{
 	void init_signal_hook(int signal);
 	void init_segfault_hook();
 	void trace_out();
+#else  //AIW_WIN32
+	inline void init_signal_hook(int){}
+	inline void init_segfault_hook(){}
+	inline void trace_out(){}
 #endif //AIW_WIN32
 	//--------------------------------------------------------------------------
 }  // end of namespace aiw 

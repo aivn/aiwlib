@@ -1,5 +1,5 @@
 // -*- C++ -*-
-#ifndef AIW_RACS_HPP
+#if !defined(AIW_RACS_HPP) && !defined(AIW_WIN32)
 #define AIW_RACS_HPP
 
 /**

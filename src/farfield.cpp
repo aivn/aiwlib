@@ -3,6 +3,8 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#ifndef AIW_WIN32
+
 #include <cstring>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -191,3 +193,4 @@ aiw::Vec<7> aiw::FarField::dipole_err(const Dipole& dipole, const char *path) co
 	return vec(errPav, errPmax, av_errEav, max_errEav, max_errEmax, Pmax, Emax);	
 }
 //------------------------------------------------------------------------------
+#endif //AIW_WIN32
