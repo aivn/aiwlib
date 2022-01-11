@@ -294,18 +294,19 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \subsection{Общие замечания}
 \begin{figure}[hb]
   \begin{center}
-      \epsfig{file=picts/2D, width=.7\textwidth} 
+      %\epsfig{file=picts/2D, width=.7\textwidth} 
+      \includegraphics[width=.7\textwidth]{picts/2D.png} 
   \end{center}
   \caption{Режим отображения 2D}\label{2D:pict}
 \end{figure}
 
 \begin{figure}
   \begin{center}
-      \epsfig{file=picts/3D, width=.7\textwidth} 
+      \includegraphics[width=.7\textwidth]{picts/3D.png} 
   \end{center}
   \caption{Режим отображения 2D}\label{3D:pict}
   \begin{center}
-      \epsfig{file=picts/XD, width=.7\textwidth} 
+      \includegraphics[width=.7\textwidth]{picts/XD.png} 
   \end{center}
   \caption{Режим отображения XD}\label{XD:pict}
 \end{figure}
@@ -330,7 +331,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 
 \begin{figure}[h]
   \begin{center}
-      \epsfig{file=picts/show-axis, width=.28\textwidth} 
+      \includegraphics[width=.28\textwidth]{picts/show-axis.png} 
   \end{center}
   \caption{Информация о сетке}\label{show:axis:pict}
 \end{figure}
@@ -345,7 +346,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \begin{figure}[h]
   \begin{center}
     \begin{tabular}{lll}
-      \epsfig{file=picts/access, width=.28\textwidth} && \epsfig{file=picts/pal, width=.28\textwidth} \\
+      \includegraphics[width=.28\textwidth]{picts/access.png} && \includegraphics[width=.28\textwidth]{picts/pal.png} \\
       \it а && \it б
     \end{tabular}
   \end{center}
@@ -397,16 +398,16 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \begin{figure}
   \begin{center}
   \begin{tabular}{rl}
-    \verb'rainbow' & \framebox{\epsfig{file=picts/pals/rainbow, width=.8\textwidth, height=5mm}} \\
-    \verb'positive' & \framebox{\epsfig{file=picts/pals/positive, width=.8\textwidth, height=5mm}} \\
-    \verb'neg_pos1' & \framebox{\epsfig{file=picts/pals/neg_pos1, width=.8\textwidth, height=5mm}} \\
-    \verb'neg_pos2' & \framebox{\epsfig{file=picts/pals/neg_pos2, width=.8\textwidth, height=5mm}} \\
-    \verb'inv_rainbow' & \framebox{\epsfig{file=picts/pals/inv_rainbow, width=.8\textwidth, height=5mm}} \\
-    \verb'inv_grey' & \framebox{\epsfig{file=picts/pals/inv_grey, width=.8\textwidth, height=5mm}} \\
-    \verb'grey' & \framebox{\epsfig{file=picts/pals/grey, width=.8\textwidth, height=5mm}} \\
-    \verb'green_blue' & \framebox{\epsfig{file=picts/pals/green_blue, width=.8\textwidth, height=5mm}} \\
-    \verb'color' & \framebox{\epsfig{file=picts/pals/color, width=.8\textwidth, height=5mm}} \\
-    \verb'black_red' & \framebox{\epsfig{file=picts/pals/black_red, width=.8\textwidth, height=5mm}} 
+    \verb'rainbow' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/rainbow.png}} \\
+    \verb'positive' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/positive.png}} \\
+    \verb'neg_pos1' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/neg_pos1.png}} \\
+    \verb'neg_pos2' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/neg_pos2.png}} \\
+    \verb'inv_rainbow' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/inv_rainbow.png}} \\
+    \verb'inv_grey' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/inv_grey.png}} \\
+    \verb'grey' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/grey.png}} \\
+    \verb'green_blue' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/green_blue.png}} \\
+    \verb'color' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/color.png}} \\
+    \verb'black_red' & \framebox{\includegraphics[width=.8\textwidth, height=5mm]{picts/pals/black_red.png}} 
   \end{tabular}
   \end{center}
   \caption{Варианты встроенных палитр qplt}\label{10pals:pict}
@@ -417,7 +418,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 
 \subsection{Выбор отображаемых осей и режимов интерполяции}
 \begin{wrapfigure}{r}{.28\textwidth}
-  \epsfig{file=picts/sel-axis, width=.28\textwidth} 
+  \includegraphics[width=.28\textwidth]{picts/sel-axis.png} 
   \caption{Выбор отображаемых осей и режимов интерполяции}\label{sel:axis:pict}
 \end{wrapfigure}
 При визуализации сетки размерности $2\div6$ можно выбрать две (или три, в зависмости от режима визуализации)
@@ -486,7 +487,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 
 \begin{figure}[hb]
   \begin{center}
-      \epsfig{file=picts/XD-grad, width=.7\textwidth} 
+      \includegraphics[width=.7\textwidth]{picts/XD-grad.png} 
   \end{center}
   \caption{Режим отображения XD с отсечкой по минимальному градиенту вдоль луча}\label{XD:grad:pict}
 \end{figure}
@@ -496,7 +497,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \subsection{Визуализация векторных полей}
 \begin{figure}[h]
   \begin{center}
-      \epsfig{file=picts/2D-grad, width=.7\textwidth} 
+      \includegraphics[width=.7\textwidth]{picts/2D-grad.png} 
   \end{center}
   \caption{Визуализация векторных полей}\label{2D:grad:pict}
 \end{figure}
@@ -515,13 +516,14 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \subsection{Дополнительные настройки отображения}
 \begin{figure}[h]
   \begin{center}
-      \epsfig{file=picts/settings, width=.28\textwidth} 
+      \includegraphics[width=.28\textwidth]{picts/settings.png} 
   \end{center}
   \caption{Дополнительные настройки отображения}\label{settings:pict}
 \end{figure}
 Дополнительные настройки можно показать/скрыть на панели слева при помощи галочки \verb'show settings' (рис.~\ref{settings:pict}).
 Дополнительные настройки включают в себя
-\begin{enumerate}
+
+\begin{enumrate}
 \item настройки шрифта зарамочного оформления;
 \item включение/выключение показа палитры;
 \item расстояние между палитрой и изображением в пикселях;
@@ -537,6 +539,7 @@ qplt a.msh -m8 host1:b.msh host2:c.msh
 \item длину и ширину конусов, а также шаг конусов при отображении векторных полей в 2D режиме;
 \item правила расстановки тиков и подписей к осям в 3D/XD режимах.
 \end{enumerate}
+
 
 Заголовок изображения форматируется по словарю файла, получаемого в случае загрузки данных из \verb'json' с опцией \verb'-f'.
 Это позволяет автоматически выводить в заголовок различные параметры, связанные с файлом. Для форматирования используется
