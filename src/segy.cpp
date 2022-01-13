@@ -198,7 +198,7 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 //------------------------------------------------------------------------------
 //   write operations
 //------------------------------------------------------------------------------
-void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, double z_pow, const std::vector<float> prefix){
+void segy_write_trace_data(IOstream &S, const Mesh<float, 1> &data, float z_pow, const std::vector<float> prefix){
 	if(prefix.size()) S.write(prefix.data(), 4*prefix.size()); 
 	int sz = data.bbox()[0]; float buf[sz]; for(int i=0; i<sz; i++){ buf[i] = z_pow? data[ind(i)]*pow(i+1, z_pow): data[ind(i)]; }
 #ifndef AIW_WIN32
@@ -214,30 +214,30 @@ template <int D> void mk_zero_prefix(const Mesh<float, D> &data, std::vector<flo
 	WOUT(prefix.size());
 }
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, double z_pow, Vec<2> PV, Vec<3> PP){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 1> &data, float z_pow, Vecf<2> PV, Vecf<3> PP){
 	std::vector<float> prefix; mk_zero_prefix(data, prefix);
 	SegyTraceHead tr; tr.PV = PV|0.; tr.PP = PP; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.dump(S);
 	segy_write_trace_data(S, data, z_pow, prefix);
 }
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 2> &data, float z_pow, Vecf<2> PV, Vecf<3> PP0, float rotate, bool write_file_head){
 	std::vector<float> prefix; mk_zero_prefix(data, prefix); 
 	if(write_file_head){
 		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]+prefix.size(); fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
-	Vec<3> delta = vec(cos(rotate), sin(rotate), 0.)*data.step[1];
+	Vecf<3> delta = vec(cos(rotate), sin(rotate), 0.)*data.step[1];
 	for(int ix=0; ix<data.bbox()[1]; ix++){ 
 		SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.PP = PP0 + delta*ix; tr.dump(S);
 		segy_write_trace_data(S, data.slice<1>(ind(-1, ix)), z_pow, prefix);
 	}
 }
 //------------------------------------------------------------------------------
-void aiw::segy_write(IOstream &&S, const Mesh<float, 3> &data, double z_pow, Vec<2> PV, Vec<3> PP0, double rotate, bool write_file_head){
+void aiw::segy_write(IOstream &&S, const Mesh<float, 3> &data, float z_pow, Vecf<2> PV, Vecf<3> PP0, float rotate, bool write_file_head){
 	std::vector<float> prefix; mk_zero_prefix(data, prefix);
 	if(write_file_head){
 		SegyFileHead fh; fh.dt = data.step[0]; fh.trace_sz = data.bbox()[0]+prefix.size(); fh.profile_sz = data.bbox()[1]; fh.dump(S);
 	}
-	Vec<3> delta_x = vec(cos(rotate), sin(rotate), 0.)*data.step[1], delta_y = vec(-sin(rotate), cos(rotate), 0.)*data.step[2];
+	Vecf<3> delta_x = vec(cos(rotate), sin(rotate), 0.)*data.step[1], delta_y = vec(-sin(rotate), cos(rotate), 0.)*data.step[2];
 	for(int iy=0; iy<data.bbox()[2]; iy++) 
 		for(int ix=0; ix<data.bbox()[1]; ix++){ 
 			SegyTraceHead tr; tr.PV = PV|0.; tr.trace_sz = data.bbox()[0]+prefix.size(); tr.dt = data.step[0]; tr.PP = PP0 + delta_x*ix + delta_y*iy; tr.dump(S);
@@ -306,7 +306,7 @@ bool aiw::SegyTraceHead::load(aiw::IOstream &S){
 	return true;
 }
 //------------------------------------------------------------------------------
-void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, double z_pow){
+void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, float z_pow){
 	dump(S);
 	float buf[trace_sz]; if(z_pow) for(int i=0; i<trace_sz; i++){ buf[i] = data[i]*pow(i+1, z_pow); }
 #ifndef AIW_WIN32

@@ -3,7 +3,7 @@
 #define AIW_MESH_HPP
 
 /**
- * Copyright (C) 2016, 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016-17, 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -19,14 +19,14 @@
 #include "binaryio"
 #include "interpolations"
 #include "base_mesh"
-#include "binary_format"
+#include "binhead"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 #ifndef SWIG
 	struct BaseMeshOp{};
 #endif //SWIG
-	template <typename T, int D> class Mesh: public aiw::BaseMesh<D>
+	template <typename T, int D, typename A=float> class Mesh: public aiw::BaseMesh<D, A>
 #ifndef SWIG
 		, BaseMeshOp
 #endif //SWIG
@@ -35,111 +35,39 @@ namespace aiw{
 	protected:
 		std::shared_ptr<BaseAlloc> mem;
 		void *ptr;           // указатель на элемент с позицией Ind(0,0...)
-		Ind<D> axes;         // порядок следования осей ???
+		Ind<D> axis;         // порядок следования осей ???
 		Vec<D, int64_t> mul; // то на что умножается pos в адресной арифметике
-		template <typename T2, int D2> friend class Mesh;
+		template <typename T2, int D2, typename A2> friend class Mesh;
 		UsingBaseMeshAttributes
 
-		friend class MeshView;
+		// friend class MeshView;
 #endif //SWIG
-	public:
-		
+	public:		
 		typedef T cell_type;
 		// static const int dim = D;
-		T out_value;
+		/*
+#ifndef SWIG
+		[[deprecated]] T out_value;
+#endif //SWIG
+		*/
 		static const int sizeof_cell_type = sizeof(T);
 		
 		size_t mem_size() const { return mem->get_size(); }
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
 
 	protected:
-		size_t sz_init(const aiw::Ind<D> &box_){ // box and mul init, not allocate memory 		  
-			box = box_; box.prod(sz); mul[0] = sizeof(T); 
-			for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
-			return sz;
-		}
+		size_t sz_init(const aiw::Ind<D> &box_); // box and mul init, not allocate memory 		  
 	public:
-		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0, int align=0){
-			ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axes(bmin_, bmax_, logscale_);
+		void init(const aiw::Ind<D> &box_, const aiw::Vec<D, A> &bmin_, const aiw::Vec<D, A> &bmax_, int logscale_=0, int align=0){
+			ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axis(bmin_, bmax_, logscale_);
 		}
-		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D>(), box_, 0, align); }
-		//----------------------------------------------------------------------		
+		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D, A>(), box_, 0, align); }
+		void init(const aiw::Mesh<T, D, A> &M){ init(M.bbox(), M.bmin, M.bmax, M.logscale); }
 #ifndef SWIG
-		/*
-		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
-			int h_sz = head.size()+5+D*16+sizeof(T); if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
-			char h[h_sz]; for(int i=0; i<h_sz; i++) h[i] = 0; // for old gcc versions
-			memcpy(h, head.c_str(), head.size()); memcpy(h+h_sz-4-D*16-sizeof(T), &out_value, sizeof(T));
-			memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
-			S<h_sz; S.write(h, h_sz); S<D<int(sizeof(T))<box;
-			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));
-			S.flush();
-		}
-		*/
-		void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
-			BinaryFormat bf; bf.init((BaseMesh<D>&)*this);	bf.szT = sizeof(T);  bf.out_value = (void*)&out_value;
-#ifdef AIW_TYPEINFO
-			bf.tinfo.root = T()^bf.tinfo; 
-#endif //AIW_TYPEINFO
-			bf.dump(S); for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); // <== это можно оптимизировать!!!
-			S.flush(); 
-		}
-		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
-			size_t s0 = S.tell();  BinaryFormat bf; bf.init(*this); bf.szT = sizeof(T);  bf.out_value = &out_value; 
-			if(!bf.load(S)){
-				if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, bf.D, sizeof(T), bf.szT, S.name, S.tell(), bf.head); }
-				return false;
-			}
-			head = bf.head; logscale = bf.logscale; box.prod(sz); size_t s = S.tell(); 
-			if(__has_trivial_copy(T)){
-				if(use_mmap){ sz_init(box); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
-				else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); S.read(ptr, sz*sizeof(T)); }
-			} else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); for(Ind<D> pos; pos^=box; ++pos) S.load((*this)[pos]); }
-			if(!use_mmap && S.tell()-s!=sizeof(T)*sz){ S.seek(s0); WRAISE("incorrect Mesh::load() ", D, sizeof(T), S.name, head, box, S.tell()-s, sizeof(T)*sz); }
-
-			s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
-			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))){ S.load(bmin, bmax, step, out_value); logscale = 0; WOUT(bmin, bmax, step, out_value); } 
-			else  S.seek(s); 
-			for(int i=0; i<D; i++) this->set_step(i);
-			return true;
-		}
-		/*
-		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
-			std::string h; int rD=-1, szT=-1;  size_t s = S.tell(); S>h>rD>szT;
-			if(S.tell()-s!=12+h.size()){ S.seek(s); return false; }
-			if(rD!=D || szT!=sizeof(T)){ 
-				S.seek(s); 
-				if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, rD, sizeof(T), szT, S.name, S.tell(), h); }
-				else return false;
-			}
-			head = h.c_str(); Ind<D> box_; S>box_;
-			if(__has_trivial_copy(T)){
-				if(use_mmap){ sz_init(box_); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
-				else { init(box_, align); S.read(ptr, sz*sizeof(T)); }
-			} else { init(box_, align); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
-			size_t true_read_sz = 12+h.size()+D*4+sz*szT, real_read_sz = S.tell()-s;
-			if(!use_mmap && true_read_sz!=real_read_sz){ S.seek(s); WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT,
-																		   S.name, head, box, true_read_sz, real_read_sz); }
-			
-			Vec<D> bmin_, bmax_=box_, step_; int logscale_=0; s = S.tell(); int sz2=0; S>sz2;
-			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))) S>bmin_>bmax_>step_>out_value; // old aivlib mesh format (deprecated)
-			else{ // current aiwlib format
-				S.seek(s);
-				if(h.size()>head.size()+4+D*16+sizeof(T)){
-					int i = head.size(), i0 = h.size()-(4+D*16+sizeof(T)); while(i<i0 && h[i]==0) i++;
-					if(i==i0){
-						memcpy(&out_value, h.c_str()+i0, sizeof(T)); i0 += sizeof(T); 
-						memcpy(&bmin_, h.c_str()+i0, D*8); i0 += D*8;
-						memcpy(&bmax_, h.c_str()+i0, D*8); i0 += D*8;
-						memcpy(&logscale_, h.c_str()+i0, 4);
-					}
-				}
-			}
-			this->set_axes(bmin_, bmax_, logscale_);
-			return true;
-		}
-		*/
-
+		template <typename T2, typename A2> void init(const Mesh<T2, D, A2> &M){ init(M.box(), M.bmin(), M.bmax(), M.logscale); }
+		//----------------------------------------------------------------------		
+		void dump(aiw::IOstream &&S) const; //???оптимизировать для простых случаев???
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0); // mmap = 0 - not use, 1 - readonly, 2 - rw
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
@@ -147,164 +75,64 @@ namespace aiw{
 		}
 		//----------------------------------------------------------------------		
 #ifndef SWIG		
-		inline const T& get(aiw::Ind<D> pos) const {
-#ifndef EBUG
-			if(this->periodic || this->bounds)
-#endif //EBUG
-				if(this->check_out_pos(pos)) return out_value;
-			return *((const T*)((const char*)ptr+mul*pos));
-		}
-		inline const T& get(const aiw::Vec<D> &r) const { return get(this->coord2pos(r)); }
+		const T& at(const aiw::Ind<D> &pos) const { WASSERT(ind(0)<=pos && pos<bbox, "pos out of box", pos, box); return *((const T*)((const char*)ptr+mul*pos)); }
+		      T& at(const aiw::Ind<D> &pos)       { WASSERT(ind(0)<=pos && pos<bbox, "pos out of box", pos, box); return       *((T*)((const char*)ptr+mul*pos)); }
 
-		inline const T& operator [] (const aiw::Ind<D> &p) const { return     get(p); }
-		inline       T& operator [] (const aiw::Ind<D> &p)       { return (T&)get(p); }
-		inline const T& operator [] (const aiw::Vec<D> &r) const { return     get(r); }
-		inline       T& operator [] (const aiw::Vec<D> &r)       { return (T&)get(r); }
-		/*
-	protected:
-		inline char* at_(char* p){ return p; }
-		template <typename A, typename ... Args> inline char* at_(char* p, A ix, Args ... args){ return at_(p+ix*mul[D-sizeof...(Args)-1], args...); }		
-	public:
-		template <typename ... Args> inline T& at(Args ... args){ static_assert(sizeof...(Args)==D, "illegal parametrs count!"); return *(T*)at_((char*)ptr, args...); }
-		template <typename ... Args> inline const T& at(Args ... args) const {
-			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); return *(T*)(((Mesh*)this)->at_((char*)ptr, args...)); }
-		*/
-		template <typename ... Args> inline T& at(Args ... pos) { return (*this)[Ind<D>(pos...)]; }
-		template <typename ... Args> inline const T& at(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }
+		const T& operator [] (aiw::Ind<D> p) const { this->check_out_pos(p); return at(p); }
+		      T& operator [] (aiw::Ind<D> p)       { this->check_out_pos(p); return at(p); }
+		const T& operator [] (const aiw::Vec<D, A> &r) const { return (*this)[this->coord2pos(r)]; }
+		      T& operator [] (const aiw::Vec<D, A> &r)       { return (*this)[this->coord2pos(r)]; }
+
+		template <typename ... Args>       T& ind(Args ... pos)       { return (*this)[Ind<D>(pos...)]; }
+		template <typename ... Args> const T& ind(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }
+		template <typename ... Args>       T& vec(Args ... coord)       { return (*this)[Vec<D, A>(coord...)]; }
+		template <typename ... Args> const T& vec(Args ... coord) const { return (*this)[Vec<D, A>(coord...)]; }
 #endif // SWIG
-		inline const T& __getitem__(const aiw::Ind<D> &p) const { return get(p); }
-		inline const T& __getitem__(const aiw::Vec<D> &r) const { return get(r); }
-		inline void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
-		inline void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
+		const T& __getitem__(const aiw::Ind<D> &p) const { return (*this)[p]; }
+		const T& __getitem__(const aiw::Vec<D, A> &r) const { return (*this)[r]; }
+		void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
+		void __setitem__(const aiw::Vec<D, A> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
-		/*
-		T operator ()(const aiw::Vec<D> &r) const { // ???
-			Ind<D> pos; Vec<D> x;
-			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
-					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
-					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
-				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
-			return interpolate(*this, pos, x, interp);
-			}*/
-		
 #ifndef SWIG
 	private:
-		template <typename U = T, typename std::enable_if<has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D> &r) const { // ???
-			Ind<D> pos; Vec<D> x;
+		template <typename U = T, typename std::enable_if<has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D, A> &r) const {
+			Ind<D> pos; Vec<D, A> x;
 			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
 					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
 					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
 				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
 			return interpolate(*this, pos, x, interp);
 		}
-		template <typename U = T, typename std::enable_if<!has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D> &r) const { return (*this)[r]; }
+		template <typename U = T, typename std::enable_if<!has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D, A> &r) const { return (*this)[r]; }
 	public:
 #endif //SWIG
-		T operator ()(const aiw::Vec<D> &r) const { return interp_impl(r); }
+		T operator ()(const aiw::Vec<D, A> &r) const { return interp_impl(r); }
 		
 		//----------------------------------------------------------------------
-		inline aiw::Ind<D> first() const { return Ind<D>(); }
-		inline bool next(aiw::Ind<D> &pos) const { ++pos; return pos^=box; }
-		/*
-		inline aiw::Ind<D> inbox(size_t offset) const {
-			Ind<D> pos;
-			for(int i=0; i<D; i++){
-				int a = axes[i]; pos[a] = offset%box[a];
-				if(mul[a]<0) pos[a] = box[a]-pos[a]-1;
-				offset /= box[a];
-			}
-			return pos;
-			}
-		inline aiw::Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
-		inline bool next(aiw::Ind<D> &pos) const {
-			for(int i=0; i<D; i++){
-				int a = axes[i]; 
-				if(mul[a]>0){
-					if(++(pos[a])<box[a]) return true;
-					pos[a] = 0;
-				} else {
-					if(--(pos[a])>=0) return true;
-					pos[a] = box[a]-1; 
-				}
-			}				
-			return false;
-			}*/
+		aiw::Ind<D> first() const { return Ind<D>(); }
+		bool next(aiw::Ind<D> &pos) const { ++pos; return pos^=box; }
 		//----------------------------------------------------------------------
-		Mesh copy(int align=0) const { Mesh A; A.init(box, align); for(Ind<D> pos; pos^=box; ++pos) A[pos] = (*this)[pos]; return A; }		
+		Mesh copy(int align=0) const { Mesh M; M.init(box, align); for(Ind<D> pos; pos^=box; ++pos){ M[pos] = (*this)[pos]; } return M; }		
 		Mesh flip(int a, bool axe=true) const {
-			Mesh A(*this); Ind<D> I; I[a] = box[a]-1; A.ptr = (void*)&((*this)[I]); A.mul[a] = -mul[a];
-			if(axe){
-				A.bmin[a] = bmax[a]; A.bmax[a] = bmin[a]; 
-				if(logscale&1<<a){ A.step[a] = 1./step[a]; A.rstep[a] = exp(log(bmin[a]/bmax[a])/box[a]); }
-				else { A.step[a] = -step[a]; A.rstep[a] = -rstep[a]; }
-			}
-			return A;
+			Mesh M(*this); Ind<D> I; I[a] = box[a]-1; M.ptr = (void*)&((*this)[I]); M.mul[a] = -mul[a];
+			if(axe) M.flip_axe(a);
+			return M;
 		}
 	private:
-		template <typename T2, int D2> void set_axe(int a, const Mesh<T2, D2> &M, int m){ // ???
-			mul[a] = M.mul[m]; box[a] = M.box[m]; axes[a] = M.axes[m]; mul[a] = M.mul[m];
-			bmin[a] = M.bmin[m]; bmax[a] = M.bmax[m]; step[a] = M.step[m]; rstep[a] = M.rstep[m];
-			if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
-			if(M.periodic&1<<m) periodic |= 1<<a; else periodic &= ~(1<<a);
-			interp &= ~(0xF<<(4*(D-a-1))); interp |= M.interp&(0xF<<(4*(D-m-1)));
-			bounds &= ~(0xF<<(4*(D-a-1))); bounds |= M.bounds&(0xF<<(4*(D-m-1)));
-		}
+		template <typename T2, int D2, typename A2> void set_axe(int a, const Mesh<T2, D2, A2> &M, int m);
 	public:
-		Mesh transpose(int a, int b) const { Mesh A(*this); A.set_axe(b, *this, a); A.set_axe(a, *this, b); return A; }
+		Mesh transpose(int a, int b) const { Mesh M(*this); M.set_axe(b, *this, a); M.set_axe(a, *this, b); return M; }
 		//----------------------------------------------------------------------
-		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)) const {
-			Mesh A(*this); 
-			for(int i=0; i<D; i++){
-				if(a[i]<0){ a[i] += box[i]; } if(b[i]<=0){ b[i] += box[i]; }
-				WASSERT(0<=a[i] && a[i]<box[i] && 0<=b[i] && b[i]<box[i] && a[i]<b[i], "oops...", i, a, b, box);
-				A.box[i] = (b[i]-a[i]-1)/d[i]+1;
-				if(logscale&1<<i){ 
-					A.bmin[i] = bmin[i]*pow(step[i], a[i]); A.step[i] = pow(step[i], d[i]); 
-					A.bmax[i] = A.bmin[i]*pow(A.step[i], A.box[i]);
-					A.rstep[i] = exp(log(A.bmax[0]/A.bmin[0])/A.box[i]);
-				} else {
-					A.bmin[i] = bmin[i]+step[i]*a[i]; A.step[i] *= d[i]; 
-					A.bmax[i] = A.bmin[i]+A.step[i]*A.box[i]; A.rstep[i] /= d[i];
-				}
-			}
-			A.mul = mul&d; A.ptr = (char*)ptr + mul*a;
-			return A;
-		}
+		Mesh crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d=Ind<D>(1)) const;
 		//----------------------------------------------------------------------
 		//  Mesh scale(aiw::Ind<D> new_sz, bool antialiasing=false) const {}
 		//----------------------------------------------------------------------
-		template <class T2, int D2> aiw::Mesh<T2, D2> slice(Ind<D> pos, size_t offset_in_cell) const {
-			if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
-			int n = 0; Mesh<T2, D2> A;
-			for(int i=0; i<D; i++)
-				if(pos[i]==-1){  
-					if(n>=D2) WRAISE("too many -1 values in pos:", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
-					A.set_axe(n, *this, i); pos[i] = 0; n++;
-				} else if(pos[i]<0 || box[i]<=pos[i])
-					WRAISE("pos out of range:", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
-			if(n!=D2) WRAISE("too small -1 values in pos:", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
-			A.mem = mem; A.ptr = (char*)ptr+mul*pos+offset_in_cell; A.box.prod(A.sz);
-			return A;
-		}
-		template <int D2> Mesh<T, D2> slice(Ind<D> pos) const { return slice<T, D2>(pos, 0); }
+		template <class T2, int D2> Mesh<T2, D2, A> slice(aiw::Ind<D> pos, size_t offset_in_cell) const;
+		template <int D2> Mesh<T, D2, A> slice(aiw::Ind<D> pos) const { return slice<T, D2>(pos, 0); }
 		//----------------------------------------------------------------------
 #ifndef SWIG
-		template <int DV> aiw::Mesh<Vec<DV, T>, D-1> vectorize(int axe=0) const {
-			if(DV!=box[axe]) WRAISE("incorrect Mesh bbox[axe] for vectorize", D, sizeof(T), axe, DV, box);
-			Mesh<Vec<DV, T>, D-1> A; for(int i=0, j=0; i<D; i++) if(i!=axe) A.set_axe(j++, *this, i);
-			A.mem = mem; A.ptr = ptr; A.box.prod(A.sz);
-			return A;
-		}
-#endif //SWIG
-		//----------------------------------------------------------------------
-		template<int P> inline const T& periodic_bc(Ind<D> pos) const {
-			for(int i=0; i<D; i++) if(P&(1<<i)){
-					while(pos[i]<0) pos[i] += box[i];
-					if(pos[i]>=box[i]) pos[i] %= box[i];
-				}
-			return get(pos);
-		}
-		template<int P> inline T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
+		template <int DV> Mesh<Vec<DV, T>, D-1, A> vectorize(int axe=0) const;
+		// unvectorize ???
 		//----------------------------------------------------------------------
 		// coords содержит режимы вывода для каждой из координатных осей: 
 		//    0 --- выводить значения из сетки вдоль оси в одну строку через пробел
@@ -312,25 +140,8 @@ namespace aiw{
 		//    2 --- выводить координату центра ячейки
 		//    3 --- не выводить ни номер ячейки ни координату центра ячейки
 		//   +4 --- не выводить пустую строку при изменении номера ячейки, не влияет на режим 0
-#ifndef SWIG
 	private:
-		template <typename S> void out2dat_impl(S &&str, aiw::Ind<D> coords, const char* prefix) const { // , aiw::Ind<D> order=Ind<D>() ???
-			Ind<D> B1 = box, B2 = box; int nl_id = -1;
-			for(int i=0; i<D; i++){ 
-				if(coords[i]==4) coords[i] = 0;
-				if(coords[i]==0 && B1[i]) B1[i] = 1; else B2[i] = 1; 
-				if(nl_id==-1 && coords[i]&3 && !(coords[i]&4)) nl_id = i;
-			}
-			// WOUT(box, coords, B1, B2, nl_id);
-			for(Ind<D> pos; pos^=B1; ++pos){
-				if(prefix) str<<prefix<<" ";
-				Vec<D> r = this->pos2coord(pos);
-				for(int i=0; i<D; i++) if(coords[i] && (coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
-				for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
-				str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
-			}
-			str.flush();
-		}
+		template <typename S> void out2dat_impl(S &&str, aiw::Ind<D> coords, const char* prefix) const; // , aiw::Ind<D> order=Ind<D>() ???
 	public:
 		template <typename U = T, typename std::enable_if<has_std_ostream_lshift_T<U>(nullptr), int>::type = 0>
 		void out2dat(std::ostream &&str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { out2dat_impl(str, coords, prefix); }
@@ -345,12 +156,8 @@ namespace aiw{
 			std::cerr<<"[\033[31;1;5mFor call method Mesh<T="<<typeid(T{}).name()<<", D="<<D<<">::out2dat(...) you need operator << (aiw::IOstream&, T)'\033[0m]\n";
 		}
 #endif //SWIG
-		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { 
-			out2dat(std::move(str), coords, prefix); 
-		}
-		void out2dat(aiw::IOstream &str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { 
-			out2dat(std::move(str), coords, prefix); 
-		}
+		void out2dat(std::ostream &str=std::cout, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { out2dat(std::move(str), coords, prefix); }
+		void out2dat(aiw::IOstream &str, aiw::Ind<D> coords=aiw::Ind<D>(2), const char* prefix=nullptr) const { out2dat(std::move(str), coords, prefix); }
 		//----------------------------------------------------------------------
 #ifndef SWIG
 	private:
@@ -372,83 +179,39 @@ namespace aiw{
 #endif //SWIG
 		aiw::Vec<2, T> min_max() const { aiw::Vec<2, T> res; aiw::Ind<D> pos_a, pos_b; this->min_max(res[0], res[1], pos_a, pos_b); return res; }
 		//----------------------------------------------------------------------
-		void fill(const T &x){ out_value = x; Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
-		template <typename T2> void fill(const Mesh<T2, D> &M){
-			out_value = M.out_value;
-			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
-		}
-		void fill(const Mesh &M){ 
-			out_value = M.out_value;
-			Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];
-		}
-
-		/*
-#ifndef SWIG		
-		void fill(aiw::IOstream &&S){
-			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
-			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh fill ", D, sizeof(T), S.name, rD, szT, b, s); }
-			Ind<D> up = b<<box, m; s = S.tell();
-			m[0] = sizeof(T); for(int i=1; i<D; ++i) m[i] = m[i-1]*b[i-1]; 
-			for(Ind<D> pos; pos^=up; ++pos){
-				if(pos[0]==0) S.seek(s+m*pos);
-				S.read(&(*this)[pos], sizeof(T));
-			}
-		}
-#endif //SWIG
-		void fill(aiw::IOstream &S){ fill(std::move(S)); }
-		*/
+		void fill(const T &x){ Ind<D> pos = first(); do (*this)[pos] = x; while(next(pos)); }
+		template <typename T2> void fill(const Mesh<T2, D> &M){	Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos];	}
+		void fill(const Mesh &M){ Ind<D> up = box<<M.box; for(Ind<D> pos; pos^=up; ++pos) (*this)[pos] = M[pos]; }
 		//----------------------------------------------------------------------
 		// operators +, -, *, /, % etc?
 
-		std::string __getstate__() const { // переписать через dump/load?
-			std::stringstream buf;
-			uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
-			buf.write((const char*)&box, sizeof(box));          
-			buf.write((const char*)&out_value, sizeof(out_value));
-			buf.write((const char*)&bmin, sizeof(bmin));
-			buf.write((const char*)&bmax, sizeof(bmax));
-			buf.write((const char*)&logscale, sizeof(logscale));
-			for(Ind<D> pos; pos^=box; ++pos) buf.write((const char*)&get(pos), sizeof(T));
-			return buf.str();
-		}
-		void __C_setstate__(const std::string &state){
-			std::stringstream buf(state);
-			uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
-			head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
-			Ind<D> box_; Vec<D> bmin_, bmax_; int logscale_; 
-			buf.read((char*)&box_, sizeof(box));          
-			buf.read((char*)&out_value, sizeof(out_value));
-			buf.read((char*)&bmin_, sizeof(bmin));
-			buf.read((char*)&bmax_, sizeof(bmax));
-			buf.read((char*)&logscale_, sizeof(logscale));
-			init(box_, bmin_, bmax_, logscale_);
-			for(Ind<D> pos; pos^=box; ++pos) buf.read((char*)&get(pos), sizeof(T));
-		}
+		std::string __getstate__() const;
+		void __C_setstate__(const std::string &state);
 		static const bool _racs_pull_lock = true;
 		size_t __sizeof__() const { return sizeof(Mesh) + head.size() + (mem?mem->get_size()*mem->get_sizeof():0); }
 		//----------------------------------------------------------------------
 		Mesh(){}
 		Mesh(aiw::Ind<D> bbox_, int align=0){ init(bbox_, align); }
 		Mesh(aiw::Ind<D> bbox_, T f, int align=0){ init(bbox_, align); fill(f); }
-		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); }
-		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); fill(f); }		
+		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); }
+		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); fill(f); }		
 		//----------------------------------------------------------------------
 #ifndef SWIG		
 		struct iterator{
 			Mesh<T, D> *data = nullptr;
 			Ind<D> pos;
 
-			inline T& operator * (){ return (*data)[pos]; }
-			inline const T& operator * () const { return (*data)[pos]; }
-			inline iterator & operator ++ (){ ++pos^=data->bbox(); return *this; } // data->next() ???
+			T& operator * (){ return (*data)[pos]; }
+			const T& operator * () const { return (*data)[pos]; }
+			iterator & operator ++ (){ ++pos^=data->bbox(); return *this; } // data->next() ???
 
-			inline T& operator ()(const Ind<D> &offset){ return (*data)[pos+offset]; }
-			inline const T& operator ()(const Ind<D> &offset) const { return (*data)[pos+offset]; }
-			template <typename ... Args> inline T& at(Args ... offset){ return (*data)[pos+Ind<D>(offset...)]; }
-			template <typename ... Args> inline const T& at(Args ... offset) const { return (*data)[pos+Ind<D>(offset...)]; }
+			T& operator ()(const Ind<D> &offset){ return (*data)[pos+offset]; }
+			const T& operator ()(const Ind<D> &offset) const { return (*data)[pos+offset]; }
+			template <typename ... Args> T& at(Args ... offset){ return (*data)[pos+Ind<D>(offset...)]; }
+			template <typename ... Args> const T& at(Args ... offset) const { return (*data)[pos+Ind<D>(offset...)]; }
 
-			inline bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
-			inline bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
+			bool operator == (const iterator &other) const { return data==other.data && pos==other.pos; }
+			bool operator != (const iterator &other) const { return data!=other.data || pos!=other.pos; }
 		};
 		iterator begin(){ iterator I; I.data = this; return I; }
 		iterator end(){ iterator I; I.data = this; I.pos[D-1] = box[D-1]; return I; }
@@ -474,5 +237,6 @@ namespace aiw{
 			for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));  
 			}*/
 	//--------------------------------------------------------------------------
+#include "mesh_impl"
 }
 #endif //AIW_MESH_HPP
