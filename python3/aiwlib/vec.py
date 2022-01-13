@@ -135,7 +135,8 @@ class Vec:
         'set Vec data'
         if len(data)!=self._D(): raise Exception("incorrect length %r, %i expected"%(data, self._D()))
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
-        push_vec_data(self, 0, struct.pack(let*D, *sum(list(map(pack, list(map(pyT, data)))), ())).decode(), szT*D)    
+        #push_vec_data(self, 0, struct.pack(let*D, *sum(list(map(pack, list(map(pyT, data)))), ())).decode('utf-16-be'), szT*D)    
+        push_vec_data(self, 0, struct.pack(let*D, *sum(list(map(pack, list(map(pyT, data)))), ())), szT*D)    
     #---------------------------------------------------------------------------
     def __getitem__(self, i):
         D = self._D()
@@ -154,7 +155,8 @@ class Vec:
         if i<0: i+= D
         if i<0 or D<=i: raise IndexError(i)
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
-        push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))).decode(), szT)    
+        # push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))).decode('utf-16-be'), szT)    
+        push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))), szT)    
     #---------------------------------------------------------------------------
     def __getstate__(self):
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
@@ -165,7 +167,8 @@ class Vec:
         self.T = _cxx_types_table[sT, sC]
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
         if szT*self.D!=len(state)-4: raise Exception('incorrect state size')
-        push_vec_data(self, 0, state[4:].decode(), szT*self.D)
+        #push_vec_data(self, 0, state[4:].decode('utf-16-be'), szT*self.D)
+        push_vec_data(self, 0, state[4:], szT*self.D)
         cxx_m, i = _vec_types_table.get((self.T, self.D), (0,0))
         if cxx_m: cxx_m.set_type(self.this, i)
     #---------------------------------------------------------------------------
