@@ -58,7 +58,7 @@ namespace aiw{
 	protected:
 		size_t sz_init(const aiw::Ind<D> &box_); // box and mul init, not allocate memory 		  
 	public:
-		void init(const aiw::Ind<D> &box_, const aiw::Vec<D, A> &bmin_, const aiw::Vec<D, A> &bmax_, int logscale_=0, int align=0){
+		void init(const aiw::Ind<D> &box_, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){
 			ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axis(bmin_, bmax_, logscale_);
 		}
 		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D, A>(), box_, 0, align); }
