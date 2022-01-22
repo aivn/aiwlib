@@ -36,7 +36,7 @@ endif()
 find_package(OpenMP REQUIRED)
 
 add_library(aiwlib STATIC "src/debug.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
-	"src/isolines.cpp" "src/checkpoint.o" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
+	"src/isolines.cpp" "src/checkpoint.cpp" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
 	"src/typeinfo.cpp" "src/binary_format.cpp")
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 target_link_libraries(aiwlib PUBLIC OpenMP::OpenMP_CXX)
