@@ -4,6 +4,7 @@
  **/
 
 #include <omp.h>
+#include <algorithm>
 // #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/qplt/imaging"
 #include "../../include/aiwlib/vec"
