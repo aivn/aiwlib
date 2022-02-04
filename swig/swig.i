@@ -1,4 +1,7 @@
 %module swig
+%begin%{
+#define SWIG_PYTHON_STRICT_BYTE_CHAR
+%}
 %exception { 
 	try{ $action } 
 	catch(const char *e){ PyErr_SetString(PyExc_RuntimeError, e); return NULL; } 

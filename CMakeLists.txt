@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.13 FATAL_ERROR)
 project(qplt LANGUAGES CXX VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 11)
@@ -17,7 +17,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 option(CUDA "Use CUDA for rendering" ON)
-
 if(CUDA)
 	include(CheckLanguage)
 	check_language(CUDA)
@@ -34,7 +33,6 @@ if (NOT WIN32)
 	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-Wall -Wpedantic -fdiagnostics-color=always")
 else()
 	set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
 endif()
 
 find_package(OpenMP REQUIRED)
@@ -62,23 +60,23 @@ find_package(SWIG REQUIRED)
 include(${SWIG_USE_FILE})
 set_property(SOURCE "swig/qplt/core.i" PROPERTY SWIG_FLAGS -I"${CMAKE_CURRENT_SOURCE_DIR}")
 set_source_files_properties("swig/qplt/core.i" PROPERTIES CPLUSPLUS ON)
-swig_add_library(qplt_python LANGUAGE python SOURCES "swig/qplt/core.i" OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt")
+swig_add_library(qplt_python LANGUAGE python SOURCES "swig/qplt/core.i" OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 if(NOT WIN32)
 	set_property(TARGET qplt_python PROPERTY OUTPUT_NAME qplt)
 	set_property(TARGET qplt_python PROPERTY PREFIX _)
 endif()
 target_include_directories(qplt_python PUBLIC ${Python3_INCLUDE_DIRS} PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 swig_link_libraries(qplt_python aiwlib ${Python3_LIBRARIES} qplt_objs)
-#add_custom_command(TARGET qplt_python_swig_compilation
-#	POST_BUILD
-#	COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/patch_swig.py" ${swig_generated_file_fullname}
-#	COMMENT "Patching ${swig_generated_file_fullname}")
-#add_custom_command(TARGET qplt_python_swig_compilation
-#	POST_BUILD
-#	COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/patch_swig.py" "${CMAKE_CURRENT_BINARY_DIR}/core.py" "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt/core.py"
-#	MAIN_DEPENDENCY "${CMAKE_CURRENT_SOURCE_DIR}/core.py"
-#	COMMENT "Patching core.py")
-#message("Generated file name:${swig_generated_file_fullname}")
+add_custom_command(TARGET qplt_python_swig_compilation
+	POST_BUILD
+	COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/patch_swig.py" ${swig_generated_file_fullname}
+	COMMENT "Patching ${swig_generated_file_fullname}")
+add_custom_command(TARGET qplt_python_swig_compilation
+	POST_BUILD
+	COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/patch_swig.py" "${CMAKE_CURRENT_BINARY_DIR}/core.py" "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt/core.py"
+	MAIN_DEPENDENCY "${CMAKE_CURRENT_SOURCE_DIR}/core.py"
+	COMMENT "Patching core.py")
+message("Generated file name:${swig_generated_file_fullname}")
 set_property(TARGET qplt_python PROPERTY LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt")
 
 add_executable(qplt-remote src/bin/qplt-remote.cpp)

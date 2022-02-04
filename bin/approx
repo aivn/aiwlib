@@ -16,6 +16,9 @@
     -prefix prefix ---- устанавливает префикс названия значений с ошибками (по умолчанию err)
     -P0 init --- начальные значения подбираемых параметров через запятую
     key=val --- добавляет значение val с именем key для использования во всех выражениях    
+
+    для многомерной интерполяции в качестве X-выражения используется X1,X2,... и затем X[:,0] X[:,1] при задании функции
+
     -h|-help|--help --- показать эту справку и выйти 
 '''
 
@@ -89,16 +92,17 @@ for l in L:
     D = dict((H[k], v) for k, v in enumerate(l))
     if cond and not eval(cond, G, D): continue
     xval = eval(Xex, G, D)
-    if xval<RX[0] or RX[1]<xval: continue
-    yval = eval(Yex, G, D)
+    if not type(xval) in (tuple,list) and (xval<RX[0] or RX[1]<xval): continue
+    try: yval = eval(Yex, G, D)
+    except: continue
     if str(xval)=='nan' or str(yval)=='nan': continue
     X.append(xval)
     Y.append(yval)
     if YEex: YE.append(eval(YEex, G, D))
     for K, E in addX: G[K].append(eval(E, G, D))
-    if block_len<=0: block_len -= 1
+    if block_len<=0: block_len -= 1    
 
-X, Y = np.array(X), np.array(Y) 
+X, Y = np.array(X), np.array(Y)
 for K, E in addX: G[K] = np.array(G[K])
 
 popt, pcov = curve_fit(func, X, Y, sigma=np.array(YE), absolute_sigma=True, p0=P0) if YE else curve_fit(func, X, Y, p0=P0) 
@@ -126,7 +130,23 @@ if Xname:
     print ''
 
 if not gplt is None:
+    if not type(X[0]) in (float, int, np.float64):
+        X2, D3, L = [' '.join(map(str, x)) for x in X], True, None
+        if X[0][0]==X[1][0]:
+            for L in range(len(X)):
+                if X[L][0]!=X[L+1][0]: break 
+        elif X[0][1]==X[1][1]:
+            for L in range(len(X)):
+                if X[L][1]!=X[L+1][1]: break 
+        if L:
+            i, Y, F = L+1, list(Y), list(F)
+            while i<len(X2):
+                X2.insert(i, ''); Y.insert(i, ''); F.insert(i, '')
+                i += L+2
+        X = X2
+    else: D3 = False
     tmpn = '/tmp/approx-%i.dat'%os.getpid()
+    print tmpn
     if addX:
         fout, Fmax = open(tmpn, 'w'), max(map(abs, F))
         for i in range(len(X)):
@@ -147,5 +167,6 @@ if not gplt is None:
             fout = open(tmpn, 'w')
             for l in zip(X, Y, F): print>>fout, ' '.join(map(str, l))
             fout.close()
-            os.system('gplt -U "y@p,=data z@=approx fabs(y-z)@x1y2,=error" -ln y2 %s'%tmpn+gplt)
+            if D3: os.system('gplt -h3d -U "fabs(z-C4)" -ln z %s'%tmpn+gplt)
+            else: os.system('gplt -U "y@p,=data z@=approx fabs(y-z)@x1y2,=error" -ln y2 %s'%tmpn+gplt)
             os.remove(fout.name)

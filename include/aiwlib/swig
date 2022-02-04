@@ -60,7 +60,9 @@ namespace aiw{
 		for(int i=0; i<size; i++) ((char*)obj)[offset+i] = data[i];
 	}
 	inline PyObject* pull_vec_data(void *obj, int offset, int size){
-		return PyString_FromStringAndSize( ((const char*)obj)+offset, size);
+		// return PyString_FromStringAndSize( ((const char*)obj)+offset, size);
+		return PyBytes_FromStringAndSize( ((const char*)obj)+offset, size);
+		// return PyUnicode_FromStringAndSize( ((const char*)obj)+offset, size);
 	}
 	class PVec{ char p[1024]; };
 	//	printf("_wrap_delete_PVec(%p) '%s'\n", args, SWIGTYPE_p_aiw__PVec->str); //aiv
