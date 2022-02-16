@@ -5,11 +5,22 @@
 
 #include <omp.h>
 #include <sstream>
+#include <algorithm>
 #include "../../include/aiwlib/interpolations"
 #include "../../include/aiwlib/binary_format"
 #include "../../include/aiwlib/qplt/mesh"
 #include "../../include/aiwlib/qplt/mesh_cu"
 using namespace aiw;
+
+# ifdef max
+# undef max
+# endif
+
+# ifdef min
+# undef min
+# endif
+
+
 //------------------------------------------------------------------------------
 //   load data
 //------------------------------------------------------------------------------
@@ -97,7 +108,7 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max) 
 			for(size_t i=0; i<sz; i++){
-				int pos[dim]; size_t j = i; const char *ptr1 = ptr0, *nb[6] = {nullptr};   
+				int pos[6]; size_t j = i; const char *ptr1 = ptr0, *nb[6] = {nullptr};   
 				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
 				if(DIFF) for(int k=0; k<ddim; k++){
 						int a = axisID[k];
@@ -172,7 +183,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 				}
 		}
 	} else if(mode==1) { // pseudo 3D mode
-		int fl_sz = flats.size(), cID = 0; QpltMeshFlat<PAID> calcs[fl_sz]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
+		int fl_sz = flats.size(), cID = 0; QpltMeshFlat<PAID> calcs[4 /*fl_sz*/]; for(int i=0; i<fl_sz; i++) calcs[i] = get_flat<PAID>(i);
 #pragma omp parallel for firstprivate(cID)
 		for(int y=0; y<im.Ny; y++){
 			int y0 = ibmin[1]+y;
