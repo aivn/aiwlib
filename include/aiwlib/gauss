@@ -40,11 +40,13 @@ namespace aiw{
 
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(unsigned int &seed){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(seed); return v; }
+	/*
 #ifndef AIW_WIN32
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #else  //AIW_WIN32
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
 #endif //AIW_WIN32
+	*/
 	//--------------------------------------------------------------------------
     template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& n, double phi){ // |n|==1
 		// a*cos(phi) - a%n*sin(phi) + n*(a*n)*(1-cos(phi));

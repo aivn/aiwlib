@@ -133,11 +133,13 @@ $(py_dst)/aiwlib/qplt/_$(dbg_)core$(so): $(shell echo $(dst)build/src/qplt/$(dbg
 qplt: $(py_dst)/aiwlib/qplt/core.py $(py_dst)/aiwlib/qplt/_$(dbg_)core$(so)
 ifneq (,$(dst))
 	cp -upr python$(python)/aiwlib/qplt/*.py python$(python)/aiwlib/qplt/{qplt.ui,pals} $(py_dst)/aiwlib/qplt/
-	mkdir -p $(dst)build/bin && cp bin/qplt $(dst)build/bin/qplt.py && cd $(dst)build/bin/ && wine pyinstaller qplt.py
-	cp -r python3/aiwlib/qplt/{qplt.ui,pals} $(dst)build/bin/dist/qplt/aiwlib/qplt/ && cd $(dst)build/bin/ && rm -f qplt.zip && zip -r qplt.zip qplt/
+	mkdir -p $(dst)build/bin && cp bin/qplt $(dst)build/bin/qplt.py && cd $(dst)build/bin/ && wine pyinstaller --target-architecture x86_64 qplt.py
+	cp -r python3/aiwlib/qplt/{qplt.ui,pals} $(dst)build/bin/dist/qplt/aiwlib/qplt/ && cp dat/llbe/Q4T.msh $(dst)build/bin/dist/qplt/
+	cd $(dst)build/bin/dist/ && rm -f qplt.zip && zip -r qplt.zip qplt/
 else
 	@echo target \'qplt\' OK
 endif
+#cp /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll qplt/
 
 ifneq (on,$(mingw))
 qplt: $(dst)bin/qplt-remote

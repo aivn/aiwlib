@@ -91,7 +91,8 @@ for l in L:
     
     D = dict((H[k], v) for k, v in enumerate(l))
     if cond and not eval(cond, G, D): continue
-    xval = eval(Xex, G, D)
+    try: xval = eval(Xex, G, D)
+    except: continue
     if not type(xval) in (tuple,list) and (xval<RX[0] or RX[1]<xval): continue
     try: yval = eval(Yex, G, D)
     except: continue
