@@ -18,7 +18,7 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 #.PHONY: clean all install-links
 
-libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binary_format
+libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binhead
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
 ifeq (on,$(bin))
 bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff

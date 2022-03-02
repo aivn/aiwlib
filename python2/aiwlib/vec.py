@@ -302,6 +302,10 @@ class Vec:
     def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
     #def __del__(self): destroy_swig_object(self.this)
     def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1])
+    def __getattr__(self, attr): return self['xyztuvw'.index(attr)] if len(attr)==1 and attr in 'xyztuvw' else self.__dict__[attr]
+    def __setattr__(self, attr, val):
+        if len(attr)==1 and attr in 'xyztuvw': self['xyztuvw'.index(attr)] = val
+        else: self.__dict__[attr] = val
 #-------------------------------------------------------------------------------
 def iterbox(bbox):
     bbox, pos = Ind(bbox), Ind(D=len(bbox))

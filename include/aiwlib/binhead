@@ -1,0 +1,51 @@
+// -*- C++ -*-
+#ifndef AIW_BINHEAD_HPP
+#define AIW_BINHEAD_HPP
+
+/**
+ * Copyright (C) 2021-22 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <string>
+#include "iostream"
+
+//------------------------------------------------------------------------------
+// Mesh:   head [[axis] [typeinfo] align out_value bmin bmax axisbit<<31|typeinfobit<<30|logscale]    D        szT     box
+// Sphere: head [[axis] [typeinfo] align                     axisbit<<31|typeinfobit<<30|int(0)]      int(0)   szT  R
+// Z-cube: head [[axis] [typeinfo] align           bmin bmax axisbit<<31|typeinfobit<<30|logscale]    1<<30|D  szT  R  
+// AMR:    head [[axis] [typeinfo] align           bmin bmax axisbit<<31|typeinfobit<<30|logscale]    1<<31|D  szT  R  box
+//------------------------------------------------------------------------------
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct BinaryHead{
+		static const int max_dim = 16;
+		std::string head;
+		std::string axis[max_dim];
+
+		int dim = -1;
+		int szT = -1;
+		int bbox[max_dim] = {0};
+
+		double bmin[max_dim] = {0.};
+		double bmax[max_dim] = {0.};
+		int logscale = 0;
+
+		int rank = -1;
+		int sph_mode = -1;  // 0 - cells, 1 - vortex, 2 - edeges
+
+		size_t start_offset = 0;
+		size_t data_offset = 0;
+		// size_t size = 0;
+
+		enum type_t { unknown, mesh, sphere, zcube };
+		type_t type = unknown; 
+
+		size_t get_size() const; 
+		void dump(IOstream &S, int align=64) const;
+		bool load(IOstream &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_BINHEAD_HPP
