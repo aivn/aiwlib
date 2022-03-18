@@ -70,7 +70,7 @@ if(CUDA)
 	#set_target_properties(qplt_cu_objs PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 else()
 	find_package(OpenMP REQUIRED)
-	target_link_libraries(qplt_static PUBLIC OpenMP::OpenMP)
+	target_link_libraries(qplt_static PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED) 
