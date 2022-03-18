@@ -45,7 +45,6 @@ else()
 	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
 endif()
 
-#find_package(OpenMP REQUIRED)
 #find_package(ZLIB REQUIRED)
 
 #add_library(aiwlib STATIC "src/debug.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
@@ -65,9 +64,13 @@ add_library(qplt_static STATIC "src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "s
 	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp")
 target_include_directories(qplt_static PUBLIC "src/qplt")
 set_target_properties(qplt_static PROPERTIES POSITION_INDEPENDENT_CODE 1)
+
 if(CUDA)
 	set_target_properties(qplt_static PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 	#set_target_properties(qplt_cu_objs PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+else()
+	find_package(OpenMP REQUIRED)
+	target_link_libraries(qplt_static PUBLIC OpenMP::OpenMP)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED) 
