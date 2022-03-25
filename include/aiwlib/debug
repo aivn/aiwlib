@@ -147,4 +147,14 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 #define WASSERT(...)
 #define WRAISE(...)
 #endif //__NVCC__
+
+# ifdef max
+# undef max
+# endif
+
+# ifdef min
+# undef min
+# endif
+
+
 #endif //AIW_DEBUG_HPP

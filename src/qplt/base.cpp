@@ -8,6 +8,7 @@
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
 #include "../../include/aiwlib/iostream"
+#include "../../include/aiwlib/gauss"
 using namespace aiw;
 
 # ifdef min

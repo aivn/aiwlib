@@ -12,6 +12,15 @@
 #include "cuda"
 #endif //SWIG
 
+# ifdef max
+# undef max
+# endif
+
+# ifdef min
+# undef min
+# endif
+
+
 #ifdef SWIG
 namespace aiw{
 	template <int D, typename T=double> struct Vec{	T p[D]; };
