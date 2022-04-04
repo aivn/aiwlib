@@ -53,16 +53,26 @@ namespace aiw{
 		size_t mem_sizeof() const { return mem->get_sizeof(); }
 
 	protected:
-		size_t sz_init(const aiw::Ind<D> &box_){ // box and mul init, not allocate memory 		  
-			box = box_; box.prod(sz); mul[0] = sizeof(T); 
-			for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
-			return sz;
+		size_t sz_init(const aiw::Ind<D> &box_); // box and mul init, not allocate memory 		  
+		template <typename AA> void init_(const aiw::Ind<D> &box_, aiw::Vec<D, AA> bmin_, aiw::Vec<D, AA> bmax_, int logscale_, int align){
+		 	ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axis(bmin_, bmax_, logscale_);
 		}
 	public:
-		void init(const aiw::Ind<D> &box_, const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0, int align=0){
-			ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axes(bmin_, bmax_, logscale_);
+		// void init(const aiw::Ind<D> &box_, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){
+		//   	ptr = init_mem_ptr<T>(mem, sz_init(box_), align); this->set_axis(bmin_, bmax_, logscale_);
+		// }
+		void init(const aiw::Ind<D> &box_, aiw::Vec<D> bmin_,  aiw::Vec<D> bmax_,  int logscale_=0, int align=0){ init_(box_, bmin_, bmax_, logscale_, align); }
+		void init(const aiw::Ind<D> &box_, aiw::Vecf<D> bmin_, aiw::Vecf<D> bmax_, int logscale_=0, int align=0){ init_(box_, bmin_, bmax_, logscale_, align); }
+		void init_c(const aiw::Ind<D> &box_, aiw::Vec<D> bmin_,  aiw::Vec<D> bmax_,  int logscale_=0, int align=0){
+			Vec<D> d = (bmax_-bmin_)/box_; init_(box_, bmin_-d/2, bmax_+d/2, logscale_, align);
 		}
-		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D>(), box_, 0, align); }
+		void init_c(const aiw::Ind<D> &box_, aiw::Vecf<D> bmin_, aiw::Vecf<D> bmax_, int logscale_=0, int align=0){
+			Vecf<D> d = (bmax_-bmin_)/box_; init_(box_, bmin_-d/2, bmax_+d/2, logscale_, align);
+		}
+		void init(const aiw::Ind<D> &box_, int align=0){ init(box_, Vec<D, A>(), box_, 0, align); }
+		void init(const aiw::Mesh<T, D, A> &M){ init(M.bbox(), M.bmin, M.bmax, M.logscale); }
+#ifndef SWIG
+		template <typename T2, typename A2> void init(const Mesh<T2, D, A2> &M){ init_(M.box(), M.bmin(), M.bmax(), M.logscale); }
 		//----------------------------------------------------------------------		
 #ifndef SWIG
 		/*

@@ -75,6 +75,8 @@ template <int AID> __global__ void plotXD(int* image){
 #endif //__NVCC__
 //------------------------------------------------------------------------------
 template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
+	// for(int i=0; i<int(sizeof(*this)/8-1); i++) printf("%lx\n", ((uint64_t*)this)[i]);
+	// for(int i=0; i<1; i++) printf("%lx\n", ((uint64_t*)this)[i]);
 #ifndef __NVCC__ // CPU render
 	WERR(Nx, Ny); 
 	int cID = 0;  constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?

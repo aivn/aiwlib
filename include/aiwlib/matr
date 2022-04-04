@@ -3,10 +3,11 @@
 #define AIW_MATRIX_HPP
 
 /**
- * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2018, 2022 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
+// #include <sstream>
 #include "vec"
 
 namespace aiw{
@@ -39,7 +40,7 @@ namespace aiw{
 		template <typename Q2> CU_HD Matr(const Matr<Y, X, Q2> &M){ for(int y=0; y<Y; y++) for(int x=0; x<X; x++) p[x+y*X] = M(x, y);	}
 
 		
-		CU_HD        Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
+		CU_HD       Q& operator() (int y, int x)        { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		CU_HD const Q& operator() (int y, int x)  const { WASSERT(0<=x && x<X && 0<=y && y<Y, "illegal index: ", x, y, X, Y, sizeof(Q)); return p[x+y*X]; } 
 		CU_HD       Q& operator [] (const Ind<2> &pos)       { return (*this)(pos[0], pos[1]); } 
 		CU_HD const Q& operator [] (const Ind<2> &pos) const { return (*this)(pos[0], pos[1]); } 
@@ -236,6 +237,10 @@ namespace aiw{
 			for(int x=0; x<X; x++) str<<M(y, x)<<'\t';
 			str<<'\n';
 		}
+		return str;
+	}
+	template <int Y, int X, typename Q> std::istream& operator >> (std::istream &str, Matr<Y, X, Q> &M){
+		for(int y=0; y<Y; y++) for(int x=0; x<X; x++) str>>M(y, x);  // тут нужны проверки
 		return str;
 	}
 	//--------------------------------------------------------------------------
