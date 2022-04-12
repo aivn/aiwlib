@@ -34,6 +34,8 @@ namespace aiw{
 #else   //AIW_WIN32
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(rand()+1.)))*cos(rand_alpha2PI*rand()); }
 	inline double rand_gauss(unsigned int &seed){ return rand_gauss(); }
+	//inline void sincos(double x, double *s, double *c){ *s = sin(x); *c = cos(x); }
+	inline void sincosf(float x, float *s, float *c){ *s = sinf(x); *c = cosf(x); }
 #endif  //AIW_WIN32
 
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }

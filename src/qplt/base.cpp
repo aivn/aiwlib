@@ -4,10 +4,21 @@
  **/
 
 #include <algorithm>
+//#include <cmath>
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
 #include "../../include/aiwlib/iostream"
+#include "../../include/aiwlib/gauss"
 using namespace aiw;
+
+# ifdef min
+# undef min
+# endif
+
+# ifdef max
+# undef max
+# endif
+
 
 //------------------------------------------------------------------------------
 void aiw::qplt_global_init(){

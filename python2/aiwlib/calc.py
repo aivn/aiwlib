@@ -141,7 +141,7 @@ class Calc:
         raise AttributeError(attr)
     #---------------------------------------------------------------------------
     def commit(self): 
-        'Сохраняет содержимое расчета в базе' 
+        'Сохраняет содержимое расчета в базе'
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
         cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
@@ -204,7 +204,7 @@ class Calc:
             for k, v in X.items():
                 if not k in ignore_list and type(v) in (int,float,long,bool): self[k] = v
         else:
-            for k in X.__dict__.keys()+getattr(X, '__swig_getmethods__', {}).keys():
+            for k in X.__dict__.keys()+getattr(X, '__swig_getmethods__', {}).keys()+filter(lambda k: type(getattr(X.__class__, k, None)) is property, dir(X)):
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
