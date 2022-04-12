@@ -153,7 +153,7 @@ class Canvas(QtWidgets.QWidget):
         h_font = text_sz('1', paint, True)
 
         # рисуем титул
-        try: ttl = win.title_text.text().format(**get_params(win.filenum.value()))
+        try: ttl = win.title_text.text().format(head=self.container.get_head().decode(), **get_params(win.filenum.value()))
         except Exception as e: print("Can't format title", e.__class__.__name__, e); ttl = win.title_text.text()
         if ttl: paint.drawText(0, 0, sz_x, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, ttl); y0 = h_font*2
         
@@ -192,7 +192,8 @@ class Canvas(QtWidgets.QWidget):
             x0, y1, plotter, extend = 0, sz_y, self.plotter, [0]*4
             plotter.set_image_size([x0,y0], [x1,y1])
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw))
-            axis_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(), getattr(win, '%s_text'%'xyz'[axe]).text()) for axe in (0,1,2)]
+            axis_modes = [(axe, getattr(win, '%stics3D'%'xyz'[axe]).currentIndex(),
+                           getattr(win, '%s_text'%'xyz'[axe]).text().format(axe=self.container.get_axe(self.axisID[axe]).decode())) for axe in (0,1,2)]
             
             for i in range(plotter.flats_sz()):
                 f = plotter.get_flat(i)

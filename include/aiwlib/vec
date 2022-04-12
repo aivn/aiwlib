@@ -57,7 +57,9 @@ namespace aiw{
 		CU_HD T& operator [] (int i) { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range: ", D, sizeof(T), i); 
 			return p[i]; 
-		} 
+		}
+		CU_HD T  at(int i) const { return p[i]; }
+		CU_HD T& at(int i)       { return p[i]; }
 		
 		CU_HD Vec operator -() const { Vec res; for(int i=0; i<D; i++) res.p[i] = -p[i]; return res; }
 		CU_HD Vec operator +() const { Vec res; for(int i=0; i<D; i++) res.p[i] = +p[i]; return res; }

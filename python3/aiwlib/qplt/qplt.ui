@@ -2004,7 +2004,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>title</string>
+         <string>{head}</string>
         </property>
        </widget>
        <widget class="QLabel" name="label_14">
@@ -2043,7 +2043,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>xlabel</string>
+         <string>{axe}</string>
         </property>
        </widget>
        <widget class="QLineEdit" name="y_text">
@@ -2056,7 +2056,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>ylabel</string>
+         <string>{axe}</string>
         </property>
        </widget>
        <widget class="QLineEdit" name="z_text">
@@ -2069,7 +2069,7 @@
          </rect>
         </property>
         <property name="text">
-         <string>zlabel</string>
+         <string>{axe}</string>
         </property>
        </widget>
        <widget class="QLabel" name="label_16">

@@ -1,0 +1,247 @@
+// -*- C++ -*-
+#ifndef AIW_MESH_IMPL_HPP
+#define AIW_MESH_IMPL_HPP
+
+/**
+ * Copyright (C) 2016-17, 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * Mesh methods implementation.
+ * !!! DO NOT INCLUDE THIS FILE MANUALLY !!!
+ **/
+
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A> size_t  Mesh<T, D, A>::sz_init(const aiw::Ind<D> &box_){ // box and mul init, not allocate memory 		  
+	box = box_; box.prod(sz); mul[0] = sizeof(T); 
+	for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+	return sz;
+}
+//------------------------------------------------------------------------------
+/*
+  void dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
+  int h_sz = head.size()+5+D*16+sizeof(T); if((12+4*D+h_sz)%64) h_sz += 64-(12+4*D+h_sz)%64;			
+  char h[h_sz]; for(int i=0; i<h_sz; i++) h[i] = 0; // for old gcc versions
+  memcpy(h, head.c_str(), head.size()); memcpy(h+h_sz-4-D*16-sizeof(T), &out_value, sizeof(T));
+  memcpy(h+h_sz-4-D*16, &bmin, D*8); memcpy(h+h_sz-4-D*8, &bmax, D*8); memcpy(h+h_sz-4, &logscale, 4);
+  S<h_sz; S.write(h, h_sz); S<D<int(sizeof(T))<box;
+  for(Ind<D> pos; pos^=box; ++pos) S<(*this)[pos]; // S.write(&(*this)[pos], sizeof(T));
+  S.flush();
+  }
+*/
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A> void Mesh<T, D, A>::dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
+	BinaryHead bh; this->push(bh); bh.type = BinaryHead::mesh; bh.szT = sizeof(T);  
+	// #ifdef AIW_TYPEINFO
+	//	bf.tinfo.root = T()^bf.tinfo; 
+	//#endif //AIW_TYPEINFO
+	bh.dump(S); for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); // <== это можно оптимизировать!!!
+	S.flush(); 
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A>
+bool Mesh<T, D, A>::load(aiw::IOstream &&S, int use_mmap, bool raise_on_error, int align){ // mmap = 0 - not use, 1 - readonly, 2 - rw
+	size_t s0 = S.tell();  BinaryHead bh;  if(!bh.load(S)) return false;
+	if(bh.type!=BinaryHead::mesh || bh.szT!=sizeof(T) || bh.dim!=D){
+		if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, bh.dim, sizeof(T), bh.szT, bh.type, BinaryHead::mesh, S.name, S.tell(), bh.head); }
+		S.seek(s0); return false;
+	}
+	this->pull(bh);  box.prod(sz); size_t s = S.tell(); 
+	if(__has_trivial_copy(T)){
+		if(use_mmap){ sz_init(box); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+		else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); S.read(ptr, sz*sizeof(T)); }
+	} else { ptr = init_mem_ptr<T>(mem, sz_init(box), align); for(Ind<D> pos; pos^=box; ++pos) S.load((*this)[pos]); }
+	if(!use_mmap && S.tell()-s!=sizeof(T)*sz){ S.seek(s0); WRAISE("incorrect Mesh::load() ", D, sizeof(T), S.name, head, box, S.tell()-s, sizeof(T)*sz); }
+	
+	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
+	if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))){ Vec<D> bmin_, bmax_, step_; T ov;  S.load(bmin_, bmax_, step_, ov); logscale = 0; bmin = bmin_; bmax = bmax_;  } 
+	else  S.seek(s); 
+	for(int i=0; i<D; i++) this->set_step(i);
+	return true;
+}
+//------------------------------------------------------------------------------
+/*
+		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0){ // mmap = 0 - not use, 1 - readonly, 2 - rw
+			std::string h; int rD=-1, szT=-1;  size_t s = S.tell(); S>h>rD>szT;
+			if(S.tell()-s!=12+h.size()){ S.seek(s); return false; }
+			if(rD!=D || szT!=sizeof(T)){ 
+				S.seek(s); 
+				if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, rD, sizeof(T), szT, S.name, S.tell(), h); }
+				else return false;
+			}
+			head = h.c_str(); Ind<D> box_; S>box_;
+			if(__has_trivial_copy(T)){
+				if(use_mmap){ sz_init(box_); mem = S.mmap(sz*sizeof(T), use_mmap-1); ptr = mem->get_addr(); }
+				else { init(box_, align); S.read(ptr, sz*sizeof(T)); }
+			} else { init(box_, align); for(Ind<D> pos; pos^=box_; ++pos) S>(*this)[pos]; }
+			size_t true_read_sz = 12+h.size()+D*4+sz*szT, real_read_sz = S.tell()-s;
+			if(!use_mmap && true_read_sz!=real_read_sz){ S.seek(s); WRAISE("incorrect Mesh::load() ", D, rD, sizeof(T), szT,
+																		   S.name, head, box, true_read_sz, real_read_sz); }
+			
+			Vec<D> bmin_, bmax_=box_, step_; int logscale_=0; s = S.tell(); int sz2=0; S>sz2;
+			if(S.tell()-s==4 && sz2==-int(D*24+4+sizeof(T))) S>bmin_>bmax_>step_>out_value; // old aivlib mesh format (deprecated)
+			else{ // current aiwlib format
+				S.seek(s);
+				if(h.size()>head.size()+4+D*16+sizeof(T)){
+					int i = head.size(), i0 = h.size()-(4+D*16+sizeof(T)); while(i<i0 && h[i]==0) i++;
+					if(i==i0){
+						memcpy(&out_value, h.c_str()+i0, sizeof(T)); i0 += sizeof(T); 
+						memcpy(&bmin_, h.c_str()+i0, D*8); i0 += D*8;
+						memcpy(&bmax_, h.c_str()+i0, D*8); i0 += D*8;
+						memcpy(&logscale_, h.c_str()+i0, 4);
+					}
+				}
+			}
+			this->set_axis(bmin_, bmax_, logscale_);
+			return true;
+		}
+*/
+//------------------------------------------------------------------------------
+/*
+		inline aiw::Ind<D> inbox(size_t offset) const {
+			Ind<D> pos;
+			for(int i=0; i<D; i++){
+				int a = axis[i]; pos[a] = offset%box[a];
+				if(mul[a]<0) pos[a] = box[a]-pos[a]-1;
+				offset /= box[a];
+			}
+			return pos;
+			}
+		inline aiw::Ind<D> first() const { Ind<D> pos; for(int i=0; i<D; i++) if(mul[i]<0) pos[i] = box[i]-1; return pos; }
+		inline bool next(aiw::Ind<D> &pos) const {
+			for(int i=0; i<D; i++){
+				int a = axis[i]; 
+				if(mul[a]>0){
+					if(++(pos[a])<box[a]) return true;
+					pos[a] = 0;
+				} else {
+					if(--(pos[a])>=0) return true;
+					pos[a] = box[a]-1; 
+				}
+			}				
+			return false;
+			}
+*/
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A>  template <typename T2, int D2, typename A2>
+void Mesh<T, D, A>::set_axe(int a, const Mesh<T2, D2, A2> &M, int m){ // ???
+	mul[a] = M.mul[m]; box[a] = M.box[m]; axis[a] = M.axis[m]; mul[a] = M.mul[m];
+	bmin[a] = M.bmin[m]; bmax[a] = M.bmax[m]; step[a] = M.step[m]; rstep[a] = M.rstep[m];
+	if(M.logscale&1<<m) logscale |= 1<<a; else logscale &= ~(1<<a);
+	if(M.periodic&1<<m) periodic |= 1<<a; else periodic &= ~(1<<a);
+	interp &= ~(0xF<<(4*(D-a-1))); interp |= M.interp&(0xF<<(4*(D-m-1)));
+}
+template <typename T, int D, typename A>  Mesh<T, D, A> Mesh<T, D, A>::crop(aiw::Ind<D> a, aiw::Ind<D> b, aiw::Ind<D> d) const {
+	Mesh M(*this); 
+	for(int i=0; i<D; i++){
+		if(a[i]<0){ a[i] += box[i]; } if(b[i]<=0){ b[i] += box[i]; }
+		WASSERT(0<=a[i] && a[i]<box[i] && 0<=b[i] && b[i]<box[i] && a[i]<b[i], "oops...", i, a, b, box);
+		M.box[i] = (b[i]-a[i]-1)/d[i]+1;
+		if(logscale&1<<i){ 
+			M.bmin[i] = bmin[i]*pow(step[i], a[i]); M.step[i] = pow(step[i], d[i]); 
+			M.bmax[i] = M.bmin[i]*pow(M.step[i], M.box[i]);
+			M.rstep[i] = exp(log(M.bmax[0]/M.bmin[0])/M.box[i]);
+		} else {
+			M.bmin[i] = bmin[i]+step[i]*a[i]; M.step[i] *= d[i]; 
+			M.bmax[i] = M.bmin[i]+M.step[i]*M.box[i]; M.rstep[i] /= d[i];
+		}
+	}
+	M.mul = mul&d; M.ptr = (char*)ptr + mul*a;
+	return M;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A>  template <class T2, int D2>
+Mesh<T2, D2, A> Mesh<T, D, A>::slice(Ind<D> pos, size_t offset_in_cell) const {
+	if(!ptr) WRAISE("can't make slice from empty Mesh", pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+	int n = 0; Mesh<T2, D2> M;
+	for(int i=0; i<D; i++)
+		if(pos[i]==-1){  
+			if(n>=D2) WRAISE("too many -1 values in pos:", i, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+			M.set_axe(n, *this, i); pos[i] = 0; n++;
+		} else if(pos[i]<0 || box[i]<=pos[i])
+			WRAISE("pos out of range:", i, pos, sizeof(T), D, sizeof(T2), D2, box, offset_in_cell);
+	if(n!=D2) WRAISE("too small -1 values in pos:", n, pos, box, sizeof(T), D, sizeof(T2), D2, offset_in_cell);
+	M.mem = mem; M.ptr = (char*)ptr+mul*pos+offset_in_cell; M.box.prod(M.sz);
+	return M;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A> template <int DV>
+Mesh<Vec<DV, T>, D-1, A> Mesh<T, D, A>::vectorize(int axe) const {
+	if(DV!=box[axe]) WRAISE("incorrect Mesh bbox[axe] for vectorize", D, sizeof(T), axe, DV, box);
+	Mesh<Vec<DV, T>, D-1> M; for(int i=0, j=0; i<D; i++) if(i!=axe) M.set_axe(j++, *this, i);
+	M.mem = mem; M.ptr = ptr; M.box.prod(M.sz);
+	return M;
+}
+//------------------------------------------------------------------------------
+/*
+template<int P> const T& periodic_bc(Ind<D> pos) const {
+			for(int i=0; i<D; i++) if(P&(1<<i)){
+					while(pos[i]<0) pos[i] += box[i];
+					if(pos[i]>=box[i]) pos[i] %= box[i];
+				}
+			return get(pos);
+		}
+		template<int P> T& periodic_bc(Ind<D> pos){ return (T&)(((const Mesh*)this)->periodic_bc<P>(pos)); }
+*/
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A> template <typename S>
+void Mesh<T, D, A>::out2dat_impl(S &&str, aiw::Ind<D> coords, const char* prefix) const { // , aiw::Ind<D> order=Ind<D>() ???
+	Ind<D> B1 = box, B2 = box; int nl_id = -1;
+	for(int i=0; i<D; i++){ 
+		if(coords[i]==4) coords[i] = 0;
+		if(coords[i]==0 && B1[i]) B1[i] = 1; else B2[i] = 1; 
+		if(nl_id==-1 && coords[i]&3 && !(coords[i]&4)) nl_id = i;
+	}
+			// WOUT(box, coords, B1, B2, nl_id);
+	for(Ind<D> pos; pos^=B1; ++pos){
+		if(prefix) str<<prefix<<" ";
+		Vec<D> r = this->pos2coord(pos);
+		for(int i=0; i<D; i++) if(coords[i] && (coords[i]&3)!=3){ if(coords[i]&1) str<<pos[i]<<" "; else str<<r[i]<<" "; }
+		for(Ind<D> pos2; pos2^=B2; ++pos2) str<<(*this)[pos+pos2]<<" ";
+		str<<"\n"; if(nl_id!=-1 && pos[nl_id]==box[nl_id]-1) str<<"\n";
+	}
+	str.flush();
+}
+//------------------------------------------------------------------------------
+/*
+#ifndef SWIG		
+		void fill(aiw::IOstream &&S){
+			std::string h; int rD, szT; Ind<D> b; size_t s = S.tell(); S>h>rD>szT>b;
+			if(rD!=D || szT!=sizeof(T)){ S.seek(s); WRAISE("incorrect Mesh fill ", D, sizeof(T), S.name, rD, szT, b, s); }
+			Ind<D> up = b<<box, m; s = S.tell();
+			m[0] = sizeof(T); for(int i=1; i<D; ++i) m[i] = m[i-1]*b[i-1]; 
+			for(Ind<D> pos; pos^=up; ++pos){
+				if(pos[0]==0) S.seek(s+m*pos);
+				S.read(&(*this)[pos], sizeof(T));
+			}
+		}
+#endif //SWIG
+		void fill(aiw::IOstream &S){ fill(std::move(S)); }
+*/
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A>  std::string Mesh<T, D, A>::__getstate__() const { // переписать через dump/load?
+	std::stringstream buf;
+	uint32_t h_sz = head.size(); buf.write((const char*)&h_sz, sizeof(h_sz)); buf<<head;
+	buf.write((const char*)&box, sizeof(box));          
+	T ov; buf.write((const char*)&ov, sizeof(ov));
+	buf.write((const char*)&bmin, sizeof(bmin));
+	buf.write((const char*)&bmax, sizeof(bmax));
+	buf.write((const char*)&logscale, sizeof(logscale));
+	for(Ind<D> pos; pos^=box; ++pos) buf.write((const char*)&at(pos), sizeof(T));
+	return buf.str();
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, typename A>  void Mesh<T, D, A>::__C_setstate__(const std::string &state){
+	std::stringstream buf(state);
+	uint32_t h_sz = head.size(); buf.read((char*)&h_sz, sizeof(h_sz)); 
+	head.resize(h_sz); buf.read(&(head[0]), h_sz); // ???
+	Ind<D> box_; Vec<D> bmin_, bmax_; int logscale_; 
+	buf.read((char*)&box_, sizeof(box));          
+	T ov; buf.read((char*)&ov, sizeof(ov));
+	buf.read((char*)&bmin_, sizeof(bmin));
+	buf.read((char*)&bmax_, sizeof(bmax));
+	buf.read((char*)&logscale_, sizeof(logscale));
+	init(box_, bmin_, bmax_, logscale_);
+	for(Ind<D> pos; pos^=box; ++pos) buf.read((char*)&at(pos), sizeof(T));
+}
+//------------------------------------------------------------------------------
+#endif //AIW_MESH_IMPL_HPP

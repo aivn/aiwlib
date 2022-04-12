@@ -2,6 +2,7 @@
 # Licensed under the Apache License, Version 2.0
 
 from math import *
+import sys
 #-------------------------------------------------------------------------------
 def text_sz(text, paint, vertical=-1):
     rect = paint.boundingRect(0, 0, 1000, 1000, 0, text)
@@ -24,11 +25,13 @@ tic_pos задаются как (x,y) с выравниванием по умо�
 extend --- (d_left, d_top, d_right, d_bottom) - то насколько необходимо расширить изображение за счет тиков (все со знаком +)
 tic_line --- кортежи (x1, y1, x2, y2), координаты отрезков
 '''
+    if limits[0]==limits[1]: print('bad limits for axe', label, limits, file=sys.stderr); limits = (limits[0]-1, limits[1]+1) 
     AB = _sub(B, A); lAB = _abs(AB)
     if not lAB: return [], [0]*4, [], None
     d = -AB[1]/lAB*tic_len, AB[0]/lAB*tic_len   
     if _mul(d, _sub(C, A))>0: d = -d[0], -d[1]    
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
+    #if not ticsL: return [], (0,)*4, [], ((A[0]+B[0])/2, (A[1]+B[1])/2)  #<<< более точно возврщать позицию метки и extend
     textL = [num2strL(L, logscale) for L in ticsL]    # текстовые представления
     tszX = [sum(text_sz(t, paint, False) for t in L) for L in textL] # суммарные размеры тиков по X
     tszY = [sum(text_sz(t, paint, True)  for t in L) for L in textL] # суммарные размеры тиков по Y
@@ -119,6 +122,7 @@ def calc_tics_normalscale(a, b, h):
 def calc_tics(a, b, logscale):
     'принимает границы диапазона и тип шкалы, возвращает несколько вариантов расстановки тиков парами'
     #if b<a: a, b = b, a
+    if a==b: return []
     if logscale:
         A0, B, res = 10**floor(log10(a)), 10**ceil(log10(b)), []
         for n in range(1, 5):
