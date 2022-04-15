@@ -2505,7 +2505,7 @@
       <rect>
        <x>70</x>
        <y>0</y>
-       <width>91</width>
+       <width>71</width>
        <height>25</height>
       </rect>
      </property>
@@ -2513,7 +2513,7 @@
       <string>start/stop animation</string>
      </property>
      <property name="text">
-      <string>animate</string>
+      <string>movie</string>
      </property>
      <property name="checkable">
       <bool>false</bool>
@@ -2522,14 +2522,27 @@
     <widget class="QComboBox" name="animate_type">
      <property name="geometry">
       <rect>
-       <x>160</x>
+       <x>170</x>
        <y>0</y>
-       <width>101</width>
+       <width>91</width>
        <height>27</height>
       </rect>
      </property>
      <property name="toolTip">
       <string>animation by frames/files/slices etc.</string>
+     </property>
+    </widget>
+    <widget class="QLineEdit" name="animate_step">
+     <property name="geometry">
+      <rect>
+       <x>140</x>
+       <y>0</y>
+       <width>31</width>
+       <height>27</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>0.1</string>
      </property>
     </widget>
    </widget>

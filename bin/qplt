@@ -28,7 +28,9 @@ usage: qplt options and files
 
 #export QT_SCREEN_SCALE_FACTORS=2
 
-
+# save_animate, animate - check-box
+# animate_type - combo-box
+# animate_step - line-edit
 
 #--- import modules ------------------------------------------------------------
 import os, sys
@@ -103,6 +105,7 @@ win.resizeEvent = canvas.full_replot #???
 #win.mouseReleaseEvent = release
 
 #for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split(): getattr(win, l).setValidator(QtGui.QDoubleValidator())
+win.animate_step.setValidator(QtGui.QDoubleValidator())
 for l in 'pal_space pal_width tics_width tics_length border_width arr_length arr_width offset0 offset1 offset2'.split():
     getattr(win, l).setValidator(QtGui.QIntValidator())
 def_values = [(l, getattr(win, l).text(), float) for l in 'f_min f_max arr_spacing D3cell_x D3cell_y D3cell_z pal_height'.split()]  + \
@@ -139,6 +142,7 @@ for i in 'density opacity mingrad'.split(): getattr(win, i).valueChanged.connect
 win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() if win.show_settings.isChecked() else win.settings_frame.hide())
 
 for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(canvas.replot)
+win.animate.stateChanged.connect(canvas.animate)
 
 def autoscale(*args):
     for l in (win.f_min, win.f_max): l.setReadOnly(win.autoscale.isChecked())    

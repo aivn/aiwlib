@@ -1,5 +1,5 @@
 # -*- mode: Python; coding: utf-8 -*-
-'''Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+'''Copyright (C) 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 Licensed under the Apache License, Version 2.0'''
 
 __all__ = ['factory', 'Connect']

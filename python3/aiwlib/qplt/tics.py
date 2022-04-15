@@ -1,4 +1,4 @@
-# Copyright (C) 2017,2020-21 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+# Copyright (C) 2017,2020-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 # Licensed under the Apache License, Version 2.0
 
 from math import *

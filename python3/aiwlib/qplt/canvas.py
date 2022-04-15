@@ -1,5 +1,5 @@
 # -*- mode: Python; coding: utf-8 -*-
-'''Copyright (C) 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+'''Copyright (C) 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 Licensed under the Apache License, Version 2.0'''
 
 from PyQt5 import QtWidgets, QtGui, QtCore
@@ -23,10 +23,15 @@ class Canvas(QtWidgets.QWidget):
                               for i in os.listdir(os.path.dirname(__file__)+'/pals') if i[-4:]=='.ppm')
         self.old_pal, self.D3tmask, self.pals_sz = None, 0, dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
         self.touch_timer, self.touch_mode = QtCore.QTimer(self), 0; self.touch_timer.timeout.connect(self.touch_replot)
+        self.movie_timer, self.movie_mode = QtCore.QTimer(self), 0; self.movie_timer.timeout.connect(self.movie_replot)
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
     def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
+    #--------------------------------------------------------------------------
+    def animate(self):
+        if self.win.animate.isChecked(): self.movie_timer.start(int(float(self.win.animate_step.text())*1e3)); self.movie_mode = True
+        else: self.movie_timer.stop(); self.movie_mode = True
     #--------------------------------------------------------------------------
     def autopos(self, axe): return bool(self.faai&(1<<(6+2*axe)))
     def autopos_on(self, axe):  self.faai |=   1<<(6+2*axe)  #; print('ON', axe, self.autopos(axe), self.axisID)
@@ -77,8 +82,15 @@ class Canvas(QtWidgets.QWidget):
         for i in range(self.container.get_dim()):
             sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
             sl.setValue(0 if self.autopos(i) else min(max(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
-        for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()            
+        for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()
         self.show_axis_info()
+
+        animate_type = win.animate_type.currentText(); win.animate_type.clear()  # не индекс а текст!!!
+        D3 = win.D3.currentIndex()*(self.container.get_dim()>2)
+        win.animate_type.addItems(['file']*(table_size()>1)+['frame']*(fsz>1)+
+                                  [self.container.get_axe(i).decode() for i in range(self.container.get_dim()) if not i in self.axisID[:2+D3] ])
+        win.animate_type.setCurrentText(animate_type)
+        
         self.replot()
         if self.container.touch_mode and (self.container.touch_mode[0]==1 or win.framenum.value()+1==fsz):
             self.touch_mode = self.container.touch_mode; self.touch_timer.start(int(self.container.touch_mode[1]*1e3))
@@ -103,6 +115,10 @@ class Canvas(QtWidgets.QWidget):
                 #self.update()
                 self.full_replot()
         self.touch_mode = touch_mode
+    #--------------------------------------------------------------------------
+    def movie_replot(self):
+        animate_type = self.win.animate_type.currentText()
+        
     #--------------------------------------------------------------------------
     def slice_replot(self, pos, axe):
         #print('slice_replot',  pos, axe)
