@@ -12,6 +12,15 @@
 #include "cuda"
 #endif //SWIG
 
+# ifdef max
+# undef max
+# endif
+
+# ifdef min
+# undef min
+# endif
+
+
 #ifdef SWIG
 namespace aiw{
 	template <int D, typename T=double> struct Vec{	T p[D]; };
@@ -398,7 +407,7 @@ namespace aiw{
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
 	template <int D, typename T> std::istream& operator >> (std::istream &s, Vec<D, T> &v){	
-		for(int i=0; i<D; i++){ s>>v[i]; if(i<D-1 and s.get()!=',') s.unget(); } return s;
+		for(int i=0; i<D; i++){ s>>v[i]; if(i<D-1 && s.get()!=',') s.unget(); } return s;
 	}	
 #ifdef AIW_IOSTREAM_HPP
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){

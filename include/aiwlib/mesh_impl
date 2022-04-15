@@ -40,7 +40,7 @@ template <typename T, int D, typename A> void Mesh<T, D, A>::dump(aiw::IOstream 
 //------------------------------------------------------------------------------
 template <typename T, int D, typename A>
 bool Mesh<T, D, A>::load(aiw::IOstream &&S, int use_mmap, bool raise_on_error, int align){ // mmap = 0 - not use, 1 - readonly, 2 - rw
-	size_t s0 = S.tell();  BinaryHead bh;  if(!bh.load(S)) return false;
+	size_t s0 = S.tell();  BinaryHead bh;  if(!bh.load(S)) return false; 
 	if(bh.type!=BinaryHead::mesh || bh.szT!=sizeof(T) || bh.dim!=D){
 		if(raise_on_error){ WRAISE("incorrect Mesh::load(): ", D, bh.dim, sizeof(T), bh.szT, bh.type, BinaryHead::mesh, S.name, S.tell(), bh.head); }
 		S.seek(s0); return false;

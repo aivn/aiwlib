@@ -4,10 +4,21 @@
  **/
 
 #include <algorithm>
+//#include <cmath>
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
 #include "../../include/aiwlib/iostream"
+#include "../../include/aiwlib/gauss"
 using namespace aiw;
+
+# ifdef min
+# undef min
+# endif
+
+# ifdef max
+# undef max
+# endif
+
 
 //------------------------------------------------------------------------------
 void aiw::qplt_global_init(){
@@ -223,16 +234,34 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 //------------------------------------------------------------------------------
 //   factory
 //------------------------------------------------------------------------------
+namespace aiw {
+	void load_frames_impl(IOstream &fin, int frame,	std::vector<QpltContainer*> &res){  
+		try{
+			while(1){
+				QpltMesh *msh = new QpltMesh;
+				if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh);  }
+				else { delete msh; break; }
+			}
+		} catch(...) {}
+	}
+} 
+//------------------------------------------------------------------------------
 std::vector<QpltContainer*> aiw::factory(const char *fname){  // поддержка GZ файлов?
-	std::vector<QpltContainer*> res;
-	try{
-		File fin(fname, "rb"); int frame = 0;
-		while(1){
-			QpltMesh *msh = new QpltMesh;
-			if(msh->load(fin)){ msh->frame_ = frame++; res.push_back(msh); }
-			else { delete msh; break; }
-		}
-	} catch(...) {}
+	std::vector<QpltContainer*> res; 
+	try{ File fin(fname, "rb"); load_frames_impl(fin, 0, res); } catch(...) {}
+	return res;
+}
+//------------------------------------------------------------------------------
+std::vector<QpltContainer*> aiw::QpltContainer::load_next_frames(){
+	std::vector<QpltContainer*> res; 
+	try{ fin->seek(0); fin->seek(end_offset); load_frames_impl(*fin, frame_+1, res); } catch(...) {}
+	// std::cerr<<"load_nex_frames--> "<<res.size()<<'\n';
+	return res;
+}
+//------------------------------------------------------------------------------
+std::vector<QpltContainer*> aiw::QpltContainer::reload_all_frames(){
+	std::vector<QpltContainer*> res; 
+	try{ fin->seek(0); load_frames_impl(*fin, 0, res); } catch(...) {}
 	return res;
 }
 //------------------------------------------------------------------------------

@@ -17,7 +17,6 @@
 #include <tuple>
 #include <cmath>
 #include <sys/types.h>
-#include <unistd.h>
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -89,6 +88,7 @@ namespace aiw{
 }  // end of namespace aiw 
 
 #ifndef AIW_WIN32		
+#include "unistd.h"
 #ifdef EBUG
 #   define WSTR(out, args...) { out<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "; \
 		aiw::debug_out(out, #args, args); out<<"\n"; }
@@ -147,4 +147,14 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 #define WASSERT(...)
 #define WRAISE(...)
 #endif //__NVCC__
+
+# ifdef max
+# undef max
+# endif
+
+# ifdef min
+# undef min
+# endif
+
+
 #endif //AIW_DEBUG_HPP

@@ -59,7 +59,7 @@ void aiw::BinaryHead::dump(aiw::IOstream &S, int align) const {
 //------------------------------------------------------------------------------
 bool aiw::BinaryHead::load(aiw::IOstream &S){  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
 	start_offset = S.tell();
-	std::string h; int32_t dim_, szT_;  if(!S.load(h, dim_, szT_)){ S.seek(start_offset); return false; }
+	std::string h; int32_t dim_, szT_;  if(!S.load(h, dim_, szT_)){ S.seek(start_offset);  return false; }
 
 	szT = szT_;
 	if(dim_==0){ type = sphere; dim = 2; }
