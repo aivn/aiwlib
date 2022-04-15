@@ -1,11 +1,39 @@
 #!/usr/bin/python3
-# Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
-# Licensed under the Apache License, Version 2.0
+'''qplt --- мультиформатный кроссплатформенный 3D вьювер с клиент-серверной архитектурой.
+Copyright (C) 2021-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+Licensed under the Apache License, Version 2.0
+
+usage: qplt options and files
+
+ [[user@]host[/port]:]path --- открывает для просмотра файл path на сервере host                               
+  [user@]host[/port]:      --- задает сервер host для всех следующих файлов, см.
+                               дополнительно ~/.qplt и ~/.ssh/config
+                    :      --- задает localhost в качестве сервера для всех следующих файлов
+
+ -f<PATH>   --- открывает файл <PATH> содержащий список словарей в формате json.
+                Каждый словарь должен содержать запись с ключем 'file' задающую
+                путь к открываемому файлу aiwlib, сотальные записи словаря трактуются 
+                как параметры и могут использоваться в заголовке изображения
+ -t[<NUM>]  --- указывает, что следующий файл (только один) трактуется как
+                временный. Если один из фреймов файла открыт для просмотра, 
+                то он будет перечитываться каждые <NUM> секунд (по умолчанию 0.5).
+ -T[<NUM>]  --- указывает, что следующий файл (только один) трактуется как
+                дописываемый. Если последний фрейм файла открыт для просмотра, 
+                то каждые <NUM> секунд (по умолчанию 0.5) будет предприприниматься 
+                попытка прочитать и открыть для просмотра следующий фрейм.
+ -m<NUM>    --- задает ограничение для менеджера памяти в GB. Для данного 
+                хоста действует только первый вызов опции  
+ [-]-h[elp] --- показать эту справку и выйти.
+'''
 
 #export QT_SCREEN_SCALE_FACTORS=2
 
+
+
 #--- import modules ------------------------------------------------------------
 import os, sys
+
+if '-h' in sys.argv or '--h' in sys.argv or '-help' in sys.argv or '--help' in sys.argv: print(__doc__); exit()
 
 try:
     conf = dict([l.strip().split(' ', 1) for l in open(os.path.expanduser('~/.qplt')) if l[0]!='#' and len(l.split())>=2])

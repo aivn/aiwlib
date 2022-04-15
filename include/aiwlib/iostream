@@ -3,7 +3,7 @@
 #define AIW_IOSTREAM_HPP
 
 /**
- * Copyright (C) 2016, 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016, 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -33,7 +33,7 @@ namespace aiw { class IOstream{
 #include <stdarg.h>
 
 // #include <sys/types.h>
-// #include <sys/stat.h>
+#include <sys/stat.h>
 // #include <unistd.h>
 
 #include "binaryio"
@@ -138,6 +138,8 @@ namespace aiw{
 			}
 			return *this; 
 		}
+		virtual int fileno() const { return -1; }
+		virtual bool check_update() { return true; }  // ???
 	};
 	//--------------------------------------------------------------------------
 #ifdef AIW_VEC_HPP
@@ -162,6 +164,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class File: public IOstream{
 		std::shared_ptr<FILE> pf;
+		timespec last_mtime;
 	public:
 		File(){}
 		File(FILE *f){ pf.reset(f, [](FILE*){}); }
@@ -172,8 +175,8 @@ namespace aiw{
 			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);
 			if(!f) WRAISE("cannot open file", path.str(), mode);
 			name = path.str(); pf.reset(f, ::fclose);
-			// if(mode[0]=='r'){ struct stat st; fstat(fileno(f), &st); max_sz = st.st_size; } else max_sz = -1;
-			if(mode[0]=='r'){ ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); } else max_sz = -1;
+			struct stat st; fstat(::fileno(f), &st); last_mtime = st.st_mtim; max_sz = mode[0]=='r'? st.st_size: -1;
+			// if(mode[0]=='r'){ ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); } else max_sz = -1;
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
 #endif //SWIG
@@ -196,7 +199,14 @@ namespace aiw{
 			int r = vfprintf(pf.get(), format, args);
 			va_end(args);
 			return r;
-		}		
+		}
+		int fileno() const { return ::fileno(pf.get()); }
+		bool check_update(){
+			struct stat st; fstat(::fileno(pf.get()), &st);
+			bool res = last_mtime.tv_sec==st.st_mtim.tv_sec && last_mtime.tv_nsec==st.st_mtim.tv_nsec; 
+			last_mtime = st.st_mtim;  if(max_sz>=0) max_sz = st.st_size;
+			return res;
+		}
 	};	
 	//--------------------------------------------------------------------------
 	//   Wrap std::iostream

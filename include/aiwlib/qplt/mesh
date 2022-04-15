@@ -32,7 +32,7 @@ namespace aiw{
 		friend class QpltMeshPlotter;
 	public:
 		bool load(IOstream &);
-
+		~QpltMesh(){ data_free(); }
 	protected:
 		QpltPlotter* mk_plotter(int mode) override;
 	};

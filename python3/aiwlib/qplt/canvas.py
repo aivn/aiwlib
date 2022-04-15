@@ -22,6 +22,7 @@ class Canvas(QtWidgets.QWidget):
         self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i))
                               for i in os.listdir(os.path.dirname(__file__)+'/pals') if i[-4:]=='.ppm')
         self.old_pal, self.D3tmask, self.pals_sz = None, 0, dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
+        self.touch_timer, self.touch_mode = QtCore.QTimer(self), 0; self.touch_timer.timeout.connect(self.touch_replot)
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
@@ -79,6 +80,29 @@ class Canvas(QtWidgets.QWidget):
         for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()            
         self.show_axis_info()
         self.replot()
+        if self.container.touch_mode and (self.container.touch_mode[0]==1 or win.framenum.value()+1==fsz):
+            self.touch_mode = self.container.touch_mode; self.touch_timer.start(int(self.container.touch_mode[1]*1e3))
+        else: self.touch_mode = None;  self.touch_timer.stop()
+    #--------------------------------------------------------------------------
+    def touch_replot(self):
+        #print(self.touch_mode, get_frames_list(self.win.filenum.value()))
+        if not self.touch_mode: return  # видимо не закончилась прошлая отрисовка
+        win, touch_mode, self.touch_mode = self.win, self.touch_mode, None # блокируем дубль отрисовки
+        if self.container.check_change_file():             
+            L = list(self.container.reload_all_frames() if touch_mode[0]==1 else self.container.load_next_frames())
+            #print(len(L), touch_mode) #; os.system('ls -l '+sys.argv[-1])
+            for f in L: f.touch_mode = touch_mode
+            if L and touch_mode[0]==1:
+                L0 = get_frames_list(win.filenum.value())
+                for f in L0: f.free_self()  # ???
+                L0[:] = L; self.full_replot() #???
+            elif L and touch_mode[0]==2:
+                fileID = win.filenum.value(); get_frames_list(fileID).extend(L);
+                win.fr_framenum.show(); fsz = file_size(fileID); win.framenum.setMaximum(fsz-1); win.framenum.setValue(fsz-1)
+                #print('...', fsz)
+                #self.update()
+                self.full_replot()
+        self.touch_mode = touch_mode
     #--------------------------------------------------------------------------
     def slice_replot(self, pos, axe):
         #print('slice_replot',  pos, axe)

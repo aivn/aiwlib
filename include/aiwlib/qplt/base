@@ -3,7 +3,7 @@
 #define AIW_QPLT_BASE_HPP
 
 /**
- * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Copyright (C) 2021-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -27,8 +27,10 @@ namespace aiw{
 		// #ifndef SWIG
 	private:
 		static std::list<QpltContainer*> mem_queue;
+		size_t end_offset; // позиция конца файла
 	protected:
-		friend 	std::vector<QpltContainer*> factory(const char *fname);
+		// friend 	std::vector<QpltContainer*> factory(const char *fname);
+		friend void	load_frames_impl(aiw::IOstream &fin, int frame,	std::vector<QpltContainer*> &res);
 
 		// интерфейс верхнего уровня, эти функции должны вызываться при отрисовке/освобождении контейнера
 		void data_free();    // освобождает память, убирает себя из очереди 
@@ -71,7 +73,7 @@ namespace aiw{
 		float fpos2coord(float fpos, int axe) const;
 		float pos2coord(int pos, int axe) const;
 		int coord2pos(float coord, int axe) const;
-
+		
 		// это ужасно, но я пока не знаю как сделать лучше --- нужно что бы работала альтернативная версия без С++;-(
 		QpltPlotter* plotter( int mode,  // f_opt: 2b autoscale, 1b logscale, 1b модуль
 							  int f_opt, float f_lim[2], const char* paletter, int arr_lw[2], float arr_spacing, int nan_color, 
@@ -83,13 +85,21 @@ namespace aiw{
 	protected:
 		virtual QpltPlotter* mk_plotter(int mode) = 0;		
 	public:
-		virtual ~QpltContainer(){} // data_free(); } 
+		virtual ~QpltContainer(){}
+		void free_self(){ delete this; } // ???
+		
 		// features, seGY и пр?
 		// #ifndef SWIG
 		aiw::Ind<6> get_bbox() const { return bbox; }
 		// void pack(std::ostream&) const;
 		//#endif  // SWIG
+  
+		bool check_change_file(){ return fin->check_update(); }
+		std::vector<QpltContainer*> load_next_frames(); 
+		std::vector<QpltContainer*> reload_all_frames(); 
 	};
+	//--------------------------------------------------------------------------
+	std::vector<QpltContainer*> factory(const char *fname);
 	//--------------------------------------------------------------------------	
 	/*
 	struct QpltGetValue {
@@ -174,8 +184,6 @@ namespace aiw{
 		virtual std::string plot() const = 0; // лучше рисовать в область памяти, но пока что так
 		// virtual std::vector<float> get_line(QpltScene&, QpltAccessor&, int axe, float lpos) = 0; // 0<=lpos<=1 в размерах сцены
 	}; 
-	//--------------------------------------------------------------------------
-	std::vector<QpltContainer*> factory(const char *fname);
 	//--------------------------------------------------------------------------	
 }   // end of namespace aiw
 #endif //AIW_QPLT_BASE_HPP

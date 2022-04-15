@@ -51,8 +51,7 @@ class Connect:
     def load_frames(self, fname):
         self.send('o', fname); N, res = self.recv('i')[0], []
         for i in range(N):
-            szs, L = self.recv('ii'), []
-            for i in range(szs[1]): L.append(QpltContainer(szs[0], i, self))
+            L = _load_frames_from_single_file(self)
             if L: res.append(L)
         return res
     def close(self):
@@ -62,7 +61,7 @@ class Connect:
     #   base protocol
     #---------------------------------------------------------------------------
     def send(self, prefix, *args):
-        #print('>>>', prefix, args)
+        # print('>>>', prefix, args)
         s = b''.join([struct.pack('i', x) if type(x) in (int, bool) else struct.pack('f', x) if type(x) is float else
                       struct.pack('i', len(x))+(bytes(x, 'utf8') if type(x) is str else x) if type(x) in (str, bytes)
                       else struct.pack('i'*len(x), *x)  if type(x[0]) is int else struct.pack('f'*len(x), *x) for x in args])
@@ -70,16 +69,21 @@ class Connect:
         self.cout.write(bytes(prefix, 'utf8')+s); self.cout.flush()
     def recv(self, types): # i, f, s or Xi, Xf for arrays
         try:
-            R, sz = [], None; #print('<<<', types)
+            R, sz = [], None #; print('<<<', types)
             for t in types:
                 if sz: R.append(struct.unpack(t*sz, self.cin.read(4*sz))); sz = None
                 elif t=='i': R.append(struct.unpack('i', self.cin.read(4))[0])
                 elif t=='f': R.append(struct.unpack('f', self.cin.read(4))[0])
                 elif t=='s': R.append(self.cin.read(struct.unpack('i', self.cin.read(4))[0]))
                 else: sz = int(t)
-            #print('<<<', R)
+            # print('<<<', R)
             return R
         except: print('RECV %s FAILED:\n'%self.host, ''.join(self.cerr.readlines()), R); raise
+#-------------------------------------------------------------------------------
+def _load_frames_from_single_file(connect, frameID0=0):
+    szs, L = connect.recv('ii'), []
+    for i in range(szs[1]): L.append(QpltContainer(szs[0], frameID0+i, connect))
+    return L
 #-------------------------------------------------------------------------------
 #   remote container
 #-------------------------------------------------------------------------------
@@ -110,6 +114,10 @@ class QpltContainer:
                            f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 	                   axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep)
         return QpltPlotter(self, self._connect, axisID)
+    def check_change_file(self): self._connect.send('t', self._fileID, self._frameID); return self._connect.recv('i')[0]
+    def load_next_frames(self):  self._connect.send('n', self._fileID, self._frameID); return _load_frames_from_single_file(self._connect, self._frameID+1)        
+    def reload_all_frames(self): self._connect.send('r', self._fileID, self._frameID); return _load_frames_from_single_file(self._connect)
+    def free_self(self): pass
 #-------------------------------------------------------------------------------
 class QpltPlotter: 
     def free(self): self._connect.send('q', self._ID)
