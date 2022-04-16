@@ -3,7 +3,7 @@
 Licensed under the Apache License, Version 2.0'''
 
 from PyQt5 import QtWidgets, QtGui, QtCore
-import os, sys, time
+import os, sys, time, tempfile
 from .factory import *
 from .tics import *
 from .mouse import *
@@ -27,11 +27,19 @@ class Canvas(QtWidgets.QWidget):
         #self.setCursor(QtCore.Qt.BlankCursor)
         self.setMouseTracking(True)
         self.show()
+        #self.movie_path, self.movie_counter = tempfile.TemporaryDirectory(), 0; print('movie_path %r'%self.movie_path.name)
     def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
     #--------------------------------------------------------------------------
     def animate(self):
         if self.win.animate.isChecked(): self.movie_timer.start(int(float(self.win.animate_step.text())*1e3)); self.movie_mode = True
-        else: self.movie_timer.stop(); self.movie_mode = True
+        else: self.movie_timer.stop(); self.movie_mode = False
+    def save_animate(self):
+        if self.win.save_animate.isChecked(): self.movie_path, self.movie_counter = tempfile.TemporaryDirectory(), 0; print('movie_path %r'%self.movie_path.name)
+        else: 
+            path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Movie (%i frames) As...'%self.movie_counter, filter='Movie (*.mp4)')
+            if ok:
+                if not path.endswith('.mp4') and not path.endswith('.MP4'): path += '.mp4'
+                os.system('ffmpeg -i %r/%%06d.png -qscale 1 -r 12 -y %r'%(self.movie_path.name, path))
     #--------------------------------------------------------------------------
     def autopos(self, axe): return bool(self.faai&(1<<(6+2*axe)))
     def autopos_on(self, axe):  self.faai |=   1<<(6+2*axe)  #; print('ON', axe, self.autopos(axe), self.axisID)
@@ -84,12 +92,6 @@ class Canvas(QtWidgets.QWidget):
             sl.setValue(0 if self.autopos(i) else min(max(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
         for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()
         self.show_axis_info()
-
-        animate_type = win.animate_type.currentText(); win.animate_type.clear()  # не индекс а текст!!!
-        D3 = win.D3.currentIndex()*(self.container.get_dim()>2)
-        win.animate_type.addItems(['file']*(table_size()>1)+['frame']*(fsz>1)+
-                                  [self.container.get_axe(i).decode() for i in range(self.container.get_dim()) if not i in self.axisID[:2+D3] ])
-        win.animate_type.setCurrentText(animate_type)
         
         self.replot()
         if self.container.touch_mode and (self.container.touch_mode[0]==1 or win.framenum.value()+1==fsz):
@@ -117,8 +119,25 @@ class Canvas(QtWidgets.QWidget):
         self.touch_mode = touch_mode
     #--------------------------------------------------------------------------
     def movie_replot(self):
-        animate_type = self.win.animate_type.currentText()
-        
+        #print(123, self.movie_mode, self.win.framenum.value())
+        if not self.movie_mode: return 
+        win, self.movie_mode, atype = self.win, False, self.win.animate_type.currentText()
+        if atype=='file':
+            if win.filenum.value()>=table_size()-1: win.animate.setChecked(False); self.movie_timer.stop(); return
+            win.filenum.setValue(win.filenum.value()+1); self.full_replot()
+        elif atype=='frame':
+            if win.framenum.value()>=file_size(win.filenum.value())-1: win.animate.setChecked(False); self.movie_timer.stop(); return
+            win.framenum.setValue(win.framenum.value()+1); self.full_replot()            
+        else:
+            for i in range(self.container.get_dim()):
+                if self.container.get_axe(i).decode()!=atype: continue
+                sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i)
+                if sl.value()>=sz: win.animate.setChecked(False); self.movie_timer.stop(); return
+                sl.setValue(sl.value()+1); self.replot()                            
+        #print(456, self.movie_mode, win.framenum.value())
+        #                self.grab().save(path, 'PNG')
+        if self.win.save_animate.isChecked(): self.grab().save(self.movie_path.name+'/%06d.png'%self.movie_counter, 'PNG'); self.movie_counter += 1
+        self.movie_mode = True
     #--------------------------------------------------------------------------
     def slice_replot(self, pos, axe):
         #print('slice_replot',  pos, axe)
@@ -278,18 +297,19 @@ class Canvas(QtWidgets.QWidget):
             #self.mouse_table.append(MouseFlat3D())
         else:  #--- 2D mode ----------------------------------------------------
             #print(self.plotter.get_bmin(0), self.plotter.get_bmax(0))
-            y1 = sz_y - 2*tl - h_font*(1+2*bool(win.x_text.text()))
+            x_label, y_label = [getattr(win, '%s_text'%('xy'[axe])).text().format(axe=self.container.get_axe(self.axisID[axe]).decode()) for axe in (0, 1)]
+            y1 = sz_y - 2*tl - h_font*(1+2*bool(x_label))
             paint.setPen(QtGui.QPen(QtCore.Qt.black, int(win.tics_width.text())))
 
             # рисуем ось Y
             tics, max_tic_sz, stics = make_tics([plotter.get_bmin(1), plotter.get_bmax(1)], plotter.get_logscale(1), y1-y0, True, paint)            
-            x0 = max_tic_sz+2*tl+h_font*2*bool(win.y_text.text())
+            x0 = max_tic_sz+2*tl+h_font*2*bool(y_label)
             paint.setPen(QtGui.QPen(QtCore.Qt.black, tw))
             for y in stics: paint.drawLine(x0-tl, y1-y, x0, y1-y)
             for y, t in tics:
                 paint.drawLine(x0-2*tl, y1-y, x0, y1-y)
                 paint.drawText(x0-2*tl-max_tic_sz, y1-y-int(h_font/2), max_tic_sz, h_font, QtCore.Qt.AlignRight|QtCore.Qt.AlignVCenter, t)
-            if win.y_text.text(): paint.rotate(-90);  paint.drawText(-y1, 0, y1-y0, h_font, QtCore.Qt.AlignHCenter, win.y_text.text());  paint.rotate(90)
+            if y_label: paint.rotate(-90);  paint.drawText(-y1, 0, y1-y0, h_font, QtCore.Qt.AlignHCenter, y_label);  paint.rotate(90)
 
             # рисуем ось X
             tics, max_tic_sz, stics = make_tics([plotter.get_bmin(0), plotter.get_bmax(0)], plotter.get_logscale(0), x1-x0, False, paint)
@@ -297,7 +317,7 @@ class Canvas(QtWidgets.QWidget):
             for x, t in tics:                
                 paint.drawLine(x0+x, y1, x0+x, y1+2*tl)
                 paint.drawText(x0+x-int(max_tic_sz/2), y1+2*tl, max_tic_sz, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, t)
-            if win.x_text.text(): paint.drawText(x0, sz_y-h_font, x1-x0, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, win.x_text.text())
+            if x_label: paint.drawText(x0, sz_y-h_font, x1-x0, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, x_label)
 
             paint.setPen(QtGui.QPen(QtCore.Qt.black, bw));  paint.drawRect(x0, y0, x1-x0, y1-y0)
             plotter.set_image_size([x0,y0], [x1,y1])
@@ -310,6 +330,13 @@ class Canvas(QtWidgets.QWidget):
     def replot(self, *args):
         #print('replot', getattr(self, 'single_make_up', None), self.mouse)
         t0, win  = time.time(), self.win
+
+        animate_type = win.animate_type.currentText(); win.animate_type.clear()  # не индекс а текст!!!
+        D3 = win.D3.currentIndex()*(self.container.get_dim()>2)
+        win.animate_type.addItems(['file']*(table_size()>1)+['frame']*(file_size(win.filenum.value())>1)+
+                                  [self.container.get_axe(i).decode() for i in range(self.container.get_dim()) if not i in self.axisID[:2+D3] ])
+        #win.animate_type.setCurrentText(animate_type)
+
         self.update()
         if win.D3.currentIndex()==2:
             win.fr_D3opt.show()

@@ -143,6 +143,7 @@ win.show_settings.stateChanged.connect(lambda *args: win.settings_frame.show() i
 
 for l in 'autoscale_tot logscale modulus invert xflip yflip zflip show_pal'.split(): getattr(win, l).stateChanged.connect(canvas.replot)
 win.animate.stateChanged.connect(canvas.animate)
+win.save_animate.stateChanged.connect(canvas.save_animate)
 
 def autoscale(*args):
     for l in (win.f_min, win.f_max): l.setReadOnly(win.autoscale.isChecked())    
