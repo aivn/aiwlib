@@ -22,27 +22,28 @@ void aiw::IsoLines::clear(){
 	levels.clear();
 }
 //------------------------------------------------------------------------------
-void aiw::IsoLines::init(const aiw::Mesh<float, 2> &arr, double z0, double dz, bool logscale){
+void aiw::IsoLines::init(const aiw::Mesh<float, 2> &arr, float z0, float dz, bool logscale){
 	clear();
 	std::map<int, std::list<segment_t> > table;
-	double _dz = logscale?1./log(dz):1./dz;
+	float _dz = logscale?1./log(dz):1./dz;
 
 	for(int y=1; y<arr.bbox()[1]; ++y){ // цикл по строкам исходного массива
-		double v00 = arr[ind(0, y-1)], v01 = arr[ind(0, y)];
+		float v00 = arr[ind(0, y-1)], v01 = arr[ind(0, y)];
 		for(int x=1; x<arr.bbox()[0]; ++x){ // цикл вдоль строки исходного массива
-			double v10 = arr[ind(x, y-1)], v11 = arr[ind(x, y)]; // получили значения в углах ячейки
-			double v_min = std::min({v00, v01, v10, v11}), v_max = std::max({v00, v01, v10, v11}); 
+			float v10 = arr[ind(x, y-1)], v11 = arr[ind(x, y)]; // получили значения в углах ячейки
+			float v_min = std::min({v00, v01, v10, v11}), v_max = std::max({v00, v01, v10, v11}); 
 			if(logscale && v_min<1e-30) v_min = 1e-30;
 			if(logscale && v_max<1e-30) v_max = 1e-30;
 			if(v_min==v_max) continue;
-			Vec<2> a = arr.cell_angle(ind(x, y), 0), b = arr.cell_angle(ind(x, y), 1); Vec<2> dab = b-a;
-			double cX0 = v10==v00?0.:dab[0]/(v10-v00), cX1 = v11==v01?0.:dab[0]/(v11-v01);
-			double cY0 = v01==v00?0.:dab[1]/(v01-v00), cY1 = v11==v10?0.:dab[1]/(v11-v10);
+			// Vecf<2> a = arr.cell_angle(ind(x, y)), b = arr.cell_angle(ind(x+1, y+1)); Vec<2> dab = b-a;
+			Vecf<2> a = arr.pos2coord(ind(x-1, y-1)), b = arr.pos2coord(ind(x, y)); Vec<2> dab = b-a;
+			float cX0 = v10==v00?0.:dab[0]/(v10-v00), cX1 = v11==v01?0.:dab[0]/(v11-v01);
+			float cY0 = v01==v00?0.:dab[1]/(v01-v00), cY1 = v11==v10?0.:dab[1]/(v11-v10);
 			int i_min = ::ceil(logscale?log(v_min/z0)*_dz:(v_min-z0)*_dz),
 				i_max = ::floor(logscale?log(v_max/z0)*_dz:(v_max-z0)*_dz); 
 
 			for(int i=i_min; i<=i_max; ++i){ // цикл по уровням
-				double v = logscale?z0*pow(dz, i):z0+i*dz;
+				float v = logscale?z0*pow(dz, i):z0+i*dz;
 				if((v00<=v && v<=v10)||(v10<=v && v<=v00)){ 
 					Vecf<2> p0(a[0]+(v-v00)*cX0, a[1]); 
 					if     ((v00< v && v<=v01)||(v01<=v && v< v00)) table[i].push_back(segment_t(p0, vecf(a[0], a[1]+(v-v00)*cY0)));

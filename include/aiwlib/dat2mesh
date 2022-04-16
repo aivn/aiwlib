@@ -38,15 +38,15 @@ namespace aiw{
 		return not (ss>>x).fail();
 	}
 	//--------------------------------------------------------------------------
-	template <int D> inline bool convert(const std::vector<std::string> &src, const Ind<D> &columns, Vec<D> &dst){
+	template <int D> inline bool convert(const std::vector<std::string> &src, const Ind<D> &columns, Vecf<D> &dst){
 		for(int i=0; i<D; i++) if(not convert(src, columns[i], dst[i])) return false;
 		return true;
 	}
 	//--------------------------------------------------------------------------
-	inline int clustering(std::vector<double> &points, bool logscale, double eps, double &bmin, double &bmax){
+	inline int clustering(std::vector<float> &points, bool logscale, float eps, float &bmin, float &bmax){
 		std::sort(points.begin(), points.end());
 
-		std::vector<double> X; int N=0; double S=0., x_max=points[0];
+		std::vector<float> X; int N=0; float S=0., x_max=points[0];
 		for(auto x=points.begin(); x!=points.end(); ++x){
 			if((logscale and *x/x_max-1<eps) or (not logscale and *x-x_max<eps)){ S += logscale? log(*x): *x;	N++; }
 			else{ X.push_back(logscale? exp(S/N): S/N); S = *x; N = 1; }
@@ -55,10 +55,10 @@ namespace aiw{
 		X.push_back(logscale? exp(S/N): S/N);
 
 		if(logscale){
-			double hstep = sqrt(X.size()>1? exp(log(X.back()/X.front())/(X.size()-1)): 2*eps+points.back()/points.front());
+			float hstep = sqrt(X.size()>1? exp(log(X.back()/X.front())/(X.size()-1)): 2*eps+points.back()/points.front());
 			bmin = X.front()/hstep; bmax = X.back()*hstep;
 		} else {
-			double hstep = (X.size()>1? (X.back()-X.front())/(X.size()-1): 2*eps+points.back()-points.front())/2;
+			float hstep = (X.size()>1? (X.back()-X.front())/(X.size()-1): 2*eps+points.back()-points.front())/2;
 			bmin = X.front()-hstep; bmax = X.back()+hstep;
 		}		
 		return X.size();
@@ -77,7 +77,7 @@ namespace aiw{
 		while(not str.eof()){
 			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
 			if(s.empty()) continue; else if(s[0]=='#'){ dst.head += s+"\n"; continue; }
-			auto l = split(s); Vec<D> r; T v;
+			auto l = split(s); Vecf<D> r; T v;
 			if(convert(l, rcols, r) and convert(l, vcol, v)) dst[r] = v;
 		}
 	}
@@ -93,7 +93,7 @@ namespace aiw{
 		while(not str.eof()){
 			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
 			if(s.empty()) continue; else if(s[0]=='#'){ dst.head += s+"\n"; continue; }
-			auto l = split(s); Vec<D> r; T v;
+			auto l = split(s); Vecf<D> r; T v;
 			if(not convert(l, rcols, r)) continue;
 			Ind<D> I = dst.coord2pos(r);
 			for(int i=0; i<dst.bbox()[vaxe]; i++) if(convert(l, vcols[i], v)){ I[vaxe] = i; dst[I] = v; } 
@@ -107,20 +107,20 @@ namespace aiw{
 					   int vcol=0,             // столбец из которого берутся значения
 					   Ind<D> rcols=Ind<D>(),  // соответствие столбцов координатам сетки, 
 					   int logscale=0,         // логарифмический масштаб (битовая маска)
-					   Vec<D> eps=Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+					   Vecf<D> eps=Vecf<D>(1e-6f) // ошибка (окно кластеризации) при разборе координат
 					   ){
 		if(rcols==Ind<D>()){ 
 			for(int i=0; i<D; i++) rcols[i] = i;
 			if(vcol==0) vcol = D;
 		}
-		std::string head; std::vector<Vec<D> > coords; std::vector<T> data;
+		std::string head; std::vector<Vecf<D> > coords; std::vector<T> data;
 		while(not str.eof()){
 			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
 			if(s.empty()) continue; else if(s[0]=='#'){ head += s+"\n"; continue; }
-			auto l = split(s); Vec<D> r; T v;
+			auto l = split(s); Vecf<D> r; T v;
 			if(convert(l, rcols, r) and convert(l, vcol, v)){ coords.push_back(r); data.push_back(v); }
 		}
-		Ind<D> bbox; Vec<D> bmin, bmax; std::vector<double> points(coords.size());
+		Ind<D> bbox; Vecf<D> bmin, bmax; std::vector<float> points(coords.size());
 		for(int axe=0; axe<D; axe++){
 			for(size_t i=0; i<coords.size(); ++i) points[i] = coords[i][axe];
 			bbox[axe] = clustering(points, logscale&1<<axe, eps[axe], bmin[axe], bmax[axe]);
@@ -137,23 +137,23 @@ namespace aiw{
 					   int vaxe=-1,               // координата сетки по которой значения развернуты в строку
 					   Ind<D> rcols=Ind<D>(),     // соответствие столбцов координатам сетки, 
 					   int logscale=0,            // логарифмический масштаб (битовая маска)
-					   Vec<D> eps=Vec<D>(1e-6)    // ошибка (окно кластеризации) при разборе координат
+					   Vecf<D> eps=Vecf<D>(1e-6)    // ошибка (окно кластеризации) при разборе координат
 					   ){
 		if(vaxe<0) vaxe = D-vaxe;
 		if(rcols==Ind<D>()) for(int i=0; i<D; i++) rcols[i] = i<vaxe? i: i-1; 
 
-		std::string head; std::vector<Vec<D> > coords; std::vector<T> data;
+		std::string head; std::vector<Vecf<D> > coords; std::vector<T> data;
 		while(not str.eof()){
 			std::string s0; std::getline(str, s0); std::string s = strip(s0); 
 			if(s.empty()) continue; else if(s[0]=='#'){ head += s+"\n"; continue; }
-			auto l = split(s); Vec<D> r; T v;
+			auto l = split(s); Vecf<D> r; T v;
 			if(vcols.empty()) for(size_t i=0; i<l.size(); i++) if(not rcols.contains(i)) vcols.push_back(i);
 			if(convert(l, rcols, r)){ 
 				coords.push_back(r);
 				for(size_t i=0; i<vcols.size(); i++) data.push_back(convert(l, vcols[i], v)? v: def_val); 
 			}
 		}
-		Ind<D> bbox; Vec<D> bmin, bmax; std::vector<double> points(coords.size());
+		Ind<D> bbox; Vecf<D> bmin, bmax; std::vector<float> points(coords.size());
 		for(int axe=0; axe<D; axe++){
 			if(axe==vaxe){ bbox[axe] = vcols.size(); bmin[axe] = 0; bmax[axe] = bbox[axe]; continue; }
 			for(size_t i=0; i<coords.size(); ++i) points[i] = coords[i][axe];
@@ -195,7 +195,7 @@ namespace aiw{
 							int vcol=0,                       // столбец из которого берутся значения
 							aiw::Ind<D> rcols=aiw::Ind<D>(),  // соответствие столбцов координатам сетки, 
 							int logscale=0,                   // логарифмический масштаб (битовая маска)
-							aiw::Vec<D> eps=aiw::Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+							aiw::Vecf<D> eps=aiw::Vecf<D>(1e-6f) // ошибка (окно кластеризации) при разборе координат
 							){
 		return dat2Mesh(std::move(str), def_val, vcol, rcols, logscale, eps);
 	}
@@ -205,7 +205,7 @@ namespace aiw{
 							int vaxe=-1,                      // координата сетки по которой значения развернуты в строку
 							aiw::Ind<D> rcols=aiw::Ind<D>(),  // соответствие столбцов координатам сетки, 
 							int logscale=0,                   // логарифмический масштаб (битовая маска)
-							aiw::Vec<D> eps=aiw::Vec<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
+							aiw::Vecf<D> eps=aiw::Vecf<D>(1e-6) // ошибка (окно кластеризации) при разборе координат
 					   ){
 		return dat2Mesh(std::move(str), def_val, vcols, vaxe, rcols, logscale, eps);
 	}

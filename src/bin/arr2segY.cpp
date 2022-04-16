@@ -19,8 +19,8 @@ const char *help = "usage: arr2segY options and input arrfiles...\noptions:\n"
 	"    -ibm --- use IBM format for segY (default not using)\n"
 	"    -p dstpath --- destination DIRECTORY, default convertation file[.arr] ===> file.sgy\n";
 
-Vec<3> atoV(const char *s){
-	Vec<3> V; int a, b = -1; 
+Vecf<3> atoV(const char *s){
+	Vecf<3> V; int a, b = -1; 
 	for(int k=0; k<3; k++){
 		a = ++b;
 		while(s[b] and s[b]!=',') b++;
@@ -38,7 +38,7 @@ template <int D> void mk_swaps(Mesh<float, D> &arr, Ind<2> *swaps, int sw_count)
 
 int main(int argc, const char ** argv){
 	int dim = 2;
-	Vec<3> step, PV, PP0; bool use_step = false, use_PP0 = false, use_scale = false;
+	Vecf<3> step, PV, PP0; bool use_step = false, use_PP0 = false, use_scale = false;
 	Ind<2> swaps[1024]; int sw_count = 0;
 	double z_pow = 0., scale = 1.;
 	std::string dstpath;
@@ -71,7 +71,7 @@ int main(int argc, const char ** argv){
 			if(use_step) for(int i=0; i<dim; i++) arr2D.step[i] = step[i]; // else arr2D.step[0] *= -1e3; // <=== to mks ???
 			WOUT(arr2D.bbox(), arr2D.bmin, arr2D.bmax, arr2D.step);
 			if(use_scale) for(Ind<2> pos; pos^=arr2D.bbox(); ++pos) arr2D[pos] *= scale;
-			segy_write(File(dst.c_str(), "wb"), arr2D, z_pow, PV(0,1), (use_PP0?PP0:arr2D.bmin|0.));
+			segy_write(File(dst.c_str(), "wb"), arr2D, z_pow, PV(0,1), (use_PP0?PP0:arr2D.bmin|0.f));
 		} else {
 			mk_swaps(arr3D, swaps, sw_count);
 			if(use_step) for(int i=0; i<dim; i++) arr3D.step[i] = step[i]; // else arr3D.step[0] *= -1e3; // <=== to mks ???

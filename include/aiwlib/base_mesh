@@ -3,16 +3,18 @@
 #define AIW_BASE_MESH_HPP
 
 /**
- * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2018, 2022 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
 #include <string>
+#include <algorithm>
 #include "vec"
+#include "binhead"
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int D> class BaseMesh{
+	template <int D, typename A=float> class BaseMesh{
 	protected:
 		size_t sz;  // общее число элементов
 		Ind<D> box; // размеры сетки в ячейках
@@ -20,91 +22,84 @@ namespace aiw{
 	public:
 		static const int dim = D;
 		std::string head, anames[D];
-		aiw::Vec<D> bmin, bmax, step, rstep;
-		int logscale=0;     // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
-		int periodic=0;     // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
+		aiw::Vec<D, A> bmin, bmax, step, rstep;
+		int logscale=0;          // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
+		int periodic=0;          // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
 		unsigned long interp=0;  // интерполяция по различным осям в формате 0x..., оси следуют в порядке 0x0123..., 4 бита на ось,
 		                         //   0 - нет интерполяции, 1 - линейная, 2 - кубическая, 3 - B-сплайнами
-		unsigned long bounds=0;  /* границы в формате 0x..., оси следуют в порядке 0x0123..., 4 бита на ось:
-									значение | левая граница  | правая граница
-									------------------------------------------
-									0        | исключение     | исключение
-									1        | out_value      | исключение
-									2        | крайняя ячейка | исключение
-									3        | крайняя ячейка | исключение     
-									4        | исключение     | out_value
-									5        | out_value      | out_value
-									6        | крайняя ячейка | out_value
-									7        | крайняя ячейка | out_value
-									8        | исключение     | крайняя ячейка 
-									9        | out_value      | крайняя ячейка 
-									A        | крайняя ячейка | крайняя ячейка 
-									B        | крайняя ячейка | крайняя ячейка 
-									C        | исключение     | крайняя ячейка 
-									D        | out_value      | крайняя ячейка 
-									E        | крайняя ячейка | крайняя ячейка 
-									F        | крайняя ячейка | крайняя ячейка 
-								 */
+		void set_interp(int axe, int itype){ interp &= ~(0xF<<(4*(D-axe-1))); interp |= (itype&0xF)<<(4*(D-axe-1)); }
+		int  get_interp(int axe) const { return (interp>>4*(D-axe-1))&0xF; } // --> itype
+		/*
+#ifndef SWIG
+		[[deprecated]] unsigned long bounds;
+#endif //SWIG
+		*/
+
 	protected:
-		bool check_out_pos(Ind<D>& pos) const { // ==> false --- OK, true --- out_value
-			bool out_value = false;
+	    int check_out_pos(Ind<D>& pos) const { // возвращает маску промахов, по два бита на ось (слева/справа)
+			int mask = 0;
 			for(int i=0; i<D; i++){
-				if(periodic&(1<<i)){ pos[i] = (pos[i]+box[i])%box[i]; continue; }
-				if(pos[i]<0){
-					int mask = (bounds>>(4*(D-i-1)))&3; // два бита для проверки слева
-					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
-					else{ if(mask==1) out_value = true;	else pos[i] = 0; }
-				} else if(pos[i]>=box[i]){
-					int mask = (bounds>>(4*(D-i-1)+2))&3; // два бита для проверки справа
-					if(mask==0){ WRAISE("position out of box: ", D, pos, box, periodic, bounds, i, mask); }
-					else{ if(mask==1) out_value = true;	else pos[i] = box[i]-1; }
-				}
+				if(periodic&(1<<i)) pos[i] = (pos[i]+box[i])%box[i];
+				else if(pos[i]<0){ pos[i] = 0; mask |= 1<<2*i; }
+				else if(pos[i]>=box[i]){ pos[i] = box[i]-1; mask |= 1<<(1+2*i); }
 			}
-			return out_value;
+			return mask;
 		}
-		
+		void flip_axe(int axe){
+			std::swap(bmin[axe], bmax[axe]);
+			if(logscale&1<<axe){ step[axe] = 1./step[axe]; rstep[axe] = 1./log(step[axe]); }
+			else { step[axe] = -step[axe]; rstep[axe] = -rstep[axe]; }
+		}
+		void push(BinaryHead &bh) const {
+			bh.dim = D;  bh.head = head;  bh.logscale = logscale;
+			for(int i=0; i<D; i++){ bh.axis[i] = anames[i]; bh.bbox[i] = box[i]; bh.bmin[i] = bmin[i]; bh.bmax[i] = bmax[i]; }
+		}
+		void pull(const BinaryHead &bh){
+			head = bh.head;  logscale = bh.logscale;
+			for(int i=0; i<D; i++){ anames[i] = bh.axis[i]; box[i] = bh.bbox[i]; bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
+		}
 	public:		
 		size_t size() const { return sz; }
 		aiw::Ind<D> bbox() const { return box; }
 
 		void set_step(int axe){
 			// axes[axe] = axe; ???
-			step[axe] = logscale&1<<axe? exp(log(bmax[axe]/bmin[axe])/box[axe]) :(bmax[axe]-bmin[axe])/box[axe];
+			step[axe] = logscale&1<<axe? exp(log(bmax[axe]/bmin[axe])/box[axe]) : (bmax[axe]-bmin[axe])/box[axe];
 			rstep[axe] = logscale&1<<axe? 1./log(step[axe]) : 1./step[axe];
 		}
-		void set_axes(const aiw::Vec<D> &bmin_, const aiw::Vec<D> &bmax_, int logscale_=0){
+		void set_axis(const aiw::Vec<D, A> &bmin_, const aiw::Vec<D, A> &bmax_, int logscale_=0){
 			bmin = bmin_; bmax = bmax_;	logscale = logscale_;
 			for(int i=0; i<D; i++) set_step(i); 
 		}
 
-		int coord2pos(double coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] :(coord-bmin[axe])*rstep[axe]; }
-		aiw::Ind<D> coord2pos(const aiw::Vec<D> &r) const { Ind<D> p; for(int i=0; i<D; i++) p[i] = coord2pos(r[i], i); return p; }
-		double pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) :bmin[axe]+step[axe]*(pos+.5); }
-		aiw::Vec<D> pos2coord(const aiw::Ind<D> &p) const { Vec<D> r; for(int i=0; i<D; i++) r[i] = pos2coord(p[i], i); return r; }
-		aiw::Vec<D> cell_angle(const aiw::Ind<D> &p, bool up) const {
-			Vec<D> r;
-			for(int i=0; i<D; i++) r[i] = logscale&1<<i ? bmin[i]*pow(step[i], p[i]+up) :bmin[i]+step[i]*(p[i]+up);
-			return r;
-		}
-		void set_interp(int axe, int itype){ interp &= ~(0xF<<(4*(D-axe-1))); interp |= (itype&0xF)<<(4*(D-axe-1)); }
-		void set_bounds(int axe, int min_, int max_){ bounds &= ~(0xF<<(4*(D-axe-1))); bounds |= ((min_|(max_<<2))&0xF)<<(4*(D-axe-1)); }
+		int coord2pos(A coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
+		aiw::Ind<D> coord2pos(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos(r[i], i); } return p; }
+
+		A pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); }
+		aiw::Vec<D, A> pos2coord(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = pos2coord(p[i], i); } return r; }
+
+		A cell_angle(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos) : bmin[axe]+step[axe]*pos; }
+		aiw::Vec<D, A> cell_angle(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = cell_angle(p[i], i); } return r; }
+		aiw::Vec<D, A> cell_angle_mask(const aiw::Ind<D> &p, int m) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = cell_angle(p[i]+((m>>i)&1), i); } return r; }
+
+		// void set_bounds(int axe, int min_, int max_){ bounds &= ~(0xF<<(4*(D-axe-1))); bounds |= ((min_|(max_<<2))&0xF)<<(4*(D-axe-1)); }
 	};
 	//--------------------------------------------------------------------------
-#define UsingBaseMeshAttributes					\
-protected:  									\
-	using BaseMesh<D>::sz;						\
-	using BaseMesh<D>::box;						\
-public:											\
-	using BaseMesh<D>::head;					\
-	using BaseMesh<D>::anames;					\
-	using BaseMesh<D>::bmin;					\
-	using BaseMesh<D>::bmax;					\
-	using BaseMesh<D>::step;					\
-	using BaseMesh<D>::rstep;					\
-	using BaseMesh<D>::logscale;				\
-	using BaseMesh<D>::periodic;				\
-	using BaseMesh<D>::interp;					\
-	using BaseMesh<D>::bounds;
+#define UsingBaseMeshAttributes											\
+	protected:															\
+	using BaseMesh<D, A>::sz;											\
+	using BaseMesh<D, A>::box;											\
+public:																	\
+    using BaseMesh<D, A>::head;											\
+	using BaseMesh<D, A>::anames;										\
+	using BaseMesh<D, A>::bmin;											\
+	using BaseMesh<D, A>::bmax;											\
+	using BaseMesh<D, A>::step;											\
+	using BaseMesh<D, A>::rstep;										\
+	using BaseMesh<D, A>::logscale;										\
+	using BaseMesh<D, A>::periodic;										\
+	using BaseMesh<D, A>::interp;					
+	// using BaseMesh<D>::bounds;
 	//--------------------------------------------------------------------------
 }
 #endif //AIW_BASE_MESH_HPP

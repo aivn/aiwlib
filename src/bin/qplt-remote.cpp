@@ -8,6 +8,11 @@ std::vector<std::vector<QpltContainer*> > containers;
 std::map<int, QpltPlotter*> plotters;
 int last_plotter_ID = 0;
 
+void send_frame(QpltContainer* f, StdOstream &stdOut){
+	stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep);
+	for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
+}
+
 int main(){ // передавать при запуске размер памяти?
 	qplt_global_init(); 
 	
@@ -24,10 +29,7 @@ int main(){ // передавать при запуске размер памя�
 				if(res.size()) containers.push_back(res);
 				stdOut.dump(int(containers.size())-1, int(res.size()));  // <== число фреймов
 				// flog("% total files\n", int(containers.size()));
-				for(auto f: res){ // <== передаем фреймы
-					stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep);
-					for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
-				}
+				for(auto f: res) send_frame(f, stdOut);
 			}
 			// flog("OK\n");
 			globfree(&glbuf);
@@ -56,6 +58,27 @@ int main(){ // передавать при запуске размер памя�
 		} else if(A=='P'){ int pID; stdIn.load(pID); std::string im = plotters[pID]->plot(); stdOut.write(im.c_str(), im.size()); std::cout.flush(); } // отрисовка
 		else if(A=='g'){ int pID, xy[2]; stdIn.load(pID, xy); stdOut.dump(plotters[pID]->get(xy)); std::cout.flush(); } // значение в точке
 		else if(A=='m'){ float m; stdIn.load(m); QpltContainer::mem_limit = m; WERR(QpltContainer::mem_limit); }  // устанавливаем лимит памяти
+		else if(A=='t'){  // проверяет обновление файла
+			int fileID, frameID; stdIn.load(fileID, frameID);
+			int res = containers[fileID][frameID]->check_change_file(); // std::cerr<<res<<'\n';
+			stdOut.dump(res); std::cout.flush();
+			// stdOut.dump(int(containers[fileID][frameID]->check_change_file())); std::cout.flush();
+		}  
+		else if(A=='n'){  // загружает новый фрейм
+			int fileID, frameID; stdIn.load(fileID, frameID);
+			std::vector<QpltContainer*> res = containers[fileID].back()->load_next_frames(); stdOut.dump(fileID, int(res.size()));
+			// std::cerr<<fileID<<' '<<frameID<<' '<<containers[fileID].size()<<' '<<res.size()<<'\n';
+			for(auto f: res){ send_frame(f, stdOut); containers[fileID].push_back(f); }
+			std::cout.flush(); 			
+		}
+		else if(A=='r'){  // перегружает все фреймы
+			int fileID, frameID; stdIn.load(fileID, frameID);
+			std::vector<QpltContainer*> res = containers[fileID][frameID]->reload_all_frames(); stdOut.dump(fileID, int(res.size()));
+			for(auto f: res) send_frame(f, stdOut); 
+			for(auto f: containers[fileID]) delete f;
+			containers[fileID] = res;
+			std::cout.flush(); 			
+		}
 		else break; //if(A=='E') break;
 	}
 	return 0;

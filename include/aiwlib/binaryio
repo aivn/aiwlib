@@ -60,7 +60,7 @@ namespace aiw{
 	// std::string
 	template <typename S> bool dump(S &s, const std::string& x){ return dump(s, uint32_t(x.size())) && s.write(&(x[0]), x.size())==x.size(); }
 	template <typename S> bool load(S &s, std::string& x){
-		uint32_t sz=0; if(!load(s, sz) || !s.check_tail(sz)) return false; 
+		uint32_t sz=0; if(!load(s, sz) || !s.check_tail(sz)) return false;  
 		x.resize(sz); if(s.read(&(x[0]), sz)!=sz){ std::string().swap(x); return false; }
 		return true;
 	}
