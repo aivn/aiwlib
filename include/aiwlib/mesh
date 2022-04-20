@@ -93,8 +93,12 @@ namespace aiw{
 
 		const T& operator [] (aiw::Ind<D> p) const { this->check_out_pos(p); return at(p); }
 		      T& operator [] (aiw::Ind<D> p)       { this->check_out_pos(p); return at(p); }
-		const T& operator [] (const aiw::Vec<D, A> &r) const { return (*this)[this->coord2pos(r)]; }
-		      T& operator [] (const aiw::Vec<D, A> &r)       { return (*this)[this->coord2pos(r)]; }
+		// const T& operator [] (const aiw::Vec<D, A> &r) const { return (*this)[this->coord2pos(r)]; }
+		//      T& operator [] (const aiw::Vec<D, A> &r)       { return (*this)[this->coord2pos(r)]; }
+		const T& operator [] (const aiw::Vec<D> &r) const { return (*this)[this->coord2pos(r)]; }
+		      T& operator [] (const aiw::Vec<D> &r)       { return (*this)[this->coord2pos(r)]; }
+		const T& operator [] (const aiw::Vecf<D> &r) const { return (*this)[this->coord2pos(r)]; }
+		      T& operator [] (const aiw::Vecf<D> &r)       { return (*this)[this->coord2pos(r)]; }
 
 		template <typename ... Args>       T& ind(Args ... pos)       { return (*this)[Ind<D>(pos...)]; }
 		template <typename ... Args> const T& ind(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }
