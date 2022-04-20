@@ -106,9 +106,13 @@ namespace aiw{
 		template <typename ... Args> const T& vec(Args ... coord) const { return (*this)[Vec<D, A>(coord...)]; }
 #endif // SWIG
 		const T& __getitem__(const aiw::Ind<D> &p) const { return (*this)[p]; }
-		const T& __getitem__(const aiw::Vec<D, A> &r) const { return (*this)[r]; }
+		// const T& __getitem__(const aiw::Vec<D, A> &r) const { return (*this)[r]; }
+		const T& __getitem__(const aiw::Vec<D> &r) const { return (*this)[r]; }
+		const T& __getitem__(const aiw::Vecf<D> &r) const { return (*this)[r]; }
 		void __setitem__(const aiw::Ind<D> &p, const T& v){ (*this)[p] = v; }
-		void __setitem__(const aiw::Vec<D, A> &r, const T& v){ (*this)[r] = v; }
+		// void __setitem__(const aiw::Vec<D, A> &r, const T& v){ (*this)[r] = v; }
+		void __setitem__(const aiw::Vec<D> &r, const T& v){ (*this)[r] = v; }
+		void __setitem__(const aiw::Vecf<D> &r, const T& v){ (*this)[r] = v; }
 		//----------------------------------------------------------------------
 #ifndef SWIG
 	private:
