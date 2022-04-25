@@ -164,7 +164,11 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class File: public IOstream{
 		std::shared_ptr<FILE> pf;
+#ifdef AIW_WIN32
+		time_t last_mtime;
+#else //AIW_WIN32
 		timespec last_mtime;
+#endif //AIW_WIN32
 	public:
 		File(){}
 		File(FILE *f){ pf.reset(f, [](FILE*){}); }
@@ -175,7 +179,13 @@ namespace aiw{
 			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);
 			if(!f) WRAISE("cannot open file", path.str(), mode);
 			name = path.str(); pf.reset(f, ::fclose);
-			struct stat st; fstat(::fileno(f), &st); last_mtime = st.st_mtim; max_sz = mode[0]=='r'? st.st_size: -1;
+			struct stat st; fstat(::fileno(f), &st);
+#ifdef AIW_WIN32
+			last_mtime = st.st_mtime; 
+#else //AIW_WIN32
+			last_mtime = st.st_mtim; 
+#endif //AIW_WIN32
+			max_sz = mode[0]=='r'? st.st_size: -1;
 			// if(mode[0]=='r'){ ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); } else max_sz = -1;
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
@@ -203,8 +213,12 @@ namespace aiw{
 		int fileno() const { return ::fileno(pf.get()); }
 		bool check_update(){
 			struct stat st; fstat(::fileno(pf.get()), &st);
-			bool res = last_mtime.tv_sec==st.st_mtim.tv_sec && last_mtime.tv_nsec==st.st_mtim.tv_nsec; 
-			last_mtime = st.st_mtim;  if(max_sz>=0) max_sz = st.st_size;
+#ifdef AIW_WIN32
+			bool res = last_mtime.tv_sec!=st.st_mtime;  last_mtime = st.st_mtime;  
+#else //AIW_WIN32
+			bool res = last_mtime.tv_sec!=st.st_mtim.tv_sec || last_mtime.tv_nsec!=st.st_mtim.tv_nsec;  last_mtime = st.st_mtim;  
+#endif //AIW_WIN32
+			if(max_sz>=0) max_sz = st.st_size;
 			return res;
 		}
 	};	

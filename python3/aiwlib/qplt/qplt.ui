@@ -2541,6 +2541,9 @@
        <height>27</height>
       </rect>
      </property>
+     <property name="toolTip">
+      <string>time step of animation</string>
+     </property>
      <property name="text">
       <string>0.1</string>
      </property>

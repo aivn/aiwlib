@@ -1,6 +1,6 @@
 // -*- C++ -*-
-#ifndef AIW__HPP
-#define AIW__HPP
+#ifndef AIW_ZCURVE_HPP
+#define AIW_ZCURVE_HPP
 
 /**
  * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
