@@ -105,10 +105,13 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
 			int ddim = accessor.Ddiff(); constexpr int dout = QpltAccessor::DOUT<AID>(); // размерность дифф. оператора  и выходных данных			
 			const char* ptr0 = cnt->mem_ptr; for(int i=0; i<dim0; i++) ptr0 += smin[i]*cnt->mul[i];
-			float f_min = HUGE_VAL,  f_max = -HUGE_VAL; 
-			Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
-#pragma omp parallel for reduction(min:f_min) reduction(max:f_max) 
-			for(size_t i=0; i<sz; i++){
+			float f_min = HUGE_VAL,  f_max = -HUGE_VAL;
+      Ind<6> sbox = smax-smin; size_t sz = sbox[0]; for(int i=1; i<cnt->dim; i++) sz *= sbox[i];
+//#pragma omp parallel for reduction(min:f_min) reduction(max:f_max)  // MSVC does not support OpenMP 3
+      std::vector<float> f_mina(omp_get_max_threads(), HUGE_VAL), f_maxa(omp_get_max_threads(), -HUGE_VAL);
+      int act_numthreads = -1; // to be determined in the following
+#pragma omp parallel for //shared(f_mina, f_maxa)
+			for(int i=0; i<(int)sz; i++){ //for(size_t i=0; i<sz; i++){
 				int pos[6]; size_t j = i; const char *ptr1 = ptr0, *nb[6] = {nullptr};   
 				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
 				if(DIFF) for(int k=0; k<ddim; k++){
@@ -117,8 +120,19 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 						if(pos[a]<cnt->bbox[a]-1) nb[2*k+1] = ptr1+cnt->mul[a]; else nb[2*k+1] = ptr1;
 					}
 				Vecf<3> ff; accessor.conv<AID>(ptr1, (const char**)nb, &(ff[0]));
-				float fres = dout==1? ff[0]: ff.abs();	f_min = std::min(f_min, fres);  f_max = std::max(f_max, fres);
+				float fres = dout==1? ff[0]: ff.abs();	      
+
+        if (act_numthreads < 0){
+# pragma omp critical
+            act_numthreads = omp_get_num_threads();
+        }
+        //f_min = std::min(f_min, fres);  f_max = std::max(f_max, fres);
+        int me = omp_get_thread_num();
+        f_mina[me] = std::min(f_mina[me], fres);  f_maxa[me] = std::max(f_maxa[me], fres);
 			}
+      f_min = *std::min(f_mina.begin(), f_mina.begin()+ act_numthreads);
+      f_max = *std::max(f_maxa.begin(), f_mina.begin() + act_numthreads);
+
 			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
 			accessor.minus = acc_minus;
 #ifdef PROFILE
