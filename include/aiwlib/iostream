@@ -23,6 +23,7 @@ namespace aiw { class IOstream{
                 
                 virtual void close() = 0;
 
+                virtual bool check_update() { return true; }  // ???
 
 }; }
 #else // __NVCC__
@@ -214,7 +215,7 @@ namespace aiw{
 		bool check_update(){
 			struct stat st; fstat(::fileno(pf.get()), &st);
 #ifdef AIW_WIN32
-			bool res = last_mtime.tv_sec!=st.st_mtime;  last_mtime = st.st_mtime;  
+			bool res = last_mtime!=st.st_mtime;  last_mtime = st.st_mtime;  
 #else //AIW_WIN32
 			bool res = last_mtime.tv_sec!=st.st_mtim.tv_sec || last_mtime.tv_nsec!=st.st_mtim.tv_nsec;  last_mtime = st.st_mtim;  
 #endif //AIW_WIN32

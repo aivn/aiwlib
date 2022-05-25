@@ -1,6 +1,14 @@
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 #project(qplt LANGUAGES CXX VERSION 1.0.0)
-project(qplt LANGUAGES CXX CUDA)
+
+option(CUDA "Use CUDA for rendering" ON)
+
+if(CUDA)
+  project(qplt LANGUAGES CXX CUDA)
+else()
+  project(qplt LANGUAGES CXX)
+endif()
+
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,7 +25,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 	set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release")
 endif()
 
-option(CUDA "Use CUDA for rendering" ON)
 
 if(CUDA)
 #    find_package(CUDA REQUIRED)
@@ -51,7 +58,7 @@ endif()
 #	"src/isolines.cpp" "src/checkpoint.cpp" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
 #	"src/typeinfo.cpp" "src/binary_format.cpp")
 
-add_library(aiwlib OBJECT "src/binary_format.cpp" "src/debug.cpp")
+add_library(aiwlib OBJECT "src/binhead.cpp" "src/debug.cpp")
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 set_target_properties(aiwlib PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
@@ -61,7 +68,7 @@ if (CUDA)
 		"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" PROPERTIES LANGUAGE CXX)
 endif()
 add_library(qplt_static STATIC "src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "src/qplt/base.cpp"
-	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp")
+	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp" "src/binhead.cpp")
 target_include_directories(qplt_static PUBLIC "src/qplt")
 set_target_properties(qplt_static PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
