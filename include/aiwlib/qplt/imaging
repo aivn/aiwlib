@@ -65,9 +65,9 @@ namespace aiw{
 
 		CU_HD bool check_in(float f) const { return (min<max && min<f && f<max) || (max<min && max<f && f<min); }
 		CU_HD Vecf<4> operator ()(float f) const {
-			if(modulus) f = fabs(f);
+      if(modulus) f = fabs(f);
 			f = logscale? log(f/min)*mul :(f-min)*mul;
-			if(std::isnan(f)) return nan_color;
+			//if(std::isnan(f)) return nan_color;  // тут под Виндой видеокарта сбоит
 			int i = ::floor(f);
 			if(i<0) return pal[0];
 			if(i>=up_bound) return pal[up_bound];
