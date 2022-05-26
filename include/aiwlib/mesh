@@ -214,8 +214,18 @@ namespace aiw{
 		Mesh(){}
 		Mesh(aiw::Ind<D> bbox_, int align=0){ init(bbox_, align); }
 		Mesh(aiw::Ind<D> bbox_, T f, int align=0){ init(bbox_, align); fill(f); }
-		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); }
-		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D, A> bmin_, aiw::Vec<D, A> bmax_, int logscale_=0, int align=0){ init(bbox_, bmin_, bmax_, logscale_, align); fill(f); }		
+		Mesh(aiw::Ind<D> bbox_, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){
+			init(bbox_, bmin_, bmax_, logscale_, align);
+		}
+		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vec<D> bmin_, aiw::Vec<D> bmax_, int logscale_=0, int align=0){
+			init(bbox_, bmin_, bmax_, logscale_, align); fill(f);
+		}		
+		Mesh(aiw::Ind<D> bbox_, aiw::Vecf<D> bmin_, aiw::Vecf<D> bmax_, int logscale_=0, int align=0){
+			init(bbox_, bmin_, bmax_, logscale_, align);
+		}
+		Mesh(aiw::Ind<D> bbox_, T f, aiw::Vecf<D> bmin_, aiw::Vecf<D> bmax_, int logscale_=0, int align=0){
+			init(bbox_, bmin_, bmax_, logscale_, align); fill(f);
+		}		
 		//----------------------------------------------------------------------
 #ifndef SWIG		
 		struct iterator{
@@ -244,8 +254,8 @@ namespace aiw{
 		void swap(Mesh &B){ Mesh C = *this; *this = B; B = C; }
 	};
 	//--------------------------------------------------------------------------
-	template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }
-	template <typename T, int D> aiw::IOstream& operator > (aiw::IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
+	// template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }
+	// template <typename T, int D> aiw::IOstream& operator > (aiw::IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
 	//--------------------------------------------------------------------------
 	/*
 	template <typename T, int D> void dump_mesh(aiw::IOstream &S, aiw::Ind<D> box, const T* data, std::string head="",

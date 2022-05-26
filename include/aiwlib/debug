@@ -89,6 +89,8 @@ namespace aiw{
 
 #ifndef AIW_WIN32		
 #include "unistd.h"
+#define WMSG(args...) { std::cerr<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": ";	\
+		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
 #ifdef EBUG
 #   define WSTR(out, args...) { out<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "; \
 		aiw::debug_out(out, #args, args); out<<"\n"; }
@@ -143,6 +145,7 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 
 #else //__NVCC__
 #define WOUT(...)
+#define WMSG(...)
 #define WERR(...)
 #define WASSERT(...)
 #define WRAISE(...)

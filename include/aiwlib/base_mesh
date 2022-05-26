@@ -14,14 +14,18 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int D, typename A=float> class BaseMesh{
+	template <int D, typename A=float> class BaseMesh{ 
 	protected:
 		size_t sz;  // общее число элементов
 		Ind<D> box; // размеры сетки в ячейках
 		friend struct BinaryFormat;
 	public:
 		static const int dim = D;
-		std::string head, anames[D];
+		std::string head, info, anames[D];
+
+		const char* get_axe_name(int i) const { return anames[i].c_str(); }  // for python
+		void set_axe_name(int i, const char* name){ anames[i] = name; }      // for python
+		
 		aiw::Vec<D, A> bmin, bmax, step, rstep;
 		int logscale=0;          // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
 		int periodic=0;          // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
@@ -51,11 +55,11 @@ namespace aiw{
 			else { step[axe] = -step[axe]; rstep[axe] = -rstep[axe]; }
 		}
 		void push(BinaryHead &bh) const {
-			bh.dim = D;  bh.head = head;  bh.logscale = logscale;
+			bh.dim = D;  bh.head = head;  bh.info = info;  bh.logscale = logscale;
 			for(int i=0; i<D; i++){ bh.axis[i] = anames[i]; bh.bbox[i] = box[i]; bh.bmin[i] = bmin[i]; bh.bmax[i] = bmax[i]; }
 		}
 		void pull(const BinaryHead &bh){
-			head = bh.head;  logscale = bh.logscale;
+			head = bh.head; info = bh.info;  logscale = bh.logscale;
 			for(int i=0; i<D; i++){ anames[i] = bh.axis[i]; box[i] = bh.bbox[i]; bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
 		}
 	public:		
