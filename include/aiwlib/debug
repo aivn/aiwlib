@@ -87,8 +87,8 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 }  // end of namespace aiw 
 
-#ifndef AIW_WIN32		
-#include "unistd.h"
+#ifndef AIW_WIN32
+#include <unistd.h>
 #define WMSG(args...) { std::cerr<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": ";	\
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
 #ifdef EBUG
@@ -122,6 +122,7 @@ extern char bUfFoRwRaIsE0[4096];
 		else abort();													\
 	}	
 #else //AIW_WIN32
+#include "unistd.h"
 namespace aiw{  // это заглушка для Visual Studio etc.
 	template <typename ... Args> void WEXC(Args ... args){}
 	template <typename ... Args> void WEXT(Args ... args){}
