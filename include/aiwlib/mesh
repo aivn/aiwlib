@@ -88,8 +88,8 @@ namespace aiw{
 		}
 		//----------------------------------------------------------------------		
 #ifndef SWIG		
-		const T& at(const aiw::Ind<D> &pos) const { WASSERT(ind(0)<=pos && pos<bbox, "pos out of box", pos, box); return *((const T*)((const char*)ptr+mul*pos)); }
-		      T& at(const aiw::Ind<D> &pos)       { WASSERT(ind(0)<=pos && pos<bbox, "pos out of box", pos, box); return       *((T*)((const char*)ptr+mul*pos)); }
+		const T& at(const aiw::Ind<D> &pos) const { WASSERT(Ind<D>()<=pos && pos<box, "pos out of box", pos, box); return *((const T*)((const char*)ptr+mul*pos)); }
+		      T& at(const aiw::Ind<D> &pos)       { WASSERT(Ind<D>()<=pos && pos<box, "pos out of box", pos, box); return       *((T*)((const char*)ptr+mul*pos)); }
 
 		const T& operator [] (aiw::Ind<D> p) const { this->check_out_pos(p); return at(p); }
 		      T& operator [] (aiw::Ind<D> p)       { this->check_out_pos(p); return at(p); }

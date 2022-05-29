@@ -119,7 +119,7 @@ ifeq (on,$(swig))
 include $(shell echo $(dst)build/swig/$(python)_{iostream,swig}.d)
 #, mpi4py
 ifeq (3,$(python))
-include $(dst)build/swig/qplt/$(python)_core.d
+include $(dst)build/swig/qplt/$(python)_core.d $(dst)build/swig/qplt/core_wrap.d
 endif
 endif
 
@@ -163,7 +163,10 @@ Mesh%:
 	MESH_TYPE:="$(word 2,$(subst -, ,$@))" MESH_DIM:="$(word 3,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d
+$(dst)build/swig/$(MESH_NAME)_wrap.d: $(dst)build/swig/$(MESH_NAME).i
+	@mkdir -p $(dst)build/swig
+	$(SWIG) $(SWIGOPT) -M $< >> $@
+include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d $(dst)build/swig/$(MESH_NAME)_wrap.d
 endif
 #---  Sphere  ------------------------------------------------------------------
 ifndef SPHERE_NAME
@@ -172,7 +175,10 @@ Sphere%:
 	SPHERE_TYPE:="$(word 2,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d
+$(dst)build/swig/$(SPHERE_NAME)_wrap.d: $(dst)build/swig/$(SPHERE_NAME).i
+	@mkdir -p $(dst)build/swig
+	$(SWIG) $(SWIGOPT) -M $< >> $@
+include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d  $(dst)build/swig/$(SPHERE_NAME)_wrap.d
 endif
 #-------------------------------------------------------------------------------
 #   utils
