@@ -14,14 +14,18 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int D, typename A=float> class BaseMesh{
+	template <int D, typename A=float> class BaseMesh{ 
 	protected:
 		size_t sz;  // общее число элементов
 		Ind<D> box; // размеры сетки в ячейках
 		friend struct BinaryFormat;
 	public:
 		static const int dim = D;
-		std::string head, anames[D];
+		std::string head, info, anames[D];
+
+		const char* get_axe_name(int i) const { return anames[i].c_str(); }  // for python
+		void set_axe_name(int i, const char* name){ anames[i] = name; }      // for python
+		
 		aiw::Vec<D, A> bmin, bmax, step, rstep;
 		int logscale=0;          // битовая маска, задающая логарифмический масштаб по осям в виде  (0 --- нет, 1 --- да)
 		int periodic=0;          // битовая маска, задающая периодику по различным осям (0 --- нет, 1 --- да)
@@ -36,13 +40,14 @@ namespace aiw{
 		*/
 
 	protected:
+	    void check_out_pos(int& pos, int axe, int &mask) const { // правит маску промахов, по два бита на ось (слева/справа)
+			if(periodic&(1<<axe)) pos = (pos+box[axe])%box[axe];
+			else if(pos<0){ pos = 0; mask |= 1<<2*axe; }
+			else if(pos>=box[axe]){ pos = box[axe]-1; mask |= 1<<(1+2*axe); }
+		}
 	    int check_out_pos(Ind<D>& pos) const { // возвращает маску промахов, по два бита на ось (слева/справа)
 			int mask = 0;
-			for(int i=0; i<D; i++){
-				if(periodic&(1<<i)) pos[i] = (pos[i]+box[i])%box[i];
-				else if(pos[i]<0){ pos[i] = 0; mask |= 1<<2*i; }
-				else if(pos[i]>=box[i]){ pos[i] = box[i]-1; mask |= 1<<(1+2*i); }
-			}
+			for(int i=0; i<D; i++) check_out_pos(pos[i], i, mask);
 			return mask;
 		}
 		void flip_axe(int axe){
@@ -51,11 +56,11 @@ namespace aiw{
 			else { step[axe] = -step[axe]; rstep[axe] = -rstep[axe]; }
 		}
 		void push(BinaryHead &bh) const {
-			bh.dim = D;  bh.head = head;  bh.logscale = logscale;
+			bh.dim = D;  bh.head = head;  bh.info = info;  bh.logscale = logscale;
 			for(int i=0; i<D; i++){ bh.axis[i] = anames[i]; bh.bbox[i] = box[i]; bh.bmin[i] = bmin[i]; bh.bmax[i] = bmax[i]; }
 		}
 		void pull(const BinaryHead &bh){
-			head = bh.head;  logscale = bh.logscale;
+			head = bh.head; info = bh.info;  logscale = bh.logscale;
 			for(int i=0; i<D; i++){ anames[i] = bh.axis[i]; box[i] = bh.bbox[i]; bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
 		}
 	public:		
@@ -75,8 +80,14 @@ namespace aiw{
 		int coord2pos(A coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
 		aiw::Ind<D> coord2pos(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos(r[i], i); } return p; }
 
-		A pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); }
+		int coord2pos_bc(A coord, int axe) const { int pos = coord2pos(coord, axe), mask; check_out_pos(pos, axe, mask); return pos; }
+		aiw::Ind<D> coord2pos_bc(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos_bc(r[i], i); } return p; }
+
+		A pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); } 
 		aiw::Vec<D, A> pos2coord(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = pos2coord(p[i], i); } return r; }
+
+		A pos2coord_bc(int pos, int axe) const { int mask; check_out_pos(pos, axe, mask); return pos2coord(pos, axe); }
+		aiw::Vec<D, A> pos2coord_bc(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = pos2coord_bc(p[i], i); } return r; }
 
 		A cell_angle(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos) : bmin[axe]+step[axe]*pos; }
 		aiw::Vec<D, A> cell_angle(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = cell_angle(p[i], i); } return r; }

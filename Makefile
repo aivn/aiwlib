@@ -18,7 +18,7 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 #.PHONY: clean all install-links
 
-libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo,binhead
+libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
 ifeq (on,$(bin))
 bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
@@ -99,6 +99,12 @@ $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
 $(py_dst)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
 $(py_dst)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
 
+$(dst)build/swig/%_wrap.d: swig/%.i
+	@mkdir -p $(dst)build/swig
+	$(SWIG) $(SWIGOPT) -M $< >> $@
+$(dst)build/swig/%/core_wrap.d: swig/%/core.i
+	@mkdir -p $$(dirname $@)
+	$(SWIG) $(SWIGOPT) -M $< >> $@
 $(dst)build/swig/$(python)_%.d: $(dst)build/swig/%_wrap.cxx
 	@mkdir -p $(dst)build/swig
 	@p=$$(basename $@); echo -n "$@ " $(dst)build/swig/$(python)_dbg_$${p%.*}_wrap.o $(dst)build/swig/$(python)_ > $@
@@ -113,7 +119,7 @@ ifeq (on,$(swig))
 include $(shell echo $(dst)build/swig/$(python)_{iostream,swig}.d)
 #, mpi4py
 ifeq (3,$(python))
-include $(dst)build/swig/qplt/$(python)_core.d
+include $(dst)build/swig/qplt/$(python)_core.d $(dst)build/swig/qplt/core_wrap.d
 endif
 endif
 
@@ -157,7 +163,10 @@ Mesh%:
 	MESH_TYPE:="$(word 2,$(subst -, ,$@))" MESH_DIM:="$(word 3,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d
+$(dst)build/swig/$(MESH_NAME)_wrap.d: $(dst)build/swig/$(MESH_NAME).i
+	@mkdir -p $(dst)build/swig
+	$(SWIG) $(SWIGOPT) -M $< >> $@
+include swig/mesh.mk $(dst)build/swig/$(python)_$(MESH_NAME).d $(dst)build/swig/$(MESH_NAME)_wrap.d
 endif
 #---  Sphere  ------------------------------------------------------------------
 ifndef SPHERE_NAME
@@ -166,7 +175,10 @@ Sphere%:
 	SPHERE_TYPE:="$(word 2,$(subst -, ,$@))" 
 	@echo $(foreach t,$(sort $(shell cat TARGETS) $@),"$t") > TARGETS
 else
-include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d
+$(dst)build/swig/$(SPHERE_NAME)_wrap.d: $(dst)build/swig/$(SPHERE_NAME).i
+	@mkdir -p $(dst)build/swig
+	$(SWIG) $(SWIGOPT) -M $< >> $@
+include swig/sphere.mk $(dst)build/swig/$(python)_$(SPHERE_NAME).d  $(dst)build/swig/$(SPHERE_NAME)_wrap.d
 endif
 #-------------------------------------------------------------------------------
 #   utils

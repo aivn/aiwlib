@@ -254,7 +254,8 @@ std::vector<QpltContainer*> aiw::factory(const char *fname){  // поддерж�
 //------------------------------------------------------------------------------
 std::vector<QpltContainer*> aiw::QpltContainer::load_next_frames(){
 	std::vector<QpltContainer*> res; 
-	try{ fin->seek(0); fin->seek(end_offset); load_frames_impl(*fin, frame_+1, res); } catch(...) {}
+  try { fin->seek(0); fin->seek(end_offset); load_frames_impl(*fin, frame_ + 1, res);}
+  catch (...) {}
 	// std::cerr<<"load_nex_frames--> "<<res.size()<<'\n';
 	return res;
 }

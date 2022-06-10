@@ -12,9 +12,9 @@
 
 namespace aiw { class IOstream{
        protected:
-                long max_sz = -1;
+                long long max_sz = -1;
         public:
-                long max_size() const { return max_sz; }
+                long long max_size() const { return max_sz; }
                 
                 std::string name;
                 virtual ~IOstream(){}
@@ -77,9 +77,9 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class IOstream{
 	protected:
-		long max_sz = -1;
+		long long max_sz = -1;
 	public:
-		long max_size() const { return max_sz; }
+		long long max_size() const { return max_sz; }
 		
 		std::string name;
 		virtual ~IOstream(){}
@@ -87,9 +87,9 @@ namespace aiw{
 		inline bool operator !() const { return !*this; }
 		
 		virtual void close() = 0;
-		virtual long tell() const = 0;
-		bool check_tail(long sz) const { return max_sz<0 || sz<=max_sz-tell(); }
-		virtual bool seek(long offset, int whence=0) = 0;
+		virtual long long tell() const = 0;
+		bool check_tail(long long sz) const { return max_sz<0 || sz<=max_sz-tell(); }
+		virtual bool seek(long long offset, int whence=0) = 0;
 		virtual size_t read(void* buf, size_t size) = 0; // add swig typemap for bind to python style?
 		// std::string read(size_t size){ char buf[size]; read(buf, size); return buf; }
 		virtual size_t write(const void* buf, size_t size) = 0;
@@ -98,8 +98,8 @@ namespace aiw{
 		virtual bool eof() const = 0;
 
 		// for iostream compability ;-(
-		long tellg() const { return this->tell(); }
-		bool seekg(long offset, int whence=0){ return this->seek(offset, whence); }
+		long long tellg() const { return this->tell(); }
+		bool seekg(long long offset, int whence=0){ return this->seek(offset, whence); }
 		
 #ifndef SWIG
 		virtual std::shared_ptr<IOstream> copy() const = 0;
@@ -183,23 +183,46 @@ namespace aiw{
 			struct stat st; fstat(::fileno(f), &st);
 #ifdef AIW_WIN32
 			last_mtime = st.st_mtime; 
+      //max_sz = mode[0]=='r'? st.st_size: -1;
+      if (mode[0] == 'r') { ::_fseeki64(f, 0, SEEK_END); max_sz = ::_ftelli64(f); ::_fseeki64(f, 0, SEEK_SET); }
+      else max_sz = -1;
 #else //AIW_WIN32
 			last_mtime = st.st_mtim; 
+      //max_sz = mode[0]=='r'? st.st_size: -1;
+      if (mode[0] == 'r') { ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); }
+      else max_sz = -1;
 #endif //AIW_WIN32
-			max_sz = mode[0]=='r'? st.st_size: -1;
-			// if(mode[0]=='r'){ ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); } else max_sz = -1;
+
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
 #endif //SWIG
 		File(const char *path, const char *mode){ open(path, mode); }
 		
 		void close(){ pf.reset(); } 
-		long tell() const { return ftell(pf.get()); }
-		bool seek(long offset, int whence=0){ return !fseek(pf.get(), offset, whence) && (max_sz<0 || ftell(pf.get())<=max_sz); }
+		long long tell() const { 
+#ifdef AIW_WIN32
+      return _ftelli64(pf.get());
+#else
+      return ftell(pf.get()); 
+# endif
+    }
+		bool seek(long long offset, int whence=0){ 
+#ifdef AIW_WIN32
+      return !_fseeki64(pf.get(), offset, whence) && (max_sz < 0 || _ftelli64(pf.get()) <= max_sz);
+# else
+      return !fseek(pf.get(), offset, whence) && (max_sz<0 || ftell(pf.get())<=max_sz); 
+# endif
+    }
 		size_t read(void* buf, size_t size){ return ::fread(buf, 1, size, pf.get()); }
 		size_t write(const void* buf, size_t size){ return ::fwrite(buf, 1, size, pf.get()); }
 		void flush(){ fflush(pf.get()); }
-		bool eof() const { return feof(pf.get()) || (max_sz>=0 && ftell(pf.get())>=max_sz) ; }
+		bool eof() const { 
+#ifdef AIW_WIN32
+      return feof(pf.get()) || (max_sz >= 0 && _ftelli64(pf.get()) >= max_sz);
+# else
+      return feof(pf.get()) || (max_sz>=0 && ftell(pf.get())>=max_sz) ; 
+# endif
+    }
 #ifndef AIW_WIN32
 		std::shared_ptr<aiw::BaseAlloc> mmap(size_t size, bool write_mode=false){
 			return std::shared_ptr<BaseAlloc>(new MMapAlloc(pf, size, write_mode?PROT_READ|PROT_WRITE:PROT_READ)); //O_RDONLY|O_WRONLY:O_RDONLY));
@@ -213,10 +236,12 @@ namespace aiw{
 		}
 		int fileno() const { return ::fileno(pf.get()); }
 		bool check_update(){
-			struct stat st; fstat(::fileno(pf.get()), &st);
+			
 #ifdef AIW_WIN32
+      struct _stat64 st; _fstati64(::fileno(pf.get()), &st);
 			bool res = last_mtime!=st.st_mtime;  last_mtime = st.st_mtime;  
 #else //AIW_WIN32
+      struct stat st; fstat(::fileno(pf.get()), &st);
 			bool res = last_mtime.tv_sec!=st.st_mtim.tv_sec || last_mtime.tv_nsec!=st.st_mtim.tv_nsec;  last_mtime = st.st_mtim;  
 #endif //AIW_WIN32
 			if(max_sz>=0) max_sz = st.st_size;
@@ -232,19 +257,19 @@ namespace aiw{
 		StdOstream(): f(std::cout){}
 		StdOstream(std::ostream &f_): f(f_){}
 		size_t write(const void* buf, size_t size){ f.write((const char*)buf, size); return size; } // ???
-		// long tellg() const { return f.tellg(); }
+		// long long tellg() const { return f.tellg(); }
 
 		bool dump(){ return true; }
 		template <typename T, typename ... Args> bool dump(const T& x, const Args& ... args){ return stream_dump_wrapper(*this, x) && this->dump(args...); }
 	};
 	struct StdIstream {
 		std::istream &f;
-		long max_size() const { return -1; }
+		long long max_size() const { return -1; }
 		bool check_tail(size_t) const { return true; }
 		StdIstream(): f(std::cin){}
 		StdIstream(std::istream &f_): f(f_){}
 		size_t read(void* buf, size_t size){ return f.read((char*)buf, size).gcount(); }
-		long tellg() const { return f.tellg(); }
+		long long tellg() const { return f.tellg(); }
 		bool load(){ return true; }
 		template <typename T, typename ... Args> bool load(T& x, Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
 	};

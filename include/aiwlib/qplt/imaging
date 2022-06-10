@@ -67,7 +67,14 @@ namespace aiw{
 		CU_HD Vecf<4> operator ()(float f) const {
       if(modulus) f = fabs(f);
 			f = logscale? log(f/min)*mul :(f-min)*mul;
-			//if(std::isnan(f)) return nan_color;  // тут под Виндой видеокарта сбоит
+
+#ifdef AIW_WIN32
+			//if(_isnan(f)) return nan_color;  // тут под Виндой видеокарта сбоит
+      if (!(f <= 0) && !(f >= 0)) return nan_color;
+# else
+      if (std::isnan(f)) return nan_color;  
+# endif
+
 			int i = ::floor(f);
 			if(i<0) return pal[0];
 			if(i>=up_bound) return pal[up_bound];

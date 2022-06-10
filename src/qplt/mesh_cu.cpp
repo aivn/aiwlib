@@ -24,8 +24,9 @@ void aiw::QpltMesh::data_load_impl(){  // загружает данные в п�
 	mem = fin->mmap(data_sz, 0);
 	mem_ptr = (char*)(mem->get_addr());
 #else //__NVCC__
-	int err = cudaMallocManaged((void**)&mem_ptr, data_sz); 
-	if(err){ fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%ld, err=%i)\n", __FILE__, __FUNCTION__, __LINE__,  data_sz, err); exit(1); }
+  
+  int err = cudaMallocManaged((void**)&mem_ptr, data_sz);
+  if (err) { fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%zd, err=%i)\n", __FILE__, __FUNCTION__, __LINE__, data_sz, err); exit(1); }
 	data_load_cuda();
         // printf("cu2: ptr=%p\n", mem_ptr);
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
@@ -56,9 +57,10 @@ template <int AID> __global__ void plotXD(int* image){
 	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 	float sum_w = 0, f0 = 0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
+    //if(x==300 && y==300) printf("%i: %g\n", __LINE__, sum_w);
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
 		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
-			Vecf<4> dC = plt_cu_.color(f);  // <== тут ломается MS компилятор!!!
+			Vecf<4> dC = plt_cu_.color(f);
 			float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*plt_cu_._max_len*(1-sum_w);
 			if(sum_w+w<plt_cu_.lim_w){ C += dC*w; sum_w += w; }
 			else { C += dC*(plt_cu_.lim_w-sum_w); break; }
