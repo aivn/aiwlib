@@ -61,7 +61,6 @@ template <int AID> __global__ void plotXD(int* image){
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
 		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
 			Vecf<4> dC = plt_cu_.color(f);
-      //if (x == 300 && y == 300)printf("(%g %g %g %g)\n", dC[0], dC[1], dC[2], dC[3]);
 			float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*plt_cu_._max_len*(1-sum_w);
 			if(sum_w+w<plt_cu_.lim_w){ C += dC*w; sum_w += w; }
 			else { C += dC*(plt_cu_.lim_w-sum_w); break; }

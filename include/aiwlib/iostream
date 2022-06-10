@@ -192,7 +192,7 @@ namespace aiw{
       if (mode[0] == 'r') { ::fseek(f, 0, SEEK_END); max_sz = ::ftell(f); ::fseek(f, 0, SEEK_SET); }
       else max_sz = -1;
 #endif //AIW_WIN32
-			
+
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
 #endif //SWIG
