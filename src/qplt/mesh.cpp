@@ -130,8 +130,8 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
         int me = omp_get_thread_num();
         f_mina[me] = std::min(f_mina[me], fres);  f_maxa[me] = std::max(f_maxa[me], fres);
 			}
-      f_min = *std::min(f_mina.begin(), f_mina.begin()+ act_numthreads);
-      f_max = *std::max(f_maxa.begin(), f_mina.begin() + act_numthreads);
+      f_min = *std::min_element(f_mina.begin(), f_mina.begin()+ act_numthreads);
+      f_max = *std::max_element(f_maxa.begin(), f_maxa.begin() + act_numthreads);
 
 			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
 			accessor.minus = acc_minus;

@@ -58,7 +58,7 @@ endif()
 #	"src/isolines.cpp" "src/checkpoint.cpp" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
 #	"src/typeinfo.cpp" "src/binary_format.cpp")
 
-add_library(aiwlib OBJECT "src/binhead.cpp" "src/debug.cpp")
+add_library(aiwlib OBJECT "src/debug.cpp")
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 set_target_properties(aiwlib PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
@@ -68,7 +68,7 @@ if (CUDA)
 		"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" PROPERTIES LANGUAGE CXX)
 endif()
 add_library(qplt_static STATIC "src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "src/qplt/base.cpp"
-	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp" "src/binhead.cpp")
+	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp")
 target_include_directories(qplt_static PUBLIC "src/qplt")
 set_target_properties(qplt_static PROPERTIES POSITION_INDEPENDENT_CODE 1)
 

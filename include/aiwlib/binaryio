@@ -3,7 +3,7 @@
 #define AIW_BINARY_IO_HPP
 
 /**
- * Copyright (C) 2017, 2020 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017, 2020, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -13,7 +13,7 @@
 #include <vector>
 #include <list>
 #include <map>
-#include "debug"
+// #include "debug"
 
 template <typename T> struct aiw_dump_load { static const int mode = std::is_trivially_copyable<T>::value; }; // 0 --- возможно есть внешние dump/load, 1 --- тривиальные, 2 --- встроенные
 
@@ -26,6 +26,8 @@ AIW_POD(float); AIW_POD(uint8_t); AIW_POD(uint16_t); AIW_POD(uint32_t); AIW_POD(
 AIW_POD(bool);
 */
 template <typename T> struct aiw_dump_load<std::complex<T> > { static const int mode = 1; };
+
+// template <typename T> struct BinInWrapper: public T {};
 
 namespace aiw{	
 	// global case

@@ -24,8 +24,9 @@ void aiw::QpltMesh::data_load_impl(){  // загружает данные в п�
 	mem = fin->mmap(data_sz, 0);
 	mem_ptr = (char*)(mem->get_addr());
 #else //__NVCC__
-	int err = cudaMallocManaged((void**)&mem_ptr, data_sz); 
-	if(err){ fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%ld, err=%i)\n", __FILE__, __FUNCTION__, __LINE__,  data_sz, err); exit(1); }
+  
+  int err = cudaMallocManaged((void**)&mem_ptr, data_sz);
+  if (err) { fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%zd, err=%i)\n", __FILE__, __FUNCTION__, __LINE__, data_sz, err); exit(1); }
 	data_load_cuda();
         // printf("cu2: ptr=%p\n", mem_ptr);
 	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
