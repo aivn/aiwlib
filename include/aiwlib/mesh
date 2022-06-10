@@ -259,7 +259,7 @@ namespace aiw{
 	// template <typename T, int D> aiw::IOstream& operator < (aiw::IOstream &S, const aiw::Mesh<T, D> &M){ M.dump(S); return S; }
 	// template <typename T, int D> aiw::IOstream& operator > (aiw::IOstream &S,       Mesh<T, D> &M){ M.load(S); return S; }
 	//--------------------------------------------------------------------------
-	/*
+	/*  
 	template <typename T, int D> void dump_mesh(aiw::IOstream &S, aiw::Ind<D> box, const T* data, std::string head="",
 												aiw::Vec<D> bmin=Vec<D>(), aiw::Vec<D> bmax=Vec<D>(), int logscale=0){
 		if(bmin==bmax){ bmin = Vec<D>(); bmax = box; }

@@ -87,7 +87,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 }  // end of namespace aiw 
 
-#ifndef AIW_WIN32
+#ifndef AIW_WIN32    
 #include <unistd.h>
 #define WMSG(args...) { std::cerr<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": ";	\
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }

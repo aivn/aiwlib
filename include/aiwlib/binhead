@@ -62,7 +62,7 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	if(type==unknown || szT<0) WRAISE("unknown type or szT", szT);
 	if(type!=sphere && (dim<0 || dim>=max_dim)) WRAISE("incorrect dim", dim, max_dim);
 	
-	std::stringstream buf; int h_sz = strlen(head.c_str()); // WSTR(h_sz, head.size());  
+	std::stringstream buf; int h_sz = strlen(head.c_str()); WSTR(h_sz, head.size());  
 	if(h_sz){ buf.write(head.c_str(), h_sz); } { char zero = 0; buf.write(&zero, 1); }  // пишем заголовок и терминируем его нулем
 	bool faxis = false; for(int i=0; i<dim; i++) if(!axis[i].empty()){ faxis = true; break; }
 	if(faxis) for(int i=0; i<dim; i++){  
