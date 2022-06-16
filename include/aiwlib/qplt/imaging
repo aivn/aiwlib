@@ -65,9 +65,13 @@ namespace aiw{
 
 		CU_HD bool check_in(float f) const { return (min<max && min<f && f<max) || (max<min && max<f && f<min); }
 		CU_HD Vecf<4> operator ()(float f) const {
-      if(modulus) f = fabs(f);
+			if(modulus) f = fabs(f);
 			f = logscale? log(f/min)*mul :(f-min)*mul;
-			//if(std::isnan(f)) return nan_color;  // тут под Виндой видеокарта сбоит
+#ifndef AIW_WIN32
+			if(!(f<=0) && !(f>=0)) return nan_color;  // от std::isnan под Виндой видеокарта сбоит
+#else // AIW_WIN32
+			if(std::isnan(f)) return nan_color;     
+#endif // AIW_WIN32
 			int i = ::floor(f);
 			if(i<0) return pal[0];
 			if(i>=up_bound) return pal[up_bound];
@@ -133,6 +137,12 @@ namespace aiw{
 			float w = f-i;
 			return (pal[i]*(1-w)+pal[i+1]*w).I;
 		}
+		int move2diag(int cI, float eps, uint8_t diag) const {
+			rgb_t c; c.I = cI;
+			for(int i=0; i<3; i++) c.c[i] += (int(diag)-int(c.c[i]))*eps;
+			return c.I;			
+		}
+		int operator ()(float f, float eps, uint8_t diag) const { return move2diag((*this)(f), eps, diag); }
 		float get_f(float x) const { return logscale? min*pow(max/min, x): min+(max-min)*x; }
 		bool check_in(float f) const { return (min<max && min<f && f<max) || (max<min && max<f && f<min); }
 		
@@ -147,6 +157,24 @@ namespace aiw{
 		float arr_spacing = 1.;
 		void arr_plot(int cx, int cy, const float *v, QpltImage &im) const;  // cx, cy задают центр стрелки 
 	};  // end of class CalcColor
+	//--------------------------------------------------------------------------
+	class ZBuffer{
+		int Nx, Ny;
+		
+		struct pixel_t { int c = 0xFFFFFFFF; float z = HUGE_VALF; };
+		std::vector<pixel_t> data;
+
+		friend void join_zbufs(const std::vector<ZBuffer> &src, std::string &dst);
+	public:
+		void init(int Nx_, int Ny_){ Nx = Nx_; Ny = Ny_; if(Nx*Ny>0) data.resize(Nx*Ny); }
+		ZBuffer(int Nx_=0, int Ny_=0){  init(Nx_, Ny_); }
+
+		void set_pixel(int x, int y, int c, float z){
+			WASSERT(0<=x<Nx && 0<=y<Ny, "oops...", x, y, Nx, Ny, c, z);
+			pixel_t &p = data[x+y*Nx]; if(p.z>z){ p.z = z; p.c = c; }
+		}
+	};
+	void join_zbufs(const std::vector<ZBuffer> &src, std::string &dst);
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 #endif //AIW_QPLT_IMAGING_HPP

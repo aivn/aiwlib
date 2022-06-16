@@ -77,7 +77,7 @@ namespace aiw{
 			for(int i=0; i<D; i++) set_step(i); 
 		}
 
-		int coord2pos(A coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
+		int coord2pos(A coord, int axe) const { return floor(logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]); }
 		aiw::Ind<D> coord2pos(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos(r[i], i); } return p; }
 
 		int coord2pos_bc(A coord, int axe) const { int pos = coord2pos(coord, axe), mask; check_out_pos(pos, axe, mask); return pos; }

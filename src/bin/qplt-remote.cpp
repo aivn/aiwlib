@@ -9,7 +9,7 @@ std::map<int, QpltPlotter*> plotters;
 int last_plotter_ID = 0;
 
 void send_frame(QpltContainer* f, StdOstream &stdOut){
-	stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep);
+	stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep, f->features());
 	for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
 }
 

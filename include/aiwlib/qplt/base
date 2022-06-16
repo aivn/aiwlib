@@ -51,10 +51,12 @@ namespace aiw{
 		int dim, szT;   // размерность контейнера и размер ячейки в байтах (оси в одну ячейку выбрасываются на стороне питона)
 		std::string head, info, anames[6];
 		static const std::string default_anames[6];
-		uint32_t logscale;  // битовая маска с лог.масштабами по осям
+		uint32_t logscale = 0;  // битовая маска с лог.масштабами по осям
 		Ind<6> bbox; Vecf<6> bmin, bmax, step, rstep;  // исходные параметры контейнера - размер и пределы по осям, устанавливаются при загрузке и больше не меняются
 #endif //SWIG
 
+		virtual int features() const = 0; // битовая маска. 1 --- дискретное число ячеек.
+		
 		static double mem_limit;  // лимит на размер памяти, в GB
 		
 		const char* fname() const; 
@@ -76,6 +78,7 @@ namespace aiw{
 		int coord2pos(float coord, int axe) const;
 		
 		// это ужасно, но я пока не знаю как сделать лучше --- нужно что бы работала альтернативная версия без С++;-(
+		// заменить это на строку с упакованными в бинарном/текстовом виде аргументами?
 		QpltPlotter* plotter( int mode,  // f_opt: 2b autoscale, 1b logscale, 1b модуль
 							  int f_opt, float f_lim[2], const char* paletter, int arr_lw[2], float arr_spacing, int nan_color, 
 							  int ctype, int Din, int mask, int offset[3], int diff, int vconv, bool minus,  // accessor

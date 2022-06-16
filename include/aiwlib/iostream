@@ -77,9 +77,9 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	class IOstream{
 	protected:
-		long max_sz = -1;
+		long long max_sz = -1;
 	public:
-		long max_size() const { return max_sz; }
+		long long max_size() const { return max_sz; }
 		
 		std::string name;
 		virtual ~IOstream(){}
@@ -89,7 +89,7 @@ namespace aiw{
 		virtual void close() = 0;
 		virtual long tell() const = 0;
 		bool check_tail(long sz) const { return max_sz<0 || sz<=max_sz-tell(); }
-		virtual bool seek(long offset, int whence=0) = 0;
+		virtual bool seek(long offset, int whence=SEEK_SET) = 0;
 		virtual size_t read(void* buf, size_t size) = 0; // add swig typemap for bind to python style?
 		// std::string read(size_t size){ char buf[size]; read(buf, size); return buf; }
 		virtual size_t write(const void* buf, size_t size) = 0;
@@ -99,7 +99,7 @@ namespace aiw{
 
 		// for iostream compability ;-(
 		long tellg() const { return this->tell(); }
-		bool seekg(long offset, int whence=0){ return this->seek(offset, whence); }
+		bool seekg(long offset, int whence=SEEK_SET){ return this->seek(offset, whence); }
 		
 #ifndef SWIG
 		virtual std::shared_ptr<IOstream> copy() const = 0;
@@ -195,7 +195,7 @@ namespace aiw{
 		
 		void close(){ pf.reset(); } 
 		long tell() const { return ftell(pf.get()); }
-		bool seek(long offset, int whence=0){ return !fseek(pf.get(), offset, whence) && (max_sz<0 || ftell(pf.get())<=max_sz); }
+		bool seek(long offset, int whence=SEEK_SET){ return !fseek(pf.get(), offset, whence) && (max_sz<0 || ftell(pf.get())<=max_sz); }
 		size_t read(void* buf, size_t size){ return ::fread(buf, 1, size, pf.get()); }
 		size_t write(const void* buf, size_t size){ return ::fwrite(buf, 1, size, pf.get()); }
 		void flush(){ fflush(pf.get()); }

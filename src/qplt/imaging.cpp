@@ -182,3 +182,13 @@ void aiw::QpltColor::unpack(const std::string &S){
 }
 */
 //------------------------------------------------------------------------------
+void aiw::join_zbufs(const std::vector<ZBuffer> &src, std::string &dst){
+	int sz = src[0].Nx*src[0].Ny, src_sz = src.size();  dst.resize(sz*4); 
+#pragma omp parallel for
+	for(int i=0; i<sz; i++){
+		auto p = src[0].data[i];
+		for(int j=1; j<src_sz; j++) if(p.z>src[j].data[i].z) p = src[j].data[i];
+		*((uint32_t*)(&dst[0])+i) = p.c;
+	}
+}
+//------------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 #define AIW_ZCURVE_HPP
 
 /**
- * Copyright (C) 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2021-22 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -12,12 +12,12 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int D, typename T> struct ZCurve{ // сделать частичную специализацю при D=1?
+	template <int D, typename T=uint64_t> struct ZCurve{  // сделать частичную специализацю при D=1?
 		static_assert(1<D && D<12, "incorrect dimention");
 				
-		T off: 8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5));
-		T rank: sizeof(T)==2? 3: (sizeof(T)==4? 4: 5);
-		static const int max_rank = (8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5)))/D -1;  // запас в D бит на контроль поиcка соседей 
+		T off: 8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5));  // смещение на Z-кривой
+		T rank: sizeof(T)==2? 3: (sizeof(T)==4? 4: 5);               // ранг Z-кривой
+		static const int max_rank = (8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5)))/D -1;  // в т.ч. запас в D бит на контроль поиcка соседей 
 		
 		ZCurve(): off(0), rank(0) {}
 		ZCurve(T off_, T rank_): off(off_), rank(rank_) { WASSERT(rank<=max_rank, rank, max_rank); }
@@ -30,8 +30,8 @@ namespace aiw{
 		static constexpr int morton_sz = sizeof(T)==2? 4: (sizeof(T)==4? 5: 6); 
 		static constexpr int morton0 = 6-morton_sz, morton1 = 7-morton_sz;
 		T RDbits() const { return (T(1)<<rank*D)-1; }
-	public:
-		
+
+	public:		
 		ZCurve(const Ind<D> &pos, T rank_): off(0), rank(rank_) {
 			for(int axe=0; axe<D; axe++){
 				T f, x = pos[axe];
@@ -43,7 +43,7 @@ namespace aiw{
 			}
 			off &= RDbits(); // работать с готовыми масками?
 		}
-		Ind<D> operator * () const {
+		Ind<D> operator * () const {  // переводит позицию на Z-кривой в обычные координаты
 			Ind<D> pos;
 			for(int axe=0; axe<D; axe++){
 				T f = off>>axe, x;
@@ -57,20 +57,25 @@ namespace aiw{
 		}
 
 		// операторы <<, >> для смены ранга???
+		// изменяет ранг (в любую из сторон), при этом меняется позиция
 		ZCurve chrank(T rank2) const { return ZCurve(rank<rank2? off<<(rank2-rank): off>>(rank-rank2), rank2); }
+		// отбрасывает старщие биты не влезающие в ранг
 		ZCurve crop2rank() const { return ZCurve(off&RDbits(), rank); }  // работать с готовыми масками?
-		
+
+		// проверяет чистоту позиции (наличие старших бит не влезающих в ранг)
 		operator bool () const { return off<(T(1)<<D*rank); }  // работать с готовыми масками?
 		bool operator !() const { return off>=(T(1)<<D*rank); } // работать с готовыми масками?
-		T size() const { return T(1)<<D*rank; } // работать с готовыми масками?
-		bool is_full() const { return off==size(); }
 
-		bool operator == (ZCurve z) const { return rank<z.rank? (off<<(z.rank-rank))==z.off: (z.off<<(rank-z.rank))==off; }
+		T size() const { return T(1)<<D*rank; }  // возможное число ячеек на данном ранге. работать с готовыми масками?
+		bool is_full() const { return off==size(); }  // Z-кривая пройдена
+
+		// сравнивает позиции на двух Z-кривых с разными рангами приводя их к максимальному рангу
+		bool operator == (ZCurve z) const { return rank<z.rank? (off<<D*(z.rank-rank))==z.off: (z.off<<D*(rank-z.rank))==off; }
 		bool operator != (ZCurve z) const { return !(*this==z); }
 
 		ZCurve operator + (ZCurve tile) const {
-			return rank<tile.rank? ZCurve((off<<(tile.rank-rank))+tile.off, tile.rank):
-				/**/               ZCurve((tile.off<<(rank-tile.rank))+off,      rank);
+			return rank<tile.rank? ZCurve((off<<D*(tile.rank-rank))+tile.off, tile.rank):
+				/**/               ZCurve((tile.off<<D*(rank-tile.rank))+off,      rank);
 		}
 		void operator += (ZCurve tile){
 			if(rank<tile.rank){ off = (off<<(tile.rank-rank)) + tile.off; rank = tile.rank; }

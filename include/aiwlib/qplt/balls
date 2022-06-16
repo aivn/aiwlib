@@ -1,0 +1,63 @@
+// -*- C++ -*-
+#ifndef AIW_QPLT_BALLS_HPP
+#define AIW_QPLT_BALLS_HPP
+
+/**
+ * Copyright (C) 2022 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <map>
+#include "../alloc"
+#include "../vec"
+#include "../debug"
+#include "imaging"
+#include "accessor"
+#include "base"
+
+// пока что рисует только наборы флотов вида x,y,z,r... ???
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class QpltBalls: public QpltContainer {
+		std::shared_ptr<BaseAlloc> mem;
+		size_t mem_offset = 0, data_sz = 0, count = 0;
+
+		// 6+6 (пределы по пр-ву) 1 (AID) 1 (ctype, минус учитывается отдельно) 3 (offsets), для масок всегда перерасчет?
+		// std::map< Ind<17>, Vecf<2> > flimits;  // кэш пределов
+		
+		void data_free_impl() override;  // выгружает данные из памяти
+		void data_load_impl() override;  // загружает данные в память
+		
+		uint64_t mul[6]; char* mem_ptr = nullptr;
+		// void data_load_cuda();
+		friend class QpltBallsPlotter;
+	public:
+		int features() const override { return 0; }  // битовая маска. 1 --- дискретное число ячеек.
+		bool load(IOstream &);
+		~QpltBalls(){ data_free(); }
+	protected:
+		QpltPlotter* mk_plotter(int mode) override;
+	};
+	//--------------------------------------------------------------------------
+	class QpltBallsPlotter: public QpltPlotter {
+		template <int AID> void init_impl(int autoscale);  // тут мы считаем пределы, потом будем создавать список актуальных частиц?
+		template <int AID> void plot_impl(std::string &im) const; // тут будм рисовать, пока тупо
+		// template <int AID> void get_impl(int xy[2], QpltGetValue &res) const;  // принимает координаты в пикселях
+		// template <int AID> void get_impl(int xy[2], std::string &res) const;  // принимает координаты в пикселях
+
+		CALL_FUNC(QpltBallsPlotter, init);
+		void init(int autoscale) override { accessor.call<call_init>(*this, autoscale); }
+
+		// template <int AID> QpltBallsFlat<AID> get_flat(int flatID) const; // это вообще ненадо?
+	public:
+		CALL_FUNC(const QpltBallsPlotter, plot);
+		std::string plot() const override { std::string im; accessor.call<call_plot>(*this, im); return im; } // лучше рисовать в область памяти, но пока что так
+
+		// CALL_FUNC(const QpltBallsPlotter, get);
+		// std::string get(int xy[2]) const override { std::string res; accessor.call<call_get>(*this, xy, res); return res; } // принимает координаты в пикселях
+		std::string get(int xy[2]) const override { return ""; } // принимает координаты в пикселях, пока не работает. По хорошему нужно формировать ID буфер
+	}; 
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_QPLT_BALLS_HPP

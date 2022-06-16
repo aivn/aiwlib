@@ -89,6 +89,7 @@ def _load_frames_from_single_file(connect, frameID0=0):
 #-------------------------------------------------------------------------------
 class QpltContainer:
     #static double mem_limit;  // лимит на размер памяти, в GB
+    def features(self): return self._features
     def fname(self): return self._fname
     def frame(self): return self._frameID 		
     def get_dim(self): return self._dim
@@ -106,7 +107,8 @@ class QpltContainer:
     def coord2pos(self, coord, axe): return int(math.log(coord/self._bmin[axe])*self._rstep[axe] if self._logscale&1<<axe else (coord-self._bmin[axe])*self._rstep[axe])
     def __init__(self, fileID, frameID, connect):
         self._fileID, self._frameID, self._connect = fileID, frameID, connect
-        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step, self._rstep = connect.recv('siiss6i6f6fi6f6f')
+        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step, self._rstep, self._features = \
+            connect.recv('siiss6i6f6fi6f6fi')
         self._anames = connect.recv('s'*self._dim); self._fname = bytes(connect.host+':', 'utf8')+self._fname
     def plotter(self, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep):

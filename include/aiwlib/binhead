@@ -15,6 +15,7 @@
 // Mesh:   head [[axis] [typeinfo] [info] align out_value bmin bmax axisbit<<31|typeinfobit<<30|infobit<<29|logscale]    D        szT     box
 // Sphere: head [[axis] [typeinfo] [info] align                     axisbit<<31|typeinfobit<<30|infobit<<29|int(0)]      int(0)   szT  R
 // Z-cube: head [[axis] [typeinfo] [info] align           bmin bmax axisbit<<31|typeinfobit<<30|infobit<<29|logscale]    1<<30|D  szT  R  
+// balls:  head [[axis] [typeinfo] [info] align           bmin bmax axisbit<<31|typeinfobit<<30|infobit<<29|int(0)]      1<<29|D  szT  count(8b)
 // AMR:    head [[axis] [typeinfo] [info] align           bmin bmax axisbit<<31|typeinfobit<<30|infobit<<29|logscale]    1<<31|D  szT  R  box
 //------------------------------------------------------------------------------
 
@@ -36,11 +37,13 @@ namespace aiw{
 		int rank = -1;
 		int sph_mode = -1;  // 0 - cells, 1 - vortex, 2 - edeges
 
+		uint64_t count;  // число шариков (или еще чего то, 8 байт без знака)
+		
 		size_t start_offset = 0;
 		size_t data_offset  = 0;
 		// size_t size = 0;
 
-		enum type_t { unknown, mesh, sphere, zcube };
+		enum type_t { unknown, mesh, sphere, zcube, balls };
 		type_t type = unknown; 
 
 		inline size_t get_size() const; 
@@ -55,6 +58,7 @@ inline size_t aiw::BinaryHead::get_size() const {
 	if(type==mesh){ size = szT; for(int i=0; i<dim; i++)  size *= bbox[i]; }
 	if(type==sphere) size = (sph_mode? (sph_mode==1? (30l<<2*rank)+2 : 90l<<2*rank) : 60l<<2*rank)*szT; 
 	if(type==zcube) size = size_t(szT)<<(dim*rank); 
+	if(type==balls) size = count*szT; 
 	return size;
 }
 //------------------------------------------------------------------------------
@@ -70,15 +74,15 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 			if(sz) buf.write(axis[i].c_str(), sz);
 		}
 	
-	uint32_t tail = type==sphere? 0: logscale;
+	uint32_t tail = type==sphere||type==balls? 0: logscale;
 	if(faxis) tail |= uint32_t(1)<<31;
 	if(!info.empty()){
 		uint32_t sz = info.size(); buf.write((const char*)&sz, 4); buf.write(info.c_str(), sz);
 		tail |= uint32_t(1)<<29;
 	}
 	
-	//    head_sz  head, axis       bmin, bmax  tail dim szT             rank                   out_value, bbox
-	int tot_sz = 4 + buf.str().size() + dim*16 + 4 + 4 + 4 + 4*(type==sphere || type==zcube) + (szT+4*dim)*(type==mesh);
+	//    head_sz  head, axis       bmin, bmax  tail dim szT             rank                    count              out_value, bbox
+	int tot_sz = 4 + buf.str().size() + dim*16 + 4 + 4 + 4 + 4*(type==sphere || type==zcube) + 8*(type==balls) + (szT+4*dim)*(type==mesh);
 
 	if(align){ int dalign = tot_sz%align ? align-tot_sz%align : 0; tot_sz += dalign; for(int i=0; i<dalign; i++) buf.put(0); } 
 	if(type==mesh) for(int i=0; i<szT; i++) buf.put(0);
@@ -88,12 +92,14 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	uint32_t D = dim;
 	if(type==sphere) D = 0;
 	if(type==zcube) D |= 1<<30;
+	if(type==balls) D |= 1<<29;
 
 	buf.write((const char*)&D, 4); buf.write((const char*)&szT, 4);
 
 	if(type==mesh) buf.write((const char*)bbox, 4*dim); 
 	if(type==sphere){ uint32_t rank_ = rank|(sph_mode<<29); buf.write((const char*)&rank_, 4); }
 	if(type==zcube) buf.write((const char*)&rank, 4); 
+	if(type==balls) buf.write((const char*)&count, 8); 
 
 	// start_offset = S.tell();
 	S.write((const char*)&h_sz, 4); S.write(buf.str().c_str(), buf.str().size());
@@ -103,15 +109,16 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
 	start_offset = S.tellg();
 	std::string h; int32_t dim_, szT_, h_sz = -1;
-	if(S.read(&h_sz, 4)!=4 || h_sz<=0 || h_sz>(1<<16)){ S.seekg(start_offset);  return false; }
+	if(S.read(&h_sz, 4)!=4 || h_sz<0 || h_sz>(1<<16)){ S.seekg(start_offset); return false; }
 	h.resize(h_sz);
-	if(int(S.read(&h[0], h_sz))!=h_sz){ S.seekg(start_offset); return false; } 
+	if(h_sz && int(S.read(&h[0], h_sz))!=h_sz){ S.seekg(start_offset); return false; } 
 	if(int(S.read(&dim_, 4))!=4){ S.seekg(start_offset); return false; }
 	if(int(S.read(&szT_, 4))!=4){ S.seekg(start_offset); return false; }
 	
 	szT = szT_; // int type_ = unknown; механизм явной фиксации типа и пр?
 	if(dim_==0){ type = sphere; dim = 2; }
 	else if(dim_&(1<<30)){ dim = dim_&0xF; type = zcube; }
+	else if(dim_&(1<<29)){ dim = dim_&0xF; type = balls; }
 	else{ dim = dim_; type = mesh; }
 
 	if(szT<=0 || dim<0 || dim>=max_dim){ S.seekg(start_offset); return false; }
@@ -120,6 +127,7 @@ template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректно
 		if(S.read(&rank, 4)!=4 || rank<0){ S.seekg(start_offset); return false; }
 		if(type==sphere){ sph_mode = rank>>29; rank &= 0xFF; } // ???
 	}
+	if(type==balls && S.read(&count, 8)!=8){ S.seekg(start_offset); return false; }
 	if(type==mesh && int(S.read(bbox, dim*4))!=dim*4){ S.seekg(start_offset); return false; }
 	head = h.c_str(); 	data_offset = S.tellg();
 

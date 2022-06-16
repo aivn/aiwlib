@@ -13,6 +13,7 @@
 #include "cuda"
 #endif //SWIG
 
+#ifdef AIW_WIN32
 # ifdef max
 # undef max
 # endif
@@ -20,7 +21,7 @@
 # ifdef min
 # undef min
 # endif
-
+#endif //AIW_WIN32
 
 #ifdef SWIG
 namespace aiw{
@@ -48,7 +49,10 @@ namespace aiw{
 		// void to(T (&p_)[D]) const { memcpy(p_, p, sizeof(T)*D); } 
 		CU_HD Vec(T const (&p_)[D]){ for(int i=0; i<D; i++) p[i] = p_[i]; }
 		CU_HD void operator = (T const (&p_)[D]){ for(int i=0; i<D; i++) p[i] = p_[i]; } 
-		CU_HD void to(T (&p_)[D]) const { for(int i=0; i<D; i++) p_[i] = p[i]; } 
+		template <int D2> CU_HD void to(T (&p_)[D2]) const {
+			static_assert(D2>=D, "illegal D2");
+			for(int i=0; i<D; i++) p_[i] = p[i];
+		} 
 		
 		template <typename ... Args> CU_HD  explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
