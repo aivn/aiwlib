@@ -135,10 +135,11 @@ bool aiw::segy_ibm_format = false;
 //------------------------------------------------------------------------------
 //   read operations
 //------------------------------------------------------------------------------
-int aiw::segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, 
+int aiw::segy_raw_read(IOstream &&S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, 
 					   size_t count, bool read_data){
-	int max_sz = 0;
+	int max_sz = 0; // WMSG(count, read_data); S.seek(3600);
 	while(count--){
+		// WMSG(count, S.tell());
 		SegyTraceHead tr; if(!tr.load(S)) break; 
 		heads.push_back(tr.PV|tr.PP|tr.dt|tr.trace_sz);
 		if(read_data){
@@ -151,6 +152,7 @@ int aiw::segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::v
 				S.read(&(data.back()[0]), tr.trace_sz*4);
 			if(max_sz<tr.trace_sz) max_sz = tr.trace_sz;
 		} else S.seek(tr.trace_sz*4, SEEK_CUR);
+		// WMSG(tr.trace_sz, S.tell());
 	}
 	return max_sz;
 }
@@ -186,13 +188,15 @@ Mesh<float, 3> aiw::segy_read(IOstream &&S, Mesh<float, 3> &data){
 	int max_sz = segy_raw_read(S, rdata, heads, -1, true);
 	Mesh<float, 3> geometry; geometry.init(ind(8, H.profile_sz, heads.size()/H.profile_sz));
 	for(Ind<3> pos; pos^=geometry.bbox(); ++pos) geometry[pos] = heads[pos[1]+pos[2]*H.profile_sz][pos[0]];
-	data.init(ind(max_sz, H.profile_sz, rdata.size()/H.profile_sz)); data.fill(0.f);
+	data.init(ind(max_sz, H.profile_sz, rdata.size()/H.profile_sz)); data.fill(0.f); 
 	Ind<2> pos;
 	for(auto V=rdata.begin(); V!=rdata.end() and (pos^=data.bbox()(1,2));){
 		WASSERT(ind(0)<=pos && pos<data.bbox()(1,2), " ", pos, data.bbox());
 		for(int i=0; i<int(V->size()); i++) data[i|pos] = (*V)[i];
 		++pos; ++V;
 	}
+	// Vecf<8> front = geometry[Ind<3>(0)], back = geometry[geometry.bbox()-ind(1)];
+	// data.set_axis(front(5, 3, 4), (front(5)+H.dt*data.bbox()[0])|back(3, 4));
 	return geometry;
 }
 //------------------------------------------------------------------------------
@@ -303,7 +307,7 @@ bool aiw::SegyTraceHead::load(aiw::IOstream &S){
 	PP[1] = get_int32(84); 
 	trace_sz = get_int16(114); //114 chislo otschetov v trasse
 	dt = get_int16(116)*1e-6;  //116 shag diskretizacii, mks
-	return true;
+	return trace_sz>0;
 }
 //------------------------------------------------------------------------------
 void aiw::SegyTraceHead::write(aiw::IOstream &S, const float *data, float z_pow){

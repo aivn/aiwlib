@@ -183,9 +183,9 @@ endif
 #-------------------------------------------------------------------------------
 #   utils
 #-------------------------------------------------------------------------------
-$(dst)bin/%: $(dst)build/src/bin/%.o
+$(dst)bin/%: $(dst)build/src/bin/%.o $(dst)libaiw.a
 	mkdir -p $$(dirname $@) && $(CXX) -o $@ $^ $(dst)libaiw.a $(LINKOPT)
-$(dst)bin/qplt-remote: $(dst)build/src/bin/qplt-remote.o $(shell echo $(dst)build/src/qplt/{$(qplt_n)}.o)
+$(dst)bin/qplt-remote: $(dst)build/src/bin/qplt-remote.o $(shell echo $(dst)build/src/qplt/{$(qplt_n)}.o) $(dst)libaiw.a
 	mkdir -p $$(dirname $@) && $(CU_LD) -o $@ $^ $(dst)libaiw.a $(LINKOPT)  
 #-------------------------------------------------------------------------------
 #   viewers

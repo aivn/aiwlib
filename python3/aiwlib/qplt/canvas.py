@@ -215,6 +215,7 @@ class Canvas(QtWidgets.QWidget):
         try: ttl = win.title_text.text().format(head=self.container.get_head().decode(), **get_params(win.filenum.value()))
         except Exception as e: print("Can't format title", e.__class__.__name__, e); ttl = win.title_text.text()
         if ttl: paint.drawText(0, 0, sz_x, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, ttl); y0 = h_font*2
+        else: y0 = h_font #int(h_font/2)
         
         if win.autoscale.isChecked(): win.f_min.setText('%g'%plotter.get_f_min()); win.f_max.setText('%g'%plotter.get_f_max())
         self.mouse_table = [] 

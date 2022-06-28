@@ -38,13 +38,19 @@ int main(int argc, const char ** argv){
 		std::string src = argv[i]; int slash = src.rfind('/'), dot = src.rfind('.');
 		std::string dst = dot>slash? src.substr(0, dot)+".msh": src+".msh"; 
 
+		/*
 		std::list<std::vector<float> > data;
 		std::vector<Vecf<8> > heads;
-		int sz = segy_raw_read(File(argv[i], "r"), data, heads, 10, false);
-		// size_t count, bool read_data);
-		std::cout<<sz<<' '<<data.size()<<'\n';
+		WMSG(argv[i]);
 		
-		/*
+		int sz = segy_raw_read(File(argv[i], "r"), data, heads, -1, false);
+		std::cout<<sz<<' '<<data.size()<<'\n';
+		*/
+		Mesh<float, 2> data; segy_read(File(argv[i], "r"), data, true);
+		if(use_scale) for(float &x: data) x *= scale;
+		data.dump(File(dst.c_str(), "w")); std::cout<<src<<" ==> "<<dst<<'\n';
+		
+		/* 
 		Mesh<float, 2> arr2D; Mesh<float, 3> arr3D;
 		if(arr2D.load(File(src.c_str(), "rb"), !use_scale, false)) dim = 2; 
 		else if(arr3D.load(File(src.c_str(), "rb"), !use_scale, false)) dim = 3; 

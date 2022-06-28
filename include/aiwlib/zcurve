@@ -14,18 +14,22 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <int D, typename T=uint64_t> struct ZCurve{  // сделать частичную специализацю при D=1?
 		static_assert(1<D && D<12, "incorrect dimention");
-				
+
+		// 2b: 12+3+1, 4b: 27+4+1, 8b: 58+5+1
 		T off: 8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5));  // смещение на Z-кривой
 		T rank: sizeof(T)==2? 3: (sizeof(T)==4? 4: 5);               // ранг Z-кривой
-		static const int max_rank = (8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5)))/D -1;  // в т.ч. запас в D бит на контроль поиcка соседей 
+		// в т.ч. запас в D бит на контроль переполнения 
+		static const int max_rank = (8*sizeof(T)-(sizeof(T)==2? 3: (sizeof(T)==4? 4: 5))-1)/D;  
 		
 		ZCurve(): off(0), rank(0) {}
 		ZCurve(T off_, T rank_): off(off_), rank(rank_) { WASSERT(rank<=max_rank, rank, max_rank); }
 
 	private:
 		static constexpr T morton[2][6] = {
-			{ T(0x00000000FFFFFFFF), T(0x0000FFFF0000FFFF), T(0x00FF00FF00FF00FF), T(0x0F0F0F0F0F0F0F0F), T(0x3333333333333333), T(0x5555555555555555) }, // 2D
-			{ T(0x00000000001FFFFF), T(0xFFFF00000000FFFF), T(0x00FF0000FF0000FF), T(0xF00F00F00F00F00F), T(0x30C30C30C30C30C3), T(0x9249249249249249) }  // 3D
+			{ T(0x00000000FFFFFFFF), T(0x0000FFFF0000FFFF), T(0x00FF00FF00FF00FF),
+			  T(0x0F0F0F0F0F0F0F0F), T(0x3333333333333333), T(0x5555555555555555) }, // 2D
+			{ T(0x00000000001FFFFF), T(0xFFFF00000000FFFF), T(0x00FF0000FF0000FF),
+			  T(0xF00F00F00F00F00F), T(0x30C30C30C30C30C3), T(0x9249249249249249) }  // 3D
 		};
 		static constexpr int morton_sz = sizeof(T)==2? 4: (sizeof(T)==4? 5: 6); 
 		static constexpr int morton0 = 6-morton_sz, morton1 = 7-morton_sz;
@@ -33,6 +37,7 @@ namespace aiw{
 
 	public:		
 		ZCurve(const Ind<D> &pos, T rank_): off(0), rank(rank_) {
+			WASSERT(rank<=max_rank, rank, max_rank);
 			for(int axe=0; axe<D; axe++){
 				T f, x = pos[axe];
 				if(D<=3){
@@ -58,7 +63,7 @@ namespace aiw{
 
 		// операторы <<, >> для смены ранга???
 		// изменяет ранг (в любую из сторон), при этом меняется позиция
-		ZCurve chrank(T rank2) const { return ZCurve(rank<rank2? off<<(rank2-rank): off>>(rank-rank2), rank2); }
+		ZCurve chrank(T rank2) const { return ZCurve(rank<rank2? off<<D*(rank2-rank): off>>D*(rank-rank2), rank2); }
 		// отбрасывает старщие биты не влезающие в ранг
 		ZCurve crop2rank() const { return ZCurve(off&RDbits(), rank); }  // работать с готовыми масками?
 
@@ -69,18 +74,22 @@ namespace aiw{
 		T size() const { return T(1)<<D*rank; }  // возможное число ячеек на данном ранге. работать с готовыми масками?
 		bool is_full() const { return off==size(); }  // Z-кривая пройдена
 
-		// сравнивает позиции на двух Z-кривых с разными рангами приводя их к максимальному рангу
+		// сравнивает позиции на двух Z-кривых (м.б. с разными рангами приводя их к максимальному рангу)
 		bool operator == (ZCurve z) const { return rank<z.rank? (off<<D*(z.rank-rank))==z.off: (z.off<<D*(rank-z.rank))==off; }
 		bool operator != (ZCurve z) const { return !(*this==z); }
 
+		// складывает позиции двух Z-кривых (м.б. с разными рангами приводя их к максимальному рангу)
 		ZCurve operator + (ZCurve tile) const {
 			return rank<tile.rank? ZCurve((off<<D*(tile.rank-rank))+tile.off, tile.rank):
 				/**/               ZCurve((tile.off<<D*(rank-tile.rank))+off,      rank);
 		}
 		void operator += (ZCurve tile){
-			if(rank<tile.rank){ off = (off<<(tile.rank-rank)) + tile.off; rank = tile.rank; }
-			else off += tile.off<<(rank-tile.rank);
-		}		
+			if(rank<tile.rank){ off = (off<<D*(tile.rank-rank)) + tile.off; rank = tile.rank; }
+			else off += tile.off<<D*(rank-tile.rank);
+		}
+		T clean(){ return off &= RDbits(); }  // убирает биты позиции выходящие за ранг Z-кривой 
+		//----------------------------------------------------------------------
+		//  обращение к соседям, во всех случаях очистка битов выходящих за ранг Z-кривой приводит к периодике
 		//----------------------------------------------------------------------
 	private:
 		static constexpr T zmasks[12] = { T(0x5555555555555555), T(0x9249249249249249), T(0x1111111111111111), T(0x1084210842108421),   // массив для
@@ -90,19 +99,19 @@ namespace aiw{
 										  T(zmasks[D-2]<<6), T(zmasks[D-2]<<7), T(zmasks[D-2]<<8), T(zmasks[D-2]<<9), T(zmasks[D-2]<<10), T(zmasks[D-2]<<11) }; 
 		static constexpr T imasks[12] = { T(~omasks[0]), T(~omasks[1]), T(~omasks[2]), T(~omasks[3]), T(~omasks[4]),  T(~omasks[5]),
 										  T(~omasks[6]), T(~omasks[7]), T(~omasks[8]), T(~omasks[9]), T(~omasks[10]), T(~omasks[11]) }; 
-		static T lshift(T f, int axe){ return (f&omasks[axe])-1; }
-		static T rshift(T f, int axe){ return (f|imasks[axe])+1; }
-		T fixed(T f, int axe) const { return (f&omasks[axe])|(off&imasks[axe]); }
+		static T lshift(T f, int axe){ return (f&omasks[axe])-1; }  // позиция соседа слева по оси axe, биты смещения по остальным осям ломаются
+		static T rshift(T f, int axe){ return (f|imasks[axe])+1; }  // позиция соседа справа по оси axe, биты смещения по остальным осям ломаются
+		T fixed(T f, int axe) const { return (f&omasks[axe])|(off&imasks[axe]); }  // восстановление битов смещения по остальным осям
 
 	public:		
-		ZCurve left(int axe)  const { return ZCurve(fixed(lshift(off, axe), axe), rank); }
-		ZCurve right(int axe) const { return ZCurve(fixed(rshift(off, axe), axe), rank); }
+		ZCurve left(int axe)  const { return ZCurve(fixed(lshift(off, axe), axe), rank); }  // ближайший сосед слева по оси axe
+		ZCurve right(int axe) const { return ZCurve(fixed(rshift(off, axe), axe), rank); }  // ближайший сосед справа по оси axe
 
-		ZCurve left(int axe, int dist) const {
+		ZCurve left(int axe, int dist) const {  // сосед слева по оси axe на расстоянии dist
 			T f = off; for(int i=0; i<dist; i++) f = lshift(f, axe);
 			return ZCurve(fixed(f, axe), rank);
 		}
-		ZCurve right(int axe, int dist) const {
+		ZCurve right(int axe, int dist) const {  // сосед справа по оси axe на расстоянии dist
 			T f = off; for(int i=0; i<dist; i++) f = rshift(f, axe);
 			return ZCurve(fixed(f, axe), rank);
 		}		
@@ -110,7 +119,7 @@ namespace aiw{
 			if(dist<0) return left(axe, -dist);
 			return right(axe, dist);
 		}
-		ZCurve operator[](const Ind<D>& Idist) const {
+		ZCurve operator[](const Ind<D>& Idist) const {  // сосед сдвинутый на Idist
 			T fS = 0;
 			for(int axe=0; axe<D; axe++){
 				T f = off; int dist = Idist[axe];
@@ -122,11 +131,11 @@ namespace aiw{
 		}
 		template <typename ... Args> ZCurve operator()(Args ... args) const { return (*this)[ind(args...)]; }
 
-		ZCurve diag() const {
+		ZCurve diag() const {  // сдвиг вверх по главной диагонали на одну ячейку
 			T fS = 0; for(int axe=0; axe<D; axe++) fS += rshift(off, axe)&omasks[axe];
 			return ZCurve(fS, rank);
 		}
-		ZCurve diag(int dist) const {
+		ZCurve diag(int dist) const {  // сдвиг вверх по главной диагонали на dist ячеек
 			T fS = 0;
 			for(int axe=0; axe<D; axe++){
 				T f = off; for(int i=0; i<dist; i++) f = rshift(f, axe);
@@ -135,20 +144,20 @@ namespace aiw{
 			return ZCurve(fS, rank);
 		}
 
-		ZCurve extend(int axes) const {  // расширяет Z-кривую заданного ранга до бесконечности  по осям согласно маске axes
+		ZCurve extend(int axis) const {  // расширяет Z-кривую заданного ранга до бесконечности (возвращает позицию на границу Z-кривой при выходе) по осям указанным в маске axis
 			T f = off;
 			for(int axe=0; axe<D; axe++)
-				if(axes&(1<<axe) && off&(T(1)<<(D*rank+axe))){
+				if(axis&(1<<axe) && off&(T(1)<<(D*rank+axe))){  // ось требует проверки и в позиции есть бит выходящий за ранг Z-кривой
 					if(off&(T(1)<<(D*rank+D+axe))) f &= imasks[axe]; // был выход за границу влево, заполняем нулями axe, здесь может не хватить запаса в разрядности?
-					else f |= omasks[axe]&((T(1)<<D*rank)-1); 
+					else f |= omasks[axe]&((T(1)<<D*rank)-1);  // убираем биты выходящие за ранг
 				}
 			return ZCurve(f, rank);
-		} // повторить то же самое, но axes параметр шаблона?
+		} // повторить то же самое, но axis параметр шаблона?
 
-		void add_diff(T a, T b){ off += std::make_signed<T>::type(b) - std::make_signed<T>::type(a); }
+		void add_diff(T a, T b){ off += std::make_signed<T>::type(b) - std::make_signed<T>::type(a); }  // добавляет разницу в позициях
 	};  // end of struct ZCurve
 	//--------------------------------------------------------------------------
-	template <int D, typename T> std::ostream& operator << (std::ostream &S,  const ZCurve<D, T> &Z){ return S<<Z.off<<'z'<<Z.rank; }
+	template <int D, typename T> std::ostream& operator << (std::ostream &S,  const ZCurve<D, T> &Z){ return S<<Z.off<<'z'<<Z.rank; }  
 	//--------------------------------------------------------------------------
 	template<int D> using ZCurve16 = ZCurve<D, uint16_t>;
 	template<int D> using ZCurve32 = ZCurve<D, uint32_t>;

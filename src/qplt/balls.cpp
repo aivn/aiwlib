@@ -25,7 +25,7 @@ bool aiw::QpltBalls::load(IOstream &S){
 	bool calc_bb = false; for(int i=0; i<dim; i++){ if(anames[i].empty()){ anames[i] = default_anames[i]; } if(bmin[i]>=bmax[i]) calc_bb = true; }
 	
 	count = bh.count;  data_sz = szT*count; mem_sz = data_sz/1e9;
-	fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)){  return false; }   // файл битый, записан не до конца
+	fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)){ return false; }   // файл битый, записан не до конца
 	WMSG(mem_offset, S.tell());
 	if(calc_bb){
 		S.seek(mem_offset); float rR[4]; // ???

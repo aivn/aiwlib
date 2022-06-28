@@ -118,10 +118,11 @@ namespace aiw{
 	private:
 		template <typename U = T, typename std::enable_if<has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D, A> &r) const {
 			Ind<D> pos; Vec<D, A> x;
-			for(int i=0; i<D; ++i) if(interp&(0xF<<(4*(D-i-1)))){
-					pos[i] = std::floor(logscale&1<<i ? log(r[i]/bmin[i])*rstep[i]-.5 :(r[i]-bmin[i])*rstep[i]-.5); // ???
-					x[i] = logscale&1<<i ? log(r[i]/(bmin[i]*pow(step[i], pos[i])))*rstep[i]-.5 : (r[i]-bmin[i])*rstep[i]-pos[i]-.5;
-				} else pos[i] = logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
+			for(int i=0; i<D; ++i){
+				A c = this->coord2cell(r[i], i);
+				if(interp&(0xF<<(4*(D-i-1)))){ pos[i] = std::floor(c-.5); x[i] = c-pos[i]-.5; }
+				else pos[i] = std::floor(c); // logscale&1<<i ? log(r[i]/bmin[i])*rstep[i] :(r[i]-bmin[i])*rstep[i];
+			}
 			return interpolate(*this, pos, x, interp);
 		}
 		template <typename U = T, typename std::enable_if<!has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D, A> &r) const { return (*this)[r]; }

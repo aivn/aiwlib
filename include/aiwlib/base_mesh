@@ -77,7 +77,19 @@ namespace aiw{
 			for(int i=0; i<D; i++) set_step(i); 
 		}
 
-		int coord2pos(A coord, int axe) const { return floor(logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]); }
+		// переводит глобaльные координаты в систему координат сетки (размер ячейки равен единице)
+		A coord2cell(A coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }		
+		aiw::Vec<D, A> coord2cell(aiw::Vec<D, A> coord) const { for(int i=0; i<D; i++){ coord[i] = coord2cell(coord[i], i); } return coord; }		
+
+		A coord2cell_bc(A coord, int axe) const {
+			coord = coord2cell(coord, axe);
+			if(coord<0) coord = periodic&1<<axe? coord+box[axe]: 0;				
+			else if(coord>box[axe]) coord = periodic&1<<axe? coord-box[axe]: box[axe];				
+			return coord;
+		}		
+		aiw::Vec<D, A> coord2cell_bc(aiw::Vec<D, A> coord) const { for(int i=0; i<D; i++){ coord[i] = coord2cell_bc(coord[i], i); } return coord; }		
+
+		int coord2pos(A coord, int axe) const { return floor(coord2cell(coord, axe)); }  
 		aiw::Ind<D> coord2pos(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos(r[i], i); } return p; }
 
 		int coord2pos_bc(A coord, int axe) const { int pos = coord2pos(coord, axe), mask; check_out_pos(pos, axe, mask); return pos; }
@@ -93,6 +105,13 @@ namespace aiw{
 		aiw::Vec<D, A> cell_angle(const aiw::Ind<D> &p) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = cell_angle(p[i], i); } return r; }
 		aiw::Vec<D, A> cell_angle_mask(const aiw::Ind<D> &p, int m) const { Vec<D, A> r; for(int i=0; i<D; i++){ r[i] = cell_angle(p[i]+((m>>i)&1), i); } return r; }
 
+		/*
+		A coord_in_cell(int pos, A r, int axe) const {	return logscale&1<<axe ? log(r/(bmin[axe]*pow(step[axe], pos)))*rstep[axe] : (r-bmin[axe])*rstep[axe]-pos; }
+		Vec<D, A> coord_in_cell(const Ind<D> &pos, Vec<D, A> r) const {	for(int i=0; i<D; i++){ r[i] = coord_in_cell(pos[i], r[i], i); } return r; }
+
+		int coord2pos_h2(A coord, int axe) const { return floor(logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] -.5: (coord-bmin[axe])*rstep[axe] -.5); }
+		aiw::Ind<D> coord2pos_h2(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos_h2(r[i], i); } return p; }
+		*/
 		// void set_bounds(int axe, int min_, int max_){ bounds &= ~(0xF<<(4*(D-axe-1))); bounds |= ((min_|(max_<<2))&0xF)<<(4*(D-axe-1)); }
 	};
 	//--------------------------------------------------------------------------
@@ -102,6 +121,7 @@ namespace aiw{
 	using BaseMesh<D, A>::box;											\
 public:																	\
     using BaseMesh<D, A>::head;											\
+	using BaseMesh<D, A>::info;											\
 	using BaseMesh<D, A>::anames;										\
 	using BaseMesh<D, A>::bmin;											\
 	using BaseMesh<D, A>::bmax;											\
@@ -110,7 +130,6 @@ public:																	\
 	using BaseMesh<D, A>::logscale;										\
 	using BaseMesh<D, A>::periodic;										\
 	using BaseMesh<D, A>::interp;					
-	// using BaseMesh<D>::bounds;
 	//--------------------------------------------------------------------------
 }
 #endif //AIW_BASE_MESH_HPP

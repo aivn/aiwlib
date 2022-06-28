@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 #include <sstream>
+#include <iostream>
 
 //------------------------------------------------------------------------------
 // Mesh:   head [[axis] [typeinfo] [info] align out_value bmin bmax axisbit<<31|typeinfobit<<30|infobit<<29|logscale]    D        szT     box
@@ -63,8 +64,8 @@ inline size_t aiw::BinaryHead::get_size() const {
 }
 //------------------------------------------------------------------------------
 template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
-	if(type==unknown || szT<0) WRAISE("unknown type or szT", szT);
-	if(type!=sphere && (dim<0 || dim>=max_dim)) WRAISE("incorrect dim", dim, max_dim);
+	if(type==unknown || szT<0){ std::cerr<<"unknown type or szT="<<szT<<std::endl; abort(); }
+	if(type!=sphere && (dim<0 || dim>=max_dim)){ std::cerr<<"incorrect dim="<<dim<<", max_dim="<<max_dim<<std::endl; abort(); }
 	
 	std::stringstream buf; int h_sz = strlen(head.c_str()); // WSTR(h_sz, head.size());  
 	if(h_sz){ buf.write(head.c_str(), h_sz); } { char zero = 0; buf.write(&zero, 1); }  // пишем заголовок и терминируем его нулем

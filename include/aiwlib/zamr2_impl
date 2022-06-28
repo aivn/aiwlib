@@ -1,0 +1,123 @@
+// -*- C++ -*-
+/**
+ * Copyright (C) 2022 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * ZipAdaptiveMesh (v2) methods implementation.
+ * !!! DO NOT INCLUDE THIS FILE MANUALLY !!!
+ **/
+
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::init(Mesh<int, D> forest_){
+	max_rank = 0; for(int rank: forest_) max_rank = std::max(max_rank, rank);
+	tile_sz = 1<<max_rank; fbox = forest_.bbox(); box = fbox*tile_sz; periodic = forest_.periodic; this->set_axis(forest_.bmin, forest_.bmax, forest_.logscale);
+	forest.resize(fbox.prod()); fmul[0] = 1; for(int i=1; i<D; i++) fmul[i] = fmul[i-1]*fbox[i-1];
+	for(size_t i=0, sz=fbox.prod(); i<sz; i++){
+		auto& tr = forest[i]; Ind<D> fpos = i%fbox; tr.rank = forest_[fpos];
+		tr.box = ind(1<<tr.rank); tr.set_axis(this->cell_angle(fpos*tile_sz), this->cell_angle(fpos*tile_sz+ind(tile_sz)), logscale);
+		tr.mul[0] = 1; for(int j=1; j<D; j++) tr.mul[j] = tr.mul[j-1]*tr.box[j-1];
+	}
+	/*
+	  --o------o---o--
+	    |      |   |
+      --o      +---+--
+        |      |   |
+      --+------+---+--
+	 */
+	for(size_t tri=0, tsz=fbox.prod(); tri<tsz; tri++){  // патчи узлов --- обрабатываем правые границы каждого тайла 
+		auto& tr = forest[tri]; Ind<D> fpos = tri%fbox, b = tr.box+ind(1);
+		for(int gi=0; gi<D; gi++){  // цикл по правым граням тайла
+			Ind<D> a; a[gi] = tr.box[gi];
+			for(Ind<D> tpos: irange(a, b)){
+				bool add = true;  // узел будет добавлен в патчи при условии что его нет в соседних тайлах 
+				for(int nbi=1; nbi<(1<<D); nbi++){  // цикл по кубу 2^D-1 потенциальных соседей (сам тайл не рассматриваем)
+					Ind<D> fpos2 = fpos; bool is_periodic = false;  // координаты соседнего тайла
+					for(int k=0; k<D; k++) // цикл по осям
+						if((nbi&(1<<k)) && tpos[k]==tr.box[k]) // ось представляет интерес и по этой оси есть выход за границу тайла 
+							if(++fpos2[k]==fbox[k]){ fpos2[k] = fbox[k]-1; if(periodic&(1<<k)){ fpos2[k] = fbox[k]-1; is_periodic = true; } } // обработка границы		
+					if(fpos2==fpos && !is_periodic) continue;  // попали в тот же самый тайл и нет периодики, не влияет на добавление
+					int rank2 = forest[fpos2*fmul].rank;  if(rank2>=tr.rank || tpos/(1<<tr.rank-rank2)*(1<<tr.rank-rank2)==tpos){ add = false; break; }
+				}
+				if(add){
+					Ind<D> gpos = fpos*tile_sz + tpos*(1<<max_rank-tr.rank);  // глобальные координаты узла
+					auto I = nodes_patch.find(gpos); if(I==nodes_patch.end()) nodes_patch[gpos].first = &tr;
+				}
+			}
+		}
+	}
+	std::ofstream fpatches("patches.dat"); for(auto I: nodes_patch) fpatches<<this->cell_angle(I.first)+vecf(2e-2)<<'\n'; 	// координаты патчей
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &fout) const {  // запись данных в обычном формате aiwlib mesh
+	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(CellT);
+	bmin.to(bh.bmin); bmax.to(bh.bmax); box.to(bh.bbox); bh.logscale = logscale;		
+	bh.dump(fout); for(Ind<D> pos: irange(box)) fout.write(&get_cell(pos), sizeof(CellT));
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &fout) const {  // на мелкой сетке пишутся узлы ближайшие к реально существующим ???
+	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(NodeT);
+	(bmin-step/2).to(bh.bmin); (bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
+	bh.dump(fout); for(Ind<D> pos: irange(box+ind(1))) fout.write(&get_node(pos), sizeof(NodeT));
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+const CellT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_cell(Ind<D> pos) const {  // размер сетки задается в самых маленьких ячейках
+	this->check_out_pos(pos); const tile_t &tr = forest[pos/tile_sz*fmul];
+	return tr.cells[pos%tile_sz/(1<<max_rank-tr.rank)*tr.mul];
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const { 
+	for(int i=0; i<D; i++){  // вместо 	this->check_out_pos(pos)  обработка границ для узлов (размер на 1 больше чем для ячеек)
+		if(periodic&(1<<i)) pos[i] = (pos[i]+box[i]+1)%(box[i]+1);
+		else if(pos[i]<0) pos[i] = 0; 
+		else if(pos[i]>box[i]) pos[i] = box[i]; 
+	}
+	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second->second;	
+	Ind<D> fpos = pos/tile_sz; const tile_t &tr = forest[fpos*fmul];
+	Ind<D> tpos = pos%tile_sz/(1<<max_rank-tr.rank);  
+	return tr.nodes[tpos*tr.nmul];  // узел внутри тайла
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator::operator ++ (){
+	if(++tpos^=this->tree->box){ this->ptr++; this->bmin_ = this->tree->cell_angle(tpos); }
+	else {
+		tpos = Ind<D>(); go = ++fpos^=mesh->fbox;
+		if(go){ this->tree = &(mesh->forest[fpos*mesh->fmul]); this->ptr = this->tree->cells.data(); this->bmin_ = this->tree->bmin; }
+		else this->tree = nullptr;		
+	}
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator::operator ++ (){
+	if(go){
+		if(++tpos^=this->tree->box){ this->ptr++; this->r = this->tree->cell_angle(tpos); return; }
+		tpos = Ind<D>(); go = ++fpos^=mesh->fbox;
+		if(go){ this->tree = &(mesh->forest[fpos*mesh->fmul]); this->ptr = this->tree->cells.data(); this->r = this->tree->bmin; return; }
+		else patch = mesh->nodes_patch.begin();		
+	} else patch++;
+	if(patch!=mesh->nodes_patch.end()){
+		this->r = mesh->cell_angle(patch->first);
+		this->tree =  patch->second.first;
+		this->ptr = &(patch->second.second);
+	}
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::ForEachCellWrapper::begin(){
+	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator I;  I.mesh = mesh;  
+	I.tree = mesh->forest.data();	I.ptr = I.tree->cells.data(); I.bmin_ = I.tree->bmin; 
+	return I;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::ForEachNodeWrapper::begin(){
+	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator I;  I.mesh = mesh;  
+	I.tree = mesh->forest.data(); I.ptr = I.tree->nodes.data(); I.r = mesh->cell_angle(Ind<D>()); // I.patch = mesh->nodes_patch.begin();
+	return I;
+}
+//------------------------------------------------------------------------------
