@@ -17,6 +17,7 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::init(Mesh<int, D> forest_){
 		auto& tr = forest[i]; Ind<D> fpos = i%fbox; tr.rank = forest_[fpos];
 		tr.box = ind(1<<tr.rank); tr.set_axis(this->cell_angle(fpos*tile_sz), this->cell_angle(fpos*tile_sz+ind(tile_sz)), logscale);
 		tr.mul[0] = 1; for(int j=1; j<D; j++) tr.mul[j] = tr.mul[j-1]*tr.box[j-1];
+		tr.cells.resize(tr.box.prod());  tr.nodes.resize(tr.box.prod());
 	}
 	/*
 	  --o------o---o--
@@ -46,20 +47,20 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::init(Mesh<int, D> forest_){
 			}
 		}
 	}
-	std::ofstream fpatches("patches.dat"); for(auto I: nodes_patch) fpatches<<this->cell_angle(I.first)+vecf(2e-2)<<'\n'; 	// координаты патчей
+	// std::ofstream fpatches("patches.dat"); for(auto I: nodes_patch) fpatches<<this->cell_angle(I.first)+vecf(2e-2)<<'\n'; 	// координаты патчей
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
-void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &fout) const {  // запись данных в обычном формате aiwlib mesh
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &&fout) const {  // запись данных в обычном формате aiwlib mesh
 	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(CellT);
-	bmin.to(bh.bmin); bmax.to(bh.bmax); box.to(bh.bbox); bh.logscale = logscale;		
+	Vec<D>(bmin).to(bh.bmin); Vec<D>(bmax).to(bh.bmax); box.to(bh.bbox); bh.logscale = logscale;		
 	bh.dump(fout); for(Ind<D> pos: irange(box)) fout.write(&get_cell(pos), sizeof(CellT));
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
-void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &fout) const {  // на мелкой сетке пишутся узлы ближайшие к реально существующим ???
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout) const {  // на мелкой сетке пишутся узлы ближайшие к реально существующим ???
 	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(NodeT);
-	(bmin-step/2).to(bh.bmin); (bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
+	Vec<D>(bmin-step/2).to(bh.bmin); Vec<D>(bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
 	bh.dump(fout); for(Ind<D> pos: irange(box+ind(1))) fout.write(&get_node(pos), sizeof(NodeT));
 }
 //------------------------------------------------------------------------------
@@ -68,49 +69,60 @@ const CellT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_cell(Ind<D> pos) const 
 	this->check_out_pos(pos); const tile_t &tr = forest[pos/tile_sz*fmul];
 	return tr.cells[pos%tile_sz/(1<<max_rank-tr.rank)*tr.mul];
 }
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+int ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_cell_rank(Ind<D> pos) const {  // размер сетки задается в самых маленьких ячейках
+	this->check_out_pos(pos); return forest[pos/tile_sz*fmul].rank;
+}
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const { 
+	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second.second;	
 	for(int i=0; i<D; i++){  // вместо 	this->check_out_pos(pos)  обработка границ для узлов (размер на 1 больше чем для ячеек)
-		if(periodic&(1<<i)) pos[i] = (pos[i]+box[i]+1)%(box[i]+1);
+		if(periodic&(1<<i)) pos[i] = (pos[i]+box[i])%box[i];
 		else if(pos[i]<0) pos[i] = 0; 
-		else if(pos[i]>box[i]) pos[i] = box[i]; 
+		else if(pos[i]>=box[i]) pos[i] = box[i]-1; 
 	}
-	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second->second;	
 	Ind<D> fpos = pos/tile_sz; const tile_t &tr = forest[fpos*fmul];
 	Ind<D> tpos = pos%tile_sz/(1<<max_rank-tr.rank);  
-	return tr.nodes[tpos*tr.nmul];  // узел внутри тайла
+	return tr.nodes[tpos*tr.mul];  // узел внутри тайла
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator::operator ++ (){
-	if(++tpos^=this->tree->box){ this->ptr++; this->bmin_ = this->tree->cell_angle(tpos); }
-	else {
-		tpos = Ind<D>(); go = ++fpos^=mesh->fbox;
-		if(go){ this->tree = &(mesh->forest[fpos*mesh->fmul]); this->ptr = this->tree->cells.data(); this->bmin_ = this->tree->bmin; }
-		else this->tree = nullptr;		
-	}
+	do{
+		if(++this->tpos^=this->tree->box){ this->ptr++; this->bmin_ = this->tree->cell_angle(this->tpos); }
+		else {
+			this->tpos = Ind<D>(); go = ++this->fpos^=this->mesh->fbox;
+			if(go){ this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->cells.data(); this->bmin_ = this->tree->bmin; }
+			else this->tree = nullptr;		
+		}
+	} while(*this!=CellIterator() && !check_match());
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator::operator ++ (){
-	if(go){
-		if(++tpos^=this->tree->box){ this->ptr++; this->r = this->tree->cell_angle(tpos); return; }
-		tpos = Ind<D>(); go = ++fpos^=mesh->fbox;
-		if(go){ this->tree = &(mesh->forest[fpos*mesh->fmul]); this->ptr = this->tree->cells.data(); this->r = this->tree->bmin; return; }
-		else patch = mesh->nodes_patch.begin();		
-	} else patch++;
-	if(patch!=mesh->nodes_patch.end()){
-		this->r = mesh->cell_angle(patch->first);
-		this->tree =  patch->second.first;
-		this->ptr = &(patch->second.second);
-	}
+	do{
+		if(this->go){
+			if(++this->tpos^=this->tree->box){ this->ptr++; this->r = this->tree->cell_angle(this->tpos); return; }
+			this->tpos = Ind<D>(); this->go = ++this->fpos^=this->mesh->fbox;
+			if(this->go){ this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->nodes.data(); this->r = this->tree->bmin; return; }
+		else this->patch = this->mesh->nodes_patch.begin();		
+		} else this->patch++;
+		if(this->patch!=this->mesh->nodes_patch.end()){
+			this->r = this->mesh->cell_angle(this->patch->first);
+			this->tree =  this->patch->second.first;
+			// this->tpos = (patch->first - size_t(this->tree-this->mesh->forest.data())%this->mesh->fbox*this->mesh->tile_sz)/(1<<this->mesh->max_rank-this->tree->rank);
+			this->ptr = &(this->patch->second.second);
+		}
+	} while(*this!=NodeIterator() && !check_match());
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::ForEachCellWrapper::begin(){
 	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator I;  I.mesh = mesh;  
-	I.tree = mesh->forest.data();	I.ptr = I.tree->cells.data(); I.bmin_ = I.tree->bmin; 
+	I.tree = mesh->forest.data();	I.ptr = I.tree->cells.data(); I.bmin_ = I.tree->bmin;
+	I.stamp_mode = stamp_mode;  I.floor_ = floor; I.exact_match = exact_match; I.rmask_ = rmask; I.stamp_ = stamp;
+	if(!I.check_match()) ++I;
 	return I;
 }
 //------------------------------------------------------------------------------
@@ -118,6 +130,75 @@ template <int D, typename CellT, typename NodeT, typename Z, typename A>
 typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::ForEachNodeWrapper::begin(){
 	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator I;  I.mesh = mesh;  
 	I.tree = mesh->forest.data(); I.ptr = I.tree->nodes.data(); I.r = mesh->cell_angle(Ind<D>()); // I.patch = mesh->nodes_patch.begin();
+	I.stamp_mode = stamp_mode;  I.floor_ = floor; I.exact_match = exact_match; I.rmask_ = rmask; I.stamp_ = stamp;
+	if(!I.check_match()) ++I;
 	return I;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+uint64_t ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::Cell::stamp(bool floor) const {
+	if(ind(0)<tpos && tpos<tree->box-ind(1)){
+		uint64_t r = (!floor)*tree->rank, s = r; 
+		for(int i=1; i<1+2*D; i++) s |= r<<4*i;
+		return s;
+	}	
+	uint64_t s = rank(), r_min = s; int i = 1, d = 1<<(mesh->max_rank-tree->rank);
+	Ind<D> gpos = fpos*mesh->tile_sz + tpos*d; 
+	for(int axe=0; axe<D; axe++){
+		for(int pm: {-1, d+1}){
+			gpos[axe] += pm; uint64_t r = mesh->get_cell_rank(gpos);
+			s |= r<<i++*4; r_min = std::min(r_min, r);
+		}
+		gpos[axe] -= d;
+	}
+	if(floor) for(i=0; i<2*D+1; i++) s -= r_min<<4*i; 	
+	return s;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+uint64_t ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::Node::stamp(bool floor) const {
+	if(ind(0)<tpos && tpos<tree->box){
+		uint64_t r = (!floor)*tree->rank, s = r; 
+		for(int i=1; i<(1<<D); i++) s |= r<<4*i;
+		return s;
+	}
+	uint64_t s = 0, r_min = tree->rank;
+	Ind<D> gpos0 = (go? fpos*mesh->tile_sz + (tpos*(1<<(mesh->max_rank-tree->rank))): patch->first) - ind(1); 
+	for(int i=0; i<(1<<D); i++){
+		Ind<D> gpos = gpos0; for(int k=0; k<D; k++) gpos[k] += bool(i&(1<<k));
+		uint64_t r = mesh->get_cell_rank(gpos); s |= r<<i*4; r_min = std::min(r_min, r);
+	}
+	if(floor) for(int i=0; i<(1<<D); i++) s -= r_min<<4*i; 	
+	return s;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+uint32_t ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::Cell::rmask(bool floor) const {
+	if(ind(0)<tpos && tpos<tree->box-ind(1)) return floor? 1: 1<<rank();
+	uint64_t s = stamp(floor); uint32_t m = 0;
+	for(int i=0; i<2*D+1; i++) m |= uint32_t(1)<<((s>>4*i)&0xF);
+	return m;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+uint32_t ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::Node::rmask(bool floor) const {
+	if(ind(0)<tpos && tpos<tree->box) return floor? 1: 1<<tree->rank; // ???
+	uint64_t s = stamp(floor); uint32_t m = 0;
+	for(int i=0; i<(1<<D); i++) m |= uint32_t(1)<<((s>>4*i)&0xF);
+	return m;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+bool ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator::check_match() const {
+	if(stamp_mode) return this->stamp(floor_)==stamp_;
+	if(exact_match) return this->rmask(floor_)==rmask_;
+	return this->rmask(floor_) & rmask_;
+}
+//------------------------------------------------------------------------------
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+bool ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator::check_match() const {
+	if(stamp_mode) return this->stamp(floor_)==stamp_;
+	if(exact_match) return this->rmask(floor_)==rmask_;
+	return this->rmask(floor_) & rmask_;
 }
 //------------------------------------------------------------------------------

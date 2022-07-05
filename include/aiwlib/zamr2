@@ -36,8 +36,8 @@ namespace aiw{
 
 		// bool dump(IOstream &) const;
 		// bool load(IOstream &);
-		void cells2mesh(IOstream&) const;  // запись данных в обычном формате aiwlib mesh
-		void nodes2mesh(IOstream&) const;  // на мелкой сетке пишутся узлы ближайшие к реально существующим
+		void cells2mesh(IOstream&&) const;  // запись данных в обычном формате aiwlib mesh
+		void nodes2mesh(IOstream&&) const;  // на мелкой сетке пишутся узлы ближайшие к реально существующим
 
 		//----------------------------------------------------------------------
 		// случайный доступ, НЕ НАДО ИСПОЛЬЗОВАТЬ ЕГО ДЛЯ ОБХОДА СЕТКИ!!!
@@ -64,6 +64,7 @@ namespace aiw{
 		const NodeT& node(const Vec<D, A> &r) const { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
 		/**/  NodeT& node(const Vec<D, A> &r)       { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
 
+		int get_cell_rank(Ind<D> pos) const;  // возвращает ранг ячейки
 		/*
 		      FaceT& face(Ind<D> pos, int axe);  // одна ячейка инциндента 2D граням, 0<=axe<2D 
 		const FaceT& face(Ind<D> pos, int axe);  // 0<=axe<D грани слева, D<=axe<2D грани справа
@@ -81,11 +82,16 @@ namespace aiw{
 	public:
 		struct Cell {
 		protected:
+			ZipAdaptiveMesh *mesh = nullptr;
+			Ind<D> fpos, tpos;
 			tile_t *tree; CellT *ptr; Vec<D, A> bmin_; 
 		public:
 			Vec<D, A> bmin() const { return bmin_; }
 			Vec<D, A> step() const { return tree->step; }
 			int rank() const { return tree->rank; }
+			uint32_t rmask(bool floor=false) const; // битовая маска с рангами ячейки и ближайших соседей (шаблон крест), м.б. приведена (сдвинута) к минимальному рангу
+			// 1+2D рангов ячейки и ближайших соседей (по 4 бита на ранг, центр креста затем по два значения на ось -/+), м.б. приведены (сдвинуты) к минимальному рангу
+			uint64_t stamp(bool floor=false) const; 
 			
 			/**/  CellT& operator * ()       { return *ptr; } // доступ к данным ячейки
 			const CellT& operator * () const { return *ptr; }
@@ -95,10 +101,14 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		struct Node {
 		protected:
-			tile_t *tree; NodeT *ptr; 
+			ZipAdaptiveMesh *mesh = nullptr;
+			Ind<D> fpos, tpos;
+			tile_t *tree; NodeT *ptr;
+			bool go = true;  typename std::map<Ind<D>, std::pair<tile_t*, NodeT> >::iterator patch;
 		public:
 			Vec<D, A> r;
-			int rank() const { return tree->rank; }
+			uint32_t rmask(bool floor=false) const; // битовая маска с рангами инцидентных ячеек, м.б. приведена (сдвинута) к минимальному рангу
+			uint64_t stamp(bool floor=false) const; // 2^D рангов инцидентных ячеек (по 4 бита на ранг), м.б. приведены (сдвинуты) к минимальному рангу
 			
 			/**/  NodeT& operator * ()       { return *ptr; } // доступ к данным узла
 			const NodeT& operator * () const { return *ptr; }
@@ -111,8 +121,8 @@ namespace aiw{
 		std::map<Ind<D>, std::pair<tile_t*, NodeT> > nodes_patch;
 	public:
 		class CellIterator: public Cell {
-			ZipAdaptiveMesh *mesh = nullptr;
-			Ind<D> fpos, tpos; bool go = true;
+			bool go = true; bool stamp_mode, floor_, exact_match; uint32_t rmask_; uint64_t stamp_;
+			bool check_match() const;
 			friend class ZipAdaptiveMesh;
 		public:
 			/**/  Cell& operator * ()       { return *this; }
@@ -123,33 +133,32 @@ namespace aiw{
 		};
 		//----------------------------------------------------------------------
 		class NodeIterator: public Node {
-			ZipAdaptiveMesh *mesh = nullptr;
-			Ind<D> fpos, tpos; bool go = true;
-			typename std::map<Ind<D>, std::pair<tile_t*, NodeT> >::iterator patch;
+			bool stamp_mode, floor_, exact_match; uint32_t rmask_; uint64_t stamp_;			
+			bool check_match() const;
 			friend class ZipAdaptiveMesh;
 		public:
 			/**/  Node& operator * ()       { return *this; }
 			const Node& operator * () const { return *this; }
 
 			void operator ++ ();
-			bool operator != (const NodeIterator&) const { return go || patch!=mesh->nodes_patch.end(); }
+			bool operator != (const NodeIterator&) const { return this->go || this->patch!=this->mesh->nodes_patch.end(); }
 		};
 		//----------------------------------------------------------------------
 		struct ForEachCellWrapper {
-			ZipAdaptiveMesh *mesh;
-			ForEachCellWrapper(ZipAdaptiveMesh *mesh_): mesh(mesh_) {}
+			ZipAdaptiveMesh *mesh; bool stamp_mode, floor, exact_match; uint32_t rmask; uint64_t stamp; 
 			CellIterator begin(); 
 			CellIterator end() { return CellIterator{}; }
 		};
-		ForEachCellWrapper cells() { return ForEachCellWrapper(this); }
+		ForEachCellWrapper cells(uint32_t rmask=-1, bool exact_match=false, bool floor=false) { return ForEachCellWrapper{this, false, floor, exact_match, rmask, 0}; }
+		ForEachCellWrapper cells_by_stamp(uint64_t stamp, bool floor=false) { return ForEachCellWrapper{this, true, floor, false, -1, stamp}; }
 		//----------------------------------------------------------------------
 		struct ForEachNodeWrapper {
-			ZipAdaptiveMesh *mesh;
-			ForEachNodeWrapper(ZipAdaptiveMesh *mesh_): mesh(mesh_) {}
+			ZipAdaptiveMesh *mesh; bool stamp_mode, floor, exact_match; uint32_t rmask; uint64_t stamp;
 			NodeIterator begin();
 			NodeIterator end() { return NodeIterator{}; }
 		};
-		ForEachNodeWrapper nodes() { return ForEachNodeWrapper(this); }
+		ForEachNodeWrapper nodes(uint32_t rmask=-1, bool exact_match=false, bool floor=false) { return ForEachNodeWrapper{this, false, floor, exact_match, rmask, 0}; }
+		ForEachNodeWrapper nodes_by_stamp(uint64_t stamp, bool floor=false) { return ForEachNodeWrapper{this, true, floor, false, -1, stamp}; }
 	protected:
 		//----------------------------------------------------------------------
 		//  реализация (пока костыльная)
