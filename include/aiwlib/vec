@@ -474,6 +474,11 @@ namespace aiw{
 		}
 	};
 	//--------------------------------------------------------------------------	
+    template <int D, class T> inline T angle(const Vec<D, T> &a, const Vec<D, T> &b, const Vec<D, T> &c){
+		Vec<D, T> ab = b-a, bc = c-b; 
+		return acos((ab*bc)/sqrt((ab*ab)*(bc*bc)));
+    }
+	//--------------------------------------------------------------------------	
 }   // end of namespace aiw
 
 namespace std{
