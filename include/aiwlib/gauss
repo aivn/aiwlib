@@ -27,7 +27,7 @@ namespace aiw{
 #endif //AIW_WIN32
 	}
 	inline void rand_init(){ unsigned int seed = 0; rand_init(seed); srand(seed); }
-
+	
 #ifndef AIW_WIN32
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
 	inline double rand_gauss(unsigned int &seed){ return sqrt(-2.*log(rand_alpha*(rand_r(&seed)+1.)))*cos(rand_alpha2PI*rand_r(&seed));	}

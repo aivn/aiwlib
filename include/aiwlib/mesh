@@ -128,7 +128,9 @@ namespace aiw{
 		template <typename U = T, typename std::enable_if<!has_T_mul_double<U>(nullptr), int>::type = 0> U interp_impl(const aiw::Vec<D, A> &r) const { return (*this)[r]; }
 	public:
 #endif //SWIG
-		T operator ()(const aiw::Vec<D, A> &r) const { return interp_impl(r); }
+		// T operator ()(const aiw::Vec<D, A> &r) const { return interp_impl(r); }
+		T operator ()(const aiw::Vecf<D> &r) const { return interp_impl(r); }
+		T operator ()(const aiw::Vec<D> &r) const { return interp_impl(r); }
 		
 		//----------------------------------------------------------------------
 		aiw::Ind<D> first() const { return Ind<D>(); }
