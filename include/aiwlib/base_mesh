@@ -113,6 +113,13 @@ namespace aiw{
 		aiw::Ind<D> coord2pos_h2(const aiw::Vec<D, A> &r) const { Ind<D> p; for(int i=0; i<D; i++){ p[i] = coord2pos_h2(r[i], i); } return p; }
 		*/
 		// void set_bounds(int axe, int min_, int max_){ bounds &= ~(0xF<<(4*(D-axe-1))); bounds |= ((min_|(max_<<2))&0xF)<<(4*(D-axe-1)); }
+
+		// битовая маска положения относительно границы, по два бита на ось (левая|правая) с учетом периодики (в случае периодики границы нет)
+		int calc_bound(const Ind<D> &pos, const Ind<D> &box_) const {
+			int bmask = 0; for(int i=0; i<D; i++) if(!(periodic&(1<<i))) bmask |= (int(pos[i]<=0)<<2*i)|(int(pos[i]>=box_[i]-1)<<2*i+1);
+			return bmask;
+		}
+		int calc_bound(const Ind<D> &pos) const { return calc_bound(pos, box); }
 	};
 	//--------------------------------------------------------------------------
 #define UsingBaseMeshAttributes											\

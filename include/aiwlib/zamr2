@@ -38,6 +38,8 @@ namespace aiw{
 		// bool load(IOstream &);
 		void cells2mesh(IOstream&&) const;  // запись данных в обычном формате aiwlib mesh
 		void nodes2mesh(IOstream&&) const;  // на мелкой сетке пишутся узлы ближайшие к реально существующим
+		void cells2mesh(IOstream &S) const { cells2mesh(std::move(S)); }  // запись данных в обычном формате aiwlib mesh
+		void nodes2mesh(IOstream &S) const { nodes2mesh(std::move(S)); }  // на мелкой сетке пишутся узлы ближайшие к реально существующим
 
 		//----------------------------------------------------------------------
 		// случайный доступ, НЕ НАДО ИСПОЛЬЗОВАТЬ ЕГО ДЛЯ ОБХОДА СЕТКИ!!!
@@ -49,8 +51,10 @@ namespace aiw{
 		// одна крупная ячейка может занимать несколько значений pos, размер сетки задается в самых маленьких ячейках
 		const CellT& operator[](Ind<D> pos) const { return                    get_cell(pos);  }   
 		/**/  CellT& operator[](Ind<D> pos)       { return const_cast<CellT&>(get_cell(pos)); }        
-		const CellT& operator[](const Vec<D, A> &r) const { return                    get_cell(this->coord2pos(r)); } 
-		/**/  CellT& operator[](const Vec<D, A> &r)       { return const_cast<CellT&>(get_cell(this->coord2pos(r))); } 
+		const CellT& operator[](const Vec<D> &r)  const  { return                    get_cell(this->coord2pos(r));  } 
+		/**/  CellT& operator[](const Vec<D> &r)         { return const_cast<CellT&>(get_cell(this->coord2pos(r))); } 
+		const CellT& operator[](const Vecf<D> &r) const  { return                    get_cell(this->coord2pos(r));  } 
+		/**/  CellT& operator[](const Vecf<D> &r)        { return const_cast<CellT&>(get_cell(this->coord2pos(r))); } 
 
 		/*
 		// одна ячейка инциндента 2^D узлам, nodeID трактуется как битовая маска, задающая смещения узла по осям (2^D-1 --- правый верхний угол ячейки)
@@ -61,8 +65,10 @@ namespace aiw{
 		*/
 		const NodeT& node(Ind<D> pos) const { return                    get_node(pos);  }
 		/**/  NodeT& node(Ind<D> pos)       { return const_cast<NodeT&>(get_node(pos)); }  
-		const NodeT& node(const Vec<D, A> &r) const { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
-		/**/  NodeT& node(const Vec<D, A> &r)       { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
+		const NodeT& node(const Vec<D> &r)  const  { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
+		/**/  NodeT& node(const Vec<D> &r)         { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
+		const NodeT& node(const Vecf<D> &r) const  { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
+		/**/  NodeT& node(const Vecf<D> &r)        { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
 
 		int get_cell_rank(Ind<D> pos) const;  // возвращает ранг ячейки
 		/*
@@ -86,6 +92,7 @@ namespace aiw{
 			Ind<D> fpos, tpos;
 			tile_t *tree; CellT *ptr; Vec<D, A> bmin_; 
 		public:
+			int bound = 0;
 			Vec<D, A> bmin() const { return bmin_; }
 			Vec<D, A> step() const { return tree->step; }
 			int rank() const { return tree->rank; }
@@ -106,9 +113,9 @@ namespace aiw{
 			tile_t *tree; NodeT *ptr;
 			bool go = true;  typename std::map<Ind<D>, std::pair<tile_t*, NodeT> >::iterator patch;
 		public:
-			Vec<D, A> r;
-			uint32_t rmask(bool floor=false) const; // битовая маска с рангами инцидентных ячеек, м.б. приведена (сдвинута) к минимальному рангу
-			uint64_t stamp(bool floor=false) const; // 2^D рангов инцидентных ячеек (по 4 бита на ранг), м.б. приведены (сдвинуты) к минимальному рангу
+			Vec<D, A> r;  int bound = 0;
+			uint32_t rmask(bool floor=false) const;  // битовая маска с рангами инцидентных ячеек, м.б. приведена (сдвинута) к минимальному рангу
+			uint64_t stamp(bool floor=false) const;  // 2^D рангов инцидентных ячеек (по 4 бита на ранг), м.б. приведены (сдвинуты) к минимальному рангу
 			
 			/**/  NodeT& operator * ()       { return *ptr; } // доступ к данным узла
 			const NodeT& operator * () const { return *ptr; }
@@ -165,7 +172,7 @@ namespace aiw{
 		//----------------------------------------------------------------------		
 		struct tile_t: public BaseMesh<D, A> {
 			UsingBaseMeshAttributes;
-			int rank; Ind<D> mul; 
+			int rank, bound = 0; Ind<D> mul; 
 			std::vector<CellT> cells;
 			std::vector<NodeT> nodes;
 

@@ -46,7 +46,8 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::init(Mesh<int, D> forest_){
 				}
 			}
 		}
-	}
+		tr.bound = forest_.calc_bound(fpos); 
+	}	
 	// std::ofstream fpatches("patches.dat"); for(auto I: nodes_patch) fpatches<<this->cell_angle(I.first)+vecf(2e-2)<<'\n'; 	// координаты патчей
 }
 //------------------------------------------------------------------------------
@@ -75,13 +76,13 @@ int ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_cell_rank(Ind<D> pos) const {  /
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
-const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const { 
-	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second.second;	
+const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const {
 	for(int i=0; i<D; i++){  // вместо 	this->check_out_pos(pos)  обработка границ для узлов (размер на 1 больше чем для ячеек)
 		if(periodic&(1<<i)) pos[i] = (pos[i]+box[i])%box[i];
 		else if(pos[i]<0) pos[i] = 0; 
-		else if(pos[i]>=box[i]) pos[i] = box[i]-1; 
+		else if(pos[i]>box[i]) pos[i] = box[i]; 
 	}
+	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second.second;	
 	Ind<D> fpos = pos/tile_sz; const tile_t &tr = forest[fpos*fmul];
 	Ind<D> tpos = pos%tile_sz/(1<<max_rank-tr.rank);  
 	return tr.nodes[tpos*tr.mul];  // узел внутри тайла
@@ -90,31 +91,43 @@ const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const 
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator::operator ++ (){
 	do{
-		if(++this->tpos^=this->tree->box){ this->ptr++; this->bmin_ = this->tree->cell_angle(this->tpos); }
-		else {
+		if(++this->tpos^=this->tree->box){
+			this->ptr++; this->bmin_ = this->tree->cell_angle(this->tpos);
+		} else {
 			this->tpos = Ind<D>(); go = ++this->fpos^=this->mesh->fbox;
-			if(go){ this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->cells.data(); this->bmin_ = this->tree->bmin; }
-			else this->tree = nullptr;		
+			if(go){
+				this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->cells.data(); this->bmin_ = this->tree->bmin;
+				// this->bound = this->tree->bound&0x55555555;  // нижний левый угол
+			} else { this->tree = nullptr;	return; }
 		}
-	} while(*this!=CellIterator() && !check_match());
+		if(this->tree->bound) this->bound = this->tree->bound & this->tree->calc_bound(this->tpos);
+	} while(*this!=CellIterator() && !check_match());     // это надо оптимизировать
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator::operator ++ (){
 	do{
-		if(this->go){
-			if(++this->tpos^=this->tree->box){ this->ptr++; this->r = this->tree->cell_angle(this->tpos); return; }
+		if(this->go){  // регулярный проход по узлам
+			if(++this->tpos^=this->tree->box){
+				this->ptr++; this->r = this->tree->cell_angle(this->tpos);
+				if(this->tree->bound) this->bound = this->tree->bound & this->tree->calc_bound(this->tpos, this->tree->bbox()+ind(1));
+				return;
+			}
 			this->tpos = Ind<D>(); this->go = ++this->fpos^=this->mesh->fbox;
-			if(this->go){ this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->nodes.data(); this->r = this->tree->bmin; return; }
-		else this->patch = this->mesh->nodes_patch.begin();		
-		} else this->patch++;
+			if(this->go){
+				this->tree = &(this->mesh->forest[this->fpos*this->mesh->fmul]); this->ptr = this->tree->nodes.data(); this->r = this->tree->bmin;
+				this->bound = this->tree->bound&0x55555555;  // нижний левый угол
+				return;
+			} else this->patch = this->mesh->nodes_patch.begin();		
+		} else this->patch++;  // проход по патчам
 		if(this->patch!=this->mesh->nodes_patch.end()){
 			this->r = this->mesh->cell_angle(this->patch->first);
 			this->tree =  this->patch->second.first;
 			// this->tpos = (patch->first - size_t(this->tree-this->mesh->forest.data())%this->mesh->fbox*this->mesh->tile_sz)/(1<<this->mesh->max_rank-this->tree->rank);
 			this->ptr = &(this->patch->second.second);
+			this->bound = this->mesh->calc_bound(this->patch->first, this->mesh->bbox()+ind(1));				
 		}
-	} while(*this!=NodeIterator() && !check_match());
+	} while(*this!=NodeIterator() && !check_match());    // это надо оптимизировать
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
@@ -122,7 +135,8 @@ typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator ZipAdaptiveMesh<D,
 	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator I;  I.mesh = mesh;  
 	I.tree = mesh->forest.data();	I.ptr = I.tree->cells.data(); I.bmin_ = I.tree->bmin;
 	I.stamp_mode = stamp_mode;  I.floor_ = floor; I.exact_match = exact_match; I.rmask_ = rmask; I.stamp_ = stamp;
-	if(!I.check_match()) ++I;
+	I.bound = mesh->calc_bound(Ind<D>());
+	while(I!=ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::CellIterator() && !I.check_match()) ++I;  // это надо оптимизировать
 	return I;
 }
 //------------------------------------------------------------------------------
@@ -131,7 +145,8 @@ typename ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator ZipAdaptiveMesh<D,
 	ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator I;  I.mesh = mesh;  
 	I.tree = mesh->forest.data(); I.ptr = I.tree->nodes.data(); I.r = mesh->cell_angle(Ind<D>()); // I.patch = mesh->nodes_patch.begin();
 	I.stamp_mode = stamp_mode;  I.floor_ = floor; I.exact_match = exact_match; I.rmask_ = rmask; I.stamp_ = stamp;
-	if(!I.check_match()) ++I;
+	I.bound = mesh->calc_bound(Ind<D>(), mesh->bbox()+ind(1));
+	while(I!=ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::NodeIterator() && !I.check_match()) ++I;  // это надо оптимизировать
 	return I;
 }
 //------------------------------------------------------------------------------
