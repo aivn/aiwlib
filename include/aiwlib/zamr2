@@ -38,8 +38,11 @@ namespace aiw{
 		// bool load(IOstream &);
 		void cells2mesh(IOstream&&) const;  // запись данных в обычном формате aiwlib mesh
 		void nodes2mesh(IOstream&&) const;  // на мелкой сетке пишутся узлы ближайшие к реально существующим
-		void cells2mesh(IOstream &S) const { cells2mesh(std::move(S)); }  // запись данных в обычном формате aiwlib mesh
-		void nodes2mesh(IOstream &S) const { nodes2mesh(std::move(S)); }  // на мелкой сетке пишутся узлы ближайшие к реально существующим
+		void nodes2mesh(IOstream&&, const NodeT &NaNval) const;  // пишет узлы на мелкой сетке, свободные ячейки заполняются NaNval
+				
+		void cells2mesh(IOstream &S) const { cells2mesh(std::move(S)); }  
+		void nodes2mesh(IOstream &S) const { nodes2mesh(std::move(S)); }  
+		void nodes2mesh(IOstream&S, const NodeT &NaNval) const { nodes2mesh(std::move(S), NaNval); }
 
 		//----------------------------------------------------------------------
 		// случайный доступ, НЕ НАДО ИСПОЛЬЗОВАТЬ ЕГО ДЛЯ ОБХОДА СЕТКИ!!!
@@ -114,6 +117,7 @@ namespace aiw{
 			bool go = true;  typename std::map<Ind<D>, std::pair<tile_t*, NodeT> >::iterator patch;
 		public:
 			Vec<D, A> r;  int bound = 0;
+			Ind<D> get_pos() const { return go? fpos*mesh->tile_sz + tpos*(1<<(mesh->max_rank-tree->rank)): patch->first; }
 			uint32_t rmask(bool floor=false) const;  // битовая маска с рангами инцидентных ячеек, м.б. приведена (сдвинута) к минимальному рангу
 			uint64_t stamp(bool floor=false) const;  // 2^D рангов инцидентных ячеек (по 4 бита на ранг), м.б. приведены (сдвинуты) к минимальному рангу
 			

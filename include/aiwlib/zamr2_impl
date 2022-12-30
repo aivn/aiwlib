@@ -58,11 +58,25 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &&fout) const {
 	bh.dump(fout); for(Ind<D> pos: irange(box)) fout.write(&get_cell(pos), sizeof(CellT));
 }
 //------------------------------------------------------------------------------
+// на мелкой сетке пишутся узлы ближайшие к реально существующим 
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
-void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout) const {  // на мелкой сетке пишутся узлы ближайшие к реально существующим ???
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout) const {  
 	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(NodeT);
 	Vec<D>(bmin-step/2).to(bh.bmin); Vec<D>(bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
-	bh.dump(fout); for(Ind<D> pos: irange(box+ind(1))) fout.write(&get_node(pos), sizeof(NodeT));
+	bh.dump(fout);
+	for(Ind<D> pos: irange(box+ind(1))) fout.write(&get_node(pos), sizeof(NodeT)); 
+}
+//------------------------------------------------------------------------------
+// пишет узлы на мелкой сетке, свободные ячейки заполняются NaNval
+template <int D, typename CellT, typename NodeT, typename Z, typename A>
+void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout, const NodeT &NaNval) const {
+	Mesh<NodeT, D> buf(box+ind(1), bmin-step/2, bmax+step/2, logscale);  buf.fill(NaNval);
+	for(const Node& n: const_cast<ZipAdaptiveMesh*>(this)->nodes()){
+		Ind<D> pos = n.get_pos(), b(1); bool app = false;
+		if(periodic) for(int i=0; i<D; i++) if(pos[i]==0 && (periodic&(1<<i))){ b[i] = 2; app = true; }
+		if(app){ for(Ind<D> d: irange(b)) buf[pos+(d&box)] = *n; } else buf[pos] = *n;
+	}
+	buf.dump(fout);
 }
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
@@ -83,8 +97,9 @@ const NodeT& ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::get_node(Ind<D> pos) const 
 		else if(pos[i]>box[i]) pos[i] = box[i]; 
 	}
 	auto I = nodes_patch.find(pos); if(I!=nodes_patch.end()) return I->second.second;	
-	Ind<D> fpos = pos/tile_sz; const tile_t &tr = forest[fpos*fmul];
-	Ind<D> tpos = pos%tile_sz/(1<<max_rank-tr.rank);  
+	Ind<D> fpos = pos/tile_sz; if(!(fpos<fbox)) return get_node(pos/2*2);
+	const tile_t &tr = forest[fpos*fmul];
+	Ind<D> tpos = pos%tile_sz/(1<<max_rank-tr.rank);
 	return tr.nodes[tpos*tr.mul];  // узел внутри тайла
 }
 //------------------------------------------------------------------------------
