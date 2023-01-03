@@ -7,6 +7,7 @@ import os, sys, time, tempfile
 from .factory import *
 from .tics import *
 from .mouse import *
+from .parseopt import dump_conf
 #-------------------------------------------------------------------------------
 class Canvas(QtWidgets.QWidget):
     # каждый раз класс создается заново (императивно) или обновляется то что было создано (декларативно)?
@@ -21,7 +22,8 @@ class Canvas(QtWidgets.QWidget):
         self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
         self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i))
                               for i in os.listdir(os.path.dirname(__file__)+'/pals') if i[-4:]=='.ppm')
-        self.old_pal, self.D3tmask, self.pals_sz = None, 0, dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
+        self.pals_sz = dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
+        self.old_pal, self.D3tmask, self.pal_len = list(self.paletters.keys()).index('rainbow'), 0x3ff, int(self.pals_sz['rainbow'])
         self.touch_timer, self.touch_mode = QtCore.QTimer(self), 0; self.touch_timer.timeout.connect(self.touch_replot)
         self.movie_timer, self.movie_mode = QtCore.QTimer(self), 0; self.movie_timer.timeout.connect(self.movie_replot)
         #self.setCursor(QtCore.Qt.BlankCursor)
@@ -61,12 +63,20 @@ class Canvas(QtWidgets.QWidget):
             interp = getattr(self.win, '%sinterp'%'xyz'[i]).currentIndex()
             self.faai &= ~(3<<(18+2*a)); self.faai |= interp<<(18+2*a)
             #print('interp=', interp, 'faai=', self.faai)
+    def set_flip(self, axe, f):
+        if f: self.faai |=   1<<axe
+        else: self.faai &= ~(1<<axe)
+    def get_flip(self, axe): return self.faai&(1<<axe)
+    def set_interp(self, a, interp):  self.faai &= ~(3<<(18+2*a)); self.faai |= interp<<(18+2*a)
+    def get_interp(self, a): return (self.faai>>(18+2*a))&3
     #--------------------------------------------------------------------------
     def save(self):
-        path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)')
+        path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)\nQplt configs (*.qplt)')
         if ok:
+            if path.endswith('.qplt'): dump_conf(self, path); return
             if not path.endswith('.png') and not path.endswith('.PNG'): path += '.png'
             self.grab().save(path, 'PNG')
+            dump_conf(self, path[:-4]+'.qplt')
             #pixmap = self.canvas.grab()
             #pixmap_to_save = pixmap.scaled(self.w.value(), self.h.value(), \
             #    transformMode = Qt.SmoothTransformation if self.smooth.isChecked() else Qt.FastTransformation)

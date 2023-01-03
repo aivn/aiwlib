@@ -22,7 +22,43 @@ usage: qplt options and files
                 то каждые <NUM> секунд (по умолчанию 0.5) будет предприприниматься 
                 попытка прочитать и открыть для просмотра следующий фрейм.
  -m<NUM>    --- задает ограничение для менеджера памяти в GB. Для данного 
-                хоста действует только первый вызов опции  
+                хоста действует только первый вызов опции
+
+Опции отрисовки могут перемежаться с именами файлов и другими опциями произвольным образом, 
+      последний вызов опции перекрывает все предыдущие 
+      оси задаются при помощи номера (0...6) или буквы (xyz)
+ -2d|3d|xd  --- задает режим отрисовки
+ -[no]tas   --- в[ы]ключает глобальное автомасштабирование
+ -[no]ln    --- в[ы]ключает логарифмический масштаб
+ -[no]abs   --- в[ы]ключает модуль функции
+ -[no]inv   --- в[ы]ключает инверсию (знак минус) для значения функции
+ -u <XYZ>:<OFFSET>:{float|double|bool|[u]int{8|16|32|64}_t} --- оси, смещение и тип данных для отрисовки 
+                                                                по умолчанию xyz:0:float
+ -v <PHI>:<THETA> --- задает угол зрения, в градусах
+ -slice <AXE><POS>--- устанавливает позицию среза
+ -flip <AXIS>     --- включает разворот осей (например -flip xy или -flip 01)
+ -interp <INTERP> --- задает интерполяцию, число 0...3 на каждую ось (const, linear, cubic, bspline)
+                      по умолчанию 000000
+ -density <DENSITY>
+ -opacity <OPACITY>
+ -mingrad <MINGRAD>
+
+ -lb{x|y|z|f} <TEXT> --- устанавливает метки по осям
+ -ttl <TEXT>         --- устанавливает заголовок
+ -font <NAME>:<SZ>   --- задает шрифт
+ -r{x|y|z|0...5|f} [<MIN>]:[<MAX>] --- задает пределы  отрисовки по осям (f для значения функции)
+ -pal <PALETTER> --- задает палитру 
+          {grey|inv_grey|black_red|green_blue|neg_pos1|neg_pos2|positive|rainbow|inv_rainbow|color}
+ -opal <01...> --- задает прозрачность цветов в палитре 
+ -palsz <SPACE>:<WIDTH>:<HEIGHT> --- бзадает размеры палитры (по умолчанию 20:20:0.8)
+ -tics <LEN>:<WIDTH>
+ -border <WIDTH>
+ -nan <COLOR> --- задает цвет nan-ов (0x7F7F7F по умолчанию)
+ -conf <PATH> --- загружает .qplt файл с параметрами отрисовки, такие файлы генерируются 
+                  автоматически при сохранении картинок либо вместо сохранения картинок
+ -file <NUM>  --- задает номер файла (источника) в списке, по умолчанию 0
+ -frame <NUM> --- задает номер кадра в  выбранном файле, по умолчанию 0
+
  [-]-h[elp] --- показать эту справку и выйти.
 '''
 
@@ -48,6 +84,7 @@ from PyQt5 import QtWidgets, QtGui, QtCore, uic
 sys.path.append('/home/aiv/aiwlib/python3/')
 
 import aiwlib.qplt as qplt
+qplt.parse_sys_argv()
 #--- create main objects -------------------------------------------------------
 app = QtWidgets.QApplication(sys.argv)
 win = uic.loadUi(os.path.dirname(qplt.__file__)+"/qplt.ui")
@@ -157,5 +194,6 @@ for l in ['filenum', 'framenum']: getattr(win, l).valueChanged.connect(canvas.fu
 win.font.currentFontChanged.connect(canvas.replot); win.font_sz.valueChanged.connect(canvas.replot)
 #--- run mainloop --------------------------------------------------------------
 win.show()
+qplt.apply_sys_argv(canvas)
 sys.exit(app.exec_())
 #-------------------------------------------------------------------------------
