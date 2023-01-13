@@ -19,7 +19,7 @@ include include/aiwlib/config.mk
 #.PHONY: clean all install-links
 
 libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
-qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture
+qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture,balls
 ifeq (on,$(bin))
 bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
 #dat2mesh,fv-slice,uplt-remote
@@ -183,9 +183,9 @@ endif
 #-------------------------------------------------------------------------------
 #   utils
 #-------------------------------------------------------------------------------
-$(dst)bin/%: $(dst)build/src/bin/%.o
+$(dst)bin/%: $(dst)build/src/bin/%.o $(dst)libaiw.a
 	mkdir -p $$(dirname $@) && $(CXX) -o $@ $^ $(dst)libaiw.a $(LINKOPT)
-$(dst)bin/qplt-remote: $(dst)build/src/bin/qplt-remote.o $(shell echo $(dst)build/src/qplt/{$(qplt_n)}.o)
+$(dst)bin/qplt-remote: $(dst)build/src/bin/qplt-remote.o $(shell echo $(dst)build/src/qplt/{$(qplt_n)}.o) $(dst)libaiw.a
 	mkdir -p $$(dirname $@) && $(CU_LD) -o $@ $^ $(dst)libaiw.a $(LINKOPT)  
 #-------------------------------------------------------------------------------
 #   viewers

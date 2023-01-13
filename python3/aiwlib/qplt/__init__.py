@@ -3,3 +3,4 @@
 
 from .factory import *
 from .canvas import *
+from .parseopt import *

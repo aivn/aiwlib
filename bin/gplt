@@ -378,6 +378,8 @@ class gplt(Parser) :
 \usepackage[russian]{babel}
 \usepackage[utf8]{inputenc}
 \usepackage{epsfig}
+\usepackage[usenames]{color}
+\usepackage{colortbl}
 %(upL)s
 \pagestyle{empty}
 \begin{document}

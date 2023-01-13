@@ -45,6 +45,7 @@ class Time(object):
     def __getstate__(self): return self.val
     def __setstate__(self, val): self.__init__(val)
     def __str__(self):
+        if not hasattr(self, 's'): return '---'
         if not self.s: return '-'*(self.val<0)+'%i:%02i'%(self.h, self.m)
         if ('%0*.*f'%(2+bool(self.precision)+self.precision, self.precision, self.s)).startswith('60'):
             return '-'*(self.val<0)+'%i:%02i'%(self.h, self.m+1)

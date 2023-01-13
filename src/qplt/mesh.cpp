@@ -38,10 +38,10 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	data_sz = szT; for(int i=0; i<dim; i++) data_sz *= bbox[i];
-	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, 1)) return false;  // файл битый, записан не до конца
+	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)) return false;  // файл битый, записан не до конца
 	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
-	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(bh.bmin, dim*8); S.read(bh.bmax, dim*8); S.seek(dim*8, 1); S.seek(szT, 1); logscale = 0;  } 
+	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(bh.bmin, dim*8); S.read(bh.bmax, dim*8); S.seek(dim*8, SEEK_CUR); S.seek(szT, SEEK_CUR); logscale = 0;  } 
 	else  S.seek(s);
 	for(int i=0; i<dim; i++) if(bh.bmin[i]==bh.bmax[i]){  bmin[i] = 0; bmax[i] = bbox[i]; } else {  bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
 	calc_step();

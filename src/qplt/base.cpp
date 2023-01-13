@@ -7,6 +7,7 @@
 //#include <cmath>
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
+#include "../../include/aiwlib/qplt/balls"
 #include "../../include/aiwlib/iostream"
 #include "../../include/aiwlib/gauss"
 using namespace aiw;
@@ -61,7 +62,7 @@ void aiw::QpltContainer::calc_step(){
 } 
 float aiw::QpltContainer::fpos2coord(float fpos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], fpos) : bmin[axe]+step[axe]*fpos; }
 float aiw::QpltContainer::pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); }
-int aiw::QpltContainer::coord2pos(float coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
+int aiw::QpltContainer::coord2pos(float coord, int axe) const { return floorf(logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]); }
 //------------------------------------------------------------------------------
 aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   // f_opt --- 2 бита autoscale, 1 бит logscale, 1 бит модуль
@@ -196,6 +197,7 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 		// if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&cell_aspect).abs();
 		// if(D3scale_mode==1)
 		scale[0] = scale[1] = std::min(im_size[0]/(Bhull[0]-Ahull[0]), im_size[1]/(Bhull[1]-Ahull[1]));
+		// WMSG(scale, im_size, Ahull, Bhull);
 		// if(D3scale_mode==2){ scale[0] = im_size[0]/(Bhull[0]-Ahull[0]); scale[1] = im_size[1]/(Bhull[1]-Ahull[1]); }
 		// nX *= scale[0];  nY *= scale[1];
 		for(auto &f: flats) for(int i=0; i<4; i++) f.abcd(i) = Ind<2>(center)+(f.ppf[i]&scale); // +vecf(.5f); ???
@@ -238,9 +240,15 @@ namespace aiw {
 	void load_frames_impl(IOstream &fin, int frame,	std::vector<QpltContainer*> &res){  
 		try{
 			while(1){
-				QpltMesh *msh = new QpltMesh;
-				if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh);  }
-				else { delete msh; break; }
+				{   QpltMesh *msh = new QpltMesh;
+					if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh);  continue; }
+					else delete msh; 
+				}
+				{   QpltBalls *msh = new QpltBalls;
+					if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh); continue; }
+					else delete msh;
+				}
+				break;
 			}
 		} catch(...) {}
 	}

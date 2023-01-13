@@ -31,6 +31,8 @@ namespace aiw{
 		void data_load_cuda();
 		friend class QpltMeshPlotter;
 	public:
+		int features() const override { return 1; } // битовая маска. 1 --- дискретное число ячеек.
+
 		bool load(IOstream &);
 		~QpltMesh(){ data_free(); }
 	protected:

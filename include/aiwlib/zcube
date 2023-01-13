@@ -110,7 +110,7 @@ namespace aiw{
 		}
 	};
 	//--------------------------------------------------------------------------
-	template <typename T, int D> class ZCube: public BaseMesh<D> {
+	template <typename T, int D, typename A=double> class ZCube: public BaseMesh<D, A> {
 		uint64_t N, B, mask[D], imask[D];
 		int R;
 		std::shared_ptr<BaseAlloc> mem;
@@ -131,7 +131,7 @@ namespace aiw{
 		
 		void init(int R_, Vec<D> bmin_, Vec<D> bmax_, int logscale_=0, int align=64){
 			sz_init(R_); data = init_mem_ptr<T>(mem, N, align);
-			this->set_axes(bmin_, bmax_, logscale_);
+			this->set_axis(bmin_, bmax_, logscale_);
 		}
 		void init(int R_, int align=64){ init(R_, Vec<D>(0.), Vec<D>(double(1<<R_)), 0, align); }
 
@@ -192,6 +192,7 @@ namespace aiw{
 			return res;
 		}
 
+		/*
 		void dump(aiw::IOstream &&S) const {
 			BinaryFormat bf; bf.init((BaseMesh<D>&)*this); bf.szT = sizeof(T); bf.D |= 1<<30;  bf.R = R;  bf.box = nullptr;
 #ifdef AIW_TYPEINFO
@@ -215,6 +216,7 @@ namespace aiw{
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
 			return load(std::move(S), use_mmap, raise_on_error);
 		}
+		*/
 		// convert from/to Mesh???
 		// load/dump ???
 		// axes ???
