@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''Copyright (C) 2003-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+'''Copyright (C) 2003-2017, 2023 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
-import os, sys, time, gzip, mixt, gtable, calc, cPickle, fnmatch
+import os, sys, time, gzip, mixt, gtable, calc, cPickle, fnmatch, math
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][-] либо tag+') возвращает кортеж csfh из 4-х значений
@@ -99,6 +99,7 @@ class Select:
                     l = [R]; self._L.append(l); Select._i += 1
                     for c, s, f, h in csfhL:
                         l.append(R(c))
+                        if s: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
                         if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
                 elif check_tree: vizit(p, start, part, repo)
                 start += part
@@ -116,6 +117,7 @@ class Select:
                 l = [R]; self._L.append(l); Select._i += 1
                 for c, s, f, h in csfhL:
                     l.append(R(c))
+                    if s: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
                     if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break                
 
         if ev_ring: self.ring_keys = ring_keys
