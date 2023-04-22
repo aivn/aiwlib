@@ -26,8 +26,9 @@ Licensed under the Apache License, Version 2.0
 
   -h|--help --- показать эту справку и выйти
 
-Для всех параметров (кроме серийных) возможно дублирование, актуальным является 
-последнее значение. Значения параметров по умолчанию могут быть изменены при вызове 
+Для всех параметров возможно дублирование. Для обычных параметров актуальным является 
+последнее значение. Для серийных параметров при дублировании серии объединяются. 
+Значения параметров по умолчанию могут быть изменены при вызове 
 конструктора расчета Calc (за исключением параметров daemonize и copies), но параметры 
 командной строки их перекрывают.
 Для булевых параметров имя параметра экивалентно заданию значения True, кроме того
@@ -237,8 +238,9 @@ while i<len(calc._cl_args):
                     L = [float('%g'%x) for x in L]
                     break
             else: L = s.split() #raise Exception('incorrect sequence expression '+A) ???
-        calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
-        calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
+        if arg in calc._arg_seqs:  calc._arg_seqs[arg] += L
+        else:  calc._arg_seqs[arg] = L; calc._arg_order.append(arg)
+        del calc._cl_args[i]; calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
     elif mixt.is_name_eq(A): 
         k, v = A.split('=', 1)
         if k in calc._arg_seqs: del calc._arg_seqs[k]; calc._arg_order.remove(k)
