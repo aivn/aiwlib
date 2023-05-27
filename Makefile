@@ -74,15 +74,15 @@ $(dst)libaiw$(_dbg).a: $(src_o)
 $(dst)build/src/%.d: src/%.cpp
 	@mkdir -p $(dst)build/src
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/dbg_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 $(dst)build/src/bin/%.d: src/bin/%.cpp
 	@mkdir -p $(dst)build/src/bin
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/bin/dbg_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 $(dst)build/src/qplt/%.d: src/qplt/%.cpp
 	@mkdir -p $(dst)build/src/qplt
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/qplt/dbg/qplt_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 
 -include $(shell echo $(dst)build/src/{$(libaiw_n)}.d $(dst)build/src/bin/{$(bin_n)}.d $(dst)build/src/qplt/{$(qplt_n)}.d)
 
@@ -108,11 +108,11 @@ $(dst)build/swig/%/core_wrap.d: swig/%/core.i
 $(dst)build/swig/$(python)_%.d: $(dst)build/swig/%_wrap.cxx
 	@mkdir -p $(dst)build/swig
 	@p=$$(basename $@); echo -n "$@ " $(dst)build/swig/$(python)_dbg_$${p%.*}_wrap.o $(dst)build/swig/$(python)_ > $@
-	@$(CXX) -I $(PYTHON_H_PATH) -I./ -M $< >> $@
+	$(CXX) -std=c++11 -I $(PYTHON_H_PATH) -I./ -M $< >> $@
 $(dst)build/swig/%/$(python)_core.d: $(dst)build/swig/%/core_wrap.cxx
 	@mkdir -p $$(dirname $@)
 	@p=$$(dirname $@); echo -n "$@ " $$p/$(python)_dbg_core_wrap.o $$p/$(python)_ > $@
-	@$(CXX) -I $(PYTHON_H_PATH) -I./ -M $< >> $@
+	$(CXX) -std=c++11 -I $(PYTHON_H_PATH) -I./ -M $< >> $@
 
 
 ifeq (on,$(swig))
