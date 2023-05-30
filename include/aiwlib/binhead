@@ -45,8 +45,10 @@ namespace aiw{
 		// size_t size = 0;
 
 		enum type_t { unknown, mesh, sphere, zcube, balls };
-		type_t type = unknown; 
+		type_t type = unknown;
 
+		std::string typeinfo; 
+		
 		inline size_t get_size() const; 
 		template <typename ST> void dump(ST &S, int align=64) const;
 		template <typename ST> bool load(ST &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
@@ -77,6 +79,11 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	
 	uint32_t tail = type==sphere||type==balls? 0: logscale;
 	if(faxis) tail |= uint32_t(1)<<31;
+	
+	if(typeinfo.size()){
+		uint32_t sz = typeinfo.size(); buf.write((const char*)&sz, 4); buf.write(typeinfo.c_str(), sz);
+		tail |= uint32_t(1)<<30;
+	}
 	if(!info.empty()){
 		uint32_t sz = info.size(); buf.write((const char*)&sz, 4); buf.write(info.c_str(), sz);
 		tail |= uint32_t(1)<<29;
@@ -144,6 +151,11 @@ template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректно
 			}
 			if(!faxis) for(int i=0; i<dim; i++) axis[i].clear(); 
 		}
+		if(tail&(1<<30)){  // читаем typeinfo
+			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
+			if(sz>=0 && off+sz<h_sz-4){ typeinfo.resize(sz); if(sz){ memcpy(&(typeinfo[0]), buf+off, sz); } off += sz; }
+			else typeinfo.clear();
+		} else typeinfo.clear();
 		if(tail&(1<<29)){  // читаем info
 			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
 			if(sz>=0 && off+sz<h_sz-4){ info.resize(sz); if(sz){ memcpy(&(info[0]), buf+off, sz); } off += sz; }

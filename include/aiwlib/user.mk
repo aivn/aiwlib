@@ -84,7 +84,8 @@ _$(name).so: $(name)_wrap$(python).o $(all_objects)
 #   compile object files
 #-------------------------------------------------------------------------------
 ifneq ($(headers),)
-$(name)_wrap$(python).o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers) $(modules))))
+#$(name)_wrap$(python).o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers) $(modules))))
+$(name)_wrap$(python).o: $(name)_wrap.cxx $(filter-out %:, $(subst \,,$(shell $(CXX) -I$(aiwlib_include) $(CXXOPT) -M $(headers))))
 endif
 %.o:
 	$(show_target)

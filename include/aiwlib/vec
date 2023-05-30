@@ -459,7 +459,8 @@ namespace aiw{
     };
 	template <int D> CU_HD IndRange<D> irange(const Ind<D> &b){ return IndRange<D>(b); }
 	template <int D> CU_HD IndRange<D> irange(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
-	template <int D> CU_HD IndRange<D> irange(int b){ return IndRange<D>(b); }
+	template <int D> CU_HD IndRange<D> irange(int b){ return IndRange<D>(Ind<D>(b)); }
+	template <int D> CU_HD IndRange<D> irange(int a, int b){ return IndRange<D>(Ind<D>(a), Ind<D>(b)); }
 	//--------------------------------------------------------------------------
 	template <int D> class BoxIter {  // для параллельной итерации, переименовать?
 		Ind<D> a, b, box, pos; size_t f = 0;

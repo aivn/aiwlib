@@ -17,7 +17,7 @@ using namespace aiw;
 bool aiw::QpltBalls::load(IOstream &S){
 	// printf("load0: %p\n", mem_ptr);
 	BinaryHead bh; size_t s = S.tell();
-	if(!bh.load(S) || bh.type!=BinaryHead::balls || bh.dim!=3 || bh.szT<20){ S.seek(s);  return false; } // ???
+	if(!bh.load(S) || bh.type!=BinaryHead::balls || bh.dim!=3 || bh.szT<16){ S.seek(s);  return false; } // ???
 	head = bh.head; dim = bh.dim; szT = bh.szT;
 	for(int i=0; i<dim; i++){ anames[i] = bh.axis[i]; bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
 	
@@ -26,7 +26,7 @@ bool aiw::QpltBalls::load(IOstream &S){
 	
 	count = bh.count;  data_sz = szT*count; mem_sz = data_sz/1e9;
 	fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)){ return false; }   // файл битый, записан не до конца
-	WMSG(mem_offset, S.tell());
+	// WMSG(mem_offset, S.tell());
 	if(calc_bb){
 		S.seek(mem_offset); float rR[4]; // ???
 		for(size_t i=0; i<count; i++){
