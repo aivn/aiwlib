@@ -15,9 +15,9 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	namespace LLBE{
 		// analitic solution
-		inline double Z(double p){ return 4*M_PI*(fabs(p>1e-4)? sinh(p)/p: 1+p*p/6); }
-		inline double L(double p){ return fabs(p>1e-4)? 1/tanh(p)-1/p: p/3; }
-		inline double dLdp(double p){ double shp = sinh(p); return fabs(p>1e-6)? 1/(p*p)-1/(shp*shp) : 1/3.-p*p/15; }
+		inline double Z(double p){ return 4*M_PI*(fabs(p)>1e-4? sinh(p)/p: 1+p*p/6); }
+		inline double L(double p){ return fabs(p)>1e-4? 1/tanh(p)-1/p: p/3; }
+		inline double dLdp(double p){ double shp = sinh(p); return fabs(p)>1e-6? 1/(p*p)-1/(shp*shp) : 1/3.-p*p/15; }
 		// const float MAX_P = logf(HUGE_VALF)-1;
 		inline float invL(float M){
 			if(fabsf(M)<1e-6) return M*3;
