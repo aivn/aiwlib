@@ -74,6 +74,9 @@ namespace aiw{
 		}
 		inline float Psi(float M, float eta, float MnK){ return (0.46134f*M*M - 1.3836f*MnK*MnK)*(1.f-eta)*M; }
 		inline float Q3(float eta){ return -(0.69279f + (-0.24455f + (1.1055f -0.53462f*eta)*eta)*eta)*eta*(1-eta); }
+
+		inline float eta2zeta(float M, float eta){ return M<1 && eta<1? (eta-M*M)/(1-M*M): 0; }
+		inline float zeta2eta(float M, float zeta){ return zeta + (1-zeta)*M*M; }
 	};
 	//--------------------------------------------------------------------------
 };
