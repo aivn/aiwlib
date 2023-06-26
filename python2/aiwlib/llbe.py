@@ -34,7 +34,8 @@ def Zinv(z):
         else: pb = (pa+pb)/2
     return (pa+pb)/2
 
-Sigma_z = lambda M: M2acc(M)-1
+#Sigma_z = lambda M: M2acc(M)-1
+#Sigma_z = lambda M: M2(M)-1
 
 eta2zeta = lambda M, eta: (eta-M**2)/(1.-M**2) if M<1 and eta<1 else 0
 zeta2eta = lambda M, zeta: zeta+(1-zeta)*M**2
@@ -63,6 +64,7 @@ def Xi(M):  # Xi_xx, yy, zz, xy, xz, yz
         delta, nn = (i==j), M[i]*M[j]*_MM
         res[k] = (M2av*(3*nn-delta) + delta-nn)*.5 - delta
     return res		       
+Xi_zz = lambda M: M2(M)-1
     
 def Theta(M, nK):
     MM = sum(x**2 for x in M)
