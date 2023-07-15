@@ -9,7 +9,8 @@ from math import *
 
 Z = lambda p: 4*pi*(sinh(p)/p if fabs(p)>1e-4 else 1+p*p/6.)   # int_sph e^{m p} dm
 L = lambda p: 1/tanh(p)-1./p if fabs(p)>1e-4 else p/3.         # Langevien function
-dLdp = lambda p: 1./(p*p)-1./sinh(p)**2 if fabs(p)>1e-6 else 1/3.-p*p/15.
+# 1./(p*p)-1./sinh(p)**2 при p-->inf: ~ 1/p**2
+dLdp = lambda p: 1/3.-p*p/15. if fabs(p)<1e-6 else 1./(p*p)-1./sinh(p)**2 if fabs(p)<40 else 1./(p*p)
 
 def invL(M, newton=True):
     if fabs(M)<1e-6: return M*3
@@ -75,8 +76,15 @@ def Theta(M, nK):
     return [a*((m3m/m-1.)*(3.*beta*beta-1.)*.5 + m3m/MM*beta*MnK) - b*m3m*beta  for a, b in zip(M, nK)]
 
 Upsilon = lambda M, eta: (1-eta)/(1.-M**2)*(1.-M2(M))*.5*(1+ ((0.3684 + 0.1873*eta)*eta - (0.3236+0.2523*eta)*M**2)*eta)
+def Upsilon2(mu, eta):
+    p = invL(mu, 0)
+    return  mu*(1-eta)/((1-mu**2)*p)*(1 + 0.448413*eta**2 + 0.308645*eta**3 -0.475256*eta*mu**2 -0.291626*eta**2*mu**2)
 
 Psi = lambda m, eta, MnK: (0.46134*m*m - 1.3836*MnK*MnK)*(1.-eta)*m
+
+def Lambda(M, eta):
+    MM, EE = M*M, eta*eta;
+    return (1.-eta)/(1.-MM)*( -0.6639 + (-0.7617 +0.2689*M +0.3472*MM)*eta + (0.2718 - 1.367*eta +0.5078*EE -0.418*M +1.833*MM)*EE)
 
 
 # 		inline Vecf<3> Kprec(const Vecf<3> &M, const Vecf<3> &nK){
@@ -91,8 +99,4 @@ Psi = lambda m, eta, MnK: (0.46134*m*m - 1.3836*MnK*MnK)*(1.-eta)*m
 # 		}
 		
 # 		// corr. MD
-# 		inline float Lambda(float M, float eta){
-# 			float MM = M*M, EE = eta*eta;
-# 			return (1.f-eta)/(1.f-MM)*( -0.6639f + (-0.7617f +0.2689f*M +0.3472f*MM)*eta + (0.2718f - 1.367f*eta +0.5078f*EE -0.418f*M +1.833f*MM)*EE);
-# 		}
 # 		inline float Q3(float eta){ return -(0.69279f + (-0.24455f + (1.1055f -0.53462f*eta)*eta)*eta)*eta*(1-eta); }
