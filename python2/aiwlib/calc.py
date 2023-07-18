@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''Copyright (C) 2002-2017 Anton V. Ivanov <aiv.racs@gmail.com>
+'''Copyright (C) 2002-2017, 2023 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
 import os, sys, time, cPickle, socket, shutil 
@@ -16,7 +16,7 @@ _racs_params = {} # параметры RACS (репозиторий, демон�
 _racs_cl_params = set() # имена параметров RACS заданные в командной строке 
 _cl_args, _cl_tags = [], [] # аргументы командной строки не обработанные RACS и тэги из командной строки  
 _args_from_racs = [] # значения параметров полученные из RACS при разборе аргументов командной строки
-_arg_seqs, _arg_order =  {}, [] # словарь с параметрами для пакетного запуска, последовательность имен параметров
+_arg_seqs, _arg_order, _queue =  {}, [], None # словарь с параметрами для пакетного запуска, последовательность имен параметров, очередь заданий
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -58,9 +58,11 @@ class Calc:
                     pid = os.fork()
                     if not pid: break
                     os.waitpid(-1, 0)
-        elif _arg_seqs:
-            _base_args_from_racs, t_start, n_start, n_finish = list(_args_from_racs), time.time(), 0, 0
-            queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', os.getpid())]])
+        elif _arg_seqs or _queue:
+            _base_args_from_racs, t_start, n_start, n_finish, pid = list(_args_from_racs), time.time(), 0, 0, os.getpid()
+            if _queue: queue = [q+[('racs_master', pid)] for q in _queue]  # декартово произведение с последовательностями параметров?
+            elif _racs_params['_zip']: queue = [q+[('racs_master', pid)] for q in zip(*[[(a, x) for x in _arg_seqs[a]] for a in _arg_order])]
+            else: queue = reduce(lambda L, a: [l+[(a,x)] for x in _arg_seqs[a] for l in L], _arg_order, [[('racs_master', pid)]])
             if _racs_params['_daemonize']: mixt.mk_daemon()
             if not os.path.exists('.racs'): os.mkdir('.racs')                
             if not os.path.exists('/tmp/racs'): os.system('mkdir /tmp/racs; chmod a+rwx /tmp/racs')

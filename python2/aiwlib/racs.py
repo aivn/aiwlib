@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #-------------------------------------------------------------------------------
-'''Copyright (C) 2003-2017 Anton V. Ivanov <aiv.racs@gmail.com>
+'''Copyright (C) 2003-2017, 2023 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 
   опции командной строки:
@@ -27,7 +27,8 @@ Licensed under the Apache License, Version 2.0
   -h|--help --- показать эту справку и выйти
 
 Для всех параметров возможно дублирование. Для обычных параметров актуальным является 
-последнее значение. Для серийных параметров при дублировании серии объединяются. 
+последнее значение. Для серийных параметров при дублировании серии объединяются и 
+и сортируются. 
 Значения параметров по умолчанию могут быть изменены при вызове 
 конструктора расчета Calc (за исключением параметров daemonize и copies), но параметры 
 командной строки их перекрывают.
@@ -58,6 +59,20 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -a|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
                          контролируемых расчетом объектов.
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
+  -z|--zip[=N] --- при построении очереди расчетов вместо декартового произведения 
+                   последовательностей значений параметров использовать функцию zip 
+  -q|--queue filename.dat --- формирует очередь заданий из файла filename.dat 
+                              в формате gplt
+  -D|--delone umesh l_cr --- формирует очередь заданий для досчета (уточнения) на 
+                             основе неравномерной сетки. Сетка должна быть представлена 
+                             файлами umesh.dat (узлы в формате gplt) и umesh.cells 
+                             (индексы вершин ячеек), полученными например при помощи 
+                             racs ... --delone ...  Файл umesh.dat должен содержать
+                             минимум четрые колонки --- две колонки в пространстве
+                             неоднородной сетки, две колонки в пространстве управляющих
+                             параметров. l_cr задает критическую длину ребра, более длинные
+                             ребра разбиваются пополам и формируют задания в пространстве
+                             управляющих параметров.  
 
   -T|--title=TITLE --- задать имя серии
   -R|--repeat=.racs/... --- повторить серию
@@ -214,7 +229,7 @@ if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', False), 
-         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', '') }
+         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', ''), 'zip':('z', False) }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, calc._arg_seqs, calc._arg_order, i, repeat_mode = list(sys.argv[1:]), {}, [], 0, False
 while i<len(calc._cl_args):
@@ -246,6 +261,26 @@ while i<len(calc._cl_args):
         if k in calc._arg_seqs: del calc._arg_seqs[k]; calc._arg_order.remove(k)
         if v.startswith('@'): v = eval(v[1:], math.__dict__, dict(calc._args_from_racs))
         calc._args_from_racs.append((k, v)); del calc._cl_args[i]
+    elif A in ('-q', '-queue', '--queue'):
+        D = {}
+        for l in open(calc._cl_args[i+1]):
+            if l.startswith('#:') and '=' in l: exec(l[2:], math.__dict__, D)
+            elif l.startswith('#:') and not '=' in l: H = l[2:].split()
+            elif l[0]!='#' and l.strip(): calc._queue.append(D.items()+zip(H, map(float, l.split())))
+        del D, calc._cl_args[i:i+2]
+    elif A in ('-D', '-delone', '--delone'):
+        l_cr, points, edges, cells = float(calc._cl_args[i+2]), [], set(), [map(int, l.split()) for l in open(calc._cl_args[i+1]+'.cells')]
+        for l in open(calc._cl_args[i+1]+'.dat'):
+            if l.startswith('#:') and not '=' in l: H = l[2:].split()
+            elif l[0]!='#' and l.strip(): points.append(map(float, l.split()))
+        for c in cells:
+            tr = [points[j] for j in c]            
+            for j in (0, 1, 2):
+                ij = tuple(sorted([c[j], c[(j+1)%3]])) 
+                if not ij in edges:
+                    edges.add(ij)
+                    if ((tr[j][0]-tr[(j+1)%3][0])**2 + (tr[j][1]-tr[(j+1)%3][1])**2)**.5 <= l_cr:
+                        calc._queue.append([(H[k], .5*(points[ij[0]][k]+points[ij[1]][k])) for k in (2, 3)])        
     elif A.startswith('-') and A!='-':
         for k, v in opts.items()+[('repeat', ('R', '')), ('continue', ('C', ''))]:
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):

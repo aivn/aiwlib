@@ -199,6 +199,34 @@ class Select:
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
         return repr(self.paths(patterns))
     #---------------------------------------------------------------------------
+    def delone(self, path=None):
+        from scipy.spatial import Delaunay
+        points = [l[1:] for l in self._L if l]
+        cells, edges = Delaunay(points), {} # ij: len
+        # calc stat
+        #angles = []
+        for c in cells:
+            tr = [points[i] for i in c]            
+            S = (tr[1][0]-tr[0][0])*(tr[2][1]-tr[0][1]) - (tr[1][1]-tr[0][1])*(tr[2][0]-tr[0][0]) #a[0]*b[1]-a[1]*b[0]
+            for i in (0, 1, 2):
+                ij, l = tuple(sorted([c[i], c[(i+1)%3]])),  ((tr[i][0]-tr[(i+1)%3][0])**2 + (tr[i][1]-tr[(i+1)%3][1])**2)**.5
+                if not ij in edges: edges[ij] = l
+                #angles.append(acos(.5*S/l))
+        edge_av = sum(edges.values())/len(edges)
+        stat = '%i points, %i cells, edge_min=%g, edge_max=%g, edge_av=%g, edge_sigma=%g'%(
+            len(points), len(cells), min(edges.values()), max(edges.values()), edge_av, (sum((e-edge_av)**2 for e in edges.values())/len(edges))**.5)
+        print stat
+                
+        if path:
+            fname %= self.upar; dname = os.path.dirname(fname)
+            if dname and not os.path.exists(dname): os.makedirs(dname)
+            H = [h.strip().split('\n')[0] for h in self.head]
+            R = mixt.table2strlist([['#:'+H[0]]+H[1:]] + points, 'l'*len(self.head))
+            open(fname+'.dat', 'w').writelines([l.lstrip(' ') for l in R])
+            open(fname+'.cells', 'w').writelines(['%i %i %i\n'%tuple(c) for c in cells])
+            open(fname+'.edges', 'w').writelines(['%g %g\n%g %g\n\n\n'%(points[e[0]][0], points[e[0]][1], points[e[1]][0], points[e[1]][1]) for e in edges.keys()])
+            open(fname+'.stat', 'w').write(stat+'\n')
+    #---------------------------------------------------------------------------
     def Xcommit(self): 'сохраняет изменения в расчетах на диск'; [l[0].commit() for l in self._L if l]
     def Xremove(self):
         'удаляет все записи из выборки и из базы'

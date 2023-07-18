@@ -70,6 +70,12 @@
 
     --gplt [gplt-options...] --- эквивалентно --asd | gplt -all C1 -std gplt-options...
 
+    --delone [PATH] --- проводит разбиение Делоне по двум первым колонкам,
+                        создает файлы PATH.dat с данными (в несколько колонок без пустых строк) 
+                        и PATH.cells с ячейками (тройки номеров строк из PATH.dat + статистика),
+                        выводит статистику на стандартный вывод
+
+
 Кроме того, доступны следующие опции (по умолчанию отключены):
     --pb[ar]|--progressbar --- отображать процесс построения выборки
     --csz|--calc-size --- определять размер расчетов (требует доп. времени)
@@ -203,6 +209,7 @@ for i in range(1, a_sz):
     elif arg==':': ev_lists.append([])
     elif arg=='--gplt': action = ['asdata']; gplt = sys.argv[i+1:]; break
     elif arg in ('--cp', '--copy'): action = ['Xcopy']+sys.argv[i+1:]; break
+    elif arg=='--delone': action = ['delone']+sys.argv[i+1:i+2]; break
     else: ev_lists[-1].append(arg)
 else: print>>sys.stderr, __doc__, '\033[31mAction not setting!\033[0m'; sys.exit()
 #-----------------------------------------------------------------------------
@@ -247,6 +254,7 @@ elif action[0]=='asdata' and len(S.ring)>1:
     for i in range(len(S.ring)):
         if len(S): sys.stdout.write(''.join(S.asdata(*action[1:])))
         S.click()
+elif action[0]=='delone': S.delone(action[1] if len(action)>1 else None)
 else:
     sep, end = ('','') if action[0][:2]=='as' else (' '*(action[0]!='paths2py'),'\n')
     sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
