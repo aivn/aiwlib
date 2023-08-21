@@ -61,10 +61,10 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &&fout) const {
 // на мелкой сетке пишутся узлы ближайшие к реально существующим 
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout) const {  
-	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(NodeT);
+	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; std::stringstream szT;  stream_dump_wrapper(szT, T{});  bh.szT = szT.tellg(); // bh.szT = sizeof(NodeT);
 	Vec<D>(bmin-step/2).to(bh.bmin); Vec<D>(bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
 	bh.dump(fout);
-	for(Ind<D> pos: irange(box+ind(1))) fout.write(&get_node(pos), sizeof(NodeT)); 
+	for(Ind<D> pos: irange(box+ind(1))) fout.dump(get_node(pos)); // fout.write(&get_node(pos), sizeof(NodeT)); 
 }
 //------------------------------------------------------------------------------
 // пишет узлы на мелкой сетке, свободные ячейки заполняются NaNval

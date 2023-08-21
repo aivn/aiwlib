@@ -248,6 +248,10 @@ namespace aiw{
 		bool load(){ return true; }
 		template <typename T, typename ... Args> bool load(T& x, Args& ... args){ return stream_load_wrapper(*this, x) && this->load(args...); }
 	};
+	
+	// universal read/write functions
+	template <typename T> size_t uwrite(IOstream &S, const T *p, size_t sz){ return S.write(p, sz); }
+	template <typename T> size_t uread(IOstream &S, T *p, size_t sz){ return S.read(p, sz); }
 #endif //SWIG 
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw

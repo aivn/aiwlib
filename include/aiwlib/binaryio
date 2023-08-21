@@ -29,16 +29,18 @@ template <typename T> struct aiw_dump_load<std::complex<T> > { static const int 
 
 // template <typename T> struct BinInWrapper: public T {};
 
-namespace aiw{	
+namespace aiw{
+	template <typename T> size_t uwrite(std::ostream &S, const T *p, size_t sz){ size_t pos = S.tellp(); return S.write((const char*)p, sz).tellp()-pos; }
+	template <typename T> size_t uread(std::istream &S, T *p, size_t sz){ size_t pos = S.tellg(); return S.read((char *)p, sz).tellg()-pos; }	
 	// global case
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==0, bool>::type dump(S &s, const T& x){
 		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, create function bool dump(S&, const T&) for binary dump of type T! ***\033[0m\n"); return false; }
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==0, bool>::type load(S &s, T& x){
 		static_assert(sizeof(T)==0, "\n\n\033[31;1;5m*** Please, create function bool load(S&, T&) for binary load of type T! ***\033[0m\n"); return false; }
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==1, bool>::type
-	dump(S &s, const T& x){ return s.write(&x, sizeof(T))==sizeof(T); }
+	dump(S &s, const T& x){ return uwrite<T>(s, &x, sizeof(T))==sizeof(T); }
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==1, bool>::type
-	load(S &s,       T& x){ return  s.read(&x, sizeof(T))==sizeof(T); }
+	load(S &s,       T& x){ return  uread<T>(s, &x, sizeof(T))==sizeof(T); }
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==2, bool>::type
 	dump(S &s, const T& x){ return x.dump(s); }
 	template <typename S, typename T> typename std::enable_if<aiw_dump_load<T>::mode==2, bool>::type
@@ -49,7 +51,7 @@ namespace aiw{
 
 	// fix size arrays
 	template <typename S, typename T, int D> bool dump(S &s, T const (&p)[D]){
-		if(aiw_dump_load<T>::mode==1) return s.write(p, D*sizeof(T))==D*sizeof(T);
+		if(aiw_dump_load<T>::mode==1) return uwrite<T>(s, p, D*sizeof(T))==D*sizeof(T);
 		for(int i=0; i<D; i++) if(!dump(s, p[i])) return false;
 		return true;
 	}
@@ -60,7 +62,7 @@ namespace aiw{
 	}
 	
 	// std::string
-	template <typename S> bool dump(S &s, const std::string& x){ return dump(s, uint32_t(x.size())) && s.write(&(x[0]), x.size())==x.size(); }
+	template <typename S> bool dump(S &s, const std::string& x){ return dump(s, uint32_t(x.size())) && uwrite<char>(s, &(x[0]), x.size())==x.size(); }
 	template <typename S> bool load(S &s, std::string& x){
 		uint32_t sz=0; if(!load(s, sz) || !s.check_tail(sz)) return false;  
 		x.resize(sz); if(s.read(&(x[0]), sz)!=sz){ std::string().swap(x); return false; }
@@ -70,7 +72,7 @@ namespace aiw{
 	// std::vector
 	template <typename S, typename T> bool dump(S &s, const std::vector<T> &v){
 		if(!dump(s, uint64_t(v.size()))){ return false; } if(!v.size()) return true;
-		if(aiw_dump_load<T>::mode==1) return s.write(v.data(), sizeof(T)*v.size())==sizeof(T)*v.size();
+		if(aiw_dump_load<T>::mode==1) return uwrite<T>(s, v.data(), sizeof(T)*v.size())==sizeof(T)*v.size();
 		for(const T& x: v) if(!dump(s, x)) return false;
 		return true;
 	}

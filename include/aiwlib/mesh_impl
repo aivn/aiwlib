@@ -3,7 +3,7 @@
 #define AIW_MESH_IMPL_HPP
 
 /**
- * Copyright (C) 2016-17, 2020-22 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016-17, 2020-23 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  *
  * Mesh methods implementation.
@@ -30,11 +30,22 @@ template <typename T, int D, typename A> size_t  Mesh<T, D, A>::sz_init(const ai
 */
 //------------------------------------------------------------------------------
 template <typename T, int D, typename A> void Mesh<T, D, A>::dump(aiw::IOstream &&S) const { //???оптимизировать для простых случаев???
-	BinaryHead bh; this->push(bh); bh.type = BinaryHead::mesh; bh.szT = sizeof(T);  
+	BinaryHead bh; this->push(bh); bh.type = BinaryHead::mesh;  
 	// #ifdef AIW_TYPEINFO
 	//	bf.tinfo.root = T()^bf.tinfo; 
 	//#endif //AIW_TYPEINFO
-	bh.dump(S); for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); // <== это можно оптимизировать!!!
+	std::stringstream szT;  stream_dump_wrapper(szT, T{});  bh.szT = szT.tellg();  bh.dump(S);   // ???
+	
+	if(aiw_dump_load<T>::mode!=1){ for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); }
+	else {
+		// bh.szT = sizeof(T); 	bh.dump(S);
+		Ind<D> b = box;  int muli = bh.szT;
+		for(int i=0; i<D; i++){
+			if(muli!=mul[i]) break;
+			muli *= box[i]; b[i] = 1;   
+		}
+		for(Ind<D> pos: irange(b)) S.write((const char*)ptr+pos*mul, muli);
+	}
 	S.flush(); 
 }
 //------------------------------------------------------------------------------

@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <utility>
 #include <typeinfo>
+#include <sstream>
 
 // #endif //SWIG
 #include "op_traits"
