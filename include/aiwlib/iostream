@@ -252,6 +252,8 @@ namespace aiw{
 	// universal read/write functions
 	template <typename T> size_t uwrite(IOstream &S, const T *p, size_t sz){ return S.write(p, sz); }
 	template <typename T> size_t uread(IOstream &S, T *p, size_t sz){ return S.read(p, sz); }
+	template <typename T> size_t uwrite(StdOstream &S, const T *p, size_t sz){ return S.write(p, sz); }
+	template <typename T> size_t uread(StdIstream &S, T *p, size_t sz){ return S.read(p, sz); }
 #endif //SWIG 
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw

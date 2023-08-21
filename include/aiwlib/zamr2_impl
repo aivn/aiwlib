@@ -53,15 +53,15 @@ void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::init(Mesh<int, D> forest_){
 //------------------------------------------------------------------------------
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::cells2mesh(IOstream &&fout) const {  // запись данных в обычном формате aiwlib mesh
-	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; bh.szT = sizeof(CellT);
+	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D;  std::stringstream szT;  stream_dump_wrapper(szT, CellT{});  bh.szT = szT.tellp(); // bh.szT = sizeof(CellT);
 	Vec<D>(bmin).to(bh.bmin); Vec<D>(bmax).to(bh.bmax); box.to(bh.bbox); bh.logscale = logscale;		
-	bh.dump(fout); for(Ind<D> pos: irange(box)) fout.write(&get_cell(pos), sizeof(CellT));
+	bh.dump(fout); for(Ind<D> pos: irange(box)) fout.dump(get_cell(pos)); // fout.write(&get_cell(pos), sizeof(CellT));
 }
 //------------------------------------------------------------------------------
 // на мелкой сетке пишутся узлы ближайшие к реально существующим 
 template <int D, typename CellT, typename NodeT, typename Z, typename A>
 void ZipAdaptiveMesh<D, CellT, NodeT, Z, A>::nodes2mesh(IOstream &&fout) const {  
-	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; std::stringstream szT;  stream_dump_wrapper(szT, T{});  bh.szT = szT.tellg(); // bh.szT = sizeof(NodeT);
+	BinaryHead bh; bh.type = BinaryHead::mesh; bh.dim = D; std::stringstream szT;  stream_dump_wrapper(szT, NodeT{});  bh.szT = szT.tellp(); // bh.szT = sizeof(NodeT);
 	Vec<D>(bmin-step/2).to(bh.bmin); Vec<D>(bmax+step/2).to(bh.bmax); (box+ind(1)).to(bh.bbox); bh.logscale = logscale;		
 	bh.dump(fout);
 	for(Ind<D> pos: irange(box+ind(1))) fout.dump(get_node(pos)); // fout.write(&get_node(pos), sizeof(NodeT)); 

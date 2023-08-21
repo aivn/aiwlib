@@ -34,7 +34,7 @@ template <typename T, int D, typename A> void Mesh<T, D, A>::dump(aiw::IOstream 
 	// #ifdef AIW_TYPEINFO
 	//	bf.tinfo.root = T()^bf.tinfo; 
 	//#endif //AIW_TYPEINFO
-	std::stringstream szT;  stream_dump_wrapper(szT, T{});  bh.szT = szT.tellg();  bh.dump(S);   // ???
+	std::stringstream szT;  stream_dump_wrapper(szT, T{});  bh.szT = szT.tellp();  bh.dump(S);   // ???
 	
 	if(aiw_dump_load<T>::mode!=1){ for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); }
 	else {
