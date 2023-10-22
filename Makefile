@@ -21,7 +21,7 @@ include include/aiwlib/config.mk
 libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture,balls
 ifeq (on,$(bin))
-bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
+bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff,vtk2msh
 #dat2mesh,fv-slice,uplt-remote
 endif
 #-------------------------------------------------------------------------------

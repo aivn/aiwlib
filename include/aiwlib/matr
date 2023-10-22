@@ -248,6 +248,13 @@ namespace aiw{
 		for(int y=0; y<N; y++) for(int x=0; x<N; x++) dst(IDs[y], IDs[x]) += src(y, x); // ???
 	}
 	//--------------------------------------------------------------------------
+	template <typename T>  CU_HD Vec<2, T> eigenvalues(const Matr<2, 2, T> &A){
+		T Atr = A.tr(), sqrtD = sqrt(Atr*Atr-4*A.det());
+		return Vec<2, T>((Atr-sqrtD)*.5, (Atr+sqrtD)*.5);
+	}
+	//--------------------------------------------------------------------------
+	// template <typename T>  CU_HD Vec<2, T> eigenvector(const Matr<2, 2, T> &A, const Vec<2, T> &eigvals, bool n){ return Vec<2, T>(A(0,1-n)-eigvals[1-n], A(1,1-n)); }
+	//--------------------------------------------------------------------------
     template <typename T> CU_HD Vec<3, T> eigenvalues(const Matr<3, 3, T> &A){
 		T Atr = A.tr(), q = Atr/3; Matr<3, 3, T> AqE = A; for(int i=0; i<3; i++) AqE(i, i) -= q;
 		T p = sqrt((AqE*AqE).tr()/6), detB2 = (AqE*(1/p)).det()/2;

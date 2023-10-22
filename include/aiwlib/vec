@@ -101,7 +101,7 @@ namespace aiw{
 
 		// *** OTHER FUNCTIONS ***
 		CU_HD T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
-		CU_HD T abs() const { return sqrt(abs2()); }
+		CU_HD T abs() const { return ::sqrt(abs2()); }
 
 		CU_HD Vec pow(const int n) const { // ????
 			if(n==0) return Vec((T)1.);		
@@ -114,6 +114,7 @@ namespace aiw{
      		return res;		
 		}
 		CU_HD Vec pow(double n) const { Vec v; for(int i=0; i<D; i++) v[i] = ::pow(p[i], n); return v; }
+		CU_HD Vec sqrt() const { Vec v; for(int i=0; i<D; i++) v[i] = ::sqrt(p[i]); return v; }
 		// Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
 
 		CU_HD Vec fabs() const { Vec v; for(int i=0; i<D; i++) v[i] = ::fabs(p[i]); return v; }
@@ -423,7 +424,7 @@ namespace aiw{
 	//   other functions
 	//--------------------------------------------------------------------------
 	template <int D, typename T> CU_HD bool is_bad_value(const Vec<D, T> &v){ return v.cknan() || v.ckinf(); }
-	template <int D, typename T> CU_HD T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return sqrt(s); }
+	template <int D, typename T> CU_HD T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return ::sqrt(s); }
 	inline double fabsV(double x){ return ::fabs(x); }
 	//--------------------------------------------------------------------------
 	//   new style
