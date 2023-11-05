@@ -80,7 +80,7 @@ namespace aiw{
 #ifndef SWIG
 		template <typename T2, typename A2> void init(const Mesh<T2, D, A2> &M){ init_(M.box(), M.bmin(), M.bmax(), M.logscale); }
 		//----------------------------------------------------------------------		
-		void dump(aiw::IOstream &&S) const; //???оптимизировать для простых случаев???
+		void dump(aiw::IOstream &&S) const;  //???оптимизировать для простых случаев???
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0); // mmap = 0 - not use, 1 - readonly, 2 - rw
 #endif //SWIG
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }

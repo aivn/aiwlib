@@ -80,7 +80,7 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
     template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& b){
-		// a*cos(b.abs()) - a%b*sin(b)/b.abs() + b*(a*b)*(1-cos(b))/(b*b);
+		// a*cos(|b|) - a%b*sin(|b|)/|b| + b*(a*b)*(1-cos(|b|))/(b*b);
 		double b2 = b*b;
 		if(b2<1e-16) return a;
 		double b_abs = sqrt(b2); 
