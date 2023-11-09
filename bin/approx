@@ -41,7 +41,8 @@ if '-cond' in sys.argv:
     cond = compile(cond, cond, 'eval')
     del sys.argv[sys.argv.index('-cond'):sys.argv.index('-cond')+2]
     
-H = dict(list(enumerate('xyz'))+list(enumerate('C%i'%i for i in range(1, 256))))
+H = {}
+for i, k in list(enumerate('xyz'))+list(enumerate('C%i'%i for i in range(1, 256))): H.setdefault(i, []).append(k)
 G, L = dict(math.__dict__), (sys.stdin if sys.argv[1]=='-' else open(sys.argv[1])).readlines()
 if not '-noracs' in sys.argv:
     class Racs: pass
@@ -54,13 +55,14 @@ P0 = None
 if '-P0' in sys.argv:
     P0 = eval(sys.argv[sys.argv.index('-P0')+1], G)
     del sys.argv[sys.argv.index('-P0'):sys.argv.index('-P0')+2]
-    
+
 while L and L[0][0]=='#':
     if L[0].startswith('#:'):
         if '=' in L[0]: pass #exec(L[0][2:], G)
-        else: H.update(enumerate(L[0][2:].split()))
+        else:
+            for i, k in enumerate(L[0][2:].split()): H.setdefault(i, []).append(k)
     del L[0]
-    
+
 ai, gplt, prefix, outf, YEex, Xname, addX = 5, None, 'err', None, None, None, []
 while ai<len(sys.argv):
     if sys.argv[ai]=='-gplt': ai += 1; gplt = sys.argv[ai] if ai<len(sys.argv) else ''
@@ -89,7 +91,10 @@ for l in L:
     try: l = map(float, l.split())
     except: continue
     
-    D = dict((H[k], v) for k, v in enumerate(l))
+    D = {}
+    for k, v in enumerate(l):
+        for n in H.get(k, []):
+            if not n in D: D[n] = v
     if cond and not eval(cond, G, D): continue
     try: xval = eval(Xex, G, D)
     except: continue
