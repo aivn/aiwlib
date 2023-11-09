@@ -87,7 +87,7 @@ class Select:
                 if self.progressbar: self.progressbar.out(start, 'refresh cache '+dirname+' ')
             if cache_refresh or not cache:
                 try: cPickle.dump(cache, open(cache_name, 'w')) # after commit ???
-                except: print dirname, '--- cache not dumped!'
+                except: print>>sys.stderr, dirname, '--- cache not dumped!'
             #-------------------------------------------------------------------
             #   main cicle
             #-------------------------------------------------------------------
