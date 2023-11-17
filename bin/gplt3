@@ -93,6 +93,7 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 и обрезанием полей. Шаблон LaTeX может быть задан в ~/.gplt3 (см. -dump-config-file)
 При рисовании в png/pdf по умолчанию толщина линии равна трем;  результаты сразу 
 отображаются (командами png/pdfview из ~/.gplt3), отображение отключается через -nav.
+Для создания .pdf требуются pdflatex, epstopdf и pdfcrop.
 ''', #----------------------
                  '-lbx': '''
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям.
@@ -258,7 +259,7 @@ class BaseOp(object):
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
         return (self._2str(arg)  if getattr(arg, 'priority', 0)<=self.priority-self.nocmm*second or self.lock_bk[self.fID==2]&(1<<second) else
-                ('(%s)' if self.fID<=1 else r'\left(%s\right)')%self._2str(arg))
+                ('(%s)' if self.fID<=1 else '\\left(%s\right)')%self._2str(arg))
     def __repr__(self): old_fID, BaseOp.fID = BaseOp.fID, 0; res = str(self); BaseOp.fID = old_fID; return res 
     def __call__(self, *args): BaseOp.call_args = args;  return self
     
@@ -278,8 +279,8 @@ class BinaryOp(BaseOp):
         return self.patt[self.fID]%(self._bk(self.a), self._bk(self.b, True))
 
 # кодированный список операций: op name Unary|Binary priority nocmm [tex]
-for p in r'''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,\sim *mul:3c, /truediv:3n //floordiv:3n,\frac{%s}{%s} %mod:3n,\% +add:4c -sub:4n 
-<<lshift:5n,\ll >>rshift:5n,\gg &and:6c,\& |or:7c,\| ^xor:8c,\^ ==eq:9c,= !=ne:9c,\neq <lt:9n <=le:9n,\leq >gt:9n >=ge:9n,\geq'''.split():
+for p in '''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,\sim *mul:3c, /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
+<<lshift:5n,\\ll >>rshift:5n,\\gg &and:6c,\\& |or:7c,\\| ^xor:8c,\\^ ==eq:9c,= !=ne:9c,\\neq <lt:9n <=le:9n,\\leq >gt:9n >=ge:9n,\\geq'''.split():
     op = p[:2] if not p[1].isalpha() else p[0];   p, tex = (p.split(',')+[op])[:2] #; print(op, p, tex)
     name, base, priority, nocmm = p[1+(not p[1].isalpha()):-3], (UnaryOp, BinaryOp)[p[-3]==':'], int(p[-2]), p[-1]=='n' # в т.ч. приоритет и не-коммутативность 
     cname = name.capitalize()+'Op'
@@ -316,7 +317,7 @@ brakets = {'()': 'crc_bk', '{}': 'fig_bk', '<>': 'ang_bk', '[]': 'rm_bk', '||': 
 for bk, n in brakets.items():
     spaceOp[n] = type(n, (UnaryOp,), {'priority': 0, 'lock_bk':(1, 1),
                                       'patt': ['(%s)', bk[0]+'%s'+bk[1], '\\left'+'\\'*(bk=='{}')+bk[0]+'%s'+'\\right'+'\\'*(bk=='{}')+bk[1]]})
-spaceOp['fabs'] = spaceOp['abs']
+spaceOp['fabs'] = spaceOp['abs'];  spaceOp['abs'].patt[0] = 'abs(%s)'
 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
 psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel'''.split()
@@ -324,9 +325,9 @@ tex_indexes = 'ij jk ik ijk xy yz xyz'.split()
 
 def name2tex(name, is_vec=False):  # конвертация имени в тех, тут все примитивно
     els = sum([functools.reduce(lambda L, x: L[:-1]+[L[-1]+x] if not L[-1][-1].isalpha()^x.isalpha() else L+[x], n[1:], [n[0]]) for n in name.split('_') if n], [])
-    if is_vec: tex = r'{\\boldsymbol \\%s}'%els[0] if els[0] in tex_specials else r'{\\bf %s}'%els[0] if len(els[0])>1 else r'{\\boldsymbol %s}'%els[0]
-    else: tex = r'\\'+els[0] if els[0] in tex_specials else r'{\\rm %s}'%els[0] if len(els[0])>1 else els[0]
-    if len(els)>1: tex += '_{%s}'%' '.join(r'\\'+e if e in tex_specials else r'{\\rm %s}'%e if e.isalpha() and not e in tex_indexes and len(e)>1 else e for e in els[1:]) 
+    if is_vec: tex = '{\\boldsymbol \\%s}'%els[0] if els[0] in tex_specials else '{\\bf %s}'%els[0] if len(els[0])>1 else '{\\boldsymbol %s}'%els[0]
+    else: tex = '\\'+els[0] if els[0] in tex_specials else '{\\rm %s}'%els[0] if len(els[0])>1 else els[0]
+    if len(els)>1: tex += '_{%s}'%' '.join('\\'+e if e in tex_specials else '{\\rm %s}'%e if e.isalpha() and not e in tex_indexes and len(e)>1 else e for e in els[1:]) 
     return tex
 
 class Var(BaseOp):
@@ -357,7 +358,7 @@ class Vec(object):
     def __getitem__(self, i): return self._comp[i]
     def __str__(self): return ':'.join('(%s)'%c for c in self._comp) if BaseOp.fID==0 else _2str(self._expr, 1) if BaseOp.fID==1 else self.tex
     def __abs__(self): return self.abs()
-    def abs(self): return Var('|%s|'%_2str(self._expr, 1), value='sqrt(%s)'%_2str(self*self, 0), tex=r'\left|%s\right|'%self.tex)
+    def abs(self): return Var('|%s|'%_2str(self._expr, 1), value='sqrt(%s)'%_2str(self*self, 0), tex='\\left|%s\\right|'%self.tex)
     def __neg__(self): return Vec(-self._expr, [-x for x in self._comp], keys=self._keys, tex='-'+self.tex)    
     def __add__(self, other):
         if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(self, 0), _2str(other, 0)))
@@ -403,7 +404,7 @@ class Verb:
     def __init__(self, text): self.text = text
     def __str__(self):
         if BaseOp.fID==1: return self.text
-        bk = [x for x in '|@!?,.:;#$%^&-_=+/~' if not x in self.text][0]
+        bk = [x for x in '"~' if not x in self.text][0]  #??? проблемы с кавычками в verb ??? замиенить их экранированием тех-символов ???
         return '\\verb'+bk+self.text+bk
 class Dollars:
     def __init__(self, expr): self.expr = expr
@@ -442,12 +443,11 @@ def subplot():
         if len(src)==2:  # функция            
             fscope = dict(func_scope); fscope.update(src[1])  # чистить scope от мусора???
             for k in ('xy'[:1+D3] if not parametric else ('t', 'uv')[D3]): fscope[k] = Var(k, k)
-            func0 = parse(src[0], fscope)
-            
+            func0 = func = parse(src[0], fscope)            
             if last_args and not parametric:
                 for i in (0, 1)[:1+D3]: fscope['xy'[i]] = last_args[i]
                 func = parse(src[0], fscope)
-            if parametric: curves.append([fscope, func, ('%r, %r'+', %r'*D3)%func0])  # функция должна быть кортежем
+            if parametric: curves.append([('%r, %r'+', %r'*D3)%func0, fscope, func, True])  # функция должна быть кортежем
             else: curves.append([repr(func0), fscope, [fscope['x']]+([fscope['y']] if D3 else [])+[func], '', True])            
         else:  # файл с данными ===>   data.append([fname]+[h]+header[1:]+[u]+['<cin>']*(fname0 in ['-', '-std']))   <=== append curve from datfile
             fname, scope, columns, U, pname = src;  func_scope.update(kv for kv in scope.items() if kv[0][0]!='@')
@@ -475,9 +475,9 @@ def subplot():
         if D3: add_lbl('cb' if pm3d else 'z', expr[2]) 
         if keymode==0 or scope.get('@title')=='': crv[0] += ' notitle '
         elif '@title' in scope: crv[0] += ' title "%s" ';  crv.append(parse_label(scope['@title'], scope))
-        elif keymode==1 and pname:  crv[0] += ' title "%s" ';  crv.append(Verb(repr(pname)[1:-1]))
-        elif keymode==4: crv[0] += ' title "%s" '%('theor' if isfunc else 'calc')
-        else:  crv[0] += ' title "'+'%s: '*bool(pname)+'%s" ';  crv += [Verb(pname)]*bool(pname)+[expr[-1]]
+        elif keymode==1 and pname:  crv[0] += " title '%s' ";  crv.append(Verb(repr(pname)[1:-1]))
+        elif keymode==4: crv[0] += " title '%s' "%('theor' if isfunc else 'calc')
+        else:  crv[0] += " title '"+'%s: '*bool(pname)+"%s' ";  crv += [Verb(pname)]*bool(pname)+[Dollars(expr[-1])]
         if '@style' in scope: crv[0] += ' with '+scope['@style']
         if '@width' in scope: crv[0] += ' lw '+scope['@width']
         elif not data_style: crv[0] += ' (_SET_LINE_WIDTH_) '
@@ -489,12 +489,12 @@ def subplot():
         lbl_text, lbl_opt = labels.get(k, ('', {}))
         if k in labels and not lbl_text and not lbl_opt: gp_write('unset %slabel\n'%(k[0] if k[1]=='1' else k)); continue
         if lbl_text: LT[0] = [parse_label(lbl_text, {})]  # в пустом scope? А как еще?
-        code = 'set %slabel "%s"'%(k[0] if k[-1]=='1' else k, ', '.join(['%s']*len(LT[0])))
+        code = "set %slabel '%s'"%(k[0] if k[-1]=='1' else k, ', '.join(['%s']*len(LT[0])))
         if '@offset' in lbl_opt: code += ' offset '+lbl_opt['@offset'] 
         if '@color' in lbl_opt: code += ' textcolor "%s"'%lbl_opt['@color']
         if '@rotate' in lbl_opt: code += ' rotate by '+lbl_opt['@rotate']
         gp_write(code+'\n', *LT[0])                
-    if title: gp_write('set title "%s"\n', parse_label(title, func_scope)) #???
+    if title: gp_write("set title '%s'\n", parse_label(title, func_scope)) #???
     gp_write('s'*D3+'plot '+', '.join(p[0] for p in curves)+'\n', *sum([p[1:] for p in curves], []))  # <== plot идет последним!
     data[:] = []  # обязательно очищает data
 
@@ -509,6 +509,7 @@ def plot(fname_opts):
     global last_mode, multiplot
     if not mode and last_mode: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     if data: subplot()
+    #if multiplot: gp_pipe.write('set multiplot\n')
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
     if multiplot: gp_pipe.write('unset multiplot\n')  #                  >>>^^^^^^^^^^^^^^^^^^^^<<< разрешение неопределенности по толщинам линий
     if mode: gp_pipe.write('set out\n')
@@ -516,7 +517,7 @@ def plot(fname_opts):
         ftex = open('/tmp/gplt3-%s.tex'%os.getpid(), 'w'); ft = ftex.name[:-4]
         ftex.write(LaTeX+'\n\\begin{document}\n\\input{%s-p}\n\\end{document}\n'%ft); ftex.close()
         gp_pipe.write(f'!epstopdf --outfile {ft}-p.pdf {ft}-p.eps; (cd /tmp; pdflatex {ft}.tex | grep \\!); pdfcrop -m 0 {ft}.pdf {fname} > /dev/null\n')
-        gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
+        #gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
     gp_mbuf[:], multuplot, BaseOp.fID, last_mode = [], False, old_fID, mode
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
     elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
@@ -619,7 +620,8 @@ while iopt<len(opt_seq):
     elif opt=='-o':
         if not multiplot and data: raise Exception('in multiplot mode the -o %s option must come before all files and functions'%opt_seq[iopt])
         if not multiplot: multiplot = True;  gp_write('set multiplot\n')
-        subplot(); gp_write('set origin %s\n'%opt_seq[iopt]); iopt += 1
+        if data: subplot()
+        gp_write('set origin %s\n'%opt_seq[iopt]); iopt += 1
     elif opt=='-to': plot(opt_seq[iopt]); iopt += 1
     else:   # add filename
         fname0, opts = parse_dog_opt(opt)
@@ -663,10 +665,11 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # для 3D режим дающий возможность повращать картинку перед записью?
 # поизучать pm3d, там много опций
 # операция % --- будет ломаться при подстановке, делать replace?
-# явное задание мени переменной в тексте (когда есть одноименный параметр)
 # обращаться (скачивать) к файлам по сети?
-# генерить .gplt3 файлы вместе с картинками (gplt3 + как набор опций), трбует записи истории?
-                       
+# генерить .gplt3 файлы вместе с картинками (gplt3 + набор опций для данной картинки), требует записи истории?
+# multiplot layout --- обязательно!!! решает проблемы с выравниванием
+# вернуть на место одиночные \ в техе и перебить с "" на '' в гнуплоте везде. Проблемы с verb ---  только два ограничительных симовла пока работают ~ и "
+
 # !!!система тестов!!! (последовательность вызовов gplt3)
 # !!!ДОКУМЕНТАЦИЯ!!!
 # почему gplt так хорош:
