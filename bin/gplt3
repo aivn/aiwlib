@@ -40,7 +40,11 @@
 -dump-config-file --- создает шаблон ~/.gplt3 для последующего редактирования
 -[u]s <opts> --- [un]set <opts>,  "сырой" ввод в gnuplot, для остальных опций
 -raw <command> --- отправляет <command> в gnuplot, для остальных опций
-
+-i <filename> --- вставляет в опции командной строки содержание файла <filename>
+   каждая строка трактуется как набор опций без аргументов (например -nk -3d), 
+   включая имена файлов с данными, или как одна опция с аргументом (-U x**2 x+y)
+   аргумент это весь остаток строки; пустые и начинающеся с # строки игнорируются
+   
 Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com> 
 Licensed under the Apache License, Version 2.0
 '''
@@ -51,7 +55,7 @@ import os, sys, functools, glob, pickle, math, time
 #---------------------- show help ----------------------------------------------
 if len(sys.argv)==1 or sys.argv[-1]=='-h': print(__doc__); exit()
 if len(sys.argv)>2 and sys.argv[1]=='-h':
-    cnv_opts = dict([o.split(':') for o in '''tkx:xtics tky:ytics tkz:ztics tkx2:x2tics tky2:y2tics tkc:cbtics 
+    cnv_opts = dict([o.split(':') for o in '''tcx:xtics tcy:ytics tcz:ztics tcx2:x2tics tcy2:y2tics tcc:cbtics 
     rx:xrange ry:yrange rz:zrange rx2:x2range ry2:y2range rc:cbrange rt:trange ru:urange rv:vrange 3d:splot h3d:splot,hidden3d ln:logscale sz:size 
     sk:key nk:key w:with par:parametric is:samples,isosamples sm:smooth s:set us:unset o:origin pause:pause'''.split()]) #fn:expressions.functions,plot
     gplt_opts = {'-fn': '''
@@ -65,10 +69,10 @@ if len(sys.argv)>2 and sys.argv[1]=='-h':
 ''', #----------------------
                  '-U': '''
 -U|-u "<expr>[@<opts>] ..." --- выражения для отрисовки из ПОСЛЕДУЮЩИХ файлов. 
-Выражения раздеялются пробелами, для каждого следующего файла рисуются все заданные 
+Выражения разделяются пробелами, для каждого следующего файла рисуются все заданные 
 выражения, на одном рисунке собираются все заданные выражения из всех файлов и функции
 -fn. В выражениях  могут использоваться имена столбцов и параметры из заголовков файлов
-и .RACS. По умолчанию столбйы файла называются как x, y, z и C1...C255, имя C0 означает
+и .RACS. По умолчанию столбцы файла называются как x, y, z и C1...C255, имя C0 означает
 номер строки файла. По умолчанию строится зависимость выражения от первого (2d) или
 первых двух столбцов (3d). Зависимость от других столбцов может быть задана в скобках:
 file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 кривых:
@@ -97,7 +101,7 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 ''', #----------------------
                  '-lbx': '''
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям.
-Необязательные опции следующие за @ задают смещение подпись (одно, два или три числа
+Необязательные опции следующие за @ задают смещение подписи (одно, два или три числа
 через запятую), поворот метки в градусах и цвет. Допустимо задавать только опции 
 (например цвет), текст подписи будет будет определятся автоматически. Опция -lbx '' 
 выключает подпись, -lbx @ возвращает установку подписи в автоматический (по умолчанию) 
@@ -223,7 +227,7 @@ if os.path.exists(fconf):
             else: print('error in ~/.gplt3:', ' '.join(l))
 if '-dump-config-file' in sys.argv[1:]:
     fconf = open(fconf, 'w'); fconf.write(''.join('%s %s\n'%kv for kv in conf.items()))
-    fconf.write('#---- set special path to aiwlib/python3/ if required ----\n#aiwlib ... \n')
+    fconf.write('\n#---- set special path to aiwlib/python3/ if required ----\n#aiwlib ... \n\n')
     fconf.write(''.join('pal %s %s\n'%kv for kv in pal_dict.items()))
     fconf.write('\nLaTeX:\n'+LaTeX+'\n')
 del fconf
@@ -421,9 +425,9 @@ class FreeNames:
 # gp_mbuf вводится для накопления тела multiplot или просто splot-ов поскольку терминал неопределен
 gp_pipe, gp_mbuf, filters, using, data, labels, def_table, tics = (sys.stdout if '-debug' in sys.argv else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}, {}
 D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode = [False]*6+['']*3+['empty']
-#gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) # на момент вызова может быть неизвестен терминал
-gp_write = lambda patt, *args: gp_mbuf.append((patt,)+args)
+#gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
+gp_write = lambda patt, *args: gp_mbuf.append((patt,)+args)
 gp_colors = [l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l]  # цвета гнуплот
 
 def subplot():
@@ -506,7 +510,7 @@ def plot(fname_opts):
         if not mode in ('png', 'pdf'): raise Exception('incorrect output file extention %s in option -to %r, .png or .pdf expected'%(mode, fname))
         if mode=='png': gp_pipe.write('set term png %s\nset out %r\n'%(termopts, fname)); BaseOp.fID = 1
         else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%(termopts, os.getpid())); BaseOp.fID = 2
-    global last_mode, multiplot
+    global last_mode, multiplot, hstart
     if not mode and last_mode: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     if data: subplot()
     #if multiplot: gp_pipe.write('set multiplot\n')
@@ -517,7 +521,24 @@ def plot(fname_opts):
         ftex = open('/tmp/gplt3-%s.tex'%os.getpid(), 'w'); ft = ftex.name[:-4]
         ftex.write(LaTeX+'\n\\begin{document}\n\\input{%s-p}\n\\end{document}\n'%ft); ftex.close()
         gp_pipe.write(f'!epstopdf --outfile {ft}-p.pdf {ft}-p.eps; (cd /tmp; pdflatex {ft}.tex | grep \\!); pdfcrop -m 0 {ft}.pdf {fname} > /dev/null\n')
-        #gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
+        gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
+    if mode:  # создаем gplt3 файл
+        def write_opt(o, v=None): l = not v is None; fgplt.write('\n'*(not lo_mode)+o+' '+(v if l else '')+'\n'*l); return l
+        fgplt, lo_mode = open(fname[:-3]+'gplt3', 'w'), False; fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
+        for o, v in history[:hstart]: lo_mode = write_opt(o, v)
+        lo_mode = write_opt('# start of options related to this picture:', '')
+        for o, v in history[hstart:]: lo_mode = write_opt(o, v)
+        iov, hstate = len(history)-1, set()
+        while history and iov>=0:
+            o = history[iov][0]
+            if o in ('-s', '-us', '-raw', '-def', '-nav'): iov -= 1; continue  # пропускаем сырые опции
+            t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-o', '-smpl', '-ismpl', '-is',
+                            '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
+                 'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
+                 else 'k' if o in ('-sk', '-nk') else 'w' if o in ('-w', '-ds') else None)
+            if t is None or t in hstate: del history[iov]; iov -= 1
+            else: hstate.add(t); iov -= 1
+        hstart = len(history); fgplt.close(); os.chmod(fgplt.name, 0o755)
     gp_mbuf[:], multuplot, BaseOp.fID, last_mode = [], False, old_fID, mode
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
     elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
@@ -566,9 +587,13 @@ def read_header(fname, add_opts, base_opts):
     scope.update(add_opts)
     return [scope, cols_var]
 #-----------------------------  main loop  -------------------------------------
-iopt, opt_seq = 0, sys.argv[1:]  # <== CLIF вот тут включается
+history, hstart, ifiles = [], 0, []
+double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb 
+rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i'''.split())
+#'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
+iopt, opt_seq = 0, list(sys.argv[1:])  # <== CLIF вот тут включается
 while iopt<len(opt_seq): 
-    opt = opt_seq[iopt];  iopt += 1
+    opt = opt_seq[iopt];  iopt += 1; history += [(opt, opt_seq[iopt])] if opt[1:] in double_opts else [(opt, None)]
     if opt=='-3d': D3 = True
     elif opt=='-h3d': D3 = True; gp_write('set hidden3d\n')
     elif opt=='-2d': pm3d = D3 = False; gp_write('unset hidden3d\n')
@@ -576,11 +601,11 @@ while iopt<len(opt_seq):
     elif opt=='-npm3d': pm3d = False; gp_write('unset pm3d\n')
     elif opt=='-par': parametric = True; gp_write('set parametric\n')
     elif opt=='-npar': parametric = False; gp_write('unset parametric\n')
-    elif opt=='-sixel': gp_write('set term sixelgd\n'); sixel = True
-    elif opt=='-nsixel': gp_write('unset term\n'); sixel = False
+    elif opt=='-sixel': gp_write('set term sixelgd\n'); sixel = True; del history[-1]
+    elif opt=='-nsixel': gp_write('unset term\n'); sixel = False; del history[-1]
     elif opt=='-nk': gp_write('unset key\n')
     elif opt=='-nav': conf['pdfview'] = conf['pngview'] = ''
-    elif opt in ('-debug', '-dump-config-file'): pass
+    elif opt in ('-debug', '-dump-config-file'): del history[-1]; continue
     elif opt=='-raw': gp_write(opt_seq[iopt]+'\n'); iopt += 1   # <== отсюда начинаются простые опции с одним аргументом
     elif opt=='-s': gp_write('set %s\n'%opt_seq[iopt]); iopt += 1 
     elif opt=='-us': gp_write('unset %s\n'%opt_seq[iopt]); iopt += 1
@@ -623,6 +648,15 @@ while iopt<len(opt_seq):
         if data: subplot()
         gp_write('set origin %s\n'%opt_seq[iopt]); iopt += 1
     elif opt=='-to': plot(opt_seq[iopt]); iopt += 1
+    elif opt=='-i':  # загрузка сценария
+        fname = opt_seq[iopt]; del history[-1]; iopt -= 1
+        if fname in ifiles: print('gplt3 file %r has already been loaded, skipped'%fname); continue
+        try:            
+            with open(fname) as ifile:
+                opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else a
+                                            for a, b in [(l.split(), l) for l in map(str.strip, ifile) if l and l[0]!='#']], [])
+            ifiles.append(fname)
+        except Exception as E: print("Can't open gplt3 file %r: %s"%(fname, E))
     else:   # add filename
         fname0, opts = parse_dog_opt(opt)
         if fname0 in ('-', '-std'):
@@ -666,9 +700,8 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # поизучать pm3d, там много опций
 # операция % --- будет ломаться при подстановке, делать replace?
 # обращаться (скачивать) к файлам по сети?
-# генерить .gplt3 файлы вместе с картинками (gplt3 + набор опций для данной картинки), требует записи истории?
 # multiplot layout --- обязательно!!! решает проблемы с выравниванием
-# вернуть на место одиночные \ в техе и перебить с "" на '' в гнуплоте везде. Проблемы с verb ---  только два ограничительных симовла пока работают ~ и "
+# проблемы с кавычками в verb, заменить экранировнаием теховских спецсимволов?
 
 # !!!система тестов!!! (последовательность вызовов gplt3)
 # !!!ДОКУМЕНТАЦИЯ!!!
