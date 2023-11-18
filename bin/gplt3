@@ -523,8 +523,9 @@ def plot(fname_opts):
         gp_pipe.write(f'!epstopdf --outfile {ft}-p.pdf {ft}-p.eps; (cd /tmp; pdflatex {ft}.tex | grep \\!); pdfcrop -m 0 {ft}.pdf {fname} > /dev/null\n')
         gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
     if mode:  # создаем gplt3 файл
-        def write_opt(o, v=None): l = not v is None; fgplt.write('\n'*(not lo_mode)+o+' '+(v if l else '')+'\n'*l); return l
-        fgplt, lo_mode = open(fname[:-3]+'gplt3', 'w'), False; fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
+        fgplt, lo_mode = open(fname[:-3]+'gplt3', 'w'), False
+        fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
+        def write_opt(o, v=None): l = not v is None; fgplt.write('\n'*(l and not lo_mode)+o+' '+(v if l else '')+'\n'*l); return l
         for o, v in history[:hstart]: lo_mode = write_opt(o, v)
         lo_mode = write_opt('# start of options related to this picture:', '')
         for o, v in history[hstart:]: lo_mode = write_opt(o, v)
@@ -532,7 +533,7 @@ def plot(fname_opts):
         while history and iov>=0:
             o = history[iov][0]
             if o in ('-s', '-us', '-raw', '-def', '-nav'): iov -= 1; continue  # пропускаем сырые опции
-            t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-o', '-smpl', '-ismpl', '-is',
+            t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
                             '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
                  'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
                  else 'k' if o in ('-sk', '-nk') else 'w' if o in ('-w', '-ds') else None)
