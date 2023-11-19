@@ -101,8 +101,8 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 ''', #----------------------
                  '-lbx': '''
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям.
-Необязательные опции следующие за @ задают смещение подписи (одно, два или три числа
-через запятую), поворот метки в градусах и цвет. Допустимо задавать только опции 
+Необязательные атрибуты следующие за @ задают смещение подписи (одно, два или три числа
+через запятую), поворот метки в градусах и цвет. Допустимо задавать только атрибуты 
 (например цвет), текст подписи будет будет определятся автоматически. Опция -lbx '' 
 выключает подпись, -lbx @ возвращает установку подписи в автоматический (по умолчанию) 
 режим gplt3. 
@@ -492,7 +492,7 @@ def subplot():
         if k[-1]=='2' and not k in tics: fmt = 'set %stics format "%%g"\n'%k; gp_write(fmt); tics[k] = fmt
         lbl_text, lbl_opt = labels.get(k, ('', {}))
         if k in labels and not lbl_text and not lbl_opt: gp_write('unset %slabel\n'%(k[0] if k[1]=='1' else k)); continue
-        if lbl_text: LT[0] = [parse_label(lbl_text, {})]  # в пустом scope? А как еще?
+        if lbl_text: LT[0][:] = [parse_label(lbl_text, {})]  # в пустом scope? А как еще?
         code = "set %slabel '%s'"%(k[0] if k[-1]=='1' else k, ', '.join(['%s']*len(LT[0])))
         if '@offset' in lbl_opt: code += ' offset '+lbl_opt['@offset'] 
         if '@color' in lbl_opt: code += ' textcolor "%s"'%lbl_opt['@color']
@@ -513,7 +513,7 @@ def plot(fname_opts):
     global last_mode, multiplot, hstart
     if not mode and last_mode: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     if data: subplot()
-    #if multiplot: gp_pipe.write('set multiplot\n')
+    if multiplot: gp_pipe.write('set multiplot\n')
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
     if multiplot: gp_pipe.write('unset multiplot\n')  #                  >>>^^^^^^^^^^^^^^^^^^^^<<< разрешение неопределенности по толщинам линий
     if mode: gp_pipe.write('set out\n')
@@ -545,8 +545,8 @@ def plot(fname_opts):
     elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
     gp_pipe.flush()
     
-def parse_dog_opt(arg, use_def=True):
-    'возвращает имя файла/функцию и словарь доп. опций: _axes, _color, _width, _style, _title'
+def parse_dog_attr(arg, use_def=True):
+    'возвращает имя файла/функцию и словарь доп. атрибутов: @axes, @color, @width, @style, @title'
     arg, opt = (arg.split('@', 1)+[''])[:2]; res, opt = {}, opt.split(',') if opt else []
     while opt:
         x = opt.pop(0)
@@ -628,24 +628,24 @@ while iopt<len(opt_seq):
     elif opt=='-ttl': title = opt_seq[iopt]; iopt += 1
     elif opt in ('-w', '-ds'): data_style = opt_seq[iopt]; iopt += 1
     elif opt in ('-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb'):
-        opt_dict, lbl, text_opt = {}, (opt[3:] if len(opt)==5 else opt[3:]+'1'), opt_seq[iopt];  iopt += 1;  text, add_opt = (text_opt.split('@', 1)+[''])[:2]
-        for o in add_opt.split(','):
+        opt_dict, lbl, text_opt = {}, (opt[3:] if len(opt)==5 else opt[3:]+'1'), opt_seq[iopt];  iopt += 1;  text, dog_attr = (text_opt.split('@', 1)+[''])[:2]
+        for o in dog_attr.split(','):
             if not o: continue
-            if o[o.startswith('-'):].isdigit(): opt_dict['@offset'] = (opt_dict['@offset']+','+o if '@offset' in opt_dict else o)
-            elif o[0]=='r' and ((o[1]=='-' and o[2:].isdigit()) or o[1:].isdigit()): opt_dict['@rotate'] = o[1:]
-            else: opt_dict['@color'] = o
+            if o[0]=='r' and ((o[1]=='-' and o[2:].isdigit()) or o[1:].isdigit()): opt_dict['@rotate'] = o[1:]; continue
+            try: float(o); opt_dict['@offset'] = (opt_dict['@offset']+','+o if '@offset' in opt_dict else o)
+            except: opt_dict['@color'] = o
         if text_opt=='@' and lbl in labels: del labels[lbl]
         elif text_opt!='@': labels[lbl] = (text, opt_dict)  # для отключения метки text и opt_dict должны быть пустыми!
     elif opt=='-pal': gp_write('set palette defined (%s)\n'%pal_dict[opt_seq[iopt]]); iopt += 1
-    elif opt=='-fn': func, opts = parse_dog_opt(opt_seq[iopt]); iopt += 1; data.append([func, opts])
-    elif opt in ('-U', '-u'): using = [parse_dog_opt(x) for x in opt_seq[iopt].split()]; iopt += 1        
+    elif opt=='-fn': func, opts = parse_dog_attr(opt_seq[iopt]); iopt += 1; data.append([func, opts])
+    elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in opt_seq[iopt].split()]; iopt += 1        
     elif opt=='-def':
         k, v = opt_seq[iopt].split('=', 1); iopt += 1
         if not v: del def_table[k]
-        else: def_table[k] = parse_dog_opt(v, False)
+        else: def_table[k] = parse_dog_attr(v, False)
     elif opt=='-o':
         if not multiplot and data: raise Exception('in multiplot mode the -o %s option must come before all files and functions'%opt_seq[iopt])
-        if not multiplot: multiplot = True;  gp_write('set multiplot\n')
+        if not multiplot: multiplot = True
         if data: subplot()
         gp_write('set origin %s\n'%opt_seq[iopt]); iopt += 1
     elif opt=='-to': plot(opt_seq[iopt]); iopt += 1
@@ -659,7 +659,7 @@ while iopt<len(opt_seq):
             ifiles.append(fname)
         except Exception as E: print("Can't open gplt3 file %r: %s"%(fname, E))
     else:   # add filename
-        fname0, opts = parse_dog_opt(opt)
+        fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):
             files, stdin = ['/tmp/gplt3-%s-stdin.dat'%os.getpid()], True; filters['!stdin'] = files[0]
             with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
@@ -701,8 +701,10 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # поизучать pm3d, там много опций
 # операция % --- будет ломаться при подстановке, делать replace?
 # обращаться (скачивать) к файлам по сети?
-# multiplot layout --- обязательно!!! решает проблемы с выравниванием
+# multiplot layout --- обязательно!!! решает проблемы с выравниванием. Опция -ml, и что тогда с -o?
 # проблемы с кавычками в verb, заменить экранировнаием теховских спецсимволов?
+# вместо блокировки повторной вставки файла -i safe-mode блокирующая вложенную вставку?
+# автоматически форматировать справку по ширине монитора?
 
 # !!!система тестов!!! (последовательность вызовов gplt3)
 # !!!ДОКУМЕНТАЦИЯ!!!
