@@ -1,16 +1,15 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''gplt3 ... options and filenames[@<opts>] ... --- обертка для gnuplot, 
+'''gplt3 ... options and filenames[@<attrs>] ... --- обертка для gnuplot, 
              строит графики типографского качества с минимальными усилиями;-)
 
 -h [<gnuplot keywords> or <gplt3 options>] --- вывод справки gnuplot и/или gplt3, 
    подразделы справки gnuplot можно указывать через точку, (*) в конце описания 
    опции означает наличие доп. справки gplt3, [...] --- НЕ обязательный фрагмент.
--fn <function>[@<opts>] --- добавить функцию для отрисовки                    (*)
--U|-u "<expr>[@<opts>] ..." --- выражения для отрисовки из последующих файлов (*)
-<filename>[@<opts>] --- добавляет кривые из файла согласно -U или y(x)/z(x,y) 
--[std][@<opts>] --- прочитать файл с данными со стандартного ввода
--def <name>=<expr>[@<opts>] --- добавляет макрос <name>                       (*) 
+-fn <function>[@<attrs>] --- добавить функцию для отрисовки                    (*)
+-U|-u "<expr>[@<attrs>] ..." --- выражения для отрисовки из последующих файлов (*)
+<filename>[@<attrs>] --- добавляет кривые из файла согласно -U или y(x)/z(x,y) 
+-[std][@<attrs>] --- прочитать файл с данными со стандартного ввода
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран)    (*) 
     и продолжает разбор аргументов, выключает multiplot 
 -nav --- отключает автоматический просмотр файлов с рисунками построенными -to                     
@@ -26,7 +25,7 @@
 -sz <sizeopt> ---  set size <sizeopts>, размеры графика 
 -sk <keyopt> --- set key <keyopt>, настройки легенеды (ключей)
 -nk --- убрать легенду (ключи) 
--w|-ds <data-style>  --- стиль данных для следующих кривых, перекрывается @<opt>
+-w|-ds <data-style>  --- стиль для следующих кривых, перекрывается @<attrs>
 -[n]par --- включить/выключить параметрический режим
 -[i]smpl|-is <samle1>[,<sample2>] --- устанавливает [iso]samples (число отсчетов), 
                                      -is устанавливает сразу samples и isosamples
@@ -44,6 +43,9 @@
    каждая строка трактуется как набор опций без аргументов (например -nk -3d), 
    включая имена файлов с данными, или как одна опция с аргументом (-U x**2 x+y)
    аргумент это весь остаток строки; пустые и начинающеся с # строки игнорируются
+
+Аргумент любой опции может задавать макрос как имя:=значение, см. gplt3 -h :=
+Дополнительно про макросы, циклы и переменные см. gplt3 -h {}
    
 Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com> 
 Licensed under the Apache License, Version 2.0
@@ -78,17 +80,13 @@ if len(sys.argv)>2 and sys.argv[1]=='-h':
 file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 кривых:
 кривые по умолчанию для file{1,2}.dat и по две кривых x(y) 2*z(x+y) для file{2,3}.dat.
 ''',  #----------------------
-                 '-def': '''
--def <name>=<expr>[@<opts>] --- добавляет макрос <name> который затем может 
-использоваться как имя файла с данными, аргумент опций -fn или -U. При использовании
-допустимо менять опции отрисовки (после @) но если макрос будет испольщован в более
-сложном выражении подстановка не произойдет.  Например:
--def A=long-file-name.dat@red ... A ... A@blue ...
-  файл будет испольщован дважды, во втором случае отрисовка произойдет синим цветом
--def B='exp(-(x-x0)**2/(2*sigma**2))'  -U B ... -U B@dots ... -U 2*B ...
-выражение будет использовано дважды в -U, во втором случае отрисовка будет точками,
-в третьем случае подставновки макроса не будет.
-''', #----------------------
+                 ':=': '''
+name:=value в аргументе любой опции добавляет <<моржовый>>  макрос name (и сразу же его 
+подставляет)  который может в дальнейшем использоваться повторно в аргументах других опций, 
+для  подставновки в качестве аргумента опции нужно просто указать name.
+''',  #----------------------
+                 '{}': '''
+''',  #----------------------
                  '-to': '''
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран) и продолжает 
 разбор аргументов, выключает multiplot. Строка <termopts> настраивает терминал gnuplot.
@@ -141,9 +139,9 @@ exec (строка может содержать только присваива
 (для функций, подписей к осям и титула рисунка). 
 
 В выражениях поддерживаются функции  
-    abs fabs acos acosh airy asin asinh atan atanh ceil cos cosh ch ctg cth erf 
-    exp floor gamma int inverf invnorm  lambertw lgamma log ln log10 lg norm sgn 
-    sin sinh sh sqrt tan tg tanh th 
+  abs   fabs acos acosh airy  asin  asinh atan   atanh   ceil     cos    cosh ch   
+  ctg   cth  erf  exp   floor gamma int   inverf invnorm lambertw lgamma log  ln
+  log10 lg   norm sgn   sin   sinh  sh    sqrt   tan     tg       tanh   th 
 (подробнее см. gplt3 -h expressions.functions plot).
 Знак // трактуется как деление, но при выводе в LaTeX преобразуется во \\frac.
 При операциях с векторами % трактуется как векторное произведение.
@@ -231,10 +229,6 @@ if '-dump-config-file' in sys.argv[1:]:
     fconf.write(''.join('pal %s %s\n'%kv for kv in pal_dict.items()))
     fconf.write('\nLaTeX:\n'+LaTeX+'\n')
 del fconf
-#CLIF = lambda args: args
-#if conf['clif'] in 'y Y yes Yes YES 1'.split():
-#    try: from aiwlib.clif import CLIF
-#    except: print('aiwlib.clif module not loaded') 
 #-------------------------------------------------------------------------------
 #                                      AST
 #-------------------------------------------------------------------------------
@@ -258,8 +252,10 @@ class BaseOp(object):
         if self.fID>0 and type(x) in (int, float):
             if self.fID==1: return '%g'%x if abs(x)>=1 or x==0 else ('%g'%x)[1:] if x>0 else '-'+('%g'%x)[2:]  # удаляет ведущий ноль для компактности
             if x in tex_num_table: return tex_num_table[x]
-            x = ('{0:.%ig}'%tex_num_precision).format(x)   
-            return '%s\\cdot10^{%s}'%tuple(x.split('e')) if 'e' in x else x  # \\times ???
+            x = ('{0:.%ig}'%tex_num_precision).format(x)
+            if not 'e' in x: return x[1:] if x[0]=='+' else x
+            m, p = x.split('e'); p = ('-' if p[0]=='-' else '') +p[1:].lstrip('0')            
+            return '10^{%s}'%p if m in ('1', '-1') else r'%s\!\cdot\!10^{%s}'%(m, p)
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
         return (self._2str(arg)  if getattr(arg, 'priority', 0)<=self.priority-self.nocmm*second or self.lock_bk[self.fID==2]&(1<<second) else
@@ -340,7 +336,11 @@ class Var(BaseOp):
         self.name, self.value = name, (value if value else name)
         if not tex: self.tex = name2tex(name)
     def __str__(self): return self.value if self.fID==0 else self.name if self.fID==1 else self.tex
-        
+class Num(BaseOp):
+    def __init__(self, val): self.val = val
+    def __str__(self): return self._2str(self.val)
+try_wrap_num = lambda x: Num(x) if type(x) in (int, float) else x
+    
 spaceOp['pi'], spaceOp['e'] = Var('pi'), Var('e', value='exp(1)')
 #print(spaceOp['ctg'].patt)
 def _2str(expr, fID):
@@ -402,14 +402,18 @@ def parse(expr, scope):
         bra, ket = bk[0]+'%', '%'+bk[1]
         if expr.count(bra)!=expr.count(ket): raise Exception('uncomplete brackets %s ... %s in %r'%(bra, ket, expr))
     expr = functools.reduce(lambda S, bk: S.replace(bk[0]+'%', '('+bk[1:-1]+'(').replace('%'+bk[-1], '))'), '(crc_bk) {fig_bk} <ang_bk> |fabs| [rm_bk]'.split(), expr)
-    return eval(expr, spaceOp, scope)  # <<< что такое scope?
+    expr = eval(expr, spaceOp, scope)  # <<< что такое scope?
+    return tuple(map(try_wrap_num, expr)) if type(expr) in (list, tuple) else try_wrap_num(expr)
+
 parse_label = lambda expr, scope: expr[:-2] if expr.endswith('!!') else Verb(expr[:-1]) if expr[-1]=='!' else Dollars(parse(expr, FreeNames(scope)))
+
 class Verb:
     def __init__(self, text): self.text = text
     def __str__(self):
         if BaseOp.fID==1: return self.text
-        bk = [x for x in '"~' if not x in self.text][0]  #??? проблемы с кавычками в verb ??? замиенить их экранированием тех-символов ???
-        return '\\verb'+bk+self.text+bk
+        #bk = ([x for x in '"~' if not x in self.text]+[None])[0]  #??? проблемы с кавычками в verb ??? замиенить их экранированием тех-символов ???
+        #if bk: return '\\verbatim'+bk+self.text+bk
+        return functools.reduce(lambda S, x: S.replace(x, '\\'+x), '$#_%{}\'', self.text).replace('^', r'$\widehat~\,$').replace('"', r'$"\!$')
 class Dollars:
     def __init__(self, expr): self.expr = expr
     def __str__(self): return '$%s$'%self.expr if BaseOp.fID==2 else str(self.expr)
@@ -423,7 +427,7 @@ class FreeNames:
 #                              main 
 #-------------------------------------------------------------------------------
 # gp_mbuf вводится для накопления тела multiplot или просто splot-ов поскольку терминал неопределен
-gp_pipe, gp_mbuf, filters, using, data, labels, def_table, tics = (sys.stdout if '-debug' in sys.argv else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}, {}
+gp_pipe, gp_mbuf, filters, using, data, labels, walrus_table, tics = (sys.stdout if '-debug' in sys.argv else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}, {}
 D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode = [False]*6+['']*3+['empty']
 #gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
@@ -447,11 +451,11 @@ def subplot():
         if len(src)==2:  # функция            
             fscope = dict(func_scope); fscope.update(src[1])  # чистить scope от мусора???
             for k in ('xy'[:1+D3] if not parametric else ('t', 'uv')[D3]): fscope[k] = Var(k, k)
-            func0 = func = parse(src[0], fscope)            
+            func0 = func = parse(src[0], fscope)
             if last_args and not parametric:
                 for i in (0, 1)[:1+D3]: fscope['xy'[i]] = last_args[i]
                 func = parse(src[0], fscope)
-            if parametric: curves.append([('%r, %r'+', %r'*D3)%func0, fscope, func, True])  # функция должна быть кортежем
+            if parametric: curves.append([('%r, %r'+', %r'*D3)%func0, fscope, func, '', True])  # функция должна быть кортежем
             else: curves.append([repr(func0), fscope, [fscope['x']]+([fscope['y']] if D3 else [])+[func], '', True])            
         else:  # файл с данными ===>   data.append([fname]+[h]+header[1:]+[u]+['<cin>']*(fname0 in ['-', '-std']))   <=== append curve from datfile
             fname, scope, columns, U, pname = src;  func_scope.update(kv for kv in scope.items() if kv[0][0]!='@')
@@ -460,7 +464,8 @@ def subplot():
                 expr, BaseOp.call_args = (expr if type(expr) in (list, tuple) else list(BaseOp.call_args[:1+D3])+[expr]), []
             else:  expr = columns[:2+D3]
             last_args = expr[:-1]
-            curves.append([repr(fname)+(' u (%r):(%r)'+':(%r)'*D3)%tuple(expr), scope, expr, pname, False])
+            #curves.append([repr(fname)+(' u (%r):(%r)'+':(%r)'*D3)%tuple(expr), scope, expr, pname, False])
+            curves.append([repr(fname)+' u '+('(%r):'*len(expr))[:-1]%tuple(expr), scope, expr, pname, False])
     # определяем как будут рисоваться легенды, для управления режимами нужен какой то параметр задаваемый пользователем?
     # print(curves)
     axes, keymode = {}, (0 if len(curves)==1 else 1 if len(set(_2str(c[2][-1], 1) for c in curves if not c[-1]))<=1 else 2)  # 0 - нет, 1 - только имена файлов, 2 - все
@@ -532,7 +537,7 @@ def plot(fname_opts):
         iov, hstate = len(history)-1, set()
         while history and iov>=0:
             o = history[iov][0]
-            if o in ('-s', '-us', '-raw', '-def', '-nav'): iov -= 1; continue  # пропускаем сырые опции
+            if o in ('-s', '-us', '-raw', '-nav'): iov -= 1; continue  # пропускаем сырые опции
             t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
                             '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
                  'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
@@ -543,9 +548,9 @@ def plot(fname_opts):
     gp_mbuf[:], multuplot, BaseOp.fID, last_mode = [], False, old_fID, mode
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
     elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
-    gp_pipe.flush()
+    gp_pipe.write('\n'); gp_pipe.flush()
     
-def parse_dog_attr(arg, use_def=True):
+def parse_dog_attr(arg):
     'возвращает имя файла/функцию и словарь доп. атрибутов: @axes, @color, @width, @style, @title'
     arg, opt = (arg.split('@', 1)+[''])[:2]; res, opt = {}, opt.split(',') if opt else []
     while opt:
@@ -555,46 +560,101 @@ def parse_dog_attr(arg, use_def=True):
         elif x in ('x1y1', 'x1y2', 'x2y1', 'x2y2'): res['@axes'] = x
         elif not x.startswith('='): res['@style'] = x
         else: res['@title'] = ','.join([x[1:]]+opt); del opt[:]
-    if use_def and arg in def_table: arg, opt = def_table[arg]; res.update(opt)
     return arg, res
 
 base_scope = dict([(n, Var(n, '($%i)'%'0xyz'.index(n))) for n in 'xyz']+[('C%i'%i, Var('C%i'%i, '($%i)'%i)) for i in range(256)])
 def read_header(fname, add_opts, base_opts):
-    scope, cols_sz, columns = dict(base_scope), 0, []; scope.update(base_opts)
+    scope, cols_sz, columns, params = dict(base_scope), 0, [], []; scope.update(base_opts)
     with open(fname) as fin:
         for line in fin:
             line = line.strip()
             if line and line[0]!='#': cols_sz = len(line.split()); break
             if not line or not line.startswith('#:'): continue
             line = line[2:]
-            if '=' in line:  # доп. данные в заголовке
-                try: exec(line, {'__builtins__': None}, scope)
-                except Exception as E: print('%r in %r'%(E, fin.__name__))
-            else: columns = line.split()  # список столбцов, несколько вариантов?
-    cols_var, vecs = [], {}
-    for cID, name in enumerate(columns):
-        if '.' in name: vname, cname = name.split('.', 1); vecs.setdefault(vname, []).append((cname, len(vecs.get(vname, [])), cID)); cols.append(None)
-        elif '[' in name and name[-1]==']':
-            vname, cnum = name[:-1].split('[', 1); vecs.setdefault(vname, []).append(('', int(cnum) if cnum else len(vecs.get(vname, [])), cID))
-            cols_var.append(None)
-        else: cols_var.append(Var(name, '($%i)'%(cID+1))); scope[name] = cols_var[-1]
-        for vname, clist in vecs.items():
-            keys = [cname for cname, cnum, cID in clist]
-            if any(keys) and not all(keys): keys = [] # <<< ошибка, не все компоненты определены, сказать об этом?
-            comp = [Var(vname+('.'+cname if keys else '[%i]'%cnum), '($%i)'%cID) for cname, cnum, cID in clist]
-            scope[vname] = Vec(vname, comp, ','.join(keys) if keys else '')
-            for i, v in enumerate(comp): cols_var[clist[2]] = v
-    if not cols_var:  cols_var= [base_scope['xyz'[i] if i<3 else 'C%i'%(i+1)] for i in range(min(2, cols_sz))]
+            if '=' in line: params.append(line) # доп. данные в заголовке
+            else: columns.append(line.split())
+    for cols in columns:
+        cols_var, vecs = [], {}
+        for cID, name in enumerate(cols):
+            if '.' in name: vname, cname = name.split('.', 1); vecs.setdefault(vname, []).append((cname, len(vecs.get(vname, [])), cID)); cols.append(None)
+            elif '[' in name and name[-1]==']':
+                vname, cnum = name[:-1].split('[', 1); vecs.setdefault(vname, []).append(('', int(cnum) if cnum else len(vecs.get(vname, [])), cID))
+                cols_var.append(None)
+            else: cols_var.append(Var(name, '($%i)'%(cID+1))); scope[name] = cols_var[-1]
+            for vname, clist in vecs.items():
+                keys = [cname for cname, cnum, cID in clist]
+                if any(keys) and not all(keys): keys = [] # <<< ошибка, не все компоненты определены, сказать об этом?
+                comp = [Var(vname+('.'+cname if keys else '[%i]'%cnum), '($%i)'%cID) for cname, cnum, cID in clist]
+                scope[vname] = Vec(vname, comp, ','.join(keys) if keys else '')
+                for i, v in enumerate(comp): cols_var[clist[2]] = v
+    for line in params:
+        try: exec(line, {'__builtins__': None}, scope)
+        except Exception as E: print('%r in %r'%(E, fin.__name__))            
     scope.update(add_opts)
+    if not columns: cols_var = [base_scope['xyz'[i] if i<3 else 'C%i'%(i+1)] for i in range(min(2, cols_sz))]
     return [scope, cols_var]
+#-------------------------------- CLIF -----------------------------------------
+def clif_cast(arg):
+    #try: return eval(arg, {'__builtlins__': None})
+    try: return int(arg)
+    except: pass
+    try: return float(arg)
+    except: return arg
+_math_dict = dict(math.__dict__); 
+
+def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
+    def ket_index(pos0): # ищет закрывающую скобку }
+        counter = 1
+        while pos0<len(src_seq):
+            if src_seq[pos0].endswith('{'): counter += 1
+            elif src_seq[pos0]=='}': counter -= 1
+            if not counter: return pos0
+            pos0 += 1
+        raise Exception('Ket } not found when processing incoming %s sequence'%src_seq)
+    dst_seq, pos, scope = [], 0, dict(scope); scope.update(scope_upd)
+    while pos<len(src_seq):        
+        el = src_seq[pos]; pos += 1
+        if '#=' in el and el.split('#=')[0].isidentifier(): k, v = el.split('#=', 1); scope[k] = clif_cast(v)
+        elif el and el[-1]=='#' and el[:-1].isidentifier():   # цикл
+            key, bra = el[:-1], src_seq.index('{', pos);  ket = ket_index(bra+1);  body = src_seq[bra+1: ket]
+            for ival, val in enumerate(clif(src_seq[pos:bra], scope)): dst_seq += clif(body, scope, {key: clif_cast(val), '_'+key: ival})
+            pos = ket+1
+        elif el.endswith('{') and el[:-1].isidentifier():  # создание нового макроса, пустой макрос убирается
+            key, ket = el[:-1], ket_index(pos)
+            if ket==pos and key in scope: del scope[key]
+            else: scope[key] = [clif_cast(x) for x in src_seq[pos:ket]]
+            pos = ket+1
+        elif el.endswith('{}') and el[:-2] in scope: del scope[el[:-2]]  # удаление макроса или переменной
+        elif el and el[0]=='{' and el[-1]=='}' and type(scope.get(el[1:-1].split('[')[0])) is list and (
+                not '[' in el or (el[-2]==']' and all(x in '0123456789-:' for x in el.split('[', 1)[1][:-2]) and el.count(':')<=2)):  # подстановка макроса
+            key, abd = el[1:-2].split('[') if '[' in el else (el[1:-1], None);  body = scope[key]
+            if abd: body = eval('body[%s]'%abd, {'body': body})
+            dst_seq += clif(body if type(body) is list else [body], scope, {key: key})
+        else:  # добавление очередного элемента, макросы трактуются как списки
+            tmp_scope = dict(scope)
+            while 1:  # игнорируем некорректные подстановки путем замены на самих себя
+                try: dst_seq.append(el.format(**tmp_scope)); break
+                except KeyError as ex:
+                    key = ex.args[0]
+                    try: tmp_scope[key] = eval(key, _math_dict, scope)  
+                    except: tmp_scope[key] = '{%s}'%key
+                except: dst_seq.append(el); break
+    return dst_seq
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles = [], 0, []
 double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb 
 rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
-iopt, opt_seq = 0, list(sys.argv[1:])  # <== CLIF вот тут включается
+iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
+#print(opt_seq); exit()
 while iopt<len(opt_seq): 
-    opt = opt_seq[iopt];  iopt += 1; history += [(opt, opt_seq[iopt])] if opt[1:] in double_opts else [(opt, None)]
+    opt, arg = opt_seq[iopt], None;  iopt += 1
+    if opt.endswith(':=') and opt[:2] in walrus_table: del walrus_table[opt[:2]]; continue  # удаление моржового макроса
+    if opt[1:] in double_opts:
+        arg = opt_seq[iopt]; iopt += 1
+        if ':=' in arg and arg.split(':=')[0].isidentifier():  wm, arg = arg.split(':=', 1); walrus_table[wm] = arg
+        elif arg in walrus_table: arg =  walrus_table[arg]
+    history += [(opt, arg)]
     if opt=='-3d': D3 = True
     elif opt=='-h3d': D3 = True; gp_write('set hidden3d\n')
     elif opt=='-2d': pm3d = D3 = False; gp_write('unset hidden3d\n')
@@ -607,63 +667,60 @@ while iopt<len(opt_seq):
     elif opt=='-nk': gp_write('unset key\n')
     elif opt=='-nav': conf['pdfview'] = conf['pngview'] = ''
     elif opt in ('-debug', '-dump-config-file'): del history[-1]; continue
-    elif opt=='-raw': gp_write(opt_seq[iopt]+'\n'); iopt += 1   # <== отсюда начинаются простые опции с одним аргументом
-    elif opt=='-s': gp_write('set %s\n'%opt_seq[iopt]); iopt += 1 
-    elif opt=='-us': gp_write('unset %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-sv': gp_write('set view %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-ln': gp_write('set logscale %s\n'%opt_seq[iopt]); iopt += 1 
-    elif opt=='-sk': gp_write('set key %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-sz': gp_write('set size %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-sm': gp_write('set smooth %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-smpl': gp_write('set samples %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-ismpl': gp_write('set isosamples %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-is': gp_write('set samples %s\nset isosamples %s\n'%(opt_seq[iopt], opt_seq[iopt])); iopt += 1
-    elif opt=='-p': pause = opt_seq[iopt]; iopt += 1
+    elif opt=='-raw': gp_write(arg+'\n')   # <== отсюда начинаются простые опции с одним аргументом
+    elif opt=='-s': gp_write('set %s\n'%arg)
+    elif opt=='-us': gp_write('unset %s\n'%arg)
+    elif opt=='-sv': gp_write('set view %s\n'%arg)
+    elif opt=='-ln': gp_write('set logscale %s\n'%arg)
+    elif opt=='-sk': gp_write('set key %s\n'%arg)
+    elif opt=='-sz': gp_write('set size %s\n'%arg)
+    elif opt=='-sm': gp_write('set smooth %s\n'%arg)
+    elif opt=='-smpl': gp_write('set samples %s\n'%arg)
+    elif opt=='-ismpl': gp_write('set isosamples %s\n'%arg)
+    elif opt=='-is': gp_write('set samples %s\nset isosamples %s\n'%(arg, arg))
+    elif opt=='-p': pause = arg
     elif opt in ('-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb'):
-        axe, fmt = opt[3:], opt_seq[iopt]; iopt += 1
-        if not fmt: gp_write('set %stics format ""\n'%axe); tics[axe] = fmt
-        elif fmt=='@': gp_write('set %stics format "%%g"\n'%axe); tics.pop(axe, None)
-        else: gp_write('set %stics %s\n'%(axe, fmt)); tics[axe] = fmt
-    elif opt in ('-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv'): gp_write('set %srange [%s]\n'%(opt[2:], opt_seq[iopt])); iopt += 1
-    elif opt=='-ttl': title = opt_seq[iopt]; iopt += 1
-    elif opt in ('-w', '-ds'): data_style = opt_seq[iopt]; iopt += 1
+        axe = opt[3:]
+        if not arg: gp_write('set %stics format ""\n'%axe); tics[axe] = arg
+        elif arg=='@': gp_write('set %stics format "%%g"\n'%axe); tics.pop(axe, None)
+        else: gp_write('set %stics %s\n'%(axe, arg)); tics[axe] = arg
+    elif opt in ('-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv'): gp_write('set %srange [%s]\n'%(opt[2:], arg))
+    elif opt=='-ttl': title = arg
+    elif opt in ('-w', '-ds'): data_style = arg
     elif opt in ('-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb'):
-        opt_dict, lbl, text_opt = {}, (opt[3:] if len(opt)==5 else opt[3:]+'1'), opt_seq[iopt];  iopt += 1;  text, dog_attr = (text_opt.split('@', 1)+[''])[:2]
+        opt_dict, lbl = {}, (opt[3:] if len(opt)==5 else opt[3:]+'1');  text, dog_attr = (arg.split('@', 1)+[''])[:2]
         for o in dog_attr.split(','):
             if not o: continue
             if o[0]=='r' and ((o[1]=='-' and o[2:].isdigit()) or o[1:].isdigit()): opt_dict['@rotate'] = o[1:]; continue
             try: float(o); opt_dict['@offset'] = (opt_dict['@offset']+','+o if '@offset' in opt_dict else o)
             except: opt_dict['@color'] = o
-        if text_opt=='@' and lbl in labels: del labels[lbl]
-        elif text_opt!='@': labels[lbl] = (text, opt_dict)  # для отключения метки text и opt_dict должны быть пустыми!
-    elif opt=='-pal': gp_write('set palette defined (%s)\n'%pal_dict[opt_seq[iopt]]); iopt += 1
-    elif opt=='-fn': func, opts = parse_dog_attr(opt_seq[iopt]); iopt += 1; data.append([func, opts])
-    elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in opt_seq[iopt].split()]; iopt += 1        
-    elif opt=='-def':
-        k, v = opt_seq[iopt].split('=', 1); iopt += 1
-        if not v: del def_table[k]
-        else: def_table[k] = parse_dog_attr(v, False)
+        if arg=='@' and lbl in labels: del labels[lbl]
+        elif arg!='@': labels[lbl] = (text, opt_dict)  # для отключения метки text и opt_dict должны быть пустыми!
+    elif opt=='-pal': gp_write('set palette defined (%s)\n'%pal_dict[arg])
+    elif opt=='-fn': func, attr = parse_dog_attr(arg); data.append([func, attr])
+    elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in arg.split()]
     elif opt=='-o':
-        if not multiplot and data: raise Exception('in multiplot mode the -o %s option must come before all files and functions'%opt_seq[iopt])
+        if not multiplot and data: raise Exception('in multiplot mode the -o %s option must come before all files and functions'%arg)
         if not multiplot: multiplot = True
         if data: subplot()
-        gp_write('set origin %s\n'%opt_seq[iopt]); iopt += 1
-    elif opt=='-to': plot(opt_seq[iopt]); iopt += 1
+        gp_write('set origin %s\n'%arg)
+    elif opt=='-to': plot(arg)
     elif opt=='-i':  # загрузка сценария
-        fname = opt_seq[iopt]; del history[-1]; iopt -= 1
-        if fname in ifiles: print('gplt3 file %r has already been loaded, skipped'%fname); continue
+        del history[-1]; iopt -= 2
+        if arg in ifiles: print('gplt3 file %r has already been loaded, skipped'%arg); continue
         try:            
-            with open(fname) as ifile:
+            with open(arg) as ifile:
                 opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else a
                                             for a, b in [(l.split(), l) for l in map(str.strip, ifile) if l and l[0]!='#']], [])
-            ifiles.append(fname)
-        except Exception as E: print("Can't open gplt3 file %r: %s"%(fname, E))
+            ifiles.append(arg)
+        except Exception as E: print("Can't open gplt3 file %r: %s"%(arg, E))
     else:   # add filename
         fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):
             files, stdin = ['/tmp/gplt3-%s-stdin.dat'%os.getpid()], True; filters['!stdin'] = files[0]
             with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
         else: files = glob.glob(fname0)
+        if not files: print('file %r not found'%fname0)
         for fname in files:
             racs, srcdir = {}, os.path.dirname(fname)
             while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
@@ -690,28 +747,31 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # shell фильтры на лету? Никто вроде не пользуется, но кажется полезным?
 # как то обращаться к старым файлам/кривым по номерам, или использовать clif?
 # нечеткий ввод - каждый набор опций для гнуплота разбирать по пробелам и прогонять через специфичный для опции набор ключевых слов?
-# добавить анимацию или через CLIF? - через CLIF!
 # параметр для управления режимом рисования легенд?
-# все таки нужны циклы, втащить clif сюда целиком? упростить (убрать макросы) - -def их заменяет? Подстановки в -def?
-# анимация (в тч мультики через ffmpeg)?
-# всякие хитрые режимы вывода вроде errorboxes?
 # -lbl & -arrow --- стрелки и текстовые подписи в произвольных точках графика?
 # fit --- gnuplot умеет строить аппроксимации?
 # для 3D режим дающий возможность повращать картинку перед записью?
 # поизучать pm3d, там много опций
 # операция % --- будет ломаться при подстановке, делать replace?
 # обращаться (скачивать) к файлам по сети?
-# multiplot layout --- обязательно!!! решает проблемы с выравниванием. Опция -ml, и что тогда с -o?
-# проблемы с кавычками в verb, заменить экранировнаием теховских спецсимволов?
+# multiplot layout --- обязательно!!! решает проблемы с выравниванием. Опция -ml Ny,Nx,scale,offset,=title -o --- просто терминатор, аргумент игнорируется??
 # вместо блокировки повторной вставки файла -i safe-mode блокирующая вложенную вставку?
 # автоматически форматировать справку по ширине монитора?
+# оформлять параметры из заголовков и .RACS как Var - но как тогда указывать их значение в подписях?
+# кэшировать файлы с данными, включая stdin, для многократного использования
+# запросы RACS
+
+# написать справку {}
+# в циклах можно писать i,j# 1 2 3 4 { ... } тогда элемент последовательности обрабатываются парами, тройками и тд
+# -debug показывает по plot-aм аргументы командной строки gplt3
+# -u добавляет по одной кривой в отрисовку
+
+
+# анимация (в тч мультики через ffmpeg) - добавить в примеры, но для жтого нужен счетчик файлов? Вводить его в scope как имя индекса с подчеркивания?
+
+
+# научить рисовать ppm.gz с палитрой и пределами в комментариях. 
+
+
 
 # !!!система тестов!!! (последовательность вызовов gplt3)
-# !!!ДОКУМЕНТАЦИЯ!!!
-# почему gplt так хорош:
-#  1. gplt токний клиент для гнуплота, но гораздо более лакончиный чем gnuplot, напр. -ln xy вместо set logscale xy, -h3d вместо set hidden3d. При этом сохранена возможность вводить 'сырые' команды гнутлота
-#  2. gplt использует информацию из заголовков .dat файлов (если она есть), такую как имена столбцов (номера столбцов тоже доступны) и константы, информацию о расчетах RACS. В итоге задание выражений для отрисовки выглядит куда более "по людски".
-#  3. gplt пытается использовать всю доступную ему информацию максимально полно, назначая на ее основе по умолчанию подписи к осям и легенды графика. Если результаты по умолчанию не устаривают их можно точечно поправить руками, например задать метки по каким то осям.
-#  4. При построении PDF рисунка gplt конвертирует все введенные выражения в tex (в т.ч. формирует tex-овские имена для переменных) и автоматически запускает pdflatex, а потом обрезает поля у картинки.
-#  5. gplt поддерживает макросы и циклы, что позволяет вводить громоздкие выражения только один раз а потом многократно их использовать.
-# В итоге, за один запуск gplt может построить целую серию рисунков типографского качества (с правильными шрифтовкой и зарамочным оформлением)
