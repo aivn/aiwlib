@@ -21,62 +21,60 @@
 Например name#=value ...{name}...  ==> ...value..., a#=2 b#=c {a*b} ==> cc          
 '''
 
-# позиционные арагументы для format --- значения последнего цикла? номер итерации через _<key>?
+# позиционные арагументы для format --- значения последнего цикла? 
 # сообщения об ошибках?
 #-------------------------------------------------------------------------------
-def _ket_index(seq, pos):
-    'ищет закрывающую скобку }'
-    counter = 1
-    while pos<len(seq):
-        if seq[pos].endswith('{'): counter += 1
-        if seq[pos]=='}': counter -= 1
-        if not counter: return pos
-        pos += 1
-    raise Exception('ket } not found!')
-#-------------------------------------------------------------------------------    
 def _cast(arg):
+    #try: return eval(arg, {'__builtlins__': None})
     try: return int(arg)
     except: pass
     try: return float(arg)
     except: return arg
-#-------------------------------------------------------------------------------    
-import math;  _math_dict = dict(math.__dict__)
-#-------------------------------------------------------------------------------    
-def CLIF(src_seq, scope={}, scope_upd={}):
-    'CLIF(src_seq) ==> dst_seq'
-    dst_seq, pos, scope = [],  0, dict(scope); scope.update(scope_upd)
-    while pos<len(src_seq):
+#-------------------------------------------------------------------------------
+def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
+    def ket_index(pos0): # ищет закрывающую скобку }
+        counter = 1
+        while pos0<len(src_seq):
+            if src_seq[pos0].endswith('{'): counter += 1
+            elif src_seq[pos0]=='}': counter -= 1
+            if not counter: return pos0
+            pos0 += 1
+        raise Exception('Ket } not found when processing incoming %s sequence'%src_seq)
+    dst_seq, pos, scope = [], 0, dict(scope); scope.update(scope_upd)
+    while pos<len(src_seq):        
         el = src_seq[pos]; pos += 1
-        if '#=' in el: k, v = el.split('#=', 1); scope[k] = _cast(v)
-        elif el and el[-1]=='@':   # цикл
-            key, bra = el[:-1], src_seq.index('{', pos)
-            ket = _ket_index(src_seq, bra+1);  body = src_seq[bra+1: ket]
-            while pos<bra:
-                dst_seq += CLIF(body, scope, {key: _cast(src_seq[pos])})
-                pos += 1
+        if '#=' in el and el.split('#=')[0].isidentifier(): k, v = el.split('#=', 1); scope[k] = _cast(v)
+        elif ':=' in el and el.split(':=')[0].isidentifier(): k, v = el.split(':=', 1); scope[k] = _cast(v); dst_seq.append(v)
+        elif el and el[-1]=='#' and el[:-1].isidentifier():   # цикл
+            key, bra = el[:-1], src_seq.index('{', pos);  ket = ket_index(bra+1);  body = src_seq[bra+1: ket]
+            for ival, val in enumerate(clif(src_seq[pos:bra], scope)): dst_seq += clif(body, scope, {key: _cast(val), '_'+key: ival})
             pos = ket+1
-        elif el.endswith('{'):  # создание нового макроса, пустой макрос убирается
-            key, ket = el[:-1], _ket_index(src_seq, pos)
+        elif el.endswith('{') and el[:-1].isidentifier():  # создание нового макроса, пустой макрос убирается
+            key, ket = el[:-1], ket_index(pos)
             if ket==pos and key in scope: del scope[key]
             else: scope[key] = [_cast(x) for x in src_seq[pos:ket]]
             pos = ket+1
-        elif el.endswith('#'):  # применение макроса, переменные трактуются как макрос из одного элемента
-            key = el[:-1]; body = scope[key]
-            dst_seq += CLIF(body if type(body) is list else [body], scope, {key: key})
+        elif el.endswith('{}') and el[:-2] in scope: del scope[el[:-2]]  # удаление макроса или переменной
+        elif el and el[0]=='{' and el[-1]=='}' and type(scope.get(el[1:-1].split('[')[0])) is list and (
+                not '[' in el or (el[-2]==']' and all(x in '0123456789-:' for x in el.split('[', 1)[1][:-2]) and el.count(':')<=2)):  # подстановка макроса
+            key, abd = el[1:-2].split('[') if '[' in el else (el[1:-1], None);  body = scope[key]
+            if abd: body = eval('body[%s]'%abd, {'body': body})
+            dst_seq += clif(body if type(body) is list else [body], scope, {key: key})
         else:  # добавление очередного элемента, макросы трактуются как списки
-            #if el.startswith('@'): dst_seq.append(eval('f%r'%el[1:], _math_dict, _UniversalScope(scope))); continue
             tmp_scope = dict(scope)
-            while 1:  # игнорируем некорректные подстановки путем замены на самих себя, убрать этот режим?
+            while 1:  # игнорируем некорректные подстановки путем замены на самих себя
                 try: dst_seq.append(el.format(**tmp_scope)); break
-                except ValueError: dst_seq.append(el); break
                 except KeyError as ex:
                     key = ex.args[0]
-                    try: tmp_scope[key] = eval(key, _math_dict, scope)  # или tmp_scope?
+                    try: tmp_scope[key] = eval(key, _math_dict, scope)  
                     except: tmp_scope[key] = '{%s}'%key
+                except: dst_seq.append(el); break
     return dst_seq
-CLIF.__doc__ += '\n'+__doc__
+#-------------------------------------------------------------------------------
+import math; _math_dict = dict(math.__dict__)
+clif.__doc__ += '\n'+__doc__
 #-------------------------------------------------------------------------------    
 if __name__ == '__main__':
     import sys
-    print(CLIF(sys.argv[1:]))
+    print(clif(sys.argv[1:]))
 #-------------------------------------------------------------------------------    

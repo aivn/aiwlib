@@ -44,14 +44,11 @@
    включая имена файлов с данными, или как одна опция с аргументом (-U x**2 x+y)
    аргумент это весь остаток строки; пустые и начинающеся с # строки игнорируются
 
-Аргумент любой опции может задавать макрос как имя:=значение, см. gplt3 -h :=
-Дополнительно про макросы, циклы и переменные см. gplt3 -h {}
+Дополнительно про макросы, циклы и переменные см. gplt3 -h clif
    
 Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com> 
 Licensed under the Apache License, Version 2.0
 '''
-#     в -U|-u,  -fn или как имя файла, полностью заменяет аргумент -U/u/fn/имя файла с опциями, затем опции дополняются из OPTS 
-
 
 import os, sys, functools, glob, pickle, math, time
 #---------------------- show help ----------------------------------------------
@@ -80,12 +77,7 @@ if len(sys.argv)>2 and sys.argv[1]=='-h':
 file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 кривых:
 кривые по умолчанию для file{1,2}.dat и по две кривых x(y) 2*z(x+y) для file{2,3}.dat.
 ''',  #----------------------
-                 ':=': '''
-name:=value в аргументе любой опции добавляет <<моржовый>>  макрос name (и сразу же его 
-подставляет)  который может в дальнейшем использоваться повторно в аргументах других опций, 
-для  подставновки в качестве аргумента опции нужно просто указать name.
-''',  #----------------------
-                 '{}': '''
+                 'clif': '''
 ''',  #----------------------
                  '-to': '''
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран) и продолжает 
@@ -95,7 +87,8 @@ name:=value в аргументе любой опции добавляет <<м�
 и обрезанием полей. Шаблон LaTeX может быть задан в ~/.gplt3 (см. -dump-config-file)
 При рисовании в png/pdf по умолчанию толщина линии равна трем;  результаты сразу 
 отображаются (командами png/pdfview из ~/.gplt3), отображение отключается через -nav.
-Для создания .pdf требуются pdflatex, epstopdf и pdfcrop.
+Для создания .pdf требуются pdflatex, epstopdf и pdfcrop, для создания .png требуется
+convert обрезающая поля. 
 ''', #----------------------
                  '-lbx': '''
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям.
@@ -259,13 +252,17 @@ class BaseOp(object):
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
         return (self._2str(arg)  if getattr(arg, 'priority', 0)<=self.priority-self.nocmm*second or self.lock_bk[self.fID==2]&(1<<second) else
-                ('(%s)' if self.fID<=1 else '\\left(%s\right)')%self._2str(arg))
+                ('(%s)' if self.fID<=1 else '\\left(%s\\right)')%self._2str(arg))
     def __repr__(self): old_fID, BaseOp.fID = BaseOp.fID, 0; res = str(self); BaseOp.fID = old_fID; return res 
-    def __call__(self, *args): BaseOp.call_args = args;  return self
-    
+    def __call__(self, *args, **kw_args):
+        if args: BaseOp.call_args = args
+        return self.replace(**kw_args)
+
+replace_args = lambda arg, **kw_args: arg.replace(**kw_args) if isinstance(arg, BaseOp) else arg
 class UnaryOp(BaseOp):
     def __init__(self, a): self.a = a
     def __str__(self): return self.patt[self.fID]%self._bk(self.a)
+    def replace(self, **kw_args): return self.__class__(replace_args(self.a, **kw_args))
 class BinaryOp(BaseOp):
     def __init__(self, a, b): self.a, self.b = a, b
     def __str__(self):
@@ -277,11 +274,12 @@ class BinaryOp(BaseOp):
                 right = self._bk(self.b, True)
                 if right[0]=='-': return self.patt[self.fID]%(self._bk(self.a), '\\cdot'+right)            
         return self.patt[self.fID]%(self._bk(self.a), self._bk(self.b, True))
+    def replace(self, **kw_args): return self.__class__(replace_args(self.a, **kw_args), replace_args(self.b, **kw_args))
 
 # кодированный список операций: op name Unary|Binary priority nocmm [tex]
-for p in '''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,\sim *mul:3c, /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
+for p in '''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,%s\\sim%s *mul:3c,%s\\,%s /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
 <<lshift:5n,\\ll >>rshift:5n,\\gg &and:6c,\\& |or:7c,\\| ^xor:8c,\\^ ==eq:9c,= !=ne:9c,\\neq <lt:9n <=le:9n,\\leq >gt:9n >=ge:9n,\\geq'''.split():
-    op = p[:2] if not p[1].isalpha() else p[0];   p, tex = (p.split(',')+[op])[:2] #; print(op, p, tex)
+    op = p[:2] if not p[1].isalpha() else p[0];   p, tex = (p.split(',', 1)+[op])[:2] #; print(op, p, tex)
     name, base, priority, nocmm = p[1+(not p[1].isalpha()):-3], (UnaryOp, BinaryOp)[p[-3]==':'], int(p[-2]), p[-1]=='n' # в т.ч. приоритет и не-коммутативность 
     cname = name.capitalize()+'Op'
     globals()[cname] = cobj = type(cname, (base,), {'priority': priority, 'nocmm': nocmm}) 
@@ -317,7 +315,7 @@ brakets = {'()': 'crc_bk', '{}': 'fig_bk', '<>': 'ang_bk', '[]': 'rm_bk', '||': 
 for bk, n in brakets.items():
     spaceOp[n] = type(n, (UnaryOp,), {'priority': 0, 'lock_bk':(1, 1),
                                       'patt': ['(%s)', bk[0]+'%s'+bk[1], '\\left'+'\\'*(bk=='{}')+bk[0]+'%s'+'\\right'+'\\'*(bk=='{}')+bk[1]]})
-spaceOp['fabs'] = spaceOp['abs'];  spaceOp['abs'].patt[0] = 'abs(%s)'
+AbsOp = spaceOp['abs']; AbsOp.patt[0] = 'abs(%s)'; spaceOp['fabs'] = spaceOp['abs'] = lambda x: abs(x) if hasattr(x, '__abs__') else AbsOp(x)  
 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
 psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel'''.split()
@@ -336,6 +334,7 @@ class Var(BaseOp):
         self.name, self.value = name, (value if value else name)
         if not tex: self.tex = name2tex(name)
     def __str__(self): return self.value if self.fID==0 else self.name if self.fID==1 else self.tex
+    def replace(self, **kw_args): return kw_args.get(self.name, self)
 class Num(BaseOp):
     def __init__(self, val): self.val = val
     def __str__(self): return self._2str(self.val)
@@ -355,24 +354,28 @@ class Vec(object):
     'В заголовке dat-файла задается как A.x A.y A.z, не обязательно подряд? Передавать заголовок в конструктор - как выделить имя?'
     def __init__(self, expr, comp, keys='', tex=None):  # если ключей нет, то считается что работает доступ только по номеру компоненты
         #self.expr, self._comp, self._keys = (expr type(expr) is Var else Var(expr, expr, tex)), list(comp), ','.join(keys.split(',')[:len(comp)])
+        # print(expr, comp, keys, tex, [str(x) for x in comp])
         self._expr, self._comp, self._keys = expr, list(comp), ','.join(keys.split(',')[:len(comp)])
         for k, c in zip(self._keys.split(','), self._comp): setattr(self, k, c)  # Var-ы?
         self.tex = tex if tex else _2str(expr, 2)
+    def replace(self, **kw_args): return self  # пока не работает
     def __len__(self): return len(self._comp)
     def __getitem__(self, i): return self._comp[i]
-    def __str__(self): return ':'.join('(%s)'%c for c in self._comp) if BaseOp.fID==0 else _2str(self._expr, 1) if BaseOp.fID==1 else self.tex
+    def __repr__(self): return ':'.join('(%r)'%c for c in self._comp)
+    def __str__(self): return _2str(self._expr, 1) if BaseOp.fID==1 else self.tex
     def __abs__(self): return self.abs()
     def abs(self): return Var('|%s|'%_2str(self._expr, 1), value='sqrt(%s)'%_2str(self*self, 0), tex='\\left|%s\\right|'%self.tex)
     def __neg__(self): return Vec(-self._expr, [-x for x in self._comp], keys=self._keys, tex='-'+self.tex)    
     def __add__(self, other):
         if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(self, 0), _2str(other, 0)))
-        return Vec(self._expr+other, [self[i]+other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'+'+_2str(other, 2))    
+        return Vec(self._expr+other._expr, [self[i]+other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'+'+_2str(other, 2))    
     def __radd__(self, other):
-        if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(other, 0), _2str(self, 0)))
+        #if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(other, 0), _2str(self, 0)))
+        if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%r) + (%r)'%(other, self))
         return Vec(other+self._expr, [other[i]+self[i] for i in range(len(self))], keys=self._keys, tex=_2str(other, 2)+'+'+self.tex)    
     def __sub__(self, other):
         if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%s) - (%s)'%(_2str(self, 0), _2str(other, 0)))
-        return Vec(self._expr-other, [self[i]-other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'-'+_2str(other, 2))    
+        return Vec(self._expr-other._expr, [self[i]-other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'-'+_2str(other, 2))    
     def __rsub__(self, other):
         if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%s) - (%s)'%(_2str(other, 0), _2str(self, 0)))
         return Vec(other-self._expr, [other[i]-self[i] for i in range(len(self))], keys=self._keys, tex=_2str(other, 2)+'-'+self.tex)    
@@ -395,17 +398,18 @@ class Vec(object):
     def __rmod__(self, other):
         if len(self)!=len(other) or len(self) not in (2, 3): raise Exception('the vector product for operands %s, %s is undefined'%(_2str(other, 0), _2str(self, 0)))
         if len(self)==2: return self[1]*other[0]-self[0]*other[1]
-        return Vec(self._expr%other, [self[2]*other[1]-self[1]*other[2], self[0]*other[2]-self[2]*other[0], self[1]*other[0]-self[0]*other[1]], self._keys)
-
+        return Vec(self._expr%other, [self[2]*other[1]-self[1]*other[2], self[0]*other[2]-self[2]*other[0], self[1]*other[0]-self[0]*other[1]], self._keys)    
+    
 def parse(expr, scope):
     for bk in '() {} <> [] ||'.split():
         bra, ket = bk[0]+'%', '%'+bk[1]
         if expr.count(bra)!=expr.count(ket): raise Exception('uncomplete brackets %s ... %s in %r'%(bra, ket, expr))
     expr = functools.reduce(lambda S, bk: S.replace(bk[0]+'%', '('+bk[1:-1]+'(').replace('%'+bk[-1], '))'), '(crc_bk) {fig_bk} <ang_bk> |fabs| [rm_bk]'.split(), expr)
-    expr = eval(expr, spaceOp, scope)  # <<< что такое scope?
+    expr = eval(expr, spaceOp, FreeNames(scope))  # <<< FreeNmae лишняя? что такое scope?
     return tuple(map(try_wrap_num, expr)) if type(expr) in (list, tuple) else try_wrap_num(expr)
 
-parse_label = lambda expr, scope: expr[:-2] if expr.endswith('!!') else Verb(expr[:-1]) if expr[-1]=='!' else Dollars(parse(expr, FreeNames(scope)))
+#parse_label = lambda expr, scope: expr[:-2] if expr.endswith('!!') else Verb(expr[:-1]) if expr[-1]=='!' else Dollars(parse(expr, FreeNames(scope)))
+parse_label = lambda expr, scope: expr[:-2] if expr.endswith('!!') else Verb(expr[:-1]) if expr[-1]=='!' else Dollars(parse(expr, scope))
 
 class Verb:
     def __init__(self, text): self.text = text
@@ -427,8 +431,8 @@ class FreeNames:
 #                              main 
 #-------------------------------------------------------------------------------
 # gp_mbuf вводится для накопления тела multiplot или просто splot-ов поскольку терминал неопределен
-gp_pipe, gp_mbuf, filters, using, data, labels, walrus_table, tics = (sys.stdout if '-debug' in sys.argv else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}, {}
-D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode = [False]*6+['']*3+['empty']
+D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode, debug_mode = [False]*6+['']*3+['empty']+['-debug' in sys.argv]
+gp_pipe, gp_mbuf, filters, using, data, labels, tics = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}
 #gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
 gp_write = lambda patt, *args: gp_mbuf.append((patt,)+args)
@@ -459,9 +463,10 @@ def subplot():
             else: curves.append([repr(func0), fscope, [fscope['x']]+([fscope['y']] if D3 else [])+[func], '', True])            
         else:  # файл с данными ===>   data.append([fname]+[h]+header[1:]+[u]+['<cin>']*(fname0 in ['-', '-std']))   <=== append curve from datfile
             fname, scope, columns, U, pname = src;  func_scope.update(kv for kv in scope.items() if kv[0][0]!='@')
+            #print(len(scope['E']), len(scope['H']))
             if U:
                 BaseOp.call_args = columns[:1+D3];  expr = parse(U, scope)
-                expr, BaseOp.call_args = (expr if type(expr) in (list, tuple) else list(BaseOp.call_args[:1+D3])+[expr]), []
+                expr, BaseOp.call_args = (expr if type(expr) in (list, tuple, Vec) else list(BaseOp.call_args[:1+D3])+[expr]), []
             else:  expr = columns[:2+D3]
             last_args = expr[:-1]
             #curves.append([repr(fname)+(' u (%r):(%r)'+':(%r)'*D3)%tuple(expr), scope, expr, pname, False])
@@ -508,14 +513,15 @@ def subplot():
     data[:] = []  # обязательно очищает data
 
 def plot(fname_opts):
-    # установить терминал, записать файл с опциями отрисовки
+    global last_mode, multiplot, hstart
+    if debug_mode:  print('#>>>', ' '.join((o if a is None else o+' %r'%a) for o, a in history[hstart:]))
     fname, termopts = (fname_opts.split('@', 1)+[''])[:2]
     mode, old_fID = fname.split('.')[-1] if '.' in fname else '', BaseOp.fID
     if fname:
         if not mode in ('png', 'pdf'): raise Exception('incorrect output file extention %s in option -to %r, .png or .pdf expected'%(mode, fname))
-        if mode=='png': gp_pipe.write('set term png %s\nset out %r\n'%(termopts, fname)); BaseOp.fID = 1
+        #if mode=='png': gp_pipe.write('set term png %s\nset out %r\n'%(termopts, fname)); BaseOp.fID = 1
+        if mode=='png': gp_pipe.write('set term png %s\nset out "/tmp/gplt3-%s.png"\n'%(termopts, os.getpid())); BaseOp.fID = 1
         else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%(termopts, os.getpid())); BaseOp.fID = 2
-    global last_mode, multiplot, hstart
     if not mode and last_mode: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     if data: subplot()
     if multiplot: gp_pipe.write('set multiplot\n')
@@ -527,6 +533,7 @@ def plot(fname_opts):
         ftex.write(LaTeX+'\n\\begin{document}\n\\input{%s-p}\n\\end{document}\n'%ft); ftex.close()
         gp_pipe.write(f'!epstopdf --outfile {ft}-p.pdf {ft}-p.eps; (cd /tmp; pdflatex {ft}.tex | grep \\!); pdfcrop -m 0 {ft}.pdf {fname} > /dev/null\n')
         gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
+    elif mode=='png': gp_pipe.write('!convert /tmp/gplt3-%s.png -trim %r && rm /tmp/gplt3-%s.png\n'%(os.getpid(), fname, os.getpid()))
     if mode:  # создаем gplt3 файл
         fgplt, lo_mode = open(fname[:-3]+'gplt3', 'w'), False
         fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
@@ -544,8 +551,8 @@ def plot(fname_opts):
                  else 'k' if o in ('-sk', '-nk') else 'w' if o in ('-w', '-ds') else None)
             if t is None or t in hstate: del history[iov]; iov -= 1
             else: hstate.add(t); iov -= 1
-        hstart = len(history); fgplt.close(); os.chmod(fgplt.name, 0o755)
-    gp_mbuf[:], multuplot, BaseOp.fID, last_mode = [], False, old_fID, mode
+        fgplt.close(); os.chmod(fgplt.name, 0o755)
+    gp_mbuf[:], multuplot, BaseOp.fID, last_mode, hstart = [], False, old_fID, mode, len(history)
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
     elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
     gp_pipe.write('\n'); gp_pipe.flush()
@@ -576,17 +583,17 @@ def read_header(fname, add_opts, base_opts):
     for cols in columns:
         cols_var, vecs = [], {}
         for cID, name in enumerate(cols):
-            if '.' in name: vname, cname = name.split('.', 1); vecs.setdefault(vname, []).append((cname, len(vecs.get(vname, [])), cID)); cols.append(None)
+            if '.' in name: vname, cname = name.split('.', 1); vecs.setdefault(vname, []).append((cname, len(vecs.get(vname, [])), cID)); cols_var.append(None)
             elif '[' in name and name[-1]==']':
                 vname, cnum = name[:-1].split('[', 1); vecs.setdefault(vname, []).append(('', int(cnum) if cnum else len(vecs.get(vname, [])), cID))
                 cols_var.append(None)
             else: cols_var.append(Var(name, '($%i)'%(cID+1))); scope[name] = cols_var[-1]
-            for vname, clist in vecs.items():
-                keys = [cname for cname, cnum, cID in clist]
-                if any(keys) and not all(keys): keys = [] # <<< ошибка, не все компоненты определены, сказать об этом?
-                comp = [Var(vname+('.'+cname if keys else '[%i]'%cnum), '($%i)'%cID) for cname, cnum, cID in clist]
-                scope[vname] = Vec(vname, comp, ','.join(keys) if keys else '')
-                for i, v in enumerate(comp): cols_var[clist[2]] = v
+        for vname, clist in vecs.items():
+            keys = [cname for cname, cnum, cID in clist]
+            if not all(keys) or (any(keys) and not all(keys)): keys = [] # <<< второе условие - ошибка, не все компоненты определены, сказать об этом?
+            comp = [Var(vname+'_'+(cname if keys else '%i'%cnum), '($%i)'%(cID+1)) for cname, cnum, cID in clist]  # <<< tex имена  сформировать?
+            scope[vname] = Vec(vname, comp, ','.join(keys) if keys else '')
+            for i, v in enumerate(comp): cols_var[clist[i][2]] = v
     for line in params:
         try: exec(line, {'__builtins__': None}, scope)
         except Exception as E: print('%r in %r'%(E, fin.__name__))            
@@ -615,6 +622,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
     while pos<len(src_seq):        
         el = src_seq[pos]; pos += 1
         if '#=' in el and el.split('#=')[0].isidentifier(): k, v = el.split('#=', 1); scope[k] = clif_cast(v)
+        elif ':=' in el and el.split(':=')[0].isidentifier(): k, v = el.split(':=', 1); scope[k] = clif_cast(v); dst_seq.append(v)
         elif el and el[-1]=='#' and el[:-1].isidentifier():   # цикл
             key, bra = el[:-1], src_seq.index('{', pos);  ket = ket_index(bra+1);  body = src_seq[bra+1: ket]
             for ival, val in enumerate(clif(src_seq[pos:bra], scope)): dst_seq += clif(body, scope, {key: clif_cast(val), '_'+key: ival})
@@ -646,14 +654,11 @@ double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tc
 rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
+#iopt, opt_seq = 0, sys.argv[1:]
 #print(opt_seq); exit()
 while iopt<len(opt_seq): 
     opt, arg = opt_seq[iopt], None;  iopt += 1
-    if opt.endswith(':=') and opt[:2] in walrus_table: del walrus_table[opt[:2]]; continue  # удаление моржового макроса
-    if opt[1:] in double_opts:
-        arg = opt_seq[iopt]; iopt += 1
-        if ':=' in arg and arg.split(':=')[0].isidentifier():  wm, arg = arg.split(':=', 1); walrus_table[wm] = arg
-        elif arg in walrus_table: arg =  walrus_table[arg]
+    if opt[1:] in double_opts: arg = opt_seq[iopt];  iopt += 1
     history += [(opt, arg)]
     if opt=='-3d': D3 = True
     elif opt=='-h3d': D3 = True; gp_write('set hidden3d\n')
@@ -688,7 +693,7 @@ while iopt<len(opt_seq):
     elif opt=='-ttl': title = arg
     elif opt in ('-w', '-ds'): data_style = arg
     elif opt in ('-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb'):
-        opt_dict, lbl = {}, (opt[3:] if len(opt)==5 else opt[3:]+'1');  text, dog_attr = (arg.split('@', 1)+[''])[:2]
+        opt_dict, lbl = {}, (opt[3:] if len(opt)==5 or opt[-1]=='z' else opt[3:]+'1');  text, dog_attr = (arg.split('@', 1)+[''])[:2]
         for o in dog_attr.split(','):
             if not o: continue
             if o[0]=='r' and ((o[1]=='-' and o[2:].isdigit()) or o[1:].isdigit()): opt_dict['@rotate'] = o[1:]; continue
@@ -759,16 +764,21 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # автоматически форматировать справку по ширине монитора?
 # оформлять параметры из заголовков и .RACS как Var - но как тогда указывать их значение в подписях?
 # кэшировать файлы с данными, включая stdin, для многократного использования
-# запросы RACS
+# запросы RACS в пути к файлу
+# -def как обьявление переменной
+# всегда печатать аргументы plot
+# функцию vec в scope
+
+# вектора требуют всестороннего тестирования!
+# как то добавлять скаляр к вектору в нужное место? [] или <> ? Вектор свободной длины? 
+
+# пусть все макросы работают в i файле?
 
 # написать справку {}
 # в циклах можно писать i,j# 1 2 3 4 { ... } тогда элемент последовательности обрабатываются парами, тройками и тд
-# -debug показывает по plot-aм аргументы командной строки gplt3
 # -u добавляет по одной кривой в отрисовку
 
-
-# анимация (в тч мультики через ffmpeg) - добавить в примеры, но для жтого нужен счетчик файлов? Вводить его в scope как имя индекса с подчеркивания?
-
+# подтягивать из титулы кривых метки на ось Y
 
 # научить рисовать ppm.gz с палитрой и пределами в комментариях. 
 

@@ -1,0 +1,8 @@
+#!/usr/bin/gplt3 -i
+# previous global options that may be relevant:
+
+# start of options related to this picture: 
+dat/test1.dat dat/test2.dat 
+-sz .6
+-sk left
+-to picts/gplt3/fig08.pdf

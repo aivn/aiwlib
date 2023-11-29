@@ -1,0 +1,13 @@
+#!/usr/bin/gplt3 -i
+# previous global options that may be relevant:
+-h3d 
+-is 100
+-sz .7
+-lbz @1,r90
+-tcz .5
+# start of options related to this picture: 
+-tccb .5
+-pm3d 
+-sz square
+-fn sin(x)*cos(y)@1
+-to picts/gplt3/fig06.pdf

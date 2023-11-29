@@ -1,0 +1,7 @@
+#!/usr/bin/gplt3 -i
+# previous global options that may be relevant:
+
+# start of options related to this picture: 
+-fn x**2
+-sz .4
+-to picts/gplt3/fig01.png@size .4 crop

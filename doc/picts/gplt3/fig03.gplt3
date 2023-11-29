@@ -1,0 +1,11 @@
+#!/usr/bin/gplt3 -i
+# previous global options that may be relevant:
+
+# start of options related to this picture: 
+-fn sqrt(1+sin(x)**2)
+-fn sin(|%x//2%|)**2//2
+-sz 1.,.5
+-tcy .5
+-lby 
+-sk lmargin spacing 2
+-to picts/gplt3/fig03.pdf
