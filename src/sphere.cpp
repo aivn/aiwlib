@@ -204,6 +204,7 @@ void init_zero_rank(){
 				buf[2] =  id(tmp2);
 				tmp2[4] = (tmp2[4]+1)%5;
 				buf[1] = id(tmp2);
+				for(int t=0; t<60; t++){ std::cout<<(tmp[t]? 1:0); } std::cout<<std::endl;
 				vertex_cells[0][ver] = buf;
 				//Заполнение массива вершин
 				vertex[ver] = pentag[k];
@@ -326,7 +327,7 @@ void mass_finish(int rank){
 void arrs_init(int rank){
 	//WOUT(rank);
 	if(rank<0 || rank>=MAX_RANK) WRAISE("incorrect ", rank, MAX_RANK);
-	if(rank==0) init_zero_rank();
+	if(rank==0) init_zero_rank(); // current_rank = 0; }
 	else {
 		//тут нужна другая функция
 		//Увеличивать быстродействе здесь будем потом
@@ -449,6 +450,7 @@ void arrs_init(int rank){
 		}
 	}
 	//--------------------
+	current_rank = rank;
 	size_t sz = sph_vertex_num(rank);
 	interp_radius[rank] = new double[sz];
 	for(size_t i=0; i<sz; i++){
@@ -476,8 +478,7 @@ void aiw::sph_init_table(int rank){
 			arrs_init(i); // инициализация массивов
 		}
 	}
-	current_rank = rank;
-	//  WOUT(2);
+	current_rank = rank;  // это избыточно, делается выше
 }
 //------------------------------------------------------------------------------
 size_t aiw::sph_cellInd(const Vec<3> &r, int rank){ // пока только для существующего ранга
