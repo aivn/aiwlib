@@ -78,6 +78,19 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 кривые по умолчанию для file{1,2}.dat и по две кривых x(y) 2*z(x+y) для file{2,3}.dat.
 ''',  #----------------------
                  'clif': '''
+Обрабатывает аргументы командной строки перед разбором gplt3.
+<name>#=<value> --- задает значение переменной.
+<name>:=<value> --- задает значение переменной и сразу подставляет его.
+Значения переменных по возможности приводятся к int или float
+Для подставноки переменных используется str.format, если подстановка токена (то что в
+{...} не удалась) для токена вызывается eval, в случае ошибки токен остается как есть.
+
+<name>{ <body> } --- задает макрос,  <name>{} --- уничтожает переменную или макрос.
+{<name>} или {<name>[...]} --- подставляет макрос, можно использовать срезы питон.
+<counter># <sequence> { <body> } --- задает цикл, в <sequence> можно подставлять макросы.
+в теле цикла <counter> это переменная, _<counter> переменная с номером итерации.
+
+Циклы и макросы могут быть вложены друг в друга.  
 ''',  #----------------------
                  '-to': '''
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран) и продолжает 
@@ -522,7 +535,6 @@ def plot(fname_opts):
         #if mode=='png': gp_pipe.write('set term png %s\nset out %r\n'%(termopts, fname)); BaseOp.fID = 1
         if mode=='png': gp_pipe.write('set term png %s\nset out "/tmp/gplt3-%s.png"\n'%(termopts, os.getpid())); BaseOp.fID = 1
         else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%(termopts, os.getpid())); BaseOp.fID = 2
-    if not mode and last_mode: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     if data: subplot()
     if multiplot: gp_pipe.write('set multiplot\n')
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
@@ -554,7 +566,8 @@ def plot(fname_opts):
         fgplt.close(); os.chmod(fgplt.name, 0o755)
     gp_mbuf[:], multuplot, BaseOp.fID, last_mode, hstart = [], False, old_fID, mode, len(history)
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
-    elif not mode: gp_pipe.write('pause %s\n\n'%(pause if pause else -1))
+    if not mode: gp_pipe.write('pause %s\n'%(pause if pause else -1))
+    else: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     gp_pipe.write('\n'); gp_pipe.flush()
     
 def parse_dog_attr(arg):
@@ -768,6 +781,7 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # -def как обьявление переменной
 # всегда печатать аргументы plot
 # функцию vec в scope
+# добавить опцию -all, или вместо нее какой то механизм рисования столбцов пачкой например через генераторы, список столбцов доступен через ALL?
 
 # вектора требуют всестороннего тестирования!
 # как то добавлять скаляр к вектору в нужное место? [] или <> ? Вектор свободной длины? 
