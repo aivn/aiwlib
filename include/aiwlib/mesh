@@ -100,6 +100,8 @@ namespace aiw{
 		      T& operator [] (const aiw::Vec<D> &r)       { return (*this)[this->coord2pos(r)]; }
 		const T& operator [] (const aiw::Vecf<D> &r) const { return (*this)[this->coord2pos(r)]; }
 		      T& operator [] (const aiw::Vecf<D> &r)       { return (*this)[this->coord2pos(r)]; }
+	    const T& raw(size_t cID) const { return *(const T*)((const char*)ptr+cID*mul[0]); }
+		      T& raw(size_t cID)       { return *(T*)((char*)ptr+cID*mul[0]); }
 
 		template <typename ... Args>       T& ind(Args ... pos)       { return (*this)[Ind<D>(pos...)]; }
 		template <typename ... Args> const T& ind(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }
