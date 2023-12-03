@@ -30,7 +30,7 @@ namespace aiw{
 			for(auto &g: generators) g.seed(rd());
 		}
 		RandN01(int threads_num=1){ init(threads_num); }
-		T operator()(int thID=0){ return N01(generators.at(thID)); }
+		T operator()(int thID=0){ return N01.at(thID)(generators.at(thID)); }
 		template<int D> Vec<D, T> V(int thID=0){
 			Vec<D, T> res; for(int i=0; i<D; i++) res[i] = N01.at(thID)(generators.at(thID));
 			return res;
