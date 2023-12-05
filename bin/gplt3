@@ -608,7 +608,7 @@ def read_header(fname, add_opts, base_opts):
             scope[vname] = Vec(vname, comp, ','.join(keys) if keys else '')
             for i, v in enumerate(comp): cols_var[clist[i][2]] = v
     for line in params:
-        try: exec(line, {'__builtins__': None}, scope)
+        try: exec(line.strip(), {'__builtins__': None}, scope)
         except Exception as E: print('%r in %r'%(E, fin.__name__))            
     scope.update(add_opts)
     if not columns: cols_var = [base_scope['xyz'[i] if i<3 else 'C%i'%(i+1)] for i in range(min(2, cols_sz))]
@@ -663,7 +663,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
     return dst_seq
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles = [], 0, []
-double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb 
+double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl
 rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
@@ -762,6 +762,12 @@ if not sixel and not last_mode:
 elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # TODO:
+# 0.  нумерация примеров и раздел обновление в документацию
+# 1.  .tex для векторов и примеры
+# 2.  фильтры, кэширование файлов, обращение к уже введенным файлам через []
+# 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
+# 4.  -M для мультиплота с выравниванием
+
 # shell фильтры на лету? Никто вроде не пользуется, но кажется полезным?
 # как то обращаться к старым файлам/кривым по номерам, или использовать clif?
 # нечеткий ввод - каждый набор опций для гнуплота разбирать по пробелам и прогонять через специфичный для опции набор ключевых слов?
@@ -781,7 +787,10 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # -def как обьявление переменной
 # всегда печатать аргументы plot
 # функцию vec в scope
-# добавить опцию -all, или вместо нее какой то механизм рисования столбцов пачкой например через генераторы, список столбцов доступен через ALL?
+# вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
+# -[n]clif первой опцией явно в[ы]ключает CLIF
+
+# проблемы с времнными файлами - не работает -l?
 
 # вектора требуют всестороннего тестирования!
 # как то добавлять скаляр к вектору в нужное место? [] или <> ? Вектор свободной длины? 
