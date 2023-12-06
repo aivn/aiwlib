@@ -753,13 +753,13 @@ while iopt<len(opt_seq):
                     data.append([fname]+[h]+header[1:]+[u]+['<cin>']*(fname0 in ['-', '-std']))  # <== append curve from datfile
 
 if data: plot('')  # финальная отрисовка
-if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
 if not sixel and not last_mode:
     try:
         if stdin: print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
         else: input('gplt3: press ENTER or Ctrl-C for close')
     except: pass
-elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
+if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
+if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # TODO:
 # 0.  нумерация примеров и раздел обновление в документацию
@@ -790,7 +790,11 @@ elif sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких 
 # вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
 # -[n]clif первой опцией явно в[ы]ключает CLIF
 
-# проблемы с времнными файлами - не работает -l?
+# читать csv на лету (понимать по расширению)
+# аналогично c gz
+# bash-утилита для заглядывания в заголовок .dat-файла?
+
+# проблемы с временными файлами - не работает кнопка l в окне?
 
 # вектора требуют всестороннего тестирования!
 # как то добавлять скаляр к вектору в нужное место? [] или <> ? Вектор свободной длины? 
