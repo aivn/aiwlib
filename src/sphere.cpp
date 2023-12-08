@@ -58,7 +58,8 @@ uint64_t id( const Vec<5,uint64_t>& ind ) { return ( ( ind[ (ind[3]+1)%3 ]+1 )/2
 inline Vec<5, uint64_t> down_nb(Vec<5, uint64_t> ind){
 	ind[ind[3]]=1;
 	int l = ind[0] * ind[1] * ind[2];//Это не ind.volume()
-	ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
+	// ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
+	ind[ ind[3] ] = ind[ ind[3] ]*(1-l)/2 - (l+1)/2;
 	Vec<5,int64_t> nb;
 	if ( ind[4]<2 ) {
 		Vec<3,int64_t> tmp = ULInd3(ind[0],ind[1],ind[2]);
@@ -204,7 +205,6 @@ void init_zero_rank(){
 				buf[2] =  id(tmp2);
 				tmp2[4] = (tmp2[4]+1)%5;
 				buf[1] = id(tmp2);
-				for(int t=0; t<60; t++){ std::cout<<(tmp[t]? 1:0); } std::cout<<std::endl;
 				vertex_cells[0][ver] = buf;
 				//Заполнение массива вершин
 				vertex[ver] = pentag[k];

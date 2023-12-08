@@ -416,7 +416,7 @@ class Vec(object):
 def parse(expr, scope):
     for bk in '() {} <> [] ||'.split():
         bra, ket = bk[0]+'%', '%'+bk[1]
-        if expr.count(bra)!=expr.count(ket): raise Exception('uncomplete brackets %s ... %s in %r'%(bra, ket, expr))
+        if expr.count(bra)!=expr.count(ket): sys.stderr.write('uncomplete brackets %s ... %s in %r\n'%(bra, ket, expr)); exit(1)
     expr = functools.reduce(lambda S, bk: S.replace(bk[0]+'%', '('+bk[1:-1]+'(').replace('%'+bk[-1], '))'), '(crc_bk) {fig_bk} <ang_bk> |fabs| [rm_bk]'.split(), expr)
     expr = eval(expr, spaceOp, FreeNames(scope))  # <<< FreeNmae лишняя? что такое scope?
     return tuple(map(try_wrap_num, expr)) if type(expr) in (list, tuple) else try_wrap_num(expr)
@@ -531,8 +531,8 @@ def plot(fname_opts):
     fname, termopts = (fname_opts.split('@', 1)+[''])[:2]
     mode, old_fID = fname.split('.')[-1] if '.' in fname else '', BaseOp.fID
     if fname:
-        if not mode in ('png', 'pdf'): raise Exception('incorrect output file extention %s in option -to %r, .png or .pdf expected'%(mode, fname))
-        #if mode=='png': gp_pipe.write('set term png %s\nset out %r\n'%(termopts, fname)); BaseOp.fID = 1
+        if not mode in ('png', 'pdf'): sys.stderr.write('incorrect output file extention %s in option -to %r, .png or .pdf expected\n'%(mode, fname)); exit(1)
+        if os.system('touch %r 2> /dev/null'%fname): sys.stderr.write("can't create file %r\n"%fname); exit(1)
         if mode=='png': gp_pipe.write('set term png %s\nset out "/tmp/gplt3-%s.png"\n'%(termopts, os.getpid())); BaseOp.fID = 1
         else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%(termopts, os.getpid())); BaseOp.fID = 2
     if data: subplot()
@@ -630,7 +630,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
             elif src_seq[pos0]=='}': counter -= 1
             if not counter: return pos0
             pos0 += 1
-        raise Exception('Ket } not found when processing incoming %s sequence'%src_seq)
+        sys.stderr.write('Ket } not found when processing incoming %s sequence\n'%src_seq); exit(1)
     dst_seq, pos, scope = [], 0, dict(scope); scope.update(scope_upd)
     while pos<len(src_seq):        
         el = src_seq[pos]; pos += 1
@@ -718,7 +718,7 @@ while iopt<len(opt_seq):
     elif opt=='-fn': func, attr = parse_dog_attr(arg); data.append([func, attr])
     elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in arg.split()]
     elif opt=='-o':
-        if not multiplot and data: raise Exception('in multiplot mode the -o %s option must come before all files and functions'%arg)
+        if not multiplot and data: sys.stderr.write('in multiplot mode the -o %s option must come before all files and functions\n'%arg);  exit(1)
         if not multiplot: multiplot = True
         if data: subplot()
         gp_write('set origin %s\n'%arg)
@@ -762,12 +762,12 @@ if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flu
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # TODO:
-# 0.  нумерация примеров и раздел обновление в документацию
 # 1.  .tex для векторов и примеры
 # 2.  фильтры, кэширование файлов, обращение к уже введенным файлам через []
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
 # 4.  -M для мультиплота с выравниванием
 
+# зачистка временных файлов - делать одной командой? как понять что gnuplot не справился? как понять что gnuplot не справился с созданием файла?
 # shell фильтры на лету? Никто вроде не пользуется, но кажется полезным?
 # как то обращаться к старым файлам/кривым по номерам, или использовать clif?
 # нечеткий ввод - каждый набор опций для гнуплота разбирать по пробелам и прогонять через специфичный для опции набор ключевых слов?
@@ -790,20 +790,23 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
 # -[n]clif первой опцией явно в[ы]ключает CLIF
 
+# добавить тернарный if/else
+
+# опция -diff <expressions> --- включает diff_mode, разбирает по одной кривой для каждого следующего файла на график, число графиков = числу кривых
+#   -fn при этом добавляет кривые на все графики. -to свой аргумент рассматривает как паттерн и генерирует серию. В случае -M layout -o вызываются автоматически.
+#    нудно булет превратить data в список списков кривых и вообще переименовать.
+
 # читать csv на лету (понимать по расширению)
 # аналогично c gz
 # bash-утилита для заглядывания в заголовок .dat-файла?
-
-# проблемы с временными файлами - не работает кнопка l в окне?
 
 # вектора требуют всестороннего тестирования!
 # как то добавлять скаляр к вектору в нужное место? [] или <> ? Вектор свободной длины? 
 
 # пусть все макросы работают в i файле?
 
-# написать справку {}
 # в циклах можно писать i,j# 1 2 3 4 { ... } тогда элемент последовательности обрабатываются парами, тройками и тд
-# -u добавляет по одной кривой в отрисовку
+# -u добавляет по одной кривой в отрисовку???
 
 # подтягивать из титулы кривых метки на ось Y
 
