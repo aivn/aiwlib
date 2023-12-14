@@ -2,7 +2,8 @@
 # previous global options that may be relevant:
 
 # start of options related to this picture: 
--U E*H
+-U |%E%H%|
 dat/test2.dat 
 -sz .6
+-tcy .2
 -to picts/gplt3/fig12.pdf

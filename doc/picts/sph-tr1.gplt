@@ -1,0 +1,16 @@
+#!/usr/bin/gplt ++ 
+-3d  
+-lbx
+ ''
+-lby
+ ''
+-lbz
+ ''
+-raw  'set view equal'
+-raw  'set border 4095'
+-raw  'unset xtics'
+-raw  'unset ytics'
+-raw  'unset ztics'
+  'dat/sph-R1-tr.dat'
+-raw  'set view 60,21' 
+-to -fname='picts/sph-tr1.pdf' -termopt=None -preview=False -showcmd='okular' -margins='10' -head='' -usepackage='' -clear=True

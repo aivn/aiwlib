@@ -345,7 +345,7 @@ class Var(BaseOp):
     priority = -1
     def __init__(self, name, value=None, tex=None):   # value выводится в gp mode
         self.name, self.value = name, (value if value else name)
-        if not tex: self.tex = name2tex(name)
+        self.tex = tex or name2tex(name)
     def __str__(self): return self.value if self.fID==0 else self.name if self.fID==1 else self.tex
     def replace(self, **kw_args): return kw_args.get(self.name, self)
 class Num(BaseOp):
@@ -370,7 +370,7 @@ class Vec(object):
         # print(expr, comp, keys, tex, [str(x) for x in comp])
         self._expr, self._comp, self._keys = expr, list(comp), ','.join(keys.split(',')[:len(comp)])
         for k, c in zip(self._keys.split(','), self._comp): setattr(self, k, c)  # Var-ы?
-        self.tex = tex if tex else _2str(expr, 2)
+        self.tex = tex or (r'{\mathbf %s}'%expr if type(expr) is str else _2str(expr, 2))
     def replace(self, **kw_args): return self  # пока не работает
     def __len__(self): return len(self._comp)
     def __getitem__(self, i): return self._comp[i]
@@ -393,9 +393,12 @@ class Vec(object):
         if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%s) - (%s)'%(_2str(other, 0), _2str(self, 0)))
         return Vec(other-self._expr, [other[i]-self[i] for i in range(len(self))], keys=self._keys, tex=_2str(other, 2)+'-'+self.tex)    
     def __mul__(self, other):
-        if type(other) in (Vec, list, tuple):
-            if len(other)!=len(self): raise Exception('it is impossible to mul vectors of different lengths: (%s) * (%s)'%(_2str(self, 0), _2str(other, 0)))
-            return sum([self[i]*other[i] for i in range(1, len(self))], self[0]*other[0])        
+        if type(other) in (Vec, list, tuple) and len(other)!=len(self):
+            raise Exception('it is impossible to mul vectors of different lengths: (%s) * (%s)'%(_2str(self, 0), _2str(other, 0)))
+        E = sum([self[i]*other[i] for i in range(1, len(self))], self[0]*other[0])
+        print(repr(E), '%s*%s'%(_2str(self, 1), _2str(other, 1)))
+        if type(other) is Vec: return Var('%s*%s'%(_2str(self, 1), _2str(other, 1)), repr(E), r'%s\cdot%s'%(self.tex, other.tex))
+        if type(other) in (list, tuple): Var(_2str(E, 1), repr(E), _2str(E, 2))
         return Vec(self._expr*other, [x*other for x in self], self._keys)  # tex?
     def __rmul__(self, other):
         if type(other) in (Vec, list, tuple):
@@ -407,7 +410,8 @@ class Vec(object):
     def __mod__(self, other):  # векторное произведение
         if len(self)!=len(other) or len(self) not in (2, 3): raise Exception('the vector product for operands %s, %s is undefined'%(_2str(self, 0), _2str(other, 0)))
         if len(self)==2: return self[0]*other[1]-self[1]*other[0]
-        return Vec(self._expr%other, [self[1]*other[2]-self[2]*other[1], self[2]*other[0]-self[0]*other[2], self[0]*other[1]-self[1]*other[0]], self._keys)
+        return Vec('%s%%%s'%(self._expr, other._expr), [self[1]*other[2]-self[2]*other[1], self[2]*other[0]-self[0]*other[2], self[0]*other[1]-self[1]*other[0]],
+                   self._keys, tex=r'%s\times %s'%(self.tex, other.tex))
     def __rmod__(self, other):
         if len(self)!=len(other) or len(self) not in (2, 3): raise Exception('the vector product for operands %s, %s is undefined'%(_2str(other, 0), _2str(self, 0)))
         if len(self)==2: return self[1]*other[0]-self[0]*other[1]
@@ -788,6 +792,8 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # функцию vec в scope
 # вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
 # -[n]clif первой опцией явно в[ы]ключает CLIF
+
+# палитру как в паравью
 
 # добавить тернарный if/else
 

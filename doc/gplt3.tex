@@ -63,7 +63,7 @@
 Институт прикладной математики им. М.В. Келдыша РАН\\[2mm]
 
 \small рисунки с пингвинами \copyright Людмила Степкина\\[3mm]
-{\bf 3 декабря 2023}\\[7mm]
+{\bf 3 декабря 2023} (первая редакция 3 декабря 2023 г.)\\[7mm]
 
 \epsfig{file=picts/gplt3/ping-win, width=4.5cm}
 \end{center}
@@ -138,9 +138,16 @@
 $ mkdir ~/bin
 $ export PATH=$PATH:~/bin
 $ echo export PATH=\$PATH:~/bin >> ~/.bashrc
-$ cd ~/bin && wget https://github.com/aivn/aiwlib/blob/master/bin/gplt3 
+$ cd ~/bin && wget https://raw.githubusercontent.com/aivn/aiwlib/master/bin/gplt3 
+$ chmod a+x gplt3
 \end{verbatim}
-Если у Вас уже есть директория \verb'~/bin/' и она присутствует в тропе поиска путей, можно ограничиться последней строчкой.
+Если у Вас уже есть директория \verb'~/bin/' и она присутствует в тропе поиска путей \verb'PATH', можно ограничиться последними двумя строчками.
+Для обновления \gplt{} выполните
+\begin{verbatim}
+$ cd ~/bin && rm gplt3
+$ wget https://raw.githubusercontent.com/aivn/aiwlib/master/bin/gplt3 
+$ chmod a+x gplt3
+\end{verbatim}
 
 При установке библиотеки \verb'aiwlib' утилита \gplt{} будет установлена автоматически.
 
@@ -1193,8 +1200,38 @@ pause -1
 \raisebox{-.5cm}{\epsfig{file=picts/gplt3/fig11, width=.25\textwidth}}\\[5mm]
 Как уже отмечалось выше, выражение по оси $x$  можно указывать как аргумент выражения откладываемого по оси $y$.
 
-% gplt3 -U '|%E%H%|' dat/test2.dat -sz .6 -to picts/gplt3/fig12.pdf
-% отладить, у вектора должен быть tex и str? А как быть со скалярным произведением - должен быть .tex у BaseOp?
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 9.}  \hfill\rule{.45\textwidth}{1pt}
+
+\vspace{3mm}
+\noindent
+\begin{minipage}[b]{.67\textwidth}
+\small
+\begin{verbatim}
+$ gplt3 -U '|%E%H%|' dat/test2.dat -sz .6 -tcy .2 -to picts/gplt3/fig12.pdf -debug
+#>>> -U '|%E%H%|' dat/test2.dat -sz '.6' -tcy '.2' -to 'picts/gplt3/fig12.pdf'
+set term epslatex 
+set out "/tmp/gplt3-236108-p.eps"
+set size .6
+set ytics .2
+set xlabel '$t$'
+set ylabel '$\left|{\mathbf E}\times {\mathbf H}\right|$'
+plot 'dat/test2.dat' u (($1)):(sqrt((($3)*($7)-         \
+     ($4)*($6))*(($3)*($7)-($4)*($6))+(($4)*($5)-       \
+     ($2)*($7))*(($4)*($5)-($2)*($7))+(($2)*($6)-       \
+     ($3)*($5))*(($2)*($6)-($3)*($5)))) notitle  lw 3 
+set out
+!epstopdf --outfile /tmp/gplt3-236108-p.pdf /tmp/gplt3-236108-p.eps;   \
+     (cd /tmp; pdflatex /tmp/gplt3-236108.tex | grep \!); pdfcrop -m 0 \
+     /tmp/gplt3-236108.pdf picts/gplt3/fig12.pdf > /dev/null
+!rm -f /tmp/gplt3-236108.* /tmp/gplt3-236108-p.*
+!evince 'picts/gplt3/fig12.pdf'
+unset term
+\end{verbatim}
+\end{minipage}
+\raisebox{2.9cm}{\epsfig{file=picts/gplt3/fig12, width=.33\textwidth}}\\[5mm]
+Поддерживаются операции над векторами, в частности векторное произведение (перегруженная операция \verb'%') и модуль от вектора.
+Обратите внимание на формат ввода выражения для отрисовки и подпись к оси $y$.
 
 \section{Заключение}
 \begin{wrapfigure}[7]{t}{.3\textwidth}
@@ -1222,5 +1259,8 @@ pause -1
 в хронологическом порядке. Предыдущие разделы руководства поддерживаются в актуальном состоянии, так что если Вы прочитали последнюю версию руководства
 (дата указана на титульной странице)~--- Вы в курсе текущего состояния дел. Если же вы читали старую версию, Вам достаточно найти в этом разделе
 соответствующую дату и прочитать от нее и до конца, что бы ознакомиться с произошедшими с того момента изменениями.
+
+
+Добавлен пример №9 с векторным произведением. 
 
 \end{document}
