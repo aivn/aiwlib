@@ -265,7 +265,7 @@ class BaseOp(object):
             x = ('{0:.%ig}'%tex_num_precision).format(x)
             if not 'e' in x: return x[1:] if x[0]=='+' else x
             m, p = x.split('e'); p = ('-' if p[0]=='-' else '') +p[1:].lstrip('0')            
-            return '10^{%s}'%p if m in ('1', '-1') else r'%s\!\cdot\!10^{%s}'%(m, p)
+            return '10^{%s}'%p if m in ('1', '-1') else r'%s\cdot10^{%s}'%(m, p)
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
         return (self._2str(arg)  if getattr(arg, 'priority', 0)<=self.priority-self.nocmm*second or self.lock_bk[self.fID==2]&(1<<second) else
