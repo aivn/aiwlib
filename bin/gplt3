@@ -9,7 +9,10 @@
 -fn <function>[@<attrs>] --- добавить функцию для отрисовки                    (*)
 -U|-u "<expr>[@<attrs>] ..." --- выражения для отрисовки из последующих файлов (*)
 <filename>[@<attrs>] --- добавляет кривые из файла согласно -U или y(x)/z(x,y) 
--[std][@<attrs>] --- прочитать файл с данными со стандартного ввода
+   к ранее введеным файлам можно обращаться по номеру через [...] или задвать 
+   срезы в синтаксисе python, заголовок каждого файла читается только один раз
+-[std][@<attrs>] --- прочитать файл с данными со стандартного ввода, можно 
+   использовать многократно но реальное чтение будет произведено один раз
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран)    (*) 
     и продолжает разбор аргументов, выключает multiplot 
 -nav --- отключает автоматический просмотр файлов с рисунками построенными -to                     
@@ -336,7 +339,7 @@ tex_indexes = 'ij jk ik ijk xy yz xyz'.split()
 
 def name2tex(name, is_vec=False):  # конвертация имени в тех, тут все примитивно
     els = sum([functools.reduce(lambda L, x: L[:-1]+[L[-1]+x] if not L[-1][-1].isalpha()^x.isalpha() else L+[x], n[1:], [n[0]]) for n in name.split('_') if n], [])
-    if is_vec: tex = '{\\boldsymbol \\%s}'%els[0] if els[0] in tex_specials else '{\\bf %s}'%els[0] if len(els[0])>1 else '{\\boldsymbol %s}'%els[0]
+    if is_vec: tex = '{\\boldsymbol \\%s}'%els[0] if els[0] in tex_specials else '{\\mathbf %s}'%els[0] #if len(els[0])>1 else '{\\boldsymbol %s}'%els[0]
     else: tex = '\\'+els[0] if els[0] in tex_specials else '{\\rm %s}'%els[0] if len(els[0])>1 else els[0]
     if len(els)>1: tex += '_{%s}'%' '.join('\\'+e if e in tex_specials else '{\\rm %s}'%e if e.isalpha() and not e in tex_indexes and len(e)>1 else e for e in els[1:]) 
     return tex
@@ -363,59 +366,72 @@ def _2str(expr, fID):
 
 # операции над вектором зависят от формата вывода?
 class Vec(object):
-    'Операции над вектором производятся в двух видах - сразу для gp и в AST для вывода txt/tex'
-    'В заголовке dat-файла задается как A.x A.y A.z, не обязательно подряд? Передавать заголовок в конструктор - как выделить имя?'
-    def __init__(self, expr, comp, keys='', tex=None):  # если ключей нет, то считается что работает доступ только по номеру компоненты
-        #self.expr, self._comp, self._keys = (expr type(expr) is Var else Var(expr, expr, tex)), list(comp), ','.join(keys.split(',')[:len(comp)])
-        # print(expr, comp, keys, tex, [str(x) for x in comp])
-        self._expr, self._comp, self._keys = expr, list(comp), ','.join(keys.split(',')[:len(comp)])
+    '''Операции над вектором производятся в двух видах - сразу для gp и в AST для вывода txt/tex
+    В заголовке dat-файла задается как A.x A.y A.z, A[0] A[1] A[2] или A[] A[] A[] (не обязательно подряд)
+    Имена для обычного и tex представления хранятся как строки, скобки расставляются сразу в операциях'''    
+    def __init__(self, name, comp, keys='', tex=None):  # если ключей нет, то считается что работает доступ только по номеру компоненты
+        self._name, self._comp, self._keys = name, list(comp), ','.join(keys.split(',')[:len(comp)])
         for k, c in zip(self._keys.split(','), self._comp): setattr(self, k, c)  # Var-ы?
-        self.tex = tex or (r'{\mathbf %s}'%expr if type(expr) is str else _2str(expr, 2))
-    def replace(self, **kw_args): return self  # пока не работает
+        self.tex = tex or name2tex(name, True) 
+    def replace(self, **kw_args): return Vec(self._name, [replace_args(x, **kw_args) for x in self._comp], self._keys, self.tex)
     def __len__(self): return len(self._comp)
     def __getitem__(self, i): return self._comp[i]
     def __repr__(self): return ':'.join('(%r)'%c for c in self._comp)
-    def __str__(self): return _2str(self._expr, 1) if BaseOp.fID==1 else self.tex
+    def __str__(self): return self._name if BaseOp.fID==1 else self.tex
     def __abs__(self): return self.abs()
-    def abs(self): return Var('|%s|'%_2str(self._expr, 1), value='sqrt(%s)'%_2str(self*self, 0), tex='\\left|%s\\right|'%self.tex)
-    def __neg__(self): return Vec(-self._expr, [-x for x in self._comp], keys=self._keys, tex='-'+self.tex)    
+    def abs(self): return Var('|%s|'%self._name, value='sqrt(%r)'%(self*self), tex=r'\left|%s\right|'%self.tex)
+    def __neg__(self): return Vec('-'+self._name, [-x for x in self._comp], keys=self._keys, tex='-'+self.tex)    
     def __add__(self, other):
-        if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(self, 0), _2str(other, 0)))
-        return Vec(self._expr+other._expr, [self[i]+other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'+'+_2str(other, 2))    
+        if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%r) + (%r)'%(self, other))
+        if isinstance(other, Vec): return Vec('(%s+%s)'%(self._name, other._name), [self[i]+other[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(%s+%s\right)'%(self.tex, other.tex))
+        return Vec('(%s+(%s))'%(self._name, ','.join(_2str(x, 1) for x in other)), [self[i]+other[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(%s+\left(%s\right)\right)'%(self.tex, ','.join(_2str(x, 2) for x in other)))
     def __radd__(self, other):
-        #if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%s) + (%s)'%(_2str(other, 0), _2str(self, 0)))
         if len(other)!=len(self): raise Exception('it is impossible to add vectors of different lengths: (%r) + (%r)'%(other, self))
-        return Vec(other+self._expr, [other[i]+self[i] for i in range(len(self))], keys=self._keys, tex=_2str(other, 2)+'+'+self.tex)    
+        return Vec('((%s)+%s)'%(','.join(_2str(x, 1) for x in other), self._name), [other[i]+self[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(\left(%s\right)+%s\right)'%(','.join(_2str(x, 2) for x in other), self.tex))
     def __sub__(self, other):
-        if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%s) - (%s)'%(_2str(self, 0), _2str(other, 0)))
-        return Vec(self._expr-other._expr, [self[i]-other[i] for i in range(len(self))], keys=self._keys, tex=self.tex+'-'+_2str(other, 2))    
+        if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%r) - (%r)'%(self, other))
+        if isinstance(other, Vec): return Vec('(%s-%s)'%(self._name, other._name), [self[i]-other[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(%s-%s\right)'%(self.tex, other.tex))
+        return Vec('(%s-(%s))'%(self._name, ','.join(_2str(x, 1) for x in other)), [self[i]-other[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(%s-\left(%s\right)\right)'%(self.tex, ','.join(_2str(x, 2) for x in other)))
     def __rsub__(self, other):
-        if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%s) - (%s)'%(_2str(other, 0), _2str(self, 0)))
-        return Vec(other-self._expr, [other[i]-self[i] for i in range(len(self))], keys=self._keys, tex=_2str(other, 2)+'-'+self.tex)    
+        if len(other)!=len(self): raise Exception('it is impossible to sub vectors of different lengths: (%r) - (%r)'%(other, self))
+        return Vec('((%s)-%s)'%(','.join(_2str(x, 1) for x in other), self._name), [other[i]-self[i] for i in range(len(self))], keys=self._keys,
+                                              tex=r'\left(\left(%s\right)-%s\right)'%(','.join(_2str(x, 2) for x in other), self.tex))
     def __mul__(self, other):
-        if type(other) in (Vec, list, tuple) and len(other)!=len(self):
-            raise Exception('it is impossible to mul vectors of different lengths: (%s) * (%s)'%(_2str(self, 0), _2str(other, 0)))
-        E = sum([self[i]*other[i] for i in range(1, len(self))], self[0]*other[0])
-        print(repr(E), '%s*%s'%(_2str(self, 1), _2str(other, 1)))
-        if type(other) is Vec: return Var('%s*%s'%(_2str(self, 1), _2str(other, 1)), repr(E), r'%s\cdot%s'%(self.tex, other.tex))
-        if type(other) in (list, tuple): Var(_2str(E, 1), repr(E), _2str(E, 2))
-        return Vec(self._expr*other, [x*other for x in self], self._keys)  # tex?
-    def __rmul__(self, other):
         if type(other) in (Vec, list, tuple):
-            if len(other)!=len(self): raise Exception('it is impossible to mul vectors of different lengths: (%s) * (%s)'%(_2str(other, 0), _2str(self, 0)))
-            return sum([other[i]*self[i] for i in range(1, len(self))], self[0]*other[0])        
-        return Vec(other*self._expr, [other*x for x in self], self._keys)  # tex?
-    def __truediv__(self, other): return Vec(self._expr/other, [x/other for x in self._comp], self._keys)
-    def __floordiv__(self, other): return Vec(self._expr//other, [x//other for x in self._comp], self._keys)
+            if len(other)!=len(self): raise Exception('it is impossible to mul vectors of different lengths: (%r) * (%r)'%(self, other))
+            E = sum([self[i]*other[i] for i in range(1, len(self))], self[0]*other[0])
+            if type(other) is Vec: return Var('%s*%s'%(self._name, other._name), repr(E), r'%s\cdot%s'%(self.tex, other.tex))
+        if type(other) in (list, tuple): return Var(_2str(E, 1), repr(E), _2str(E, 2))
+        return Vec('%s*%s'%(self._name, _2str(other, 1)), [x*other for x in self], self._keys, r'%s\,%s'%(self.tex, _2str(other, 2))) 
+    def __rmul__(self, other):
+        if type(other) in (list, tuple):
+            if len(other)!=len(self): raise Exception('it is impossible to mul vectors of different lengths: %r * (%r)'%(other, self))
+            E = sum([other[i]*self[i] for i in range(1, len(self))], other[0]*self[0])
+            return Var(_2str(E, 1), repr(E), _2str(E, 2))        
+        return Vec('%s*%s'%(_2str(other, 1), self._name), [other*x for x in self], self._keys, r'%s\,%s'%(_2str(other, 2), self.tex)) 
+    def __truediv__(self, other): return Vec('%s/%s'%(self._name, _2str(other, 1)), [x/other for x in self._comp], self._keys, '%s/%s'%(self._name, _2str(other, 2)))
+    def __floordiv__(self, other): return Vec('%s/%s'%(self._name, _2str(other, 1)), [x//other for x in self._comp], self._keys,
+                                              r'\frac{%s}{%s}'%(self._name, _2str(other, 2)))
     def __mod__(self, other):  # векторное произведение
         if len(self)!=len(other) or len(self) not in (2, 3): raise Exception('the vector product for operands %s, %s is undefined'%(_2str(self, 0), _2str(other, 0)))
         if len(self)==2: return self[0]*other[1]-self[1]*other[0]
-        return Vec('%s%%%s'%(self._expr, other._expr), [self[1]*other[2]-self[2]*other[1], self[2]*other[0]-self[0]*other[2], self[0]*other[1]-self[1]*other[0]],
-                   self._keys, tex=r'%s\times %s'%(self.tex, other.tex))
+        if isinstance(other, Vec): return Vec('%s%%%s'%(self._name, other._name),
+                                              [self[1]*other[2]-self[2]*other[1], self[2]*other[0]-self[0]*other[2], self[0]*other[1]-self[1]*other[0]],
+                                              self._keys, tex=r'%s\times %s'%(self.tex, other.tex))
+        return Vec('%s%%(%s)'%(self._name, ','.join(_2str(x, 1) for x in other)),
+                   [self[1]*other[2]-self[2]*other[1], self[2]*other[0]-self[0]*other[2], self[0]*other[1]-self[1]*other[0]],
+                   self._keys, tex=r'%s\times\left(%s\right)'%(self.tex, ','.join(_2str(x, 2) for x in other)))
     def __rmod__(self, other):
         if len(self)!=len(other) or len(self) not in (2, 3): raise Exception('the vector product for operands %s, %s is undefined'%(_2str(other, 0), _2str(self, 0)))
         if len(self)==2: return self[1]*other[0]-self[0]*other[1]
-        return Vec(self._expr%other, [self[2]*other[1]-self[1]*other[2], self[0]*other[2]-self[2]*other[0], self[1]*other[0]-self[0]*other[1]], self._keys)    
+        return Vec('(%s)%%%s'%(','.join(_2str(x, 1) for x in other), self._name),
+                   [self[2]*other[1]-self[1]*other[2], self[0]*other[2]-self[2]*other[0], self[1]*other[0]-self[0]*other[1]], self._keys,
+                   tex=r'\left(%s\right)\times %s'%(','.join(_2str(x, 2) for x in other), self.tex))    
     
 def parse(expr, scope):
     for bk in '() {} <> [] ||'.split():
@@ -449,7 +465,7 @@ class FreeNames:
 #-------------------------------------------------------------------------------
 # gp_mbuf вводится для накопления тела multiplot или просто splot-ов поскольку терминал неопределен
 D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode, debug_mode = [False]*6+['']*3+['empty']+['-debug' in sys.argv]
-gp_pipe, gp_mbuf, filters, using, data, labels, tics = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, [], [], {}, {}
+gp_pipe, gp_mbuf, filters, fdict, flist, using, data, labels, tics = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, {}, [], [], [], {}, {}
 #gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
 gp_write = lambda patt, *args: gp_mbuf.append((patt,)+args)
@@ -474,7 +490,7 @@ def subplot():
             for k in ('xy'[:1+D3] if not parametric else ('t', 'uv')[D3]): fscope[k] = Var(k, k)
             func0 = func = parse(src[0], fscope)
             if last_args and not parametric:
-                for i in (0, 1)[:1+D3]: fscope['xy'[i]] = last_args[i]
+                for i in (0, 1)[:1+D3]: fscope['xy'[i]] = Var(_2str(last_args[i], 1), 'xy'[i], _2str(last_args[i], 2))
                 func = parse(src[0], fscope)
             if parametric: curves.append([('%r, %r'+', %r'*D3)%func0, fscope, func, '', True])  # функция должна быть кортежем
             else: curves.append([repr(func0), fscope, [fscope['x']]+([fscope['y']] if D3 else [])+[func], '', True])            
@@ -738,18 +754,25 @@ while iopt<len(opt_seq):
         except Exception as E: print("Can't open gplt3 file %r: %s"%(arg, E))
     else:   # add filename
         fname0, opts = parse_dog_attr(opt)
-        if fname0 in ('-', '-std'):
-            files, stdin = ['/tmp/gplt3-%s-stdin.dat'%os.getpid()], True; filters['!stdin'] = files[0]
-            with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
+        if fname0 in ('-', '-std'):  # read from stdin
+            if not '!stdin' in filters:  # real read from stdin
+                files, stdin = ['/tmp/gplt3-%s-stdin.dat'%os.getpid()], True; filters['!stdin'] = files[0]
+                with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
+            else: files = [filters['!stdin']]
+        elif fname0.startswith('[') and fname0.endswith(']'):
+            files = eval('flist'+fname0, {'__builtins__': None, 'flist': flist})
+            if type(files) is str: files = [files]
         else: files = glob.glob(fname0)
         if not files: print('file %r not found'%fname0)
         for fname in files:
-            racs, srcdir = {}, os.path.dirname(fname)
-            while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
-            try:
-                with open(os.path.join(srcdir, '.RACS')) as fracs: racs = pickle.load(fracs)
-            except Exception as E: pass #print(fname, 'racs skipped:', E)                         
-            header = read_header(fname, opts, racs)  # перетащить сюда тело функции читающей заголовок?
+            if fname in fdict: header = fdict[fname]; header[0] = dict(header[0]); header[0].update(opts)
+            else:
+                racs, srcdir = {}, os.path.dirname(fname)
+                while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
+                try:
+                    with open(os.path.join(srcdir, '.RACS')) as fracs: racs = pickle.load(fracs)
+                except Exception as E: pass #print(fname, 'racs skipped:', E)                         
+                fdict[fname] = header = read_header(fname, opts, racs); flist.append(fname)
             if not using: data.append([fname]+header+['']+['<cin>']*(fname0 in ['-', '-std']))
             else:
                 for u, uopt in using:
@@ -766,8 +789,7 @@ if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flu
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # TODO:
-# 1.  .tex для векторов и примеры
-# 2.  фильтры, кэширование файлов, обращение к уже введенным файлам через []
+# 2.  фильтры
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
 # 4.  -M для мультиплота с выравниванием
 
@@ -785,7 +807,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # вместо блокировки повторной вставки файла -i safe-mode блокирующая вложенную вставку?
 # автоматически форматировать справку по ширине монитора?
 # оформлять параметры из заголовков и .RACS как Var - но как тогда указывать их значение в подписях?
-# кэшировать файлы с данными, включая stdin, для многократного использования
 # запросы RACS в пути к файлу
 # -def как обьявление переменной
 # всегда печатать аргументы plot
