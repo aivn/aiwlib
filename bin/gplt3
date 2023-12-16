@@ -151,6 +151,7 @@ exec (строка может содержать только присваива
   abs   fabs acos acosh airy  asin  asinh atan   atanh   ceil     cos    cosh ch   
   ctg   cth  erf  exp   floor gamma int   inverf invnorm lambertw lgamma log  ln
   log10 lg   norm sgn   sin   sinh  sh    sqrt   tan     tg       tanh   th 
+  min   max
 (подробнее см. gplt3 -h expressions.functions plot).
 Знак // трактуется как деление, но при выводе в LaTeX преобразуется во \\frac.
 При операциях с векторами % трактуется как векторное произведение.
@@ -291,7 +292,9 @@ class BinaryOp(BaseOp):
                 if right[0]=='-': return self.patt[self.fID]%(self._bk(self.a), '\\cdot'+right)            
         return self.patt[self.fID]%(self._bk(self.a), self._bk(self.b, True))
     def replace(self, **kw_args): return self.__class__(replace_args(self.a, **kw_args), replace_args(self.b, **kw_args))
-
+class BinaryFunc(BinaryOp):
+    def __str__(self): return  self.patt[self.fID].format(a=self.a, b=self.b)
+    
 # кодированный список операций: op name Unary|Binary priority nocmm [tex]
 for p in '''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,%s\\sim%s *mul:3c,%s\\,%s /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
 <<lshift:5n,\\ll >>rshift:5n,\\gg &and:6c,\\& |or:7c,\\| ^xor:8c,\\^ ==eq:9c,= !=ne:9c,\\neq <lt:9n <=le:9n,\\leq >gt:9n >=ge:9n,\\geq'''.split():
@@ -316,7 +319,7 @@ del p, op, tex, name, base, priority, nocmm, cname, cobj
 # arg atan2 besi0 besi1 besin besj0 besj1 besjn besy0 besy1 besyn cdawson cerf column columnhead erfc erfi expint faddeeva ibeta hsv2rgb ibeta igamma
 # imag voigt real  rand EllipticE         EllipticK         EllipticPi        VP
 
-texfuncs = 'log sin arccos cot sinh coth arcsin tan sec cosh ln exp cos arctan csc tanh sqrt'.split() # то что точно есть в техе
+texfuncs = 'log sin arccos cot sinh coth arcsin tan sec cosh ln exp cos arctan csc tanh sqrt min max'.split() # то что точно есть в техе
 spaceOp = {'__builtins__': None}
 for n in '''acos acosh airy asin asinh atan atanh ceil cos cosh:ch erf exp floor gamma int inverf invnorm lambertw lgamma log:ln log10:lg norm sgn sin sinh:sh 
 sqrt tan:tg tanh:th (1./tan(%s)):ctg (1./tanh(%s)):cth'''.split():
@@ -326,6 +329,9 @@ sqrt tan:tg tanh:th (1./tan(%s)):ctg (1./tanh(%s)):cth'''.split():
         spaceOp[k] = type(n, (UnaryOp,), {'is_func':True, 'priority':0, 'lock_bk':(1, 1),
                                           'patt':[n if '%s' in n else n+'(%s)', k+'(%s)', ('\\'+t if t in texfuncs else '{\\rm %s}'%t)+'{%s}']})
 spaceOp['sqrt'].tex_lbk, spaceOp['sqrt'].is_func = 1, False
+spaceOp['min'], spaceOp['max'] = [type(n[:3], (BinaryFunc,), {'priority':0, 'lock_bk':(1, 1),
+                                                              'patt':['({a}%s{b}?{a}:{b})'%n[3], n[:3]+'({a}, {b})', '\\'+n[:3]+r'\left({a}, {b}\right)']})
+                                  for n in ('min<' , 'max>')]
 
 brakets = {'()': 'crc_bk', '{}': 'fig_bk', '<>': 'ang_bk', '[]': 'rm_bk', '||': 'abs'}
 for bk, n in brakets.items():
@@ -592,7 +598,7 @@ def plot(fname_opts):
     
 def parse_dog_attr(arg):
     'возвращает имя файла/функцию и словарь доп. атрибутов: @axes, @color, @width, @style, @title'
-    arg, opt = (arg.split('@', 1)+[''])[:2]; res, opt = {}, opt.split(',') if opt else []
+    arg, opt = (arg.rsplit('@', 1)+[''])[:2]; res, opt = {}, opt.split(',') if opt else []
     while opt:
         x = opt.pop(0)
         if x.startswith('#') or x in gp_colors or x.endswith('variable') or x.startswith('palette'): res['@color'] = x 
@@ -756,9 +762,14 @@ while iopt<len(opt_seq):
         fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):  # read from stdin
             if not '!stdin' in filters:  # real read from stdin
-                files, stdin = ['/tmp/gplt3-%s-stdin.dat'%os.getpid()], True; filters['!stdin'] = files[0]
+                files, stdin = ['/tmp/gplt3-%s-%i.dat'%(os.getpid(), len(filters))], True; filters['!stdin'] = files[0]
                 with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
             else: files = [filters['!stdin']]
+        elif fname0.startswith('!'):
+            if not fname0 in filters:  # real read from stdin
+                files = ['/tmp/gplt3-%s-%i.dat'%(os.getpid(), len(filters))]; filters[fname0] = files[0]
+                with open(files[0], 'w') as fout: fout.writelines(os.popen(fname0[1:]).readlines())
+            else: files = [filters[fname0]]            
         elif fname0.startswith('[') and fname0.endswith(']'):
             files = eval('flist'+fname0, {'__builtins__': None, 'flist': flist})
             if type(files) is str: files = [files]
@@ -789,7 +800,7 @@ if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flu
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # TODO:
-# 2.  фильтры
+# 2.  фильтры - непонятно как выводить их имена в легенде, добавить в доки !
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
 # 4.  -M для мультиплота с выравниванием
 
