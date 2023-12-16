@@ -522,10 +522,10 @@ eval(expr, {'__builtins__': None, ... globalscope...}, {...localscope...})
 \end{verbatim}
 из соображений безопасности все встроенные функции \python{} при этом отключены. В глобальном контексте \verb'globalscope' размещаются математические функции:
 \begin{verbatim}
-  abs   fabs acos acosh airy  asin  asinh atan   atanh   ceil     cos    cosh ch   
-  ctg   cth  erf  exp   floor gamma int   inverf invnorm lambertw lgamma log  ln
-  log10 lg   norm sgn   sin   sinh  sh    sqrt   tan     tg       tanh   th 
-  min   max
+  abs   fabs acos acosh airy  asin  asinh atan   atanh atan2  ceil    cos  
+  cosh  ch   ctg  cth   erf   exp   floor gamma  int   inverf invnorm lambertw 
+  lgamma log ln   log10 lg    min   max   norm   sgn   sin    sinh    sh    
+  sqrt   tan tg   tanh  th 
 \end{verbatim}
 подробнее см. \verb'$ gplt3 -h expressions.functions plot'. Все самое интересное связано с локальным контекстом \verb'localscope'.
 
@@ -785,7 +785,7 @@ $ gplt3 -nav M{ dat/????.dat } i# {M} {M[::-1]} { {i} -to /tmp/png/{_i}.png }
 с общей нумерацией при помощи номера итерации \verb'_i'.
 \newpage
 
-\section{Список опций}
+\section{Список опций}\label{opt:list:sec}
 \begin{wrapfigure}[2]{t}{.3\textwidth}
   \vphantom{.}
   \vspace{-3cm}
@@ -824,8 +824,12 @@ $ gplt3 -nav M{ dat/????.dat } i# {M} {M[::-1]} { {i} -to /tmp/png/{_i}.png }
 \item \verb'-w|-ds <data-style>'  --- стиль данных для следующих кривых, перекрывается \verb'@<attrs>'.
 \item \verb'-[n]par' --- включает/выключает параметрический режим.
 \item \verb'-[i]smpl|-is <samle1>[,<sample2>]' --- устанавливает [iso]samples (число отсчетов), 
-                                     -is устанавливает сразу samples и isosamples.
+  \verb'-is' устанавливает сразу samples и isosamples.
 \item \verb'-sm <opts>' --- set smooth <opts>, устанавливает сглаживание.
+\item \verb'-arw [<tag>#]<from>:<to>[@opts]' или \verb'[<tag>#]<from>:<len>:<angle>[@opts]' --- рисует стрелку,
+  координаты \verb'<from>' и \verb'<to>' задаются через запятую.
+\item \verb'-lbl [<tag>#]<pos>:<text>[@<attrs>]' --- добавляет текстовую метку в точке \verb'<pos>'
+   дополнительные атрибуты \verb'<attrs>' трактуются так же как и у подписей к осям.
 \item \verb'-o <subplot-pos>' --- автоматически включает режим мультиплот и задает origin 
    следующего графика, закрывается опцией -to или автоматически.
 \item \verb'-p <time>' --- задает паузу после построения графика при выводе на экран.
@@ -841,6 +845,7 @@ $ gplt3 -nav M{ dat/????.dat } i# {M} {M[::-1]} { {i} -to /tmp/png/{_i}.png }
    аргумент это весь остаток строки; пустые и начинающиеся с \# строки игнорируются
 \end{itemize}
 
+\newpage
 \section{Примеры и некоторые рецепты использования}
 \begin{wrapfigure}[7]{t}{.3\textwidth}
   \vphantom{.}
@@ -996,6 +1001,7 @@ set out
 Несмотря на всю лаконичность \gplt, построение сложных графиков все еще остается непростой задачей, но сравните~--- сколько всего пришлось бы писать для \gnuplot!
 При работе с файлами команды для \gplt{}, как правило, оказываются короче, чем при задании  аналитических функций.\\
 
+\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 4.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1158,7 +1164,6 @@ pause -1
 отрисовки требует больше выражений, чем обычно (здесь задана еще величина ошибки), то перечисление через запятую является единственным вариантом.
 При построении двух кривых~--- данных из файла и функции~--- в легенде по умолчанию задаются подписи calc и theor.\\
 
-\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 7.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1196,6 +1201,7 @@ set out
 Если кривые совпадают, чтобы это подчеркнуть, можно первую кривую сделать гораздо толще.
 Легенда и тики могут требовать дополнительной настройки, здесь легенда вынесена за пределы графика и уменьшена длина линий на легенде.\\
 
+\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 8.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1216,7 +1222,6 @@ pause -1
 \raisebox{-.5cm}{\epsfig{file=picts/gplt3/fig11, width=.25\textwidth}}\\[5mm]
 Как уже отмечалось выше, выражение по оси $x$  можно указывать как аргумент выражения откладываемого по оси $y$.
 
-\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 9.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1298,6 +1303,7 @@ unset term
 вызывает корректное расположение подписей к осям и тиков --- к сожалению \gnuplot{} по умолчанию расставляет их плохо, подписи
 налезают друг на друга и на рисунок.
 
+\newpage
 \section{Заключение}
 \begin{wrapfigure}[7]{t}{.3\textwidth}
   \vphantom{.}
@@ -1326,6 +1332,8 @@ unset term
 соответствующую дату и прочитать от нее и до конца, что бы ознакомиться с произошедшими с того момента изменениями.
 
 \paragraph{16 декабря 2023.} Реализована возможность обращения к файлам с данными по номерам через квадратные скобки, включая срезы,
-см. раздел \ref{main:sec}. Добавлены функции $\min$ и $\max$. В документацию добавлены примеры №$9, 10$ посвященные работе с векторами из заголовка файла.
+см. раздел~\ref{main:sec}. Добавлены функции $\min$, $\max$ и \verb'atan2'. Добавлены опции \verb'-arw' (рисование стрелок) и \verb'-lbl' (добавляет текстовые метки),
+см. раздел~\ref{opt:list:sec}.
+В документацию добавлены примеры №$9, 10$ посвященные работе с векторами из заголовка файла.
 
 \end{document}
