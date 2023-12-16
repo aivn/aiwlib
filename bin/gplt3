@@ -527,7 +527,7 @@ def subplot():
         add_lbl(X, expr[0]); add_lbl(Y, expr[1])
         if D3: add_lbl('cb' if pm3d else 'z', expr[2]) 
         if keymode==0 or scope.get('@title')=='': crv[0] += ' notitle '
-        elif '@title' in scope: crv[0] += ' title "%s" ';  crv.append(parse_label(scope['@title'], scope))
+        elif '@title' in scope: crv[0] += " title '%s' ";  crv.append(parse_label(scope['@title'], scope))
         elif keymode==1 and pname:  crv[0] += " title '%s' ";  crv.append(Verb(repr(pname)[1:-1]))
         elif keymode==4: crv[0] += " title '%s' "%('theor' if isfunc else 'calc')
         else:  crv[0] += " title '"+'%s: '*bool(pname)+"%s' ";  crv += [Verb(pname)]*bool(pname)+[Dollars(expr[-1])]
