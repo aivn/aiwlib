@@ -13,6 +13,8 @@
    срезы в синтаксисе python, заголовок каждого файла читается только один раз
 -[std][@<attrs>] --- прочитать файл с данными со стандартного ввода, можно 
    использовать многократно но реальное чтение будет произведено один раз
+-def <name>[(<args>)]=[<expr>] --- добавляет (или убирает если нет <expr>) новое
+   выражение (или функцию если заданы <args>) в глобальное пространство имен  (*)
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран)    (*) 
     и продолжает разбор аргументов, выключает multiplot 
 -nav --- отключает автоматический просмотр файлов с рисунками построенными -to                     
@@ -78,7 +80,7 @@ if len(sys.argv)>2 and sys.argv[1]=='-h':
 Выражения разделяются пробелами, для каждого следующего файла рисуются все заданные 
 выражения, на одном рисунке собираются все заданные выражения из всех файлов и функции
 -fn. В выражениях  могут использоваться имена столбцов и параметры из заголовков файлов
-и .RACS. По умолчанию столбцы файла называются как x, y, z и C1...C255, имя C0 означает
+и .RACS. По умолчанию столбцы файла называются как x, y, z и C1, С2..., имя C0 означает
 номер строки файла. По умолчанию строится зависимость выражения от первого (2d) или
 первых двух столбцов (3d). Зависимость от других столбцов может быть задана в скобках:
 file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 кривых:
@@ -98,6 +100,15 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 в теле цикла <counter> это переменная, _<counter> переменная с номером итерации.
 
 Циклы и макросы могут быть вложены друг в друга.  
+''',  #----------------------
+                 '-def': '''
+-def <name>[(<args>)]=[<expr>] --- добавляет (или убирает если нет <expr>) новое выражение 
+(или функцию если заданы <args>) в глобальное пространство имен. Позволяет задавать 
+многократно используемые выражения или функции. Задаваемые через -def выражения и функции
+обрабатываются для каждой кривой заново и могут содержать зависимости от метаданных из 
+заголовков файлов и .RACS. 
+
+В отличии от макросов, -def работает из .gplt3 файлов включаемых через опцию -i.
 ''',  #----------------------
                  '-to': '''
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран) и продолжает 
@@ -152,14 +163,17 @@ exec (строка может содержать только присваива
 (для функций, подписей к осям и титула рисунка). 
 
 В выражениях поддерживаются функции  
-  abs   fabs acos acosh airy  asin  asinh atan   atanh atan2  ceil    cos  
-  cosh  ch   ctg  cth   erf   exp   floor gamma  int   inverf invnorm lambertw 
-  lgamma log ln   log10 lg    min   max   norm   sgn   sin    sinh    sh    
-  sqrt   tan tg   tanh  th 
+  abs      fabs   acos acosh airy  asin asinh atan  atanh atan2 ceil   cos  
+  cosh     ch     ctg  cth   erf   exp  floor gamma ifch  int   inverf invnorm 
+  lambertw lgamma log  ln    log10 lg   min   max   norm  sgn   sin    sinh    
+  sh       sqrt   tan  tg    tanh  th 
 
 (подробнее см. gplt3 -h expressions.functions plot).
 Знак // трактуется как деление, но при выводе в LaTeX преобразуется во \\frac.
 При операциях с векторами % трактуется как векторное произведение.
+
+Функция ifch(<expr1>,<cond1>,<expr2>[,<cond2>,<expr3>,...]) трактуется как цепочка
+<expr1> if <cond1> else <expr2> if <cond2> else <expr3> ...
 
 При ковертации выражения в текст (только для подписей к осям, легенды и титула)
 text!! оставялют текст без изменений, text! в LaTeX обрамляет текст в \\verb,
@@ -185,7 +199,7 @@ name=1 (при вызове eval произойдут подстановки nam
 '''}
     for k in 'y y2 x2 z cb'.split(): gplt_opts['-lb'+k] = gplt_opts['-lbx']
     gplt_opts['-u'] = gplt_opts['-U']
-    gplt_chain = {'-fn': ['expr', 'dogopt'], '-U': ['dathead', 'expr', 'dogopt'], '-ttl':['expr']}
+    gplt_chain = {'-fn': ['expr', 'dogopt'], '-U': ['dathead', 'expr', 'dogopt'], '-ttl':['expr'], '-def':['expr']}
     for team in sys.argv[2:]:
         print(('  '+team+'  ').center(80, '-'))
         if team in gplt_opts: print(gplt_opts[team]+''.join(gplt_opts[x] for x in gplt_chain.get(team, [])))
@@ -283,12 +297,19 @@ class BaseOp(object):
 replace_args = lambda arg, **kw_args: arg.replace(**kw_args) if isinstance(arg, BaseOp) else arg
 class UnaryOp(BaseOp):
     def __init__(self, a): self.a = a
-    def __str__(self): return self.patt[self.fID]%self._bk(self.a)
-    def replace(self, **kw_args): return self.__class__(replace_args(self.a, **kw_args))
+    def __str__(self):
+        if self.fID==1 and hasattr(self, 'name'): return self.name
+        if self.fID==2 and hasattr(self, 'tex'): return self.tex
+        return self.patt[self.fID]%self._bk(self.a)
+    def replace(self, **kw_args):
+        if hasattr(self, 'name') and self.name in kw_args: return kw_args[self.name]
+        return self.__class__(replace_args(self.a, **kw_args))
 class BinaryOp(BaseOp):
     def __init__(self, a, b): self.a, self.b = a, b
     def __str__(self):
+        if self.fID==1 and hasattr(self, 'name'): return self.name
         if self.fID==2:
+            if hasattr(self, 'tex'): return self.tex
             if self.__class__ is PowOp and getattr(self.a, 'is_func', False):
                 patt = self.a.patt[2]; k = patt.rfind('{')
                 return patt[:k]+'^{%s}'%self._2str(self.b)+patt[k:]%self._bk(self.a.a)
@@ -296,12 +317,14 @@ class BinaryOp(BaseOp):
                 right = self._bk(self.b, True)
                 if right[0]=='-': return self.patt[self.fID]%(self._bk(self.a), '\\cdot'+right)            
         return self.patt[self.fID]%(self._bk(self.a), self._bk(self.b, True))
-    def replace(self, **kw_args): return self.__class__(replace_args(self.a, **kw_args), replace_args(self.b, **kw_args))
+    def replace(self, **kw_args):
+        if hasattr(self, 'name') and self.name in kw_args: return kw_args[self.name]
+        return self.__class__(replace_args(self.a, **kw_args), replace_args(self.b, **kw_args))
 class BinaryFunc(BinaryOp):
     def __str__(self): return self.patt[self.fID].format(a=self.a, b=self.b)
     
 # кодированный список операций: op name Unary|Binary priority nocmm [tex]
-for p in '''**pow:1n,%s^{%s} -neg.2c +pos.2c ~inv.2c,%s\\sim%s *mul:3c,%s\\,%s /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
+for p in '''**pow:1n,{%s^{%s}} -neg.2c +pos.2c ~inv.2c,%s\\sim%s *mul:3c,%s\\,%s /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
 <<lshift:5n,\\ll >>rshift:5n,\\gg &and:6c,\\& |or:7c,\\| ^xor:8c,\\^ ==eq:9c,= !=ne:9c,\\neq <lt:9n <=le:9n,\\leq >gt:9n >=ge:9n,\\geq'''.split():
     op = p[:2] if not p[1].isalpha() else p[0];   p, tex = (p.split(',', 1)+[op])[:2] #; print(op, p, tex)
     name, base, priority, nocmm = p[1+(not p[1].isalpha()):-3], (UnaryOp, BinaryOp)[p[-3]==':'], int(p[-2]), p[-1]=='n' # в т.ч. приоритет и не-коммутативность 
@@ -346,6 +369,20 @@ for bk, n in brakets.items():
     spaceOp[n] = type(n, (UnaryOp,), {'priority': 0, 'lock_bk':(1, 1),
                                       'patt': ['(%s)', bk[0]+'%s'+bk[1], '\\left'+'\\'*(bk=='{}')+bk[0]+'%s'+'\\right'+'\\'*(bk=='{}')+bk[1]]})
 AbsOp = spaceOp['abs']; AbsOp.patt[0] = 'abs(%s)'; spaceOp['fabs'] = spaceOp['abs'] = lambda x: abs(x) if hasattr(x, '__abs__') else AbsOp(x)  
+
+class IfCh(BaseOp):
+    priority, is_func = 0, True
+    def __init__(self, *args):
+        if len(args)<3 or not len(args)%2: BaseOp.fID = 1; sys.stderr.write('incorrect ifch(%s) args count\n'%','.join(map(self._2str, args))); exit(1)
+        self.args = args
+    def __str__(self):
+        args = list(map(self._2str, self.args))        
+        if self.fID==0: return functools.reduce(lambda R, i: '((%s)?(%s):%s)'%(args[i], args[i-1], R), reversed(range(1, len(self.args)-1, 2)), args[-1])
+        if self.fID==1: return 'ifch(%s)'%','.join(args)
+        return r'\left\{%s\right\}'%r'\,\vdots\,'.join((r'\overleftarrow{\underrightarrow{%s}}'%e if i%2 else e) for i, e in enumerate(args))
+    def replace(self, **kw_args): return IfCh(*[replace_args(a, **kw_args) for s in self.args])
+
+spaceOp['ifch'] = IfCh
 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
 psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel'''.split()
@@ -479,7 +516,7 @@ class FreeNames:
 #-------------------------------------------------------------------------------
 # gp_mbuf вводится для накопления тела multiplot или просто splot-ов поскольку терминал неопределен
 D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mode, debug_mode = [False]*6+['']*3+['empty']+['-debug' in sys.argv]
-gp_pipe, gp_mbuf, filters, fdict, flist, using, data, labels, tics = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, {}, [], [], [], {}, {}
+gp_pipe, gp_mbuf, filters, fdict, flist, using, data, labels, tics, dlist = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, {}, [], [], [], {}, {}, []
 #gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
 gp_write, tmpfile = (lambda patt, *args: gp_mbuf.append((patt,)+args)),  (lambda :'/tmp/gplt3-%s-%i.dat'%(os.getpid(), len(filters)))
@@ -499,8 +536,12 @@ def subplot():
     #print([x[-1] for x in data])
     func_scope, curves, last_args = {}, [], []  # func_scope обновляется от каждого dat-файла, curves кортежи (patter, args...)
     for src in data:  # сначала формируем список всех кривых, потом готовим их отрисовку - надо заранее понять что делать с легендами
+        dscope = dict(src[1])
+        for d in dlist:
+            dscope[d[0]] = e = parse(d[1], dscope) if len(d)==2 else (lambda *args: parse(d[1], dict(list(dscope.items())+[kv for kv in zip(d[2:], args)])))
+            if isinstance(e, BaseOp): e.name, e.tex = d[0], name2tex(d[0])
         if len(src)==2:  # функция            
-            fscope = dict(func_scope); fscope.update(src[1])  # чистить scope от мусора???
+            fscope = dict(func_scope); fscope.update(dscope) # fscope.update(src[1])  # чистить scope от мусора???
             for k in ('xy'[:1+D3] if not parametric else ('t', 'uv')[D3]): fscope[k] = Var(k, k)
             func0 = func = parse(src[0], fscope)
             if last_args and not parametric:
@@ -509,7 +550,7 @@ def subplot():
             if parametric: curves.append([('%r, %r'+', %r'*D3)%func0, fscope, func, '', True])  # функция должна быть кортежем
             else: curves.append([repr(func0), fscope, [fscope['x']]+([fscope['y']] if D3 else [])+[func], '', True])            
         else:  # файл с данными ===>   data.append([fname]+[h]+header[1:]+[u]+['<cin>']*(fname0 in ['-', '-std']))   <=== append curve from datfile
-            fname, scope, columns, U, pname = src;  func_scope.update(kv for kv in scope.items() if kv[0][0]!='@')
+            fname, scope, columns, U, pname = src; func_scope.update(kv for kv in scope.items() if kv[0][0]!='@'); scope = dscope
             #print(len(scope['E']), len(scope['H']))
             if U:
                 BaseOp.call_args = columns[:1+D3];  expr = parse(U, scope)
@@ -590,7 +631,7 @@ def plot(fname_opts):
         iov, hstate = len(history)-1, set()
         while history and iov>=0:
             o = history[iov][0]
-            if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl'): iov -= 1; continue  # пропускаем сырые опции
+            if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl', '-def'): iov -= 1; continue  # пропускаем сырые опции
             t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
                             '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
                  'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
@@ -698,7 +739,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
     return dst_seq
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles = [], 0, []
-double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl
+double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
 rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i arw lbl'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
@@ -766,6 +807,9 @@ while iopt<len(opt_seq):
         if data: subplot()
         gp_write('set origin %s\n'%arg)
     elif opt=='-to': plot(arg)
+    elif opt=='-def':
+        name, expr = arg.split('=', 1);  name, args = name.split('(') if '(' in name else (name, None) 
+        dlist = [e for e in dlist if e[0]!=name]+[[name, expr]+([a.strip() for a in args[:-1].split(',')] if args else [])]*bool(expr)
     elif opt=='-i':  # загрузка сценария
         del history[-1]; iopt -= 2
         if arg in ifiles: print('gplt3 file %r has already been loaded, skipped'%arg); continue
@@ -847,7 +891,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # автоматически форматировать справку по ширине монитора?
 # оформлять параметры из заголовков и .RACS как Var - но как тогда указывать их значение в подписях?
 # запросы RACS в пути к файлу
-# -def как обьявление переменной
 # всегда печатать аргументы plot
 # функцию vec в scope
 # вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
