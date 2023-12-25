@@ -357,9 +357,9 @@ sqrt tan:tg tanh:th (1./tan(%s)):ctg (1./tanh(%s)):cth'''.split():
         spaceOp[k] = type(n, (UnaryOp,), {'is_func':True, 'priority':0, 'lock_bk':(0, 0),  # lock_bk?
                                           'patt':[n if '%s' in n else n+'(%s)', k+'(%s)', ('\\'+t if t in texfuncs else '{\\rm %s}'%t)+'{%s}']})
 spaceOp['sqrt'].tex_lbk, spaceOp['sqrt'].is_func = 1, False
-spaceOp['min'], spaceOp['max'] = [type(n[:3], (BinaryFunc,), {'priority':0, 'lock_bk':(1, 1),
-                                                              'patt':['({a}%s{b}?{a}:{b})'%n[3], n[:3]+'({a}, {b})', '\\'+n[:3]+r'\left({a}, {b}\right)']})
-                                  for n in ('min<' , 'max>')]
+#spaceOp['min'], spaceOp['max'] = [type(n[:3], (BinaryFunc,), {'priority':0, 'lock_bk':(1, 1),
+#                                                              'patt':['({a}%s{b}?{a}:{b})'%n[3], n[:3]+'({a}, {b})', '\\'+n[:3]+r'\left({a}, {b}\right)']})
+#                                  for n in ('min<' , 'max>')]
 spaceOp['atan2'] = type('atan2', (BinaryFunc,), {'priority':0, 'lock_bk':(1, 1),
                                                  'patt':['atan2({a},{b})', 'atan2({a}, {b})', r'{{\rm atan2}}\left({a}, {b}\right)']})
 
@@ -370,8 +370,23 @@ for bk, n in brakets.items():
                                       'patt': ['(%s)', bk[0]+'%s'+bk[1], '\\left'+'\\'*(bk=='{}')+bk[0]+'%s'+'\\right'+'\\'*(bk=='{}')+bk[1]]})
 AbsOp = spaceOp['abs']; AbsOp.patt[0] = 'abs(%s)'; spaceOp['fabs'] = spaceOp['abs'] = lambda x: abs(x) if hasattr(x, '__abs__') else AbsOp(x)  
 
+class MinMax(BaseOp):
+    priority, is_func = 0, False
+    def __init__(self, *args): self.args = args
+    def _impl(self, args):
+        if len(args)==1: return '(%s)'%args[0]
+        a, b = self._impl(args[:int(len(args)/2)]), self._impl(args[int(len(args)/2):])
+        return '(%s%s%s?%s:%s)'%(a, '<>'[self._type], b, a, b)
+    def __str__(self):
+        args = list(map(self._2str, self.args))
+        if self.fID==0: return self._impl(args)
+        if self.fID==1: return '%s(%s)'%(['min', 'max'][self._type], ','.join(args))
+        return r'\%s\left(%s\right)'%(['min', 'max'][self._type], r',\,'.join(args))
+    def replace(self, **kw_args): return self.__class__(*[replace_args(a, **kw_args) for s in self.args])
+spaceOp['min'], spaceOp['max'] = [type(['OpMin', 'OpMax'][i], (MinMax,), {'_type': i}) for i in (0, 1)]
+   
 class IfCh(BaseOp):
-    priority, is_func = 0, True
+    priority, is_func = 0, False
     def __init__(self, *args):
         if len(args)<3 or not len(args)%2: BaseOp.fID = 1; sys.stderr.write('incorrect ifch(%s) args count\n'%','.join(map(self._2str, args))); exit(1)
         self.args = args
@@ -874,6 +889,7 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # ОШИБКИ:
 
 # TODO:
+# 2.  factorial, sum, prod. Двойной факториал?
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
 # 4.  -M для мультиплота с выравниванием
 
@@ -897,8 +913,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # -[n]clif первой опцией явно в[ы]ключает CLIF
 
 # палитру как в паравью
-
-# добавить тернарный if/else
 
 # опция -diff <expressions> --- включает diff_mode, разбирает по одной кривой для каждого следующего файла на график, число графиков = числу кривых
 #   -fn при этом добавляет кривые на все графики. -to свой аргумент рассматривает как паттерн и генерирует серию. В случае -M layout -o вызываются автоматически.
