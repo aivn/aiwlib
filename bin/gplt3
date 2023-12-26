@@ -166,7 +166,7 @@ exec (строка может содержать только присваива
   abs      fabs   acos acosh airy  asin asinh atan  atanh atan2 ceil   cos  
   cosh     ch     ctg  cth   erf   exp  floor gamma ifch  int   inverf invnorm 
   lambertw lgamma log  ln    log10 lg   min   max   norm  sgn   sin    sinh    
-  sh       sqrt   tan  tg    tanh  th 
+  sh       sqrt   tan  tg    tanh  th   !     !!
 
 (подробнее см. gplt3 -h expressions.functions plot).
 Знак // трактуется как деление, но при выводе в LaTeX преобразуется во \\frac.
@@ -337,7 +337,21 @@ for p in '''**pow:1n,{%s^{%s}} -neg.2c +pos.2c ~inv.2c,%s\\sim%s *mul:3c,%s\\,%s
     else: setattr(BaseOp, '__%s__'%name, lambda self, cobj=cobj: cobj(self)); cobj.patt = [op+'%s', op+'%s', tex+'{%s}']
 FloordivOp.patt[0], PowOp.lock_bk, TruedivOp.lock_bk = '%s/%s', (0, 2), (0, 0)
 del p, op, tex, name, base, priority, nocmm, cname, cobj
+BaseOp.__pow__ = lambda a, b: b.__rpow__(a) if isinstance(b, FactorialGen) else PowOp(a, b)
 
+class FactorialGen:
+    def __init__(self, _type): self._type = _type
+    def __rpow__(self, x): f = Factorial(x); f._type = self._type; return f
+class Factorial(UnaryOp):
+    priority = 1
+    def __str__(self):
+        if self.fID==1 and hasattr(self, 'name'): return self.name
+        if self.fID==2 and hasattr(self, 'tex'): return self.tex
+        if BaseOp.fID: return self._bk(self.a)+'!'*self._type
+        if type(self.a) in (int, float):
+            return str(1 if self.a<1 else math.factorial(int(self.a)) if self._type==1 else functools.reduce(int.__mul__, range(int(self.a), 1, -2)))
+        return ('floor(%s)!' if self._type==1 else  'factorial2(floor(%s))')%self.a
+        
 #class BoolAndOp(BinaryOp): priority, nocmm, p_pyt = 11, 0, '%s and %s'
 #class BoolOrOp(BinaryOp):  priority, nocmm, p_pyt = 11, 0, '%s or %s'
 #class Not(UnaryOp): priority, nocmm, p_pyt = 10, 0, 'not %s'
@@ -348,7 +362,7 @@ del p, op, tex, name, base, priority, nocmm, cname, cobj
 # imag voigt real  rand EllipticE         EllipticK         EllipticPi        VP
 
 texfuncs = 'log sin arccos cot sinh coth arcsin tan sec cosh ln exp cos arctan csc tanh sqrt min max'.split() # то что точно есть в техе
-spaceOp = {'__builtins__': None}
+spaceOp = {'__builtins__': None, '_factorial1': FactorialGen(1), '_factorial2': FactorialGen(2)}
 for n in '''acos acosh airy asin asinh atan atanh ceil cos cosh:ch erf exp floor gamma int inverf invnorm lambertw lgamma log:ln log10:lg norm sgn sin sinh:sh 
 sqrt tan:tg tanh:th (1./tan(%s)):ctg (1./tanh(%s)):cth'''.split():
     n, t = (n.split(':')+[n])[:2]; name = n if n.isalnum() else t
@@ -500,6 +514,7 @@ class Vec(object):
                    tex=r'\left(%s\right)\times %s'%(','.join(_2str(x, 2) for x in other), self.tex))    
     
 def parse(expr, scope):
+    expr = expr.replace('!!', '**_factorial2').replace('!', '**_factorial1')
     for bk in '() {} <> [] ||'.split():
         bra, ket = bk[0]+'%', '%'+bk[1]
         if expr.count(bra)!=expr.count(ket): sys.stderr.write('uncomplete brackets %s ... %s in %r\n'%(bra, ket, expr)); exit(1)
@@ -536,6 +551,7 @@ gp_pipe, gp_mbuf, filters, fdict, flist, using, data, labels, tics, dlist = (sys
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
 gp_write, tmpfile = (lambda patt, *args: gp_mbuf.append((patt,)+args)),  (lambda :'/tmp/gplt3-%s-%i.dat'%(os.getpid(), len(filters)))
 gp_colors = [l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l]  # цвета гнуплот
+gp_pipe.write('factorial2(x) = x>1?x*factorial2(x-2):1\n')
 
 def subplot():
     # дописываем в data общие фрагменты путей для легенды, с хвоста отгрызать только расширение?

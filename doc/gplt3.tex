@@ -63,7 +63,7 @@
 Институт прикладной математики им. М.В. Келдыша РАН\\[2mm]
 
 \small рисунки с пингвинами \copyright Людмила Степкина\\[3mm]
-{\bf 24 декабря 2023} (первая редакция 3 декабря 2023 г.)\\[7mm]
+{\bf 26 декабря 2023} (первая редакция 3 декабря 2023 г.)\\[7mm]
 
 \epsfig{file=picts/gplt3/ping-win, width=4.5cm}
 \end{center}
@@ -535,11 +535,11 @@ eval(expr, {'__builtins__': None, ... globalscope...}, {...localscope...})
   abs      fabs   acos acosh airy  asin asinh atan  atanh atan2 ceil   cos  
   cosh     ch     ctg  cth   erf   exp  floor gamma ifch  int   inverf invnorm 
   lambertw lgamma log  ln    log10 lg   min   max   norm  sgn   sin    sinh    
-  sh       sqrt   tan  tg    tanh  th 
+  sh       sqrt   tan  tg    tanh  th   !     !!
 \end{verbatim}
 Функция \verb'ifch(<expr1>,<cond1>,<expr2>[,<cond2>,<expr3>,...])'  трактуется как цепочка
-\verb'<expr1> if <cond1> else <expr2> if <cond2> else <expr3> ...'
-По большоей части функций поробнее см. \verb'$ gplt3 -h expressions.functions plot'.
+\verb'<expr1> if <cond1> else <expr2> if <cond2> else <expr3> ...' Функции \verb'min' и \verb'max' могут принимать произвольное число аргументов. Факториалы имеют такой же приоритет как возведение в степень \verb'**'.
+Подробнее см. \verb'$ gplt3 -h expressions.functions plot'.
 Все самое интересное связано с локальным контекстом \verb'localscope'.
 
 AST для выражения это ациклический направленный граф, листьями AST являются числа или переменные. 
@@ -1373,6 +1373,6 @@ unset term
 Добавлена функция \verb'ifch(<expr1>,<cond1>,<expr2>[,<cond2>,<expr3>,...])' которая трактуется как цепочка
 \verb'<expr1> if <cond1> else <expr2> if <cond2> else <expr3> ...'
 
-
+\paragraph{26 декабря 2023.} Добавлена поддержка факториала и двойного факториала, задаются как \verb'!' и \verb'!!', имеют такой же приоритет как возведение в степень.
 
 \end{document}
