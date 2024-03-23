@@ -1,0 +1,119 @@
+#!/usr/bin/python3
+'''usage: approx3 SOURCE-FUNCTION  APPROX-EXPRESSION inputfile.dat|- [OPTIONS]
+-3d|-h3d|-pm3d --- включает 3d режим, задает режим отображения в gplt3 
+-rx|-ry [MIN]:[MAX] --- задает пределы отображения и аппроксимации по x, y 
+-cond EXPRESSION --- задает дополнительные условия для обрабатываемых строк входного файла 
+-head HEAD --- замещает заголовок входного файла (имена столбцов через пробел без #:)
+-nv --- отключает рисование графиков в gplt3
+key=val --- добавляет переменную в пространство имен для вычисления выражений
+'''
+# ряд тейлора одной командой
+
+import os, sys, pickle, math
+if len(sys.argv)<4 or '-h' in sys.argv or '-help' in sys.argv or '--help' in sys.argv: print(__doc__); sys.exit()
+
+import numpy as np
+from scipy.optimize import curve_fit
+
+#-----  parse options ---------
+func_code, approx, ifile = sys.argv[1:4]
+approx_args, approx_code = approx.split(':', 1)
+
+rangeX, rangeY, mode3d, cond, head, params, plot, iarg = [None, None], [None, None], False, '', [], {'__builtins__':None}, True, 4
+
+# где то тут надо прочитать .RACS
+
+while iarg<len(sys.argv):
+    arg = sys.argv[iarg]
+    if arg in ('-3d', '-h3d', '-pm3d'): mode3d = arg
+    elif arg in ('-rx', '-ry'):
+        iarg += 1; val = sys.argv[iarg].split(':')
+        if val[0]: (rangeX if arg=='-rx' else rangeY)[0] = float(val[0])
+        if val[1]: (rangeX if arg=='-rx' else rangeY)[1] = float(val[1])
+    elif arg=='-head': iarg += 1; head = sys.argv[iarg].split()
+    elif arg=='-cond': iarg += 1; cond = sys.argv[iarg]
+    elif '=' in arg: key, val = arg.split('='); params[key] = eval(val, params, math.__dict__)
+    elif arg=='-nv': plot = False
+    else: print('incorrect options %r\n'%r, __doc__); exit()
+    iarg += 1
+
+#----- read input file --------
+data, columns, etalone = [], dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')]), []
+for line in sys.stdin if ifile=='-' else open(ifile):
+    if line.startswith('#:') and '=' in line: exec(line[2:], params)
+    elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head  if k!='x' and (not mode3d or k!='y')])
+    elif line[0]!='#':
+        data.append(list(map(float, line.split())))
+        if not data[-1]: continue
+        try:
+            np.array(data[-1])  # inf/nan out
+            line = zip(head, data[-1]); D = dict(line)
+            xyz = eval(func_code, params, D)
+            if (    (rangeX[0] is None or rangeX[0]<=xyz[0]) and
+                    (rangeX[1] is None or xyz[0]<=rangeX[1]) and 
+                    (not mode3d or rangeY[0] is None or rangeY[0]<=xyz[1]) and
+                    (not mode3d or rangeY[1] is None or xyz[1]<=rangeY[1]) and
+                    (not cond or eval(cond, params, D))   ):
+                for k, v in line: columns[k].append(v)
+                columns.setdefault('x', []).append(xyz[0])
+                if mode3d: columns.setdefault('y', []).append(xyz[1])
+                etalone.append(xyz[-1])
+        except: pass  # тут надо выругаться!
+
+#----- curve fitting --------
+for k, L in columns.items(): params[k] = np.array(L)
+del columns
+    
+func = eval('lambda x,'+approx_args+': eval(approx_code, params, {%s})'%','.join('"%s":%s'%(k, k) for k in approx_args.split(',')))
+
+popt, pcov = curve_fit(func, params['x'], np.array(etalone))
+result = func(params['x'], *popt)
+
+#----- output results -------
+print(' '.join('%s=%g'%(k, v) for k, v in zip(approx_args.split(','), popt)))
+
+print('max.abs.error=%g, max.deriv.error=%g'%(max(np.fabs(etalone-result)), max(np.fabs(etalone-result)/max(np.fabs(etalone)))))
+
+if not plot: exit()
+
+#------ plot result --------
+print('-'*80)
+tmp = open('/tmp/curve-fit-%i.dat'%os.getpid(), 'w')
+
+if not mode3d:
+    for x, f0, f1 in zip(params['x'], result, etalone): tmp.write('%g %g %g\n', x, f0, f1)
+    tmp.flush()
+    #os.system('gplt3 -U "y@points z" %s -U y@x1y2 %s -rx %s:%s'%(tmp1.name, tmp2.name, rangeX[0], rangeX[1]))
+    os.system('gplt3 -U "y@points z |%y-z%|@x1y2"'+tmp)
+else:
+    errors = set()
+    for k in head: del params[k]
+    del params['x'], params['y']
+    params.update(zip(approx_args.split(','), popt))
+    tmp.write('#:x y f1 f2\n')
+    nan = float('nan')
+    
+    for line in data:
+        if not line: tmp.write('\n'); continue
+        line = dict(zip(head, line))
+        try:
+            xyz = eval(func_code, params, line)
+            #if (not rangeX[0] is None and xyz[0]<rangeX[0]) or (not rangeX[1] is None and rangeX[1]<xyz[0]) or \
+            #   (not rangeY[0] is None and xyz[1]<rangeY[0]) or (not rangeY[1] is None and rangeY[1]<xyz[1]): continue
+            if cond and not eval(cond, params, line): xyz[2] = nan
+        except Exception as E:
+            xyz = (nan, nan, nan)
+            if not str(E) in errors: errors.add(str(E)); print(E) 
+        params['x'], params['y'] = xyz[:2]
+        f1 = eval(approx_code, params, line)
+        tmp.write('%s %s %s %s\n'%(xyz+(f1,)))
+    tmp.flush()
+    print('file', tmp.name)
+    limits = tuple(['' if x is None else x for x in rangeX+rangeY])
+    if mode3d!='-pm3d': os.system('gplt3 %s -U "f1 f2" '%mode3d + tmp.name + ' -rx %s:%s -ry %s:%s'%limits)
+    else:
+        os.system('gplt3 -pm3d -U f1 ' + tmp.name + ' -rx %s:%s -ry %s:%s'%limits)
+        os.system('gplt3 -pm3d -U f2 ' + tmp.name + ' -rx %s:%s -ry %s:%s'%limits)
+    os.system('gplt3 -pm3d -U "|%f1-f2%|" ' + tmp.name + ' -rx %s:%s -ry %s:%s'%limits)
+
+os.remove(tmp.name)
