@@ -108,7 +108,9 @@ for l in L:
     for K, E in addX: G[K].append(eval(E, G, D))
     if block_len<=0: block_len -= 1    
 
-X, Y = np.array(X), np.array(Y)
+XY = sorted(zip(X,Y))
+X, Y = np.array([xy[0] for xy in XY]), np.array([xy[1] for xy in XY])
+
 for K, E in addX: G[K] = np.array(G[K])
 
 popt, pcov = curve_fit(func, X, Y, sigma=np.array(YE), absolute_sigma=True, p0=P0) if YE else curve_fit(func, X, Y, p0=P0) 

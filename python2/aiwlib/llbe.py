@@ -22,10 +22,10 @@ def invL(M, newton=True):
         return (pa+pb)/2
     p = 1.
     for i in range(10):
-	Lp = 1/tanh(p)-1./p if fabs(p)>1e-4 else p/3.
-	if p>400 or fabs(Lp-M)<1e-6: break
-	p = p-(Lp-M)/dLdp(p)
-	if fabs(p)<1e-6: return p
+        Lp = 1/tanh(p)-1./p if fabs(p)>1e-4 else p/3.
+        if p>400 or fabs(Lp-M)<1e-6: break
+        p = p-(Lp-M)/dLdp(p)
+        if fabs(p)<1e-6: return p
     return p
 
 def Zinv(z):

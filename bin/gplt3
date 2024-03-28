@@ -91,8 +91,8 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 <name>#=<value> --- задает значение переменной.
 <name>:=<value> --- задает значение переменной и сразу подставляет его.
 Значения переменных по возможности приводятся к int или float
-Для подставноки переменных используется str.format, если подстановка токена (то что в
-{...} не удалась) для токена вызывается eval, в случае ошибки токен остается как есть.
+Для подстановки переменных используется str.format, если подстановка токена (то что в
+{...}) не удалась, для токена вызывается eval, в случае ошибки токен остается как есть.
 
 <name>{ <body> } --- задает макрос,  <name>{} --- уничтожает переменную или макрос.
 {<name>} или {<name>[...]} --- подставляет макрос, можно использовать срезы питон.
@@ -414,10 +414,11 @@ class IfCh(BaseOp):
 spaceOp['ifch'] = IfCh
 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
-psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel'''.split()
+psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel star'''.split()
 tex_indexes = 'ij jk ik ijk xy yz xyz'.split()
 
 def name2tex(name, is_vec=False):  # конвертация имени в тех, тут все примитивно
+    if not name: return '?'
     els = sum([functools.reduce(lambda L, x: L[:-1]+[L[-1]+x] if not L[-1][-1].isalpha()^x.isalpha() else L+[x], n[1:], [n[0]]) for n in name.split('_') if n], [])
     if is_vec: tex = '{\\boldsymbol \\%s}'%els[0] if els[0] in tex_specials else '{\\mathbf %s}'%els[0] #if len(els[0])>1 else '{\\boldsymbol %s}'%els[0]
     else: tex = '\\'+els[0] if els[0] in tex_specials else '{\\rm %s}'%els[0] if len(els[0])>1 else els[0]
@@ -877,7 +878,7 @@ while iopt<len(opt_seq):
                 columns = [Var(v, '($%i)'%(c+1)) for c, v in enumerate(header)]
                 header = dict((v, Var(v, '($%i)'%c)) for v, c in [('C0', 0)]+[(('xyz'[i] if i<3 else 'C%i'%(i+1)), i+1) for i in range(cols_sz)]+
                               [(v,c+1) for c, v in enumerate(header)])
-                for l in fin: ftmpf.write(l)
+                for l in fin: ftmpf.write(' '.join([x, 'nan'][not x] for x in l.strip().split(sep))+'\n')  # strip???
                 ftmpf.close();  filters[fname], fdict[fname] = tmpf, (header, columns, tmpf)
             else:
                 racs, srcdir, tmpf = {}, os.path.dirname(fname), fname  # читаем .RACS
@@ -886,7 +887,7 @@ while iopt<len(opt_seq):
                     with open(os.path.join(srcdir, '.RACS')) as fracs: racs = pickle.load(fracs)
                 except Exception as E: pass #print(fname, 'racs skipped:', E)
                 if fname.endswith('.gz'): filters[fname] = tmpf = tmpfile(); os.system('zcat %r > '%fname+tmpf)
-            header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)
+                header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)  # tmpf ???
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
             else:
                 for u, uopt in using:
@@ -905,9 +906,14 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # ОШИБКИ:
 
 # TODO:
+# 0. опция -[no-]tex-num
+# 1. добавить racs в csv, проверить режимы работы с csv и сжатыми файлами
 # 2.  factorial, sum, prod. Двойной факториал?
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
 # 4.  -M для мультиплота с выравниванием
+
+# расчширитт интервал дробей в техе, отключать конвертацию дробей
+
 
 # поисследовать set term epslatex standalone, м.б. сделать возможность вывод в tex?
 # зачистка временных файлов - делать одной командой? как понять что gnuplot не справился? как понять что gnuplot не справился с созданием файла?

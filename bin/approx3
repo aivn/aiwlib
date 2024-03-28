@@ -47,14 +47,15 @@ for line in sys.stdin if ifile=='-' else open(ifile):
         if not data[-1]: continue
         try:
             np.array(data[-1])  # inf/nan out
-            line = zip(head, data[-1]); D = dict(line)
+            line = list(zip(head, data[-1])); D = dict(line)
             xyz = eval(func_code, params, D)
             if (    (rangeX[0] is None or rangeX[0]<=xyz[0]) and
                     (rangeX[1] is None or xyz[0]<=rangeX[1]) and 
                     (not mode3d or rangeY[0] is None or rangeY[0]<=xyz[1]) and
                     (not mode3d or rangeY[1] is None or xyz[1]<=rangeY[1]) and
                     (not cond or eval(cond, params, D))   ):
-                for k, v in line: columns[k].append(v)
+                for k, v in line:
+                    if k!='x' and (not mode3d or k!='y'): columns[k].append(v)
                 columns.setdefault('x', []).append(xyz[0])
                 if mode3d: columns.setdefault('y', []).append(xyz[1])
                 etalone.append(xyz[-1])
@@ -62,8 +63,9 @@ for line in sys.stdin if ifile=='-' else open(ifile):
 
 #----- curve fitting --------
 for k, L in columns.items(): params[k] = np.array(L)
-del columns
-    
+#del columns
+
+
 func = eval('lambda x,'+approx_args+': eval(approx_code, params, {%s})'%','.join('"%s":%s'%(k, k) for k in approx_args.split(',')))
 
 popt, pcov = curve_fit(func, params['x'], np.array(etalone))
@@ -81,10 +83,10 @@ print('-'*80)
 tmp = open('/tmp/curve-fit-%i.dat'%os.getpid(), 'w')
 
 if not mode3d:
-    for x, f0, f1 in zip(params['x'], result, etalone): tmp.write('%g %g %g\n', x, f0, f1)
+    for x, f0, f1 in zip(params['x'], result, etalone): tmp.write('%g %g %g\n'%(x, f0, f1))
     tmp.flush()
     #os.system('gplt3 -U "y@points z" %s -U y@x1y2 %s -rx %s:%s'%(tmp1.name, tmp2.name, rangeX[0], rangeX[1]))
-    os.system('gplt3 -U "y@points z |%y-z%|@x1y2"'+tmp)
+    os.system('gplt3 -U "y@p z@p |%y-z%|@p,x1y2" '+tmp.name)
 else:
     errors = set()
     for k in head: del params[k]
