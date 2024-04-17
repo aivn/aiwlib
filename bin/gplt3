@@ -52,6 +52,7 @@
    каждая строка трактуется как набор опций без аргументов (например -nk -3d), 
    включая имена файлов с данными, или как одна опция с аргументом (-U x**2 x+y)
    аргумент это весь остаток строки; пустые и начинающеся с # строки игнорируются
+-[no-]tex-num --- в[ы]ключает преобразование чисел с плавающей точкой к дробям LaTeX
 
 Дополнительно про макросы, циклы и переменные см. gplt3 -h clif
    
@@ -271,6 +272,7 @@ priority = lambda x: gettar(x, 'priority', -1)
 nan = float('nan')
 tex_num_table = dict([(nan, '{\\rm nan}')]+
                      [(s*i/j, '%s\\frac{%i}{%i}'%('-'*(s<0), i, j)) for j in range(9, 1, -1) for i in range(9, 0, -1) for s in (-1, 1) if  i/j!=i//j]) # pi, e?
+tex_num_table_on, tex_num_table_off = tex_num_table, {nan: '{\\rm nan}'}
 tex_num_precision = 3  # число знаков при конвертации чисел в тех
 
 class BaseOp(object):
@@ -535,7 +537,10 @@ class Verb:
         return functools.reduce(lambda S, x: S.replace(x, '\\'+x), '$#_%{}\'', self.text).replace('^', r'$\widehat~\,$').replace('"', r'$"\!$')
 class Dollars:
     def __init__(self, expr): self.expr = expr
-    def __str__(self): return '$%s$'%self.expr if BaseOp.fID==2 else str(self.expr)
+    def __repr__(self): return 'Dollars(%r)'%self.expr
+    def __str__(self):
+        expr = (',\\,' if BaseOp.fID==2 else ', ').join(map(str, self.expr)) if type(self.expr) is tuple else str(self.expr)
+        return '$%s$'%expr if BaseOp.fID==2 else expr
 class FreeNames:
     def __init__(self, scope): self.scope = scope
     def __getitem__(self, name):
@@ -663,7 +668,7 @@ def plot(fname_opts):
         iov, hstate = len(history)-1, set()
         while history and iov>=0:
             o = history[iov][0]
-            if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl', '-def'): iov -= 1; continue  # пропускаем сырые опции
+            if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl', '-def', '-tex-num', '-no-tex-num'): iov -= 1; continue  # пропускаем сырые опции
             t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
                             '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
                  'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
@@ -719,7 +724,8 @@ def read_header(fname, add_opts, base_opts):
     scope.update(add_opts)
     for c, v in list(zip(range(1, cols_sz+1), 'xyz'))+[(i, 'C%i'%i) for i in range(cols_sz+1)]:
         if not v in scope: base_scope[v] = scope[v] = Var(v, '($%i)'%c)
-    if not columns: cols_var = [base_scope.get('xyz'[i] if i<3 else 'C%i'%(i+1), base_scope.get('xyz'[i] if i>=3 else 'C%i'%(i+1))) for i in range(cols_sz)]
+    #if not columns: cols_var = [base_scope.get('xyz'[i] if i<3 else 'C%i'%(i+1), base_scope.get('xyz'[i] if i>=3 else 'C%i'%(i+1))) for i in range(cols_sz)]
+    if not columns: cols_var = [base_scope.get('xyz'[i] if i<3 else 'C%i'%(i+1), ('xyz'[i] if i<3 else 'C%i'%(i+1))) for i in range(cols_sz)]
     return [scope, cols_var]
 #-------------------------------- CLIF -----------------------------------------
 def clif_cast(arg):
@@ -792,6 +798,8 @@ while iopt<len(opt_seq):
     elif opt=='-nsixel': gp_write('unset term\n'); sixel = False; del history[-1]
     elif opt=='-nk': gp_write('unset key\n')
     elif opt=='-nav': conf['pdfview'] = conf['pngview'] = ''
+    elif opt=='-tex-num': tex_num_table = tex_num_table_on
+    elif opt=='-no-tex-num': tex_num_table = tex_num_table_off
     elif opt in ('-debug', '-dump-config-file'): del history[-1]; continue
     elif opt=='-raw': gp_write(arg+'\n')   # <== отсюда начинаются простые опции с одним аргументом
     elif opt=='-s': gp_write('set %s\n'%arg)
@@ -891,8 +899,8 @@ while iopt<len(opt_seq):
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
             else:
                 for u, uopt in using:
-                    header = dict(header); header.update(uopt)
-                    data.append([tmpf, header, columns, u, ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
+                    uheader = dict(header); uheader.update(uopt)
+                    data.append([tmpf, uheader, columns, u, ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
 
 if data: plot('')  # финальная отрисовка
 if not sixel and not last_mode:
@@ -906,7 +914,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # ОШИБКИ:
 
 # TODO:
-# 0. опция -[no-]tex-num
 # 1. добавить racs в csv, проверить режимы работы с csv и сжатыми файлами
 # 2.  factorial, sum, prod. Двойной факториал?
 # 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
