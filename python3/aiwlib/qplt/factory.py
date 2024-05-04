@@ -65,7 +65,9 @@ def load_files(*args):
         elif arg.startswith('-t'): touch_mode = (1, float(arg[2:]) if len(arg)>2 else .5)
         elif arg.startswith('-T'): touch_mode = (2, float(arg[2:]) if len(arg)>2 else .5)
         elif arg.endswith(':'): server = parse_server(arg[:-1]); continue
-        elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
+        #elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
+        elif ':' in arg and not (sys.platform=='win32' and arg[1:3] in (':/', ':\\')):  # fix full path for windows
+            srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
         elif arg.startswith('-f'):
             try:
                 for D in json.load(open(arg[2:])): load_local_file(D['file'], touch_mode, D); touch_mode = None

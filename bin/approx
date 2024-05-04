@@ -117,7 +117,7 @@ popt, pcov = curve_fit(func, X, Y, sigma=np.array(YE), absolute_sigma=True, p0=P
 F = func(X, *popt)
 E = np.fabs((Y-F)/(Y+F))
 
-R = dict(zip(fargs, popt)+[(k+'_err', math.sqrt(v)) for k, v in zip(fargs, pcov.diagonal())]+
+R = dict(zip(fargs, popt)+[(k+'_err', math.sqrt(abs(v))) for k, v in zip(fargs, pcov.diagonal())]+
          [(prefix+'L2', math.sqrt(sum((Y-F)**2))/len(X)),
           (prefix+'L1max', max(E)),
           (prefix+'L1', sum(E)/len(E))])

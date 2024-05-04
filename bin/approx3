@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 '''usage: approx3 SOURCE-FUNCTION  APPROX-EXPRESSION inputfile.dat|- [OPTIONS]
 -3d|-h3d|-pm3d --- включает 3d режим, задает режим отображения в gplt3 
--rx|-ry [MIN]:[MAX] --- задает пределы отображения и аппроксимации по x, y 
+-rx|-ry|-rf [MIN]:[MAX] --- задает пределы отображения и аппроксимации по x, y, f
 -cond EXPRESSION --- задает дополнительные условия для обрабатываемых строк входного файла 
 -head HEAD --- замещает заголовок входного файла (имена столбцов через пробел без #:)
 -nv --- отключает рисование графиков в gplt3
 key=val --- добавляет переменную в пространство имен для вычисления выражений
 '''
-# ряд тейлора одной командой
+# ряд тейлора/полином одной командой
+# несколько входных файлов
 
 import os, sys, pickle, math
 if len(sys.argv)<4 or '-h' in sys.argv or '-help' in sys.argv or '--help' in sys.argv: print(__doc__); sys.exit()
@@ -16,51 +17,63 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 #-----  parse options ---------
-func_code, approx, ifile = sys.argv[1:4]
+func_code, approx = sys.argv[1:3]; ifiles = []
 approx_args, approx_code = approx.split(':', 1)
 
-rangeX, rangeY, mode3d, cond, head, params, plot, iarg = [None, None], [None, None], False, '', [], {'__builtins__':None}, True, 4
+rangeX, rangeY, rangeF, mode3d, cond, head, params, plot, iarg = [None, None], [None, None], [None, None], False, '', [], {'__builtins__':None}, True, 3
+for k, v in np.__dict__.items():
+    if not k in params and k in math.__dict__: params[k] = v
 
 # где то тут надо прочитать .RACS
 
 while iarg<len(sys.argv):
     arg = sys.argv[iarg]
     if arg in ('-3d', '-h3d', '-pm3d'): mode3d = arg
-    elif arg in ('-rx', '-ry'):
+    elif arg in ('-rx', '-ry', '-rf'):
         iarg += 1; val = sys.argv[iarg].split(':')
-        if val[0]: (rangeX if arg=='-rx' else rangeY)[0] = float(val[0])
-        if val[1]: (rangeX if arg=='-rx' else rangeY)[1] = float(val[1])
+        if val[0]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[0] = float(val[0])
+        if val[1]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[1] = float(val[1])
     elif arg=='-head': iarg += 1; head = sys.argv[iarg].split()
     elif arg=='-cond': iarg += 1; cond = sys.argv[iarg]
     elif '=' in arg: key, val = arg.split('='); params[key] = eval(val, params, math.__dict__)
     elif arg=='-nv': plot = False
-    else: print('incorrect options %r\n'%r, __doc__); exit()
+    elif os.path.isfile(arg): ifiles.append(arg)
+    else: print('incorrect option of file %r\n'%arg, __doc__); exit()
     iarg += 1
 
-#----- read input file --------
-data, columns, etalone = [], dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')]), []
-for line in sys.stdin if ifile=='-' else open(ifile):
-    if line.startswith('#:') and '=' in line: exec(line[2:], params)
-    elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head  if k!='x' and (not mode3d or k!='y')])
-    elif line[0]!='#':
-        data.append(list(map(float, line.split())))
-        if not data[-1]: continue
-        try:
-            np.array(data[-1])  # inf/nan out
-            line = list(zip(head, data[-1])); D = dict(line)
-            xyz = eval(func_code, params, D)
+#----- read input files --------
+# сейчас заголовки у файлов должны совпадать, в будущем хотелось бы это как то развести по файлам?
+splitters, columns, etalone = [], dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')]), []
+for ifile in ifiles:
+    P, start = {'__builtins__': None}, len(etalone)
+    for line in sys.stdin if ifile=='-' else open(ifile):
+        if line.startswith('#:') and '=' in line: exec(line[2:], P)
+        elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')])
+        elif line[0]!='#':
+            line = list(map(float, line.split()))
+            if not line: splitters.append(len(etalone)); continue
+            line = list(zip(head, line)); P.update(line)
+            try: xyz = eval(func_code, params, P); np.array(xyz)
+            except: continue # тут надо выругаться!
             if (    (rangeX[0] is None or rangeX[0]<=xyz[0]) and
                     (rangeX[1] is None or xyz[0]<=rangeX[1]) and 
                     (not mode3d or rangeY[0] is None or rangeY[0]<=xyz[1]) and
                     (not mode3d or rangeY[1] is None or xyz[1]<=rangeY[1]) and
+                    (rangeF[0] is None or rangeF[0]<=xyz[-1]) and
+                    (rangeF[1] is None or xyz[-1]<=rangeF[1]) and
                     (not cond or eval(cond, params, D))   ):
                 for k, v in line:
                     if k!='x' and (not mode3d or k!='y'): columns[k].append(v)
                 columns.setdefault('x', []).append(xyz[0])
                 if mode3d: columns.setdefault('y', []).append(xyz[1])
                 etalone.append(xyz[-1])
-        except: pass  # тут надо выругаться!
-
+    splitters.append(len(etalone)); continue
+    for k, v in P.items():
+        if k=='__builtins__': continue
+        if k in columns: columns[k] += [v]*(len(etalone)-len(columns[k]))
+        elif start and not k in params: print('not default value for parametr %s=%s from file %r, skipped'%(k, v, ifile))
+        elif start: columns[k] = [params[k]]*start + [v]*(len(etalone)-start)
+        else: columns[k] = [v]*len(etalone)
 #----- curve fitting --------
 for k, L in columns.items(): params[k] = np.array(L)
 #del columns
@@ -76,6 +89,63 @@ print(' '.join('%s=%g'%(k, v) for k, v in zip(approx_args.split(','), popt)))
 
 print('max.abs.error=%g, max.deriv.error=%g'%(max(np.fabs(etalone-result)), max(np.fabs(etalone-result)/max(np.fabs(etalone)))))
 
+print('')
+fargs, fsrc, j = [], approx_code, 0
+while len(fargs)<1+bool(mode3d):
+    fargs.append(''); bk_num, bk_add, bk_sub = [0, 0, 0], '([{', ')]}'
+    while j<len(func_code):
+        c = func_code[j];  j += 1
+        if c==',' and not any(bk_num): break
+        if c in bk_add: bk_num[bk_add.index(c)] += 1
+        if c in bk_sub: bk_num[bk_sub.index(c)] -= 1
+        fargs[-1] += c
+
+for k, v in list(zip(approx_args.split(','), popt))+list(zip('xy', fargs)):
+    j, l = 0, len(k)
+    while k in fsrc[j:]:
+        i = fsrc.index(k)
+        if (i==0 or (fsrc[i-1]!='_' and not fsrc[i-1].isalpha())) and (i+l==len(fsrc) or (fsrc[i+l]!='_' and not fsrc[i+l].isalnum())):
+            fsrc = fsrc[:i]+str(v)+fsrc[i+l:]
+        else: j += l
+#print(fsrc)
+
+stack, j = [], 0
+while j<len(fsrc):
+    if fsrc[j]=='(': stack.append(j)
+    elif fsrc[j]==')':
+        try:
+            i = stack[-1]; x = str(eval(fsrc[i:j+1]))
+            fsrc, j = fsrc[:i]+x+fsrc[j+1:], i+len(x)
+            del stack[-1]
+        except: pass
+    j += 1
+print(fsrc.replace('--', '+').replace('+-', '-'))
+        
+class AST:
+    def __init__(self, code, priority=0): self.code, self.priority = code, priority
+    def __bk(self, arg, dp=0): str(arg) if not isinstance(arg, AST) or arg.priority>=self.priority+dp else '(%s)'%arg
+    def __str__(self): return self.code
+    def __neg__(self): return AST('-(%s)'%(self))
+    def __pos__(self): return AST('+(%s)'%(self))
+    def __call__(self, *args): return AST('(%s)(%s)'%(self.code, ','.join(map(str, args))))
+    def __add__(self, other): return AST('(%s)+(%s)'%(self, other))
+    def __sub__(self, other): return AST('(%s)-(%s)'%(self, other))
+    def __mul__(self, other): return AST('(%s)*(%s)'%(self, other))
+    def __div__(self, other): return AST('(%s)/(%s)'%(self, other))
+    def __pow__(self, other): return AST('(%s)**(%s)'%(other, self))
+    def __radd__(self, other): return AST('(%s)+(%s)'%(other, self))
+    def __rsub__(self, other): return AST('(%s)-(%s)'%(other, self))
+    def __rmul__(self, other): return AST('(%s)*(%s)'%(other, self))
+    def __rdiv__(self, other): return AST('(%s)/(%s)'%(other, self))
+    def __rpow__(self, other): return AST('(%s)**(%s)'%(other, self))
+class NameSpace:
+    def __init__(self, args): self.D = dict(args)
+    def __getitem__(self, key): return self.D[key] if key in self.D else AST(key)
+#print(dict(list(zip(approx_args.split(','), popt))+list(zip('xy', fargs))))
+#print('')
+#print(eval(approx_code, {'__builtins__': None}, NameSpace(list(zip(approx_args.split(','), popt))+[(k, AST(v)) for k, v in zip('xy', fargs)])))
+del fargs, fsrc, k, v, i, j, l, stack
+    
 if not plot: exit()
 
 #------ plot result --------
@@ -83,11 +153,27 @@ print('-'*80)
 tmp = open('/tmp/curve-fit-%i.dat'%os.getpid(), 'w')
 
 if not mode3d:
-    for x, f0, f1 in zip(params['x'], result, etalone): tmp.write('%g %g %g\n'%(x, f0, f1))
+    for x, f0, f1, i in zip(params['x'], etalone, result, range(len(etalone))):
+        tmp.write('%g %g %g\n'%(x, f0, f1))
+        if i in splitters: tmp.write('\n')
     tmp.flush()
     #os.system('gplt3 -U "y@points z" %s -U y@x1y2 %s -rx %s:%s'%(tmp1.name, tmp2.name, rangeX[0], rangeX[1]))
-    os.system('gplt3 -U "y@p z@p |%y-z%|@p,x1y2" '+tmp.name)
+    os.system('gplt3 -ln y2 -U "y@p z |%y-z%|@x1y2" '+tmp.name)
 else:
+    tmp.write('#:x y f1 f2\n')
+    for x, y, f0, f1, i in zip(params['x'], params['y'], etalone, result, range(len(etalone))):
+        if i in splitters: tmp.write('\n')
+        tmp.write('%g %g %g %g\n'%(x, y, f0, f1))
+    tmp.flush()
+    if mode3d!='-pm3d': os.system('gplt3 %s -U "f1 f2" '%mode3d + tmp.name)
+    else:
+        os.system('gplt3 -pm3d -U f1 ' + tmp.name)
+        os.system('gplt3 -pm3d -U f2 ' + tmp.name)
+    os.system('gplt3 -U "|%f1-f2%|" ' + tmp.name + ' '+mode3d)
+
+os.remove(tmp.name)
+exit()
+if 0:
     errors = set()
     for k in head: del params[k]
     del params['x'], params['y']
@@ -119,3 +205,5 @@ else:
     os.system('gplt3 -pm3d -U "|%f1-f2%|" ' + tmp.name + ' -rx %s:%s -ry %s:%s'%limits)
 
 os.remove(tmp.name)
+
+# использовать суммы/ряды при задании аппроксимирующих функций?

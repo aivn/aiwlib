@@ -23,6 +23,7 @@
 -r{x,y,z,x2,y2,cb,t,u,v} [<min>]:[<max>] --- задает пределы отрисовки
 -[h]3d|-2d --- включить/выключить 3D режим, -h3d дополнительно включает hidden3d
 -[n]pm3d --- [un]set pm3d map[; set hidden3d], в[ы]ключает режим pm3d                                           
+-pm3di Ny,Nx --- включает pm3d и задает число шагов интерполяции по х,y
 -pal <name>[=<values>] --- устанавливает палитру для режима pm3d
 -ln [x][y][z][x2][y2][c]|'' --- логарифмический масштаб по указанным осям
 -tc{x,y,z,x2,y2,cb} <opts>  --- настройка тиков (чиселок) по осям, '' выключает,
@@ -215,6 +216,8 @@ LaTeX = r'''\documentclass{article}
 \usepackage{amssymb}
 \usepackage[russian]{babel}
 \usepackage[utf8]{inputenc}
+%\usepackage{newtxtext} 
+%\usepackage{newtxmath}
 \usepackage{epsfig}
 \usepackage[usenames]{color}
 \usepackage{colortbl}
@@ -671,7 +674,7 @@ def plot(fname_opts):
             if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl', '-def', '-tex-num', '-no-tex-num'): iov -= 1; continue  # пропускаем сырые опции
             t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
                             '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
-                 'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d') else 'par' if o in ('-par', '-npar')
+                 'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d', '-pm3di') else 'par' if o in ('-par', '-npar')
                  else 'k' if o in ('-sk', '-nk') else 'w' if o in ('-w', '-ds') else None)
             if t is None or t in hstate: del history[iov]; iov -= 1
             else: hstate.add(t); iov -= 1
@@ -778,7 +781,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles = [], 0, []
 double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
-rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i arw lbl'''.split())
+rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i arw lbl pm3di'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
 #iopt, opt_seq = 0, sys.argv[1:]
@@ -792,6 +795,7 @@ while iopt<len(opt_seq):
     elif opt=='-2d': pm3d = D3 = False; gp_write('unset hidden3d\n')
     elif opt=='-pm3d': pm3d = D3 = True; gp_write('set hidden3d\nset pm3d map\n')
     elif opt=='-npm3d': pm3d = False; gp_write('unset pm3d\n')
+    elif opt=='-pm3di': pm3d = D3 = True; gp_write('set hidden3d\nset pm3d interpolate %s map\n'%arg)
     elif opt=='-par': parametric = True; gp_write('set parametric\n')
     elif opt=='-npar': parametric = False; gp_write('unset parametric\n')
     elif opt=='-sixel': gp_write('set term sixelgd\n'); sixel = True; del history[-1]
@@ -812,6 +816,7 @@ while iopt<len(opt_seq):
     elif opt=='-smpl': gp_write('set samples %s\n'%arg)
     elif opt=='-ismpl': gp_write('set isosamples %s\n'%arg)
     elif opt=='-is': gp_write('set samples %s\nset isosamples %s\n'%(arg, arg))
+    elif opt=='-ipm3d': ipm3d = arg
     elif opt=='-p': pause = arg
     elif opt=='-arw':  # -arw [<tag>#]<from>:<to>[@opts] или ...:<len>:<angle>[@opts] --- рисует стрелку
         tag_fr, arg = arg.split(':', 1); tag, fr = tag_fr.split('#', 1) if '#' in tag_fr else ('', tag_fr)
@@ -914,13 +919,11 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # ОШИБКИ:
 
 # TODO:
+# 0. CMYK палитра и шрифты для ЖЭТФ - добавить опцию -cmyk и -trm?
 # 1. добавить racs в csv, проверить режимы работы с csv и сжатыми файлами
-# 2.  factorial, sum, prod. Двойной факториал?
-# 3.  читать скобки в -U, начало аргумента с : дает список выражений, переменная all
-# 4.  -M для мультиплота с выравниванием
-
-# расчширитт интервал дробей в техе, отключать конвертацию дробей
-
+# 2. sum, prod. 
+# 3. читать скобки в -U, начало аргумента с : дает список выражений, переменная all
+# 4. -M для мультиплота с выравниванием
 
 # поисследовать set term epslatex standalone, м.б. сделать возможность вывод в tex?
 # зачистка временных файлов - делать одной командой? как понять что gnuplot не справился? как понять что gnuplot не справился с созданием файла?
