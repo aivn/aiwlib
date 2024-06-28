@@ -857,7 +857,7 @@ while iopt<len(opt_seq):
         dlist = [e for e in dlist if e[0]!=name]+[[name, expr]+([a.strip() for a in args[:-1].split(',')] if args else [])]*bool(expr)
     elif opt=='-i':  # загрузка сценария
         if arg in ifiles: print('gplt3 file %r has already been loaded, skipped'%arg); continue
-        try:            
+        try:
             with open(arg) as ifile:
                 del history[-1]; iopt -= 2
                 opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else a
@@ -897,8 +897,9 @@ while iopt<len(opt_seq):
                 racs, srcdir, tmpf = {}, os.path.dirname(fname), fname  # читаем .RACS
                 while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
                 try:
-                    with open(os.path.join(srcdir, '.RACS'), 'rb') as fracs: racs = pickle.load(fracs)
-                except Exception as E: pass #print(fname, 'racs skipped:', E)
+                    with open(os.path.join(srcdir, '.RACS'), 'rb') as fracs:
+                        racs = dict((k.decode(), v.decode() if type(v) is bytes else v) for k, v in pickle.load(fracs, encoding='bytes').items())
+                except Exception as E: print(fname, 'racs skipped:', E)
                 if fname.endswith('.gz'): filters[fname] = tmpf = tmpfile(); os.system('zcat %r > '%fname+tmpf)
                 header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)  # tmpf ???
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
