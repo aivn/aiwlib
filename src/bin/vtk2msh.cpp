@@ -59,6 +59,7 @@ int main(int argc, const char **argv){
 				}
 				continue;
 			}
+			/*
 			fin>>data[counter++];  lines++;
 			if(!fin.good()){
 				fin.unget(); fin.clear(); std::string x; fin>>x;
@@ -68,6 +69,10 @@ int main(int argc, const char **argv){
 				else if(x=="-inf") data[counter-1] = -std::numeric_limits<float>::infinity();
 				bad_counter++;
 			}
+			*/
+			fin>>word; data[counter++] = atof(word.c_str());  lines++;
+			if(word=="nan" || word=="-nan" || word=="inf" || word=="-inf") bad_counter++;
+			
 			if(counter==data.size()){
 				bh.dump(fout); fout.write((const char*)data.data(), data.size()*4);
 				std::cout<<"  frame "<<frames<<": nan+inf "<<bad_counter<<std::endl;
@@ -75,6 +80,12 @@ int main(int argc, const char **argv){
 			}
 		} while(!fin.eof());
 		std::cout<<"  end of file, "<<lines<<" lines"<<std::endl;
+
+		if(counter){
+			bh.dump(fout); fout.write((const char*)data.data(), data.size()*4);
+			std::cout<<"  frame "<<frames<<": nan+inf "<<bad_counter<<" dump brocken file: points "<<counter<<", "<<data.size()<<" expected"<<std::endl;
+			counter = 0; read_head_mode = true; bad_counter = 0; frames++;				
+		}
 		
 		if(mv_mode) std::remove(argv[ipath]);
 		// std::cout<<src<<" ==> "<<dst<<' '<<frames<<" frames\n";		
