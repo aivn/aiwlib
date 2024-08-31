@@ -63,7 +63,7 @@ namespace aiw{
 			return m2*MnK2 + (1.f-m2)*(1.f-MnK2)*.5f;
 		}
 		
-		// corr. MD
+		// CMD
 		inline float Upsilon_MM(float MM, float eta){
 			return (1.f-eta)/(1.f-MM)*(1.f-M2_MM(MM))*.5f*(1.f+ ((0.3684f + 0.1873f*eta)*eta - (0.3236f+0.2523f*eta)*MM)*eta );
 		}

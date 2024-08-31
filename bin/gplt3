@@ -879,7 +879,7 @@ while iopt<len(opt_seq):
         elif fname0.startswith('[') and fname0.endswith(']'):
             files = eval('flist'+fname0, {'__builtins__': None, 'flist': flist})
             if type(files) is str: files = [files]
-        else: files = glob.glob(fname0)
+        else: files = sorted(glob.glob(fname0))
         if not files: print('file %r not found'%fname0)
         for fname in files:
             if fname in fdict: header, columns, tmpf = fdict[fname]; header = dict(header); header.update(opts)  # в fdict лежат заголовок, столбцы, tmpf
@@ -899,7 +899,7 @@ while iopt<len(opt_seq):
                 try:
                     with open(os.path.join(srcdir, '.RACS'), 'rb') as fracs:
                         racs = dict((k.decode(), v.decode() if type(v) is bytes else v) for k, v in pickle.load(fracs, encoding='bytes').items())
-                except Exception as E: print(fname, 'racs skipped:', E)
+                except Exception as E: pass #print(fname, 'racs skipped:', E)
                 if fname.endswith('.gz'): filters[fname] = tmpf = tmpfile(); os.system('zcat %r > '%fname+tmpf)
                 header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)  # tmpf ???
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
