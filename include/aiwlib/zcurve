@@ -68,8 +68,8 @@ namespace aiw{
 		ZCurve crop2rank() const { return ZCurve(off&RDbits(), rank); }  // работать с готовыми масками?
 
 		// проверяет чистоту позиции (наличие старших бит не влезающих в ранг)
-		operator bool () const { return off<(T(1)<<D*rank); }  // работать с готовыми масками?
-		bool operator !() const { return off>=(T(1)<<D*rank); } // работать с готовыми масками?
+		operator bool  () const { return off< (T(1)<<D*rank); }  // работать с готовыми масками?
+		bool operator !() const { return off>=(T(1)<<D*rank); }  // работать с готовыми масками?
 
 		T size() const { return T(1)<<D*rank; }  // возможное число ячеек на данном ранге. работать с готовыми масками?
 		bool is_full() const { return off==size(); }  // Z-кривая пройдена
@@ -119,7 +119,7 @@ namespace aiw{
 			if(dist<0) return left(axe, -dist);
 			return right(axe, dist);
 		}
-		ZCurve operator[](const Ind<D>& Idist) const {  // сосед сдвинутый на Idist
+		ZCurve operator [] (const Ind<D>& Idist) const {  // сосед сдвинутый на Idist
 			T fS = 0;
 			for(int axe=0; axe<D; axe++){
 				T f = off; int dist = Idist[axe];
@@ -164,4 +164,10 @@ namespace aiw{
 	template<int D> using ZCurve64 = ZCurve<D, uint64_t>;
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
+
+namespace std{
+	template <int D, typename T> struct hash<typename aiw::ZCurve<D, T> > {
+		size_t operator ()(aiw::ZCurve<D, T> z) const noexcept { return *(size_t*)&z; }
+	};
+};
 #endif //AIW_ZCURVE_HPP
