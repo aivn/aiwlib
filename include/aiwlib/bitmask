@@ -16,7 +16,10 @@ namespace aiw{
 		uint64_t p[sz];  // счетчик с числом единиц?
 	public:
 		void fill(bool x){
-			if(x) for(int i=0; i<sz; i++) p[i] = ~uint64_t(0);
+			if(x){
+				for(int i=0; i<sz-bool(D%64); i++) p[i] = ~uint64_t(0);
+				if(D%64) p[sz-1] = (uint64_t(1)<<D%64)-1;
+			}
 			else for(int i=0; i<sz; i++) p[i] = 0;
 		}
 		BitMask(bool x=false){ fill(x); }
@@ -26,7 +29,7 @@ namespace aiw{
 				if(D%64) p[sz-1] = ~src.p[sz-1]&((uint64_t(1)<<D%64)-1);
 			} else for(int i=0; i<sz; i++) p[i] = src.p[i];
 		}
-		int size() const {	int res = 0; for(int i=0; i<sz; i++){ res += __builtin_popcount(p[i]); } return res; }
+		int size() const { int res = 0; for(int i=0; i<sz; i++){ res += __builtin_popcountl(p[i]); } return res; }
 		
 		bool get(int i) const { return p[i/64]&(uint64_t(1)<<i%64); }
 		bool operator [](int i) const { return get(i); }
@@ -48,10 +51,11 @@ namespace aiw{
 		BitMask operator ~ () const { return BitMask(*this, true); }  // ???
 
 		class Iterator{
+			friend class BitMask;
 			const uint64_t *p = nullptr; int pos = D, sz = D;
 		public:
 			int operator * () const { return pos; }
-			bool operator != () const { return pos<sz; }
+			bool operator != (Iterator) const { return pos<sz; }
 			void operator ++ (){  // это можно оптимизировать
 				while(pos<D && *p && ++pos%64) if(*p&(uint64_t(1)<<pos%64)) return;
 				while(pos<D && !*++p) pos += 64; 
