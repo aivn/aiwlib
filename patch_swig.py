@@ -16,9 +16,16 @@ if fname.endswith('_wrap.cxx'):
     for i, n in reversed(itable):
         src[i:i+1] = ['// aiwlib patch <<<\n', '#ifndef EBUG\n', '#define SWIG_init %s\n'%n,
                       '#else\n', '#define SWIG_init %s_dbg_%s\n'%tuple(n.rsplit('_', 1)), '#endif\n', '// >>>\n']
-        
+
+    n_cast = 0
+    for i, l in enumerate(src):
+        if 'SWIG_NewPointerObj' in l and 'aiw::Vec<' in l and '>(result))' in l and not 'static_cast' in l:
+            a, b = l.find('aiw::Vec<'), l.find('>(result)),'); v = l[a:b+1] #; print(v)
+            src[i] = l.replace('(result)', '(static_cast< const %s &>(result))'%v)
+            n_cast += 1
+            
     open(fname, 'w').writelines(src)
-    print('\033[7m    file', fname, 'patched    \033[0m')
+    print('\033[7m    file', fname, 'patched  (%i casts added)  \033[0m'%n_cast)
 
 elif fname.endswith('.py'):
     name = '_'+os.path.basename(fname).split('.')[0]
