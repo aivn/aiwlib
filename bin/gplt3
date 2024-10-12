@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''gplt3 ... options and filenames[@<attrs>] ... --- обертка для gnuplot, 
-             строит графики типографского качества с минимальными усилиями;-)
+'''gplt3 ... options and [[user@]host:]filenames[@<attrs>] ... --- обертка для 
+         gnuplot, строит графики типографского качества с минимальными усилиями;-)
 
 -h [<gnuplot keywords> or <gplt3 options>] --- вывод справки gnuplot и/или gplt3, 
    подразделы справки gnuplot можно указывать через точку, (*) в конце описания 
@@ -865,20 +865,32 @@ while iopt<len(opt_seq):
             ifiles.append(arg)
         except Exception as E: print("Can't open gplt3 file %r: %s"%(arg, E))
     else:   # add filename
+        if ':' in opt and opt[0]!='!' and (not '@' in opt.split(':')[0] or (opt.split('@')[0].replace('_', '').isalnum() and opt[0]!='@')):
+            ssh, opt = opt.split(':', 1)          
+        else: ssh = ''
         fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):  # read from stdin
+            if ssh: print('ERRROR: illegal read stdin from ', ssh, file=sys.stderr); exit()
             if not '!stdin' in filters:  # real read from stdin
-                files, stdin = [tmpfile()], True; filters['!stdin'] = files[0]
+                filters['!stdin'] = files = [tmpfile()]; stdin = True
                 with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
-            else: files = [filters['!stdin']]   # в фильтрах лежат имена временных файлов
+            else: files = filters['!stdin']   # в фильтрах лежат имена временных файлов
         elif fname0.startswith('!'):
             if not fname0 in filters:  # real read from shell command
-                files = [tmpfile()]; filters[fname0] = files[0]
+                filters[fname0] = files = [tmpfile()]
                 with open(files[0], 'w') as fout: fout.writelines(os.popen(fname0[1:]).readlines())
-            else: files = [filters[fname0]]   # в фильтрах лежат имена временных файлов
+            else: files = filters[fname0]   # в фильтрах лежат имена временных файлов
         elif fname0.startswith('[') and fname0.endswith(']'):
             files = eval('flist'+fname0, {'__builtins__': None, 'flist': flist})
             if type(files) is str: files = [files]
+        elif ssh:
+            if not fname0 in filters:  # real ssh copy files 
+                filters[ssh+':'+fname0] = files = []
+                for src in sorted(os.popen("ssh %s 'echo %s'"%(ssh, fname0)).readline().split()):
+                    dst = tmpfile()
+                    if os.system('scp %s:%r %s'%(ssh, src, dst)): print("%s:%r skipped"%(ssh, src)); continue
+                    filters[ssh+':'+src] = [dst]; files.append(dst)
+            else: files = filters[ssh+':'+fname0]
         else: files = sorted(glob.glob(fname0))
         if not files: print('file %r not found'%fname0)
         for fname in files:
@@ -892,7 +904,7 @@ while iopt<len(opt_seq):
                 header = dict((v, Var(v, '($%i)'%c)) for v, c in [('C0', 0)]+[(('xyz'[i] if i<3 else 'C%i'%(i+1)), i+1) for i in range(cols_sz)]+
                               [(v,c+1) for c, v in enumerate(header)])
                 for l in fin: ftmpf.write(' '.join([x, 'nan'][not x] for x in l.strip().split(sep))+'\n')  # strip???
-                ftmpf.close();  filters[fname], fdict[fname] = tmpf, (header, columns, tmpf)
+                ftmpf.close();  filters[fname], fdict[fname] = [tmpf], (header, columns, tmpf)
             else:
                 racs, srcdir, tmpf = {}, os.path.dirname(fname), fname  # читаем .RACS
                 while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
@@ -900,7 +912,7 @@ while iopt<len(opt_seq):
                     with open(os.path.join(srcdir, '.RACS'), 'rb') as fracs:
                         racs = dict((k.decode(), v.decode() if type(v) is bytes else v) for k, v in pickle.load(fracs, encoding='bytes').items())
                 except Exception as E: pass #print(fname, 'racs skipped:', E)
-                if fname.endswith('.gz'): filters[fname] = tmpf = tmpfile(); os.system('zcat %r > '%fname+tmpf)
+                if fname.endswith('.gz'): tmpf = tmpfile(); filters[fname] = [tmpf]; os.system('zcat %r > '%fname+tmpf)
                 header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)  # tmpf ???
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
             else:
@@ -914,7 +926,7 @@ if not sixel and not last_mode:
         if stdin: print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
         else: input('gplt3: press ENTER or Ctrl-C for close')
     except: pass
-if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
+if filters: gp_pipe.write('!rm -f %s\n'%' '.join(sum(filters.values(), []))); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # ОШИБКИ:
