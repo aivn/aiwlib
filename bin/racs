@@ -126,6 +126,7 @@ if len(sys.argv)==2 and sys.argv[1]=='-q':
     for f in set(sum([[d+i for i in os.listdir(d) if i.startswith('started-') and i[-4:]!='.log' and os.path.exists(d+i)]
                       for d in ('/tmp/racs/', '.racs/') if os.path.exists(d)], [])):
         L, D, S, C, H = open(f).readlines(), {}, '', '', []; PID = L[0].split()[-1].split('=')[1]        
+        if f.startswith('/tmp/racs/') and PID not in os.listdir('/proc'): continue 
         if PID in pids: continue
         pids.append(PID); print ''
         for l in L:

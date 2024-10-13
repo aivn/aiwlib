@@ -5,7 +5,9 @@
 # Edit this part of the file manually to configure the make
 # Отредактируйте эту часть файла вручную для настройки сборки
 #-------------------------------------------------------------------------------
-python:=2
+ifeq ($(python),)
+python=2
+endif
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки
 PYTHONDIR=$(shell python$(python) -c 'import os; print(os.path.dirname(os.__file__))')

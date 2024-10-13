@@ -61,7 +61,7 @@ Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 '''
 
-import os, sys, functools, glob, pickle, math, time, gzip
+import os, sys, functools, glob, pickle, math, time, gzip, json
 #---------------------- show help ----------------------------------------------
 if len(sys.argv)==1 or sys.argv[-1]=='-h': print(__doc__); exit()
 if len(sys.argv)>2 and sys.argv[1]=='-h':
@@ -934,6 +934,7 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # порядок -def имеет значение?
 
 # TODO:
+# для ssh хранить таблицу в json вида 'хост:файл' : (время-изменения-на-хосте: временный-файл) и лазить сначала в нее?
 # стиль отрисовки vector
 # index
 # 0. CMYK палитра и шрифты для ЖЭТФ - добавить опцию -cmyk и -trm?

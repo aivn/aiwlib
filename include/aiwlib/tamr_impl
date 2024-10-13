@@ -8,16 +8,10 @@
  **/
 
 //------------------------------------------------------------------------------
-//   инициализация и общий анализ
-//------------------------------------------------------------------------------
-template <typename T, int D, int R> void TiledAdaptiveMesh<T, D, R>::init(const Ind<D> &tbox_){  ///< принимает размер в ТАЙЛАХ
-	tbox = tbox_; // bbox = tbox*(1<<R); 
-	for(Ind<D> tpos: irange(tbox)) add_tile(tpos, 0).usage.fill(1);  
-	for(ZCurve64<D> z(0, R); z; z.off++) coords[z.off] = *z; 			
-}
+//   общий анализ
 //------------------------------------------------------------------------------
 template <typename T, int D, int R> int TiledAdaptiveMesh<T, D, R>::get_max_rank() const {
-	int max_rank = 0; for(const tile_t *t: tiles) if(max_rank<t->rank) max_rank = t->rank;
+	int max_rank = 0; for(const tile_t *t: tiles) if(max_rank<t->rank()) max_rank = t->rank();
 	return max_rank;																		   
 }
 //------------------------------------------------------------------------------
@@ -26,21 +20,22 @@ template <typename T, int D, int R>	int TiledAdaptiveMesh<T, D, R>::size(int rma
 #pragma omp parallel for reduction(+:res)
 	for(int i=0; i<tsz; i++){
 		const tile_t* t = tiles[i];
-		if((1<<t->rank)&rmask) res += t->usage.size(); 
+		if((1<<t->rank())&rmask) res += t->usage.size(); 
 	}
 	return res;
 }
 //------------------------------------------------------------------------------
 //  вывод данных в различных форматах
 //------------------------------------------------------------------------------
-template <typename T, int D, int R>	 template <typename Func> void TiledAdaptiveMesh<T, D, R>::dump2balls(Func func, IOstream &&fout, std::string head) const {
+template <typename T, int D, int R>	 template <typename Func> double TiledAdaptiveMesh<T, D, R>::dump2balls(Func func, IOstream &&fout, std::string head) const {
 	// как то по уровням выводить при многослойном покрытии?
+	double t_start = omp_get_wtime();
 	BinaryHead bh;  bh.dim = 3; bh.szT = 16+sizeof(func(T{})); bh.head = head; bh.count = size(); bh.type = BinaryHead::balls;
 	for(int i=0; i<D; i++){ bh.bmin[i] = bmin[i];  bh.bmax[i] = bmax[i]; }
 	Vecf<D> tstep = (bmax-bmin)/tbox;  if(D<3){ bh.bmin[2] = -tstep[0]/(2<<R); bh.bmax[2] = tstep[0]/(2<<R); }
 	bh.dump(fout); 
 	for(const tile_t *tile: tiles){		
-		Vecf<D> step = tstep/(1<<tile->rank+R), tbmin = bmin + (tile->tpos&step)*(1<<R); float radius = step[0]/2, zero = 0;
+		Vecf<D> step = tstep/(1<<tile->rank()+R), tbmin = bmin + (toff2tpos(tile->toff)&step)*(1<<R); float radius = step[0]/2, zero = 0;
 		for(int off: tile->usage){
 			Vecf<D> coord = tbmin + (coords[off]&step);  fout.write(&coord, (D<=3?D:3)*4); for(int i=D; i<3; i++){ fout.write(&zero, 4); }
 			fout.write(&radius, 4);  auto v = func(tile->data[off]); fout.write(&v, sizeof(v));
@@ -48,30 +43,33 @@ template <typename T, int D, int R>	 template <typename Func> void TiledAdaptive
 			//if(fout.tell()-fpos!=szT){  std::cerr<<"incorrect dump size "<<fout.tell()-fpos<<"!="<<szT<<std::endl; abort();  }
 		}
 	}
+	return omp_get_wtime()-t_start;
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R>	void TiledAdaptiveMesh<T, D, R>::tiles2dat(const char *path) const {  // для отладки 
+template <typename T, int D, int R>	void TiledAdaptiveMesh<T, D, R>::tiles2dat(std::string path) const {  // для отладки 
 	if(D!=2) return;
 	std::ofstream fout(path);
 	for(const tile_t* t: tiles){
-		float d = 1.f/(1<<t->rank); Vecf<D> pos = t->tpos*d;
-		fout<<pos<<' '<<t->rank<<'\n'
-			<<pos+vecf(0.f, d)<<' '<<t->rank<<'\n'
-			<<pos+vecf(d, d)<<' '<<t->rank<<'\n'
-			<<pos+vecf(d, 0.f)<<' '<<t->rank<<'\n'
-			<<pos<<' '<<t->rank<<"\n\n\n";
+		float d = 1.f/(1<<t->rank); Vecf<D> pos = toff2tpos(t->toff)*d;  int rank = t->rank();
+		fout<<pos             <<' '<<rank<<'\n'
+			<<pos+vecf(0.f, d)<<' '<<rank<<'\n'
+			<<pos+vecf(d, d)  <<' '<<rank<<'\n'
+			<<pos+vecf(d, 0.f)<<' '<<rank<<'\n'
+			<<pos             <<' '<<rank<<"\n\n\n";
 	} 
-}
+}  // такую же штуку для lower_bound
 //------------------------------------------------------------------------------
-template <typename T, int D, int R>	 template <typename Func> void TiledAdaptiveMesh<T, D, R>::items2dat(Func func, const char *path) const {  
-	std::ofstream fout(path);
+template <typename T, int D, int R>	 template <typename Func>
+void TiledAdaptiveMesh<T, D, R>::items2dat(Func func, std::string path, std::string head, int rmask) const {  
+	std::ofstream fout(path);  fout<<head;
 	for(const tile_t* t: tiles){
-		Vecf<D>  step = (bmax-bmin)/(tbox*(1<<t->rank+R)), tmin = bmin + (step&t->tpos)*(1<<R); 
-		for(int off: t->usage){ func(t->data[off], fout, tmin+(coords[off]&step)); fout<<'\n'; }
+		int rank = t->rank(); if(!(rmask&(1<<rank))) continue;
+		Vecf<D>  step = (bmax-bmin)/(tbox*(1<<rank+R)), tmin = bmin + (step&tpos2toff(t->toff))*(1<<R); 
+		for(int off: t->usage) func(fout, t->data[off], tmin+(coords[off]&step), rank);
 	} 
 }
 //------------------------------------------------------------------------------
-//  работа с шаблонами
+//  создание шаблонов
 //------------------------------------------------------------------------------
 template <typename T, int D, int R>	int TiledAdaptiveMesh<T, D, R>::add_stencil(const std::vector<Ind<D> > &stencil){
 	stencils.emplace_back(); std::vector<stencil_node_t>& nodes = stencils.back();  nodes.reserve(stencil.size()<<R*D);
@@ -87,165 +85,225 @@ template <typename T, int D, int R>	int TiledAdaptiveMesh<T, D, R>::add_stencil(
 		}
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R> const T* TiledAdaptiveMesh<T, D, R>::Stencil::operator [] (int cID) const noexcept {  
-	stencil_node_t sn = snodes[cID]; const node_t *tn = tiles[sn.tID];
-	if(tn->is_active){ const tile_t *t = static_cast<const tile_t*>(tn); if(t->usage[sn.off]){ rank = t->rank;  return t->data+sn.off; } }
-	int off = sn.off;
-	while(tn->parent && !(off&((1<<D)-1))){  // пытаемся подняться не попадая между узлами более крупной сетки
-		off >>= D; for(int i=0; i<D; i++){ off += (tn->tpos[i]%2)<<(R-1)*D+i; } tn = tn->parent;
-		if(tn->is_active){ const tile_t *t = static_cast<const tile_t*>(tn); if(t->usage[sn.off]){ rank = t->rank; return t->data+off; } }
-	} 
-	off = sn.off;  tn = tiles[sn.tID]; int chID = off>>D*(R-1);
-	while(tn->childs[chID]){
-		tn = tn->childs[chID]; off = (off&((1<<(R-1)*D)-1))<<D;
-		if(tn->is_active){ const tile_t *t = static_cast<const tile_t*>(tn); if(t->usage[sn.off]){ rank = t->rank; return t->data+off; } }
-		chID = off>>D*(R-1);
-	}
-	rank = -1; return nullptr;
-} 
+//  template <typename T, int D, int R>	int TiledAdaptiveMesh<T, D, R>::add_stencil(int sphmask){} --- проблемы с нумерацией элементов шаблона
 //------------------------------------------------------------------------------
 //  работа с деревом тайлов
 //------------------------------------------------------------------------------
-template <typename T, int D, int R>	typename TiledAdaptiveMesh<T, D, R>::tile_t& TiledAdaptiveMesh<T, D, R>::add_tile(const Ind<D> &tpos, int rank){
-	uint64_t toff = tpos2toff(tpos, rank);  auto I = forest.find(toff); 
-	if(I!=forest.end()) return I->second;
-	tile_t &t = forest[toff]; t.tpos = tpos; t.rank = rank; tiles.push_back(&t);
-	if(rank) {
-		I = forest.find(tpos2toff(tpos/2, rank-1));
-		if(I!=forest.end()){
-			int chID = 0; for(int i=0; i<D; i++) chID += tpos[i]%2<<i;
-			t.parent = &(I->second);  I->second.childs[chID] = &t;
-		}
-	} else t.parent = nullptr;	
-	for(int i=0; i<(1<<D); i++){
-		I = forest.find(tpos2toff(2*tpos+i%Ind<D>(1), rank+1));
-		if(I!=forest.end()){ t.childs[i] = &(I->second); I->second.parent = &t;	}
-		else t.childs[i] = nullptr;
+template <typename T, int D, int R> void TiledAdaptiveMesh<T, D, R>::init(const Ind<D> &tbox_){  ///< принимает размер в ТАЙЛАХ
+	static_assert(2<=D && D<=6, "illegal D");
+	static_assert(R*D<=22, "R is too large");
+	tbox = tbox_; forest.clear(); rank_lim = calc_tamr_rank_lim(tbox);
+	// for(Ind<D> tpos: irange(tbox)){	uint64_t toff = tpos2toff(tpos, 0); tile_t &t = forest[toff]; t.toff = toff; tiles.push_back(&t); t.usage.fill(1); }
+	for(Ind<D> tpos: irange(tbox)) add_tile(tpos, 0).usage.fill(1); 
+	for(ZCurve64<D> z(0, R); z; z.off++) coords[z.off] = *z; 			
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R>	typename TiledAdaptiveMesh<T, D, R>::tile_t& TiledAdaptiveMesh<T, D, R>::add_tile(const Ind<D> &tpos, const int rank){
+	uint64_t toff = tpos2toff(tpos, rank);  auto I = forest.find(toff); if(I!=forest.end()) return I->second;
+	tile_t &tile = forest[toff]; tile.toff = toff; tiles.push_back(&tile);  tile.tID = tiles.size();
+	while(toff&31){  // поиск вверх
+		toff = up_toff(toff); I = forest.find(toff); 
+		if(I!=forest.end()){ tile.parent = &(I->second); break; }
 	}
-	return t; 			
+	return tile;   
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R>	void TiledAdaptiveMesh<T, D, R>::del_tile(int tID){ 
-	tile_t *t = tiles[tID]; for(int i=0; i<(1<<D); i++) if(t->childs[i]) t->childs[i]->parent = nullptr;
-	if(t->parent) for(int i=0; i<(1<<D); i++) if(t->parent->childs[i]==t) t->parent->childs[i] = nullptr;
-	forest.erase(tpos2toff(t->tpos, t->rank));
-	for(int i=tID, sz=tiles.size()-1; i<sz; i++) tiles[i] = tiles[i+1];
-	tiles.pop_back();
+	tile_t *t = tiles[tID];  uint64_t ntoff = next_toff(t->toff);
+	for(auto I=forest.upper_bound(t->toff); I!=forest.end() && I->second.toff<ntoff) I->second.parent = t->parent;  
+	forest.erase(t->toff); if(tID<int(tiles.size()-1)){ tiles[tID] = tiles.back(); tiles[tID].tID = tID; } tiles.pop_back();  
 }
 //------------------------------------------------------------------------------
 //   обход
 //------------------------------------------------------------------------------
 template <typename T, int D, int R>
 void TiledAdaptiveMesh<T, D, R>::mk_item(TiledAdaptiveMesh<T, D, R>::Item& item, const TiledAdaptiveMesh<T, D, R>::tile_t* tile) const {
-	item.storage = this; item.step = (bmax-bmin)/(tbox*(1<<tile->rank+R)); item.bmin = bmin + (item.step&tile->tpos)*(1<<R);  item.off = 0;
-	item.tnodes.clear();  item.splits.clear();  item.joins.clear();  item.chmask = 1+bool(tile->rank)*2; item.off = 0;  	
-	int tID = 0; for(const Ind<D> &dpos: irange<D>(-1, 2)){  // начало цикла по кубику тайлов 3х3х3...
-		if(dpos==Ind<D>()) item.tiles[tID++] = tile;   // центральный тайл, возможно копирование снизу
+	item.tnodes.clear(); item.storage = this; item.tile = tile; item.creator.blob = 0;
+	Ind<D> tpos = toff2tpos(tile->toff); item.step = (bmax-bmin)/(tbox*(1<<tile->rank+R)); item.bmin = bmin + (item.step&tpos)*(1<<R); 
+
+	int cID = 0; for(const Ind<D> &dpos: irange<D>(-1, 2)){  // начало цикла по кубику тайлов 3х3х3...
+		item_node_t &node = item.cube[cID++];
+		if(dpos==Ind<D>()){ node.tile = tile;  node.parent = tile->parent;  node.toff = tile->toff; }
 		else {
-			auto I = forest.find(tpos2toff(tile->tpos+dpos, tile->rank));
-			if(I!=forest.end()) item.tiles[tID++] = &(I->second);
-			else {
-				// WMSG(item.tnodes.size());
-				item.tnodes.emplace_back();
-				// WMSG(item.tnodes.size());
-				node_t *tn0 = &item.tnodes.back(); item.tiles[tID++] = tn0;
-				tn0->is_active = false; tn0->tpos = tile->tpos+dpos; tn0->rank = tile->rank; tile_t *up = nullptr;
-				for(int dr=1; dr<tile->rank; dr++){  // достраиваем фрагмент дерева к корню
-					I = forest.find(tpos2toff(tn0->tpos/(1<<dr), tile->rank-dr));
-					if(I!=forest.end()){ up = (tile_t*)(&(I->second)); break; }
-				}
-				if(up) for(int dr=1; dr<up->rank-tile->rank; dr++){
-						node_t *tn = &item.tnodes.back(); item.tnodes.emplace_back(); tn->parent = &item.tnodes.back(); tn = tn->parent;
-						tn->tpos = tn0->tpos/(1<<dr); tn->rank = tile->rank-dr; tn->is_active = false;
-					}
-				item.tnodes.back().parent = up;
-				if(!up) extend_tree(item, tn0);  // достраиваем фрагмент дерева от корня
-				item.chmod &= up? 2: 1;  // если есть тайл сверху то узлы нельзя разбивать, если есть тайлы снизу то узлы нельзя объединять
-			}
-		}
-	}
+			auto I = forest.find((node.toff = tpos2toff(tpos+dpos, tile->rank)));			
+			if(I!=forest.end()){ node.tile = &(I->second); node.parent = node.tile->parent; } else node.tile = node.parent = nullptr;
+		}  
+	}  // теперь в item.cube заданы все toff и некоторые tile
+	 // достраиваем деревья вниз --- известен первый тайл рангом ниже и следующий toff
+	for(auto &node: item.cube) extend_tree(node, forest.upper_bound(node.toff), next_toff(node.toff), item.tnodes); 
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R>
-void TiledAdaptiveMesh<T, D, R>::extend_tree(TiledAdaptiveMesh<T, D, R>::Item& item, TiledAdaptiveMesh<T, D, R>::node_t* tn0) const {
-	for(int chID=0; chID<(1<<D); chID++){
-		Ind<D> tpos = 2*tn0->tpos+chID%Ind<D>(1); auto I = forest.find(tpos2toff(tpos, tn0->rank+1));
-		if(I!=forest.end()) tn0->childs[chID] = (tile_t*)&(I->second);
-		else {
-			item.tnodes.emplace_back(); node_t *tn = &item.tnodes.back();
-			tn->tpos = tpos; tn->rank = tn0->rank+1; tn->is_active = false;
-			extend_tree(item, tn);
-		}
-	}
+void TiledAdaptiveMesh<T, D, R>::extend_tree(TiledAdaptiveMesh<T, D, R>::item_node_t& node,
+											 std::map<uint64_t, TiledAdaptiveMesh<T, D, R>::tile_t>::iterator& I, uint64_t ntoff,
+											 std::deque<TiledAdaptiveMesh<T, D, R>::item_node_t> &tnodes) const {
+	for(int chID=0; chID<(1<<D); chID++) node.childs[cID] = 0;  // обязательная очистка childs !!!
+	if(I!=forest.end() && I->second.toff==node.toff){ node.tile = &(I->second); ++I; return; }  // замыкание рекурсии, создали лист
+	while(I!=forest.end() && I->second.toff<ntoff){ 
+		tnodes.emplace_back(); item_node_t &dn = tnodes.back();
+		int chID = up_chID(I->second.toff, node.toff); node.childs[chID] = &dn; dn.toff = down_toff(node.toff, chID);
+		extend_tree(dn, I, next_tile(node.toff), tnodes);
+	}  // тут может зациклится?
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R> template <typename Func> Vec<4> TiledAdaptiveMesh<T, D, R>::for_each(Func func, uint64_t groups){
+template <typename T, int D, int R> template <typename Func> Vec<4> TiledAdaptiveMesh<T, D, R>::for_each(Func func, uint32_t rmask, uint64_t groups){
 	// 1. параллельный обход узлов и коллекционирование узлов для изменениия сетки по тредам
-	std::vector<Item> items(omp_get_max_threads());  int tiles_sz = tiles.size();  new_mode = false;  double rt0 = omp_get_wtime();
+	std::vector<Item> items(omp_get_max_threads());  int tiles_sz = tiles.size();  double rt0 = omp_get_wtime();
 #pragma omp parallel for
 	for(int tID=0; tID<tiles_sz; tID++){  // начало параллельного цикла по тайлам
-		tile_t *tile = tiles[tID]; if(groups && !(tile->groups&groups)) continue;  
+		tile_t *tile = tiles[tID]; if(!(rmask&(1<<tile->rank)) || !(tile->groups&groups)) continue;  
 		Item &item = items[omp_get_thread_num()];  mk_item(item, tile);  tile->groups = 0;
 		for(int off: tile->usage){
-			item.off = off; item.groups = ~uint64_t(0); item.chmod = 0; func(tile->data[off], item);
-			if(item.chmod==1){ item.splits.push_back(off); item.chmask = 1; item.joins.clear(); }
-			else if(item.chmod==-1) item.joins.push_back(off);
-			else tile->groups |= item.groups;
-		}  // конец параллелльного цикла по тайлам
-		if(item.splits.size()) item.split_tiles[tID].swap(item.splits); 
-		if(item.off==0 || item.joins.size() || item.splits.size()) item.join_tiles[tID].swap(item.joins);  // даже пустой тайл помечаем  для удаления
-	}
+			item.off = off; item.groups = ~uint64_t(0); 
+			func(tile->data[off], item);  tile->groups |= item.groups;
+		}
+	}  // конец параллелльного цикла по тайлам
+	
 	// 2. объединяем вместе изменения, формируем списки создаваемых/удаляемых узлов, выделяем память под новые тайлы
-	std::map<int, std::vector<int> > joins;  std::unordered_map<uint64_t, BitMask<1<<R*D> > splits;  double rt1 = omp_get_wtime();
-	for(Item& item: items){
-		for(auto I: item.join_tiles) joins[-I.first].swap(I.second);	  // отрицательные tID для обхода с конца при удалении тайлов
-		for(auto I: item.split_tiles){
-			tile_t *parent = tiles[I.first], *tile; uint64_t toff = tpos2toff(parent->tpos*2, parent->rank+1); BitMask<1<<R*D> *dst = nullptr;  int chID0 = 0;
-			for(int f0: I.second){
-				int f = f0<<D; int chID = f/(1<<R*D);
-				if(chID!=chID0 || !dst){
-					toff += 32*(chID-chID0); dst = &(splits[toff]); chID0 = chID;  // c 32 начинается старшая часть toff отвечающая за позицию
-					auto J = forest.find(toff); if(J==forest.end()) tile = &add_tile(parent->tpos*2+chID%Ind<2>(1), parent->rank+1); else tile = &(J->second);
+	double rt1 = omp_get_wtime();
+	std::unordered_map<uint64_t, std::vector<change_t> > add_tiles;  std::unordered_map<uint64_t, std::vector<int> > del_tiles;
+	del_tiles.swap(items[0].del_tiles); add_tiles.swap(items[0].add_tiles); for(auto I: add_tiles) std::sort(I->second.begin(), I->second.end());	
+	for(int it=1, it_sz=items.size(); it<it_sz; it++){
+		Item &item = items[it];
+		for(auto I: item.del_tiles){
+			auto J = del_tiles.find(I->first);
+			if(J==del_tiles.end()) del_tiles[I->first].swap(I->second);
+			else J->second.insert(J->second.end(), I->second.begin(), I->second.end());
+		}
+		for(auto I: item.add_tiles){
+			auto J = add_tiles.find(I->first); std::sort(I->second.begin(), I->second.end());
+			if(J==add_tiles.end()) add_tiles[I->first].swap(I->second);
+			else {
+				std::vector<change_t>  dst;  dst.reserve(I->second.size()+J->second.size());
+				auto i = I->second.begin();  auto j = J->second.begin();
+				while(i!=I->second.end() && j!=J->second.end()){  // слияние двух отсортированных списков
+					if(!dst.empty()){
+						if(dst.back().data.off==i->data.off){ dst.back().blob |= i++->blob; continue; }
+						if(dst.back().data.off==j->data.off){ dst.back().blob |= j++->blob; continue; }
+					}						
+					if(i->data.off==j->data.off){ i->blob |= j++->blob; dst.push_back(*(i++)); }
+					else if(*i<*j) dst.push_back(*(i++));
+					else dst.push_back(*(j++));						
 				}
-				// надо сохранять старые узлы до конца стадии?
-				ZCurve64<D> z(f, R+2);  f &= (1<<R*D)-1;  dst->set(f); std::swap(tile->data[f], parent->data[f0]); parent->usage.set(f0, false); 
-				for(const Ind<D> &dpos: irange<D>(-1, 2)){
-					if(dpos==ind(0)) continue;
-					uint64_t f2 = z[dpos].off;
-					if(f2/(1<<R*D)==(1<<D)-1) dst->set(f2&((1<<R*D)-1));
-					else {
-						uint64_t toff2 = tpos2toff(parent->tpos*2+dpos, parent->rank+1); splits[toff2].set(f2&((1<<R*D)-1));
-						if(forest.find(toff2)==forest.end()) add_tile(parent->tpos*2+chID%Ind<2>(1)+dpos, parent->rank+1);
-					}
-				}
-			}
+				if(i==I->second.end()) while(j!=J->second.end()){ if(j->data.off==dst.back().data.off) dst.back().blob |= j++->blob; else dst.push_back(*(j++)); } 
+				if(j==J->second.end()) while(i!=I->second.end()){ if(i->data.off==dst.back().data.off) dst.back().blob |= i++->blob; else dst.push_back(*(i++)); } 
+				J->second.swap(dst);
+			}			
 		}
 	}
-	std::vector<uint64_t> stiles; stiles.reserve(splits.size()); for(auto I: splits) stiles.push_back(I.first);
+	std::vector<tile_t*> ttable; ttable.reserve(add_tiles.size());
+	for(auto I: add_tiles){
+		uint64_t toff = I->first; auto J = forest.find(toff);
+		if(J!=forest.end()) ttable.push_back(&(J->second)); else ttable.push_back(&add_tile(toff2tpos(toff), toff&31));
+	}
+	
 	// 3. вызываем функцию пользователя для всех вновь созданных узлов
-	new_mode = true;  tiles_sz = stiles.size();  double rt2 = omp_get_wtime();
+	tiles_sz = ttable.size();  double rt2 = omp_get_wtime();
 #pragma omp parallel for
 	for(int tID=0; tID<tiles_sz; tID++){  // начало параллельного цикла по новым тайлам
-		tile_t *tile = &(forest[stiles[tID]]);  const BitMask<1<<R*D> &usage = splits[stiles[tID]];
-		Item &item = items[omp_get_thread_num()]; mk_item(item, tile);
-		for(int off: usage){ item.off = off; item.groups = ~uint64_t(0); func(tile->data[off], item); tile->groups |= item.groups; }
-		tile->usage |= usage;
+		tile_t *tile = ttable[tID]; Item &item = items[omp_get_thread_num()]; mk_item(item, tile);
+		std::vector<change_t> &apps = add_tiles[tile->toff];
+		for(change_t &app: apps){
+			item.off = app.data.off; item.creator = app; item.groups = ~uint64_t(0); 
+			func(tile->data[item.off], item);  tile->groups |= item.groups;
+			if(!item.groups) app.mode = 0;
+		}
 	}  // конец параллельного цикла по новым тайлам
 
-	// 4. переносим объединяемые узлы наверх и удаляем пустые тайлы, что делать с группами?
-	double rt3 = omp_get_wtime();
-	for(auto I: joins){
-		int tID = -I.first;  tile_t *tile = tiles[tID], *parent = static_cast<tile_t*>(tile->parent);
-		for(int off: I.second){
-			if((off&((1<<D)-1))==0){
-				if(!parent) parent = &add_tile(tile->tpos/2, tile->rank-1);  // вот тут могут появляться дыркиб все таки нужно использовать node_t для их затыкания?
-				int off_up = off>>D;  for(int i=0; i<D; i++) off_up += tile->tpos[i]%2<<D*(R-1)+i;
-				std::swap(tile->data[off], parent->data[off_up]); parent->usage.set(off_up);
-			}
-			tile->usage.set(off, false);
-		}
-		if(!tile->usage) del_tile(tID); 
+	// 4. отмечаем новые и удаленные узлы, при необходимости удаляем пустые тайлы
+	double rt3 = omp_get_wtime(); int tID = 0;
+#pragma omp parallel for
+	for(int tID=0; tID<tiles_sz; tID++){  // начало параллельного цикла по новым тайлам
+		tile_t *tile = ttable[tID]; const std::vector<change_t> &apps = add_tiles[tile->toff];
+		for(change_t app: apps) if(app.mode) tile->usage.set(app.off);
+	}  // конец параллельного цикла по новым тайлам
+	for(auto I: del_tiles){
+		tile_t &tile = forest[I->first]; for(int off: I->second) tile.usage.set(off, false);
+		if(!tile.usage) del_tile(tile.tID);
 	}
 	return vec(rt1-rt0, rt2-rt1, rt3-rt2, omp_get_wtime()-rt3);
+}
+//------------------------------------------------------------------------------
+//   методы Item
+//------------------------------------------------------------------------------
+template <typename T, int D, int R> const T* TiledAdaptiveMesh<T, D, R>::Stencil::get(int cID, int &rank_) const noexcept {  
+	stencil_node_t snode = snodes[cID]; const item_node_t *inode = &(cube[sn.tID]);
+	const tile_t *tile = inode->tile; if(tile && tile->usage[sn.off]){ rank_ = tile->rank;  return tile->data+snode.off; }
+	int off = snode.off; tile = inode->parent;
+	while(tile && !(off&((1<<D)-1))){  // пытаемся подняться не попадая между узлами более крупной сетки
+		off = up_off(off, parent->toff); 
+		if(tile->usage[off]){ rank_ = tile->rank; return tile->data+off; }
+		tile = tile->parent;
+	} 
+	off = snode.off;  int chID = off>>D*(R-1);
+	while(inode->childs[chID]){
+		inode = inode->childs[chID]; off = (off&((1<<(R-1)*D)-1))<<D; tile = inode->tile;
+		if(tile && tile->usage[off]){ rank_ = tile->rank; return tile->data+off; } }
+		chID = off>>D*(R-1);
+	}
+	rank_ = -1; return nullptr;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R> void TiledAdaptiveMesh<T, D, R>::Item::remove(){  // удаляет текущий узел
+	std::vector<int> &dst = del_tiles[tile->toff]; if(dst.size() && dst.back()!=off) dst.push_back(off); 
+}
+//------------------------------------------------------------------------------
+// возвращает узел с рангом на единицу меньше (если есть, иначе nullptr)
+template <typename T, int D, int R> const T* TiledAdaptiveMesh<T, D, R>::Item::get_dec_rank_comrade() const noexcept {
+	const tile_t *parent = tile->parent;
+	if(!Dbits() && parent){ int uf = up_off(off, tile->toff); if(parent->usage[uf]) return parent->data+uf; }
+	return nullptr;
+}  
+//------------------------------------------------------------------------------
+// возвращает узел с рангом на единицу больше (если есть, иначе nullptr)
+template <typename T, int D, int R> const T* TiledAdaptiveMesh<T, D, R>::Item::get_inc_rank_comrade() const noexcept {
+	const item_node_t *inode = cube+calc_pow3<D>::x/2;
+	int chID = down_chID(off); if(!inode->childs[chID]) return nullptr;
+	int doff = down_off(off); const uint64_t *dtile = inode->childs[chID]->tile;
+	if(!dtile || !dtile->usage[doff]) return nullptr;
+	return dtile->data + doff;
+}
+//------------------------------------------------------------------------------
+//создает НОВЫЙ узел itemID из шаблона stencilID на том же ранге
+template <typename T, int D, int R> bool TiledAdaptiveMesh<T, D, R>::Item::add_comrade(int stencilID, int itemID, uint64_t msg){
+	const auto &st = storage->stencils[stencilID]; stencil_node_t snode = st[(R*D>>st.size())*off+itemID];
+	const tile_t *ctile = cube[snode.tID].tile; if(ctile && ctile->usage[snode.off]) return false;
+	change_t c; c.data.off = snode.off; c.data.mode = 4; c.data.msg = msg;
+	changes[ctile? ctile->toff: tpos2toff(toff2tpos(tile->toff) + snode.tID%Ind<D>(3) - ind(1), tile->rank())].push_back(c);
+	return true;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R> bool TiledAdaptiveMesh<T, D, R>::Item::add_dec_rank_comrade(uint64_t msg){  // создает узел с уменьшенным рангом
+	const tile_t *parent = tile->parent; int uf = up_off(off, tile->toff);
+	if(Dbits() || (parent && paret->usage[uf])) return false;
+	change_t c; c.data.off = uf; c.data.mode = 2; c.data.msg = msg;
+	changes[parent? parent->toff: up_toff(tile->toff)].push_back(c);	
+	return true;
+}
+//------------------------------------------------------------------------------
+// создает узлы с увеличенным рангом и соседними узлами согласно маске коорд. сфер, возвращает число созданных узлов
+template <typename T, int D, int R> int TiledAdaptiveMesh<T, D, R>::Item::add_inc_rank_comrade(uint64_t msg, int sphmask){
+	int res = 0; std::vector<change_t> *charr = nullptr;  uint64_t last_dtoff = 0; // ноль точно невалидное значение т.к. rank>0
+	int chID = down_chID(off), doff = down_off(off);  uint64_t dtoff = down_toff(tile->toff, chID);
+	const item_node_t *inode = cube[calc_pow3<D>::x/2].childs[chID];  const tile_t *dtile0 = inode? inode->tile: nullptr;
+	change_t c; c.data.mode = 1; c.data.msg = msg;
+	if(!(dtile0 && dtile0->usage[doff])){
+		if(last_off!=dtoff){ last_dtoff = dtoff; charr = &(changes[dtoff]); }
+		c.data.off = doff; charr->push_back(c); res++;
+	}
+	if(!sphmask) return res;
+	Ind<D> pos0 = storage->coords[doff], tpos0 = toff2tpos(dtoff);  const tile_t *dtile = dtile0;
+	for(Ind<D> &dpos: irange<D>(-1, 2)){
+		int ones = 0; for(int i=0; i<D; i++){ ones += bool(dpos[i]); } if(!ones || !(sphmask&(1<<ones-1))) continue;
+		Ind<D> pos = pos0+dpos, tpos = tpos0;
+		for(int i=0; i<D; i++) if(pos[i]<0){ tpos[i]--; pos[i] = (1<<R)-1; } else if(pos[i]==(1<<R)){ tpos[i]++; pos[i] = 0; }  // проверка выходов в соседние тайлы
+		uint64_t dtoff = tpos2toff(tpos, tile->rank);  doff = ZCurve32(pos, R).off;
+		if(last_dtoff!=dtoff){
+			last_dtoff = dtoff; charr = &(changes[dtoff]);
+			auto I = forest.find(dtoff); dtile = I==forest.end()? nullptr: &(I->second);
+		}
+		if(!(dtile && dtile->usage[doff])){ c.data.off = doff; charr->push_back(c); res++; }
+	}
+	return res;
 }
 //------------------------------------------------------------------------------

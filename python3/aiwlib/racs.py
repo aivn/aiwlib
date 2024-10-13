@@ -101,19 +101,19 @@ def _calc_configure(self):
         try:
             if os.path.islink('_') or os.path.exists('_'): os.remove('_')
             os.symlink(self.path, '_')
-        except Exception as e: print>>sys.stderr, e
+        except Exception as e: print(e, file=sys.stderr)
     if calc._racs_params['_statechecker']:
         import inspect
         f = open('/tmp/racs-schk-%i'%os.getpid(), 'w')
-        print>>f, '''#!/usr/bin/python -S
+        print('''#!/usr/bin/python -S
 # -*- coding: utf-8 -*-
 import os, sys, cPickle, time, socket
 d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))
-'''
-        print>>f, inspect.getsource(mixt.get_login)
-        print>>f, inspect.getsource(mixt.mk_daemon)
-        print>>f, inspect.getsource(mixt.set_output)
-        print>>f, '''mk_daemon(); set_output()
+''', file=f)
+        print(inspect.getsource(mixt.get_login), file=f)
+        print(inspect.getsource(mixt.mk_daemon), file=f)
+        print(inspect.getsource(mixt.set_output), file=f)
+        print('''mk_daemon(); set_output()
 while 1:
     if '%i' in os.listdir('/proc/'): time.sleep(10)
     else: 
@@ -122,7 +122,7 @@ while 1:
             R['statelist'].append(('killed', get_login(), socket.gethostname(), d2s(time.time()), 'racs-statechecker'))
             cPickle.dump(R, open(%r+'.RACS', 'w')); os.utime(%r, None)
         break
-        '''%(os.getpid(), self.path, self.path, self.path)
+        '''%(os.getpid(), self.path, self.path, self.path), file=f)
         f.close(); os.chmod(f.name, 0o700); os.system(f.name); os.remove(f.name)
     if calc._racs_params['_on_exit']: atexit.register(_on_exit, self)
     if calc._racs_params['_commit_sources']:
@@ -162,7 +162,8 @@ def _on_exit(self):
         s = pickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]]) 
         connect.send('%08i'%len(s)+s); connect.close()
         return 
-    import os, time, mixt, chrono
+    import os, time
+    from . import mixt, chrono
     try:
         for wrap in self._wraps: self.pull(wrap._core, _prefix=wrap._prefix) 
         runtime = chrono.Time(time.time()-self._starttime)

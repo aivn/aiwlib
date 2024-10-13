@@ -60,7 +60,7 @@ def checkout_swig_types_table(stt):
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
-            #print( i, D, repr(T), repr(V))
+            # print( i, D, repr(T), repr(V))
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
@@ -100,14 +100,14 @@ _2tuple = lambda X: X._getdata() if hasattr(X, '_getdata') else tuple(X) if type
 #-------------------------------------------------------------------------------
 #   class Vec (python implementation)
 #-------------------------------------------------------------------------------
-class Vec:
+class Vec(PVec):
     _is_aiwlib_vec = True
     #def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
     def _T(self): return self.T if 'T' in self.__dict__ else _get_T(get_swig_type(self.this))
     def _D(self): return self.D if 'D' in self.__dict__ else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
         #print(self.__class__.__name__, '*******', args, kw_args, '******')
-        self._swig_init()
+        if not 'this' in self.__dict__: self._swig_init()
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
             elif args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
@@ -161,14 +161,15 @@ class Vec:
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
         push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))), szT)    
     #---------------------------------------------------------------------------
-    def __getstate__(self):
+    def __getstate__(self):        
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
+        #print('getstate ==>', struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D))
         return struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D)
     def __setstate__(self, state):
-        self._swig_init() #???
+        if not 'this' in self.__dict__: self._swig_init() #???
         sT, sC, self.D = struct.unpack('BBh', state[:4])    
         self.T = _cxx_types_table[sT, sC]
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T] #; print(T, C, pyT, let, szT, unpack, pack)
         if szT*self.D!=len(state)-4: raise Exception('incorrect state size')
         push_vec_data(self, 0, state[4:], szT*self.D)
         cxx_m, i = _vec_types_table.get((self.T, self.D), (0,0))
@@ -309,7 +310,13 @@ class Vec:
     #def __del__(self): destroy_swig_object(self.this)
     def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1]) #print(_vec_swig_type);
     def __getattr__(self, attr):
-        return self._T() if attr=='T' else self._D() if attr=='D' else self['xyztuvw'.index(attr)] if len(attr)==1 and attr in 'xyztuvw' else self.__dict__[attr]
+        #print('@', id(self), attr, list(self.__dict__.keys()))
+        if attr=='T': return self._T()
+        if attr=='D': return self._D()
+        if len(attr)==1 and attr in 'xyztuvw': return self['xyztuvw'.index(attr)]
+        #if attr=='this' and not 'this' in self.__dict__: self._swig_init(); print('SW', id(self), list(self.__dict__.keys()))
+        if attr in self.__dict__: return self.__dict__[attr]
+        raise AttributeError(self, attr)
     def __setattr__(self, attr, val):
         if len(attr)==1 and attr in 'xyztuvw': self['xyztuvw'.index(attr)] = val
         else: self.__dict__[attr] = val
@@ -334,11 +341,15 @@ def angle(a, b, c):
 #-------------------------------------------------------------------------------
 #   FINAL ACTIONS
 #-------------------------------------------------------------------------------
-#del PVec.__swig_destroy__ # ugly workaround!!!
+##del PVec.__swig_destroy__ # ugly workaround!!!
 PVec._swig_init = PVec.__init__
 for k, v in Vec.__dict__.items():
     if k not in ('__doc__', '__dict__'): setattr(PVec, k, v)
-PVec.__name__, Vec = 'Vec', PVec; del PVec
+
+        #PVec.__name__, Vec = 'Vec', PVec; del PVec  # это ломает pickle.dump, попробовать наследование?
+if 0:
+    Vec =  PVec
+
 
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
 

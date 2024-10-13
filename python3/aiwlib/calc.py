@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''Copyright (C) 2002-2017, 2023 Anton V. Ivanov <aiv.racs@gmail.com>
+'''Copyright (C) 2002-2017, 2023-24 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
 import os, sys, time, pickle, socket, shutil 
@@ -9,7 +9,7 @@ try: from aiwlib.mpi4py import *
 except ImportError as e: pass
 #-------------------------------------------------------------------------------
 #_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
-_is_swig_obj = lambda X: "<type 'SwigPyObject'>" in [str(type(X)), str(type(getattr(X, 'this', None)))]
+_is_swig_obj = lambda X: any("<Swig Object" in x for x in [str(X), str(type(X)), str(type(getattr(X, 'this', None)))])
 _rtable, _G, ghelp = [], {}, [] # таблица для замыкания рекурсии, глобальная таблица и справка  
 _ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
 _racs_params = {} # параметры RACS (репозиторий, демонизация расчета, символическая ссылка и т.д.)
@@ -120,7 +120,7 @@ class Calc:
         if 'path' in self.__dict__: # подготовка пути
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
-            if os.path.exists(self.path+'.RACS'): self.__dict__.update(pickle.load(open(self.path+'.RACS')))
+            if os.path.exists(self.path+'.RACS'): self.__dict__.update(pickle.load(open(self.path+'.RACS', 'rb'), encoding='bytes'))
         for k, v in _args_from_racs: # накат сторонних параметров            
             if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
             self.__dict__[k] = v
@@ -145,16 +145,19 @@ class Calc:
     def commit(self): 
         'Сохраняет содержимое расчета в базе'
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
+        # print(list(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())))
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
-        pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
-                     open(self.path+'.RACS', 'w'))
+        # print(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())))
+        # pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path' and not getattr(i[1], '_racs_pull_lock', True) and not hasattr(i[1], '__racs_pull_denied__'),
+        #                        self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
+        pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
         os.utime(self.path, None) # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
     def add_state(self, state, info=None, host=socket.gethostname(), login=mixt.get_login()):
         'Устанавливает статус расчета, НЕ вызывает commit()'
-        import mixt, chrono 
+        from . import mixt, chrono 
         if not state in ('waited','activated','started','finished','stopped','suspended'):
             raise Exception('unknown status "%s" for "%s"'%(state, self.path if hasattr(self, 'path') else '???'))
         if info==None and state=='started': info = os.getpid()
@@ -201,18 +204,19 @@ class Calc:
         параметры kw_args имеют более высокий приоритет, чем параметры расчета
         автоматически устанавливаются аттрибуты имеющие методы __get/setstate__ 
         (но не имеющие аттрибута _racs_pull_lock) или не-являющиеся объектами swig'''
-        ignore_list = _ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this','thisown']
+        ignore_list = _ignore_list+(ignore_list.split() if type(ignore_list) is str else ignore_list)+['this', 'thisown']
         if type(X) is dict: 
             for k, v in X.items():
-                if not k in ignore_list and type(v) in (int,float,long,bool): self[k] = v
+                if not k in ignore_list and type(v) in (int, float, bool): self[k] = v #; print(1, _prefix+k, v)
         else:
-            for k in X.__dict__.keys()+getattr(X, '__swig_getmethods__', {}).keys()+filter(lambda k: type(getattr(X.__class__, k, None)) is property, dir(X)):
+            for k in list(X.__dict__.keys())+list(getattr(X, '__swig_getmethods__', {}).keys()
+                                                  )+list(filter(lambda k: type(getattr(X.__class__, k, None)) is property, dir(X))):
                 if not k in ignore_list+['__doc__']: 
                     v = getattr(X, k)
                     if all([hasattr(v, '__%setstate__'%a) for a in 'gs']+
                            [not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__')]
-                           ) or not _is_swig_obj(v): self[_prefix+k] = v
-        for k, v in kw_args.items(): self[k] = v
+                           ) or not _is_swig_obj(v): self[_prefix+k] = v #; print(2, _prefix+k, v, not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__'), _is_swig_obj(v))
+        for k, v in kw_args.items(): self[k] = v #; print(3, _prefix+k, v)
     #---------------------------------------------------------------------------
     def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
     #---------------------------------------------------------------------------
@@ -292,8 +296,8 @@ class _Wrap:
             if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
             else:
                 dst = getattr(self._core, attr)                
-                value = dst.__class__(value, D=dst._D(), T=dst._T()) if getattr(dst, '_is_aiwlib_vec', 
-                                                                                False) else dst.__class__(float(value) if dst.__class__ in (int, long) else value)
+                value = dst.__class__(value, D=dst._D(), T=dst._T()) if getattr(dst, '_is_aiwlib_vec', False) \
+                    else dst.__class__(float(value) if dst.__class__ is int else value)
         self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)

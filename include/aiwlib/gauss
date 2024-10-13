@@ -18,21 +18,24 @@
 namespace aiw{
 	//--------------------------------------------------------------------------
 	template <typename T> class RandN01{
-		std::vector<std::normal_distribution<T> > N01;
-		std::vector<std::mt19937> generators;
+		struct alignas(64) rand_gauss_t {
+			std::normal_distribution<T> N01;
+			std::mt19937 gen;
+			T operator () () { return N01(gen); }
+		};
+		std::vector<rand_gauss_t> generators;
+
 		// std::vector<std::ranlux24_base> generators;
 		// std::vector<std::mt19937*> generators;
 	public:
 		void init(int threads_num=1){			
-			N01.resize(threads_num); for(auto &n: N01) n = std::normal_distribution<T>(0, 1);
-			generators.resize(threads_num);
-			std::random_device rd;
-			for(auto &g: generators) g.seed(rd());
+			generators.resize(threads_num);  std::random_device rd;
+			for(auto &g: generators){ g.N01 = std::normal_distribution<T>(0, 1); g.gen.seed(rd()); }
 		}
 		RandN01(int threads_num=1){ init(threads_num); }
-		T operator()(int thID=0){ return N01.at(thID)(generators.at(thID)); }
+		T operator()(int thID=0){ return generators[thID](); }
 		template<int D> Vec<D, T> V(int thID=0){
-			Vec<D, T> res; for(int i=0; i<D; i++) res[i] = N01.at(thID)(generators.at(thID));
+			Vec<D, T> res; for(int i=0; i<D; i++) res[i] = generators[thID]();
 			return res;
 		}
 	};

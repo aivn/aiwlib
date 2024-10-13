@@ -82,7 +82,7 @@ namespace aiw{
 		//----------------------------------------------------------------------		
 		void dump(aiw::IOstream &&S) const;  //???оптимизировать для простых случаев???
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0); // mmap = 0 - not use, 1 - readonly, 2 - rw
-#endif //SWIG
+#endif //SWIG 
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
 			return load(std::move(S), use_mmap, raise_on_error); 
