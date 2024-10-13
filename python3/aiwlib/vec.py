@@ -41,15 +41,18 @@ del k, v
 _vec_types_table, _swig_modules, _vec_swig_type = {}, [], []
 def view_swig_modules():
     for stt in _swig_modules: stt.out_table()
-_get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
-_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] \
-    else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
+#_get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
+_get_D = lambda V: int((V.decode() if type(V) is bytes else V).split('<')[1].split('>')[0].split(',')[0])
+#_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
+def _get_T(V):
+    if type(V) is bytes: V = V.decode()
+    return V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
 
 def checkout_swig_types_table(stt):
     if stt in _swig_modules: return 
     _swig_modules.append(stt); patchL = []
     for i in range(stt.size()):
-        V = stt.get_item(i) #; print i, V
+        V = stt.get_item(i).decode() #; print(i, V)
         if not V: continue
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
@@ -57,7 +60,7 @@ def checkout_swig_types_table(stt):
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
-            # print i, D, repr(T), repr(V)
+            #print( i, D, repr(T), repr(V))
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
@@ -70,6 +73,7 @@ checkout_swig_modules()
 def import_hook(*args, **kw_args):
     M = builtins_import(*args, **kw_args)    
     checkout_swig_modules()
+    #view_swig_modules()
     return M
 builtins_import, __builtins__['__import__'] = __import__, import_hook
 #-------------------------------------------------------------------------------
@@ -98,10 +102,11 @@ _2tuple = lambda X: X._getdata() if hasattr(X, '_getdata') else tuple(X) if type
 #-------------------------------------------------------------------------------
 class Vec:
     _is_aiwlib_vec = True
-    def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
-    def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
+    #def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
+    def _T(self): return self.T if 'T' in self.__dict__ else _get_T(get_swig_type(self.this))
+    def _D(self): return self.D if 'D' in self.__dict__ else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
-        #print self.__class__.__name__, '*******', args, kw_args, '******'
+        #print(self.__class__.__name__, '*******', args, kw_args, '******')
         self._swig_init()
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
@@ -302,8 +307,9 @@ class Vec:
     #---------------------------------------------------------------------------
     def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
     #def __del__(self): destroy_swig_object(self.this)
-    #def __del__(self): print(_vec_swig_type); _vec_swig_type[0].set_type(self.this, _vec_swig_type[1])
-    def __getattr__(self, attr): return self['xyztuvw'.index(attr)] if len(attr)==1 and attr in 'xyztuvw' else self.__dict__[attr]
+    def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1]) #print(_vec_swig_type);
+    def __getattr__(self, attr):
+        return self._T() if attr=='T' else self._D() if attr=='D' else self['xyztuvw'.index(attr)] if len(attr)==1 and attr in 'xyztuvw' else self.__dict__[attr]
     def __setattr__(self, attr, val):
         if len(attr)==1 and attr in 'xyztuvw': self['xyztuvw'.index(attr)] = val
         else: self.__dict__[attr] = val
