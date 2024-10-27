@@ -144,13 +144,16 @@ class Calc:
     #---------------------------------------------------------------------------
     def commit(self): 
         'Сохраняет содержимое расчета в базе'
-        #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         # print(list(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())))
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
-        # print(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())))
-        # pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path' and not getattr(i[1], '_racs_pull_lock', True) and not hasattr(i[1], '__racs_pull_denied__'),
-        #                        self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
-        pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
+        # pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
+        data = dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items()))
+        try: pickle.dump(data,  open(self.path+'.RACS', 'wb'))
+        except:
+            for k, v in list(data.items()):
+                try: pickle.dumps(v)
+                except Excepstion as e: print(e, '--- %s skipped'%k); del data[k]
+            pickle.dump(data,  open(self.path+'.RACS', 'wb'))
         os.utime(self.path, None) # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')

@@ -146,8 +146,13 @@ class Calc:
         'Сохраняет содержимое расчета в базе'
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
-        cPickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), 
-                     open(self.path+'.RACS', 'w'))
+        data = dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items()))
+        try: cPickle.dump(data,  open(self.path+'.RACS', 'w'))
+        except:
+            for k, v in data.items():
+                try: cPickle.dumps(v)
+                except Excepstion as e: print e, '--- %s skipped'%k; del data[k]
+            cPickle.dump(data,  open(self.path+'.RACS', 'w'))
         os.utime(self.path, None) # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')

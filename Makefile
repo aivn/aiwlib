@@ -219,19 +219,21 @@ clean-qplt-cu:; rm -f bin/qplt-remote $(py_dst)/aiwlib/{_core$(so),_dbg_core$(so
 #-------------------------------------------------------------------------------
 uninstall: 
 	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw{,-dbg}.a 
-	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
+	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done; rm -f $(BINDIR)/gplt
 install: all uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python$(python)/aiwlib  $(PYTHONDIR)
 	-cp libaiw.a $(LIBDIR)/
 	-cp libaiw-dbg.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
+	-cp bin/gplt3 $(BINDIR)/gplt
 links-install install-links: all uninstall
 	-ln -s "$$(pwd)/include/aiwlib" $(INCLUDEDIR)
 	-ln -s "$$(pwd)/python$(python)/aiwlib"  $(PYTHONDIR)
 	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
 	-ln -s "$$(pwd)/libaiw-dbg.a"  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
+	-ln -s "$$(pwd)/bin/gplt3" $(BINDIR)/gplt
 #-------------------------------------------------------------------------------
 #   windows
 #-------------------------------------------------------------------------------

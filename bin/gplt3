@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''gplt3 ... options and [[user@]host:]filenames[@<attrs>] ... --- обертка для 
-         gnuplot, строит графики типографского качества с минимальными усилиями;-)
+'''gplt3 ... options and [[user@]host:]filenames|!command[@<attrs>] ... --- обертка 
+   для gnuplot, строит графики типографского качества с минимальными усилиями;-)
 
 -h [<gnuplot keywords> or <gplt3 options>] --- вывод справки gnuplot и/или gplt3, 
    подразделы справки gnuplot можно указывать через точку, (*) в конце описания 
@@ -61,7 +61,7 @@ Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 '''
 
-import os, sys, functools, glob, pickle, math, time, gzip, json
+import os, sys, functools, glob, pickle, math, time, gzip, json, subprocess
 #---------------------- show help ----------------------------------------------
 if len(sys.argv)==1 or sys.argv[-1]=='-h': print(__doc__); exit()
 if len(sys.argv)>2 and sys.argv[1]=='-h':
@@ -558,14 +558,14 @@ D3, parametric, multiplot, pm3d, sixel, stdin, pause, data_style, title, last_mo
 gp_pipe, gp_mbuf, filters, fdict, flist, using, data, labels, tics, dlist = (sys.stdout if debug_mode else os.popen('gnuplot', 'w')), [], {}, {}, [], [], [], {}, {}, []
 #gp_write = lambda patt, *args: gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args) if args else gp_pipe.write(patt) 
 #def gp_write(patt, *args): print(patt, args); gp_mbuf.append((line,)+args) if multiplot else gp_pipe.write(patt%args)  # на момент вызова может быть неизвестен терминал
-gp_write, tmpfile = (lambda patt, *args: gp_mbuf.append((patt,)+args)),  (lambda :'/tmp/gplt3-%s-%i.dat'%(os.getpid(), len(filters)))
+gp_write, tmpfile = (lambda patt, *args: gp_mbuf.append((patt,)+args)),  (lambda ext='.dat':'/tmp/gplt3-%s-%i%s'%(os.getpid(), len(filters), ext))
 gp_colors = [l.split()[0] for l in os.popen('echo show colornames | gnuplot 2>&1').readlines() if '#' in l]  # цвета гнуплот
 gp_pipe.write('factorial2(x) = x>1?x*factorial2(x-2):1\n')
 
 def subplot():
     # дописываем в data общие фрагменты путей для легенды, с хвоста отгрызать только расширение?
     paths = [x[-1] for x in data if len(x)>2 and x[-1][0]!='!']; pos0, prefix, postfix = len(os.path.commonprefix(paths)), '', ''
-    if paths and pos0<len(paths[0]) and paths[0][pos0]!='/':
+    if paths and pos0<len(paths[0]) and paths[0][pos0]!='/':  # сокращение имен файлов
         if len(paths[0][:pos0].split('/')[-1])<3: pos0 -= len(paths[0][:pos0].split('/')[-1])
         else: prefix = '...'
     pos1 = len(os.path.commonprefix([''.join(reversed(x[pos0:])) for x in paths]))
@@ -697,9 +697,9 @@ def parse_dog_attr(arg):
         else: res['@title'] = ','.join([x[1:]]+opt); del opt[:]
     return arg, res
 
-def read_header(fname, add_opts, base_opts):
+def read_header(fname, tmpf, add_opts, base_opts):
     scope, cols_sz, columns, params, base_scope = dict(base_opts), 0, [], [], {}
-    with open(fname) as fin:
+    with open(tmpf) as fin:
         for line in fin:
             line = line.strip()
             if line and line[0]!='#': cols_sz = len(line.split()); break
@@ -707,6 +707,7 @@ def read_header(fname, add_opts, base_opts):
             line = line[2:]
             if '=' in line: params.append(line) # доп. данные в заголовке
             else: columns.append(line.split())
+    if not cols_sz: print('[ skipped file %r without data ]'%fname); return None, None, None
     for cols in columns:
         cols_var, vecs = [], {}
         for cID, name in enumerate(cols):
@@ -729,7 +730,7 @@ def read_header(fname, add_opts, base_opts):
         if not v in scope: base_scope[v] = scope[v] = Var(v, '($%i)'%c)
     #if not columns: cols_var = [base_scope.get('xyz'[i] if i<3 else 'C%i'%(i+1), base_scope.get('xyz'[i] if i>=3 else 'C%i'%(i+1))) for i in range(cols_sz)]
     if not columns: cols_var = [base_scope.get('xyz'[i] if i<3 else 'C%i'%(i+1), ('xyz'[i] if i<3 else 'C%i'%(i+1))) for i in range(cols_sz)]
-    return [scope, cols_var]
+    return scope, cols_var, tmpf
 #-------------------------------- CLIF -----------------------------------------
 def clif_cast(arg):
     #try: return eval(arg, {'__builtlins__': None})
@@ -778,12 +779,32 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
                     except: tmp_scope[key] = '{%s}'%key
                 except: dst_seq.append(el); break
     return dst_seq
+
+def try_convert_csv_or_gz(fname, fdata):
+    if fname.endswith('.csv') or fname.endswith('.csv.gz'):
+        tmpf, fin = tmpfile(), (gzip.open if fname[-3:]=='.gz' else open)(fdata, 'rt'); header = fin.readline()
+        if not header: print('[ empty file %r skipped ]'%fname); return
+        sep = ';' if ';' in header else ','; header, ftmpf = header.split(sep), open(tmpf, 'w'); cols_sz = len(header)
+        try: float(header[0]);  ftmpf.write(' '.join(header)+'\n');  header = ['x', 'y', 'z'][:cols_sz] if cols_sz<=3 else ['C%i'%(i+1) for i in range(cols_sz)]
+        except: ftmpf.write('#:'+' '.join(header)+'\n')
+        columns = [Var(v, '($%i)'%(c+1)) for c, v in enumerate(header)]
+        header = dict((v, Var(v, '($%i)'%c)) for v, c in [('C0', 0)]+[(('xyz'[i] if i<3 else 'C%i'%(i+1)), i+1) for i in range(cols_sz)]+
+                      [(v,c+1) for c, v in enumerate(header)])
+        for l in fin: ftmpf.write(' '.join([x, 'nan'][not x] for x in l.strip().split(sep))+'\n')  # strip???
+        ftmpf.close();  filters[fname], fdict[fname] = tmpf, (header, columns, tmpf)
+    elif fdata.endswith('.gz'): tmpf = filters[fname] = tmpfile();  os.system('zcat %r > '%fdata+tmpf)
+    else: return fdata
+    if fname!=fdata: os.remove(fdata)
+    return tmpf
+        
+sz2str = lambda sz: [p%(sz/d) for d, p in ((2**40,'%.4fT'), (2**30,'%.3fG'), (2**20,'%.2fM'), (2**10,'%.1fK'), (1,'%iB')) if sz>=d][0] if sz else '0B'
 #-----------------------------  main loop  -------------------------------------
-history, hstart, ifiles = [], 0, []
+history, hstart, ifiles, connects = [], 0, [], {}
 double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
 rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i arw lbl pm3di'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
+
 #iopt, opt_seq = 0, sys.argv[1:]
 #print(opt_seq); exit()
 while iopt<len(opt_seq): 
@@ -856,64 +877,90 @@ while iopt<len(opt_seq):
         name, expr = arg.split('=', 1);  name, args = name.split('(') if '(' in name else (name, None) 
         dlist = [e for e in dlist if e[0]!=name]+[[name, expr]+([a.strip() for a in args[:-1].split(',')] if args else [])]*bool(expr)
     elif opt=='-i':  # загрузка сценария
-        if arg in ifiles: print('gplt3 file %r has already been loaded, skipped'%arg); continue
+        if arg in ifiles: print('[ gplt3 file %r has already been loaded, skipped ]'%arg); continue
         try:
             with open(arg) as ifile:
                 del history[-1]; iopt -= 2
                 opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else a
                                             for a, b in [(l.split(), l) for l in map(str.strip, ifile) if l and l[0]!='#']], [])
             ifiles.append(arg)
-        except Exception as E: print("Can't open gplt3 file %r: %s"%(arg, E))
+        except Exception as E: print("[ Can't open gplt3 file %r: %s ]"%(arg, E))
     else:   # add filename
-        if ':' in opt and opt[0]!='!' and (not '@' in opt.split(':')[0] or (opt.split('@')[0].replace('_', '').isalnum() and opt[0]!='@')):
-            ssh, opt = opt.split(':', 1)          
-        else: ssh = ''
+        if ':' in opt and opt[0]!='!' and (not '@' in opt.split(':')[0] or (opt.split('@')[0].replace('_', '').isalnum() and opt[0]!='@')):            
+            host, opt = opt.split(':', 1)
+            if host in connects: connect = connects[host]
+            else:
+                print('[ try ssh connect to %s ... '%host, end='', flush=1); t0 = time.time()
+                connect = connects[host] = subprocess.Popen(['ssh', host], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                connect.stdin.write(b'echo -----\n'); connect.stdin.flush()
+                while 1:
+                    l = connect.stdout.readline()
+                    if l.strip()==b'-----' or not l: break
+                if l: print('%.2gsec ]'%(time.time()-t0))
+                else: print('\n', '\n'.join(l.decode().strip() for l in connect.stderr.readlines()[1:]), ']'); del connects[host]; continue
+        else: host, connect = '', None
         fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):  # read from stdin
-            if ssh: print('ERRROR: illegal read stdin from ', ssh, file=sys.stderr); exit()
+            if host: print('[ ERRROR: illegal read stdin from %s ]'%host); continue
             if not '!stdin' in filters:  # real read from stdin
-                filters['!stdin'] = files = [tmpfile()]; stdin = True
-                with open(files[0], 'w') as fout: fout.writelines(sys.stdin.readlines())
-            else: files = filters['!stdin']   # в фильтрах лежат имена временных файлов
-        elif fname0.startswith('!'):
-            if not fname0 in filters:  # real read from shell command
-                filters[fname0] = files = [tmpfile()]
-                with open(files[0], 'w') as fout: fout.writelines(os.popen(fname0[1:]).readlines())
-            else: files = filters[fname0]   # в фильтрах лежат имена временных файлов
-        elif fname0.startswith('[') and fname0.endswith(']'):
+                tmpf = filters['!stdin'] = tmpfile(); stdin = True
+                with open(tmpf, 'w') as fout: fout.writelines(sys.stdin.readlines())
+            files = [('!stdin', filters['!stdin'])]   # в фильтрах лежат имена временных файлов
+        elif fname0.startswith('!'):  # ssh?
+            if not host and not fname0 in filters:  # real read from shell command
+                tmpf = filters[fname0] = tmpfile(); print('[ run shell command %r ]'%fname0[1:])
+                with open(tmpf, 'w') as fout: fout.writelines(os.popen(fname0[1:]).readlines())
+            elif host and not fname0 in filters:  # real read from remote shell command
+                tmpf = b'/tmp/gplt3-%i-%g.dat'%(os.getpid(), time.time()); print('[ run shell command %r'%fname0[1:], 'on', host, '...', end='', flush=1); t0 = time.time()
+                connect.stdin.write(b'(%s) 1> %s.dat 2> %s.err; wc -c %s.err %s.dat\n'%((fname0[1:].encode(),)+(tmpf,)*4)); connect.stdin.flush()
+                err_sz, dat_sz = [int(connect.stdout.readline().split()[0]) for i in range(3)][:2];  print(' %.2gsec'%(time.time()-t0), end='', flush=1)
+                if err_sz: connect.stdin.write(b'cat %s.err\n'%tmpf); connect.stdin.flush(); print(' ERROR:\n', connect.stdout.read(err_sz).decode(), end='')
+                if not dat_sz: print(' empty result skipped ]'); connect.stdin.write(b'rm %s.dat %s.err\n'%(tmpf, tmpf)); connect.stdin.flush(); continue
+                print(' ]'); connect.stdin.write(b'cat %s.dat; rm %s.dat %s.err\n'%((tmpf,)*3)); connect.stdin.flush()
+                t0, fname0 = time.time(), host+':'+fname0; print('[ load result of %r'%fname0, sz2str(dat_sz), '... ', end='', flush=1) 
+                tmpf2 = filters[fname0] = tmpfile();  fout = open(tmpf2, 'wb'); fout.write(connect.stdout.read(dat_sz)); fout.close(); print('%.2gsec ]'%(time.time()-t0))
+            files = [(fname0, filters[fname0])]   # в фильтрах лежат имена временных файлов
+        elif fname0.startswith('[') and fname0.endswith(']'):  # обращение к файлам по номерам
             files = eval('flist'+fname0, {'__builtins__': None, 'flist': flist})
-            if type(files) is str: files = [files]
-        elif ssh:
-            if not fname0 in filters:  # real ssh copy files 
-                filters[ssh+':'+fname0] = files = []
-                for src in sorted(os.popen("ssh %s 'echo %s'"%(ssh, fname0)).readline().split()):
-                    dst = tmpfile()
-                    if os.system('scp %s:%r %s'%(ssh, src, dst)): print("%s:%r skipped"%(ssh, src)); continue
-                    filters[ssh+':'+src] = [dst]; files.append(dst)
-            else: files = filters[ssh+':'+fname0]
-        else: files = sorted(glob.glob(fname0))
-        if not files: print('file %r not found'%fname0)
-        for fname in files:
+            files = [(f, filters.get(f, f)) for f in ([files] if type(files) is str else files)]
+        elif host and host+':'+fname0 in filters: files = [(host+':'+fname0, filters[host+':'+fname0])]
+        elif host:
+            connect.stdin.write(b'wc -c %s; echo -----\n'%fname0.encode()); connect.stdin.flush();  getlist, files = [], []
+            while 1:
+                line = connect.stdout.readline(); first = line.split()[0]
+                if first==b'-----': break
+                if first.isdigit() and first!=b'0': getlist.append((int(first), line.split(first, 1)[1].strip()))
+            for dat_sz, bname in getlist[:-1] if len(getlist)>1 else getlist:
+                fname = host+':'+bname.decode(); ext = os.path.splitext(fname)[1]
+                if not fname in filters: 
+                    connect.stdin.write(b'cat %s; wc -c $(dirname %s)/.RACS\n'%(bname, bname)); connect.stdin.flush(); tmpf = filters[fname] = tmpfile(ext)
+                    print('[ load %s %s ... '%(fname, sz2str(dat_sz)), end='', flush=1); t0 = time.time()                    
+                    fout = open(tmpf, 'wb');  fout.write(connect.stdout.read(dat_sz)); fout.close(); print('%.2gsec'%(time.time()-t0), ']')
+                    tmpf = try_convert_csv_or_gz(fname, tmpf)
+                    if not tmpf: continue
+                    line = connect.stdout.readline(); first = line.split()[0]
+                    if first.isdigit() and first!=b'0':  # load remote .RACS
+                        dat_sz, racs_name, t0 =  int(first), line.split(first, 1)[1].strip(), time.time()
+                        print('[ load %s:%s'%(host, racs_name.decode()), sz2str(dat_sz), '...', end='', flush=1)
+                        connect.stdin.write(b'cat %s\n'%racs_name); connect.stdin.flush()
+                        fout = open(tmpf+'.RACS', 'wb'); fout.write(connect.stdout.read(dat_sz)); fout.close()
+                        print(' %.2gsec ]'%(time.time()-t0))  
+                files.append((fname, tmpf))
+        else: files = sorted(glob.glob(fname0)); files = list(zip(files, files))  # обычные файлы
+        if not files: print('[ file %r not found ]'%fname0)
+        for fname, tmpf in files:
             if fname in fdict: header, columns, tmpf = fdict[fname]; header = dict(header); header.update(opts)  # в fdict лежат заголовок, столбцы, tmpf
-            elif fname.endswith('.csv') or fname.endswith('.csv.gz'):
-                tmpf, fin = tmpfile(), (gzip.open if fname[-3:]=='.gz' else open)(fname)
-                header = fin.readline(); sep = ';' if ';' in header else ','; header, ftmpf = header.split(sep), open(tmpf, 'w'); cols_sz = len(header)
-                try: float(header[0]);  ftmpf.write(' '.join(header)+'\n');  header = ['x', 'y', 'z'][:cols_sz] if cols_sz<=3 else ['C%i'%(i+1) for i in range(cols_sz)]
-                except: ftmpf.write('#:'+' '.join(header)+'\n')
-                columns = [Var(v, '($%i)'%(c+1)) for c, v in enumerate(header)]
-                header = dict((v, Var(v, '($%i)'%c)) for v, c in [('C0', 0)]+[(('xyz'[i] if i<3 else 'C%i'%(i+1)), i+1) for i in range(cols_sz)]+
-                              [(v,c+1) for c, v in enumerate(header)])
-                for l in fin: ftmpf.write(' '.join([x, 'nan'][not x] for x in l.strip().split(sep))+'\n')  # strip???
-                ftmpf.close();  filters[fname], fdict[fname] = [tmpf], (header, columns, tmpf)
-            else:
-                racs, srcdir, tmpf = {}, os.path.dirname(fname), fname  # читаем .RACS
+            else:                
+                racs, srcdir, tmpf = {}, os.path.dirname(fname), try_convert_csv_or_gz(fname, tmpf)  # читаем .RACS, что насчет ssh?
+                if not tmpf: continue
                 while srcdir and srcdir!='/tmp' and srcdir!='/' and not os.path.exists(os.path.join(srcdir, '.RACS')): srcdir = os.path.dirname(srcdir)
                 try:
-                    with open(os.path.join(srcdir, '.RACS'), 'rb') as fracs:
+                    with open(tmpf+'.RACS' if os.path.exists(tmpf+'.RACS') else os.path.join(srcdir, '.RACS'), 'rb') as fracs: 
                         racs = dict((k.decode(), v.decode() if type(v) is bytes else v) for k, v in pickle.load(fracs, encoding='bytes').items())
                 except Exception as E: pass #print(fname, 'racs skipped:', E)
-                if fname.endswith('.gz'): tmpf = tmpfile(); filters[fname] = [tmpf]; os.system('zcat %r > '%fname+tmpf)
-                header, columns, tmpf = fdict[fname] = read_header(tmpf, opts, racs)+[tmpf]; flist.append(fname)  # tmpf ???
+                header, columns, tmpf = fdict[fname] = read_header(fname, tmpf, opts, racs)   # tmpf ???
+                if not tmpf: continue
+                flist.append(fname)
             if not using: data.append([tmpf, header, columns, '', ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
             else:
                 for u, uopt in using:
@@ -926,14 +973,19 @@ if not sixel and not last_mode:
         if stdin: print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
         else: input('gplt3: press ENTER or Ctrl-C for close')
     except: pass
-if filters: gp_pipe.write('!rm -f %s\n'%' '.join(sum(filters.values(), []))); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
+#if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
+if filters: gp_pipe.write('!rm -f /tmp/gplt3-%i-*\n'%os.getpid()); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # ОШИБКИ:
 # .RACS не читается?
 # порядок -def имеет значение?
+# не отображабтся имена ssh-файлов
+
 
 # TODO:
+# вывод сообщений в stderr а не в stdout
+# сделать питоновскую обертку а-ля библиотека с соотв модулем
 # для ssh хранить таблицу в json вида 'хост:файл' : (время-изменения-на-хосте: временный-файл) и лазить сначала в нее?
 # стиль отрисовки vector
 # index
