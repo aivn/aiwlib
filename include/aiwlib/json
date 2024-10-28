@@ -1,0 +1,200 @@
+// -*- C++ -*-
+#ifndef AIW_JSON_HPP
+#define AIW_JSON_HPP
+
+/**
+ * Copyright (C) 2024 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <iomanip>
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	class Json {
+	public:
+		enum Type { Unknown, Bool, Int, Float, Str, List, Dict };
+	protected:
+		std::map<std::string, Json> D;
+		std::vector<Json> L;
+		std::string S;
+		union {
+			int64_t I;
+			double F;
+		} data;
+		bool B = false;
+		Type type_ = Unknown;
+	public:
+		Type type() const { return type_; }
+		// int size() const { return type_==} что для строки?
+		void set_type(Type t, bool fix_type=true){
+			if(t==type_) return;
+			if(fix_type && t!=type_ && type_!=Unknown){ std::cerr<<"Json: incorrect new type="<<t<<" old type="<<type_<<std::endl; abort(); }
+			if(t!=type_ && type_==Str) S.clear();
+			if(t!=type_ && type_==List) L.clear();
+			if(t!=type_ && type_==Dict) D.clear();
+			type_ = t;
+		}
+		
+		Json& b(){ set_type(Bool);  return *this; }    
+		Json& i(){ set_type(Int);   return *this; }    
+		Json& f(){ set_type(Float); return *this; }    
+
+		void operator = (int64_t x){  // тип должен быть явно задан до того через b/i/f
+			if(type_==Bool) B = x; 
+			else if(type_==Int) data.I = x;  
+			else if(type_==Float) data.F = x; 
+			else{ std::cerr<<"Json::= int --- incorrect type "<<type_<<std::endl; abort(); }
+		}
+		void operator = (int x){ *this = int64_t(x); }
+		void operator = (size_t x){ *this = int64_t(x); }
+		void operator = (double x){   // тип должен быть явно задан до того через b/i/f
+			if(type_==Bool) B = x; 
+			else if(type_==Int) data.I = x; 
+			else if(type_==Float) data.F = x;			
+			else{ std::cerr<<"Json::= double --- incorrect type "<<type_<<std::endl; abort();  }
+		}
+		void operator = (float x){ *this = double(x); }
+		void operator = (const std::string &x){
+			if(type_==Str || type_==Unknown){ type_ = Str; S = x; }
+			else{	std::cerr<<"Json::= double --- incorrect type "<<type_<<std::endl; abort(); }
+		}
+		// для векторов и map аналогично?
+
+		Json& b(bool x){ set_type(List); L.emplace_back(); L.back().b() = x;  return *this;  }
+		Json& i(int64_t x){ set_type(List); L.emplace_back(); L.back().i() = x;  return *this;  }
+		Json& f(double x){ set_type(List); L.emplace_back(); L.back().f() = x;  return *this;  }
+		Json& operator ()(const std::string &x){ set_type(List); L.emplace_back(); L.back() = x;  return *this;  }
+		Json& operator ()(const Json &J){ set_type(List); L.push_back(J);  return *this;  }		
+		Json& operator [] (int i) { set_type(List); return L.at(i); }
+		Json& add(){ set_type(List); L.emplace_back(); return L.back(); }
+		
+		Json& b(const std::string &key, bool val){ set_type(Dict); D[key].b() = val; return *this; }
+		Json& i(const std::string &key, int64_t val){ set_type(Dict); D[key].i() = val; return *this; }
+		Json& f(const std::string &key, double val){ set_type(Dict); D[key].f() = val; return *this; }
+		Json& operator ()(const std::string &key, const std::string& val){ set_type(Dict); D[key] = val; return *this; }
+		Json& operator ()(const std::string &key, const Json& val){ set_type(Dict); D[key] = val; return *this; }
+		Json& operator [] (const std::string &key){ set_type(Dict); return D[key];  }
+
+
+
+		
+		bool get_bool() const {
+			if(type_==Bool) return B;
+			if(type_==Int) return data.I;
+			if(type_==Float) return data.F;
+			if(type_==Str) return !S.empty();
+			if(type_==List) return !L.empty();
+			if(type_==Dict) return !D.empty();
+			std::cerr<<"Json::get_bool() --- unknown type"<<std::endl; abort();
+			return false;
+		}
+		int64_t get_int() const {
+			if(type_==Bool) return B;
+			if(type_==Int) return data.I;
+			if(type_==Float) return data.F;
+			std::cerr<<"Json::get_int() --- incorrect type "<<type_<<std::endl; abort();
+			return 0;
+		}
+		double get_float() const {
+			if(type_==Bool) return B;
+			if(type_==Int) return data.I;
+			if(type_==Float) return data.F;
+			std::cerr<<"Json::get_float() --- incorrect type "<<type_<<std::endl; abort();
+			return 0;
+		}
+		const std::string& get_str() const {
+			if(type_==Str) return S;
+			std::cerr<<"Json::get_str() --- incorrect type "<<type_<<std::endl; abort();
+			return "";
+		}
+		const std::vector<Json>& get_list() const {
+			if(type_==List) return L;
+			std::cerr<<"Json::get_list() --- incorrect type "<<type_<<std::endl; abort();
+			return {};
+		}
+		const std::map<std::string, Json>& get_dict() const {
+			if(type_==Dict) return D;
+			std::cerr<<"Json::get_dict() --- incorrect type "<<type_<<std::endl; abort();
+			return {};
+		}
+		
+		// Json(){}
+		// explicit Json(bool x): B(x), type_(Bool) {}
+		// explicit Json(int64_t x): type_(Int) { data.I = x; }
+		// explicit Json(double x): type_(Float) {  data.F = x; }
+		// Json(const std::string &x): S(x), type_(Str) {}
+		// Json(const char* x): S(x), type_(Str) {}
+		/*
+		void set_bool(bool x)        { set_type(Bool, false); B = x; }    // оператор присваивания?
+		void set_int(int64_t x)     { set_type(Int, false); data.I = x; }
+		void set_float(double x)      { set_type(Float, false); data.F = x; }
+		void set_str(const std::string &x) { set_type(Str, false); S = x; }		
+		Json& set_list(int sz){ set_type(List); L.resize(sz); return *this; }
+		// Json& reserve(int sz){ set_type(List); L.reserve(sz);  return *this;  }
+		*/
+		
+		friend std::ostream& operator <<(std::ostream&, const Json&);
+	};
+	// интерфейс поприятнее, м.б через операторы?
+	//--------------------------------------------------------------------------
+	inline std::ostream& operator << (std::ostream& stream, const Json& json){
+		if(json.type_==Json::Bool) return stream<<(json.B? "true": "false");
+		if(json.type_==Json::Int) return stream<<json.data.I;
+		if(json.type_==Json::Float) return stream<<json.data.F;  //точность!
+		if(json.type_==Json::Str) return stream<<std::quoted(json.S);
+		if(json.type_==Json::List){
+			stream<<'['; if(!json.L.empty()) stream<<json.L.front();
+			for(int i=1, sz=json.L.size(); i<sz; i++) stream<<", "<<json.L[i];
+			return stream<<']';
+		}
+		if(json.type_==Json::Dict){
+			stream<<'{'; auto I = json.D.begin(); if(I!=json.D.end()) stream<<std::quoted(I->first)<<':'<<I->second;
+			while(++I!=json.D.end()) stream<<",\n "<<std::quoted(I->first)<<':'<<I->second;
+			return stream<<"\n}";
+		}
+		std::cerr<<"Json dump --- unknown type"<<std::endl; abort();
+		return stream;
+	}
+	//--------------------------------------------------------------------------
+	inline std::istream& operator >> (std::istream& stream, Json& json){
+		stream>>std::ws; char c = stream.get(); if(!stream.good()) return stream;
+		if(c=='{'){
+			json.set_type(Json::Dict);  std::string key;
+			while(1){
+				stream>>std::ws>>c; if(c=='}' || !stream.good()) return stream; // ошибка?
+				if(c=='"'){
+					key.clear(); while(stream.good() && (c=stream.get())!='"') key += c=='\\'? stream.get(): c;
+					stream>>std::ws>>c>>json[key]; // if(c!=':') ошибка				
+					stream>>std::ws>>c; if(c=='}' || !stream.good()) return stream; // ошибка?
+					// if(c!=',') оiибка
+				}
+			}
+		}
+		if(c=='['){
+			json.set_type(Json::List); 
+			while(1){
+				stream>>std::ws>>c; if(c==']' || !stream.good()) return stream; // ошибка?
+				stream.unget();  stream>>json.add(); stream>>std::ws>>c; if(c==']' || !stream.good()) return stream; // ошибка?
+			}
+		}
+		std::string word; 
+		if(c=='"'){
+			while(stream.good() && (c=stream.get())!='"') word += c=='\\'? stream.get(): c;
+			json = word; return stream;
+		}
+		while(stream.good() && c!=' ' && c!='\t' && c!='\n' && c!=',' && c!=']' && c!='}'){ word += c; c = stream.get(); } stream.unget();
+		if(word=="true" || word=="false"){ json.b() = word=="true"; return stream; }
+		bool isdigit = true; for(int i=(word[0]=='-'), sz=word.size(); i<sz; i++) if(word[i]<'0' || word[i]>'9'){ isdigit = false; break; }
+		if(isdigit){ json.i() = std::stol(word); return stream; }
+		json.f() = std::stod(word);
+		return stream; 
+	}
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_JSON_HPP
