@@ -100,7 +100,7 @@ namespace aiw{
 		}
 
 		// *** OTHER FUNCTIONS ***
-		CU_HD T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
+		CU_HD T abs2() const { T x = 0; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
 		CU_HD T abs() const { return ::sqrt(abs2()); }
 
 		CU_HD Vec pow(const int n) const { // ????
