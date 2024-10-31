@@ -178,6 +178,6 @@ namespace aiw{
 		void seekg(size_t pos){ cin.seekg(pos); }
 	};
 }
-bool aiw::BinaryHead::load(std::istream &S){ istream_wrapper_t wrap(S); return load(wrap); }  
+inline bool aiw::BinaryHead::load(std::istream &S){ istream_wrapper_t wrap(S); return load(wrap); }  
 //------------------------------------------------------------------------------
 #endif //AIW_BINHEAD_HPP

@@ -57,7 +57,7 @@
 
 Дополнительно про макросы, циклы и переменные см. gplt3 -h clif
    
-Copyright (C) 2002-2023 Antov V. Ivanov  <aiv.racs@gmail.com> 
+Copyright (C) 2002-2024 Antov V. Ivanov  <aiv.racs@gmail.com> 
 Licensed under the Apache License, Version 2.0
 '''
 
@@ -865,7 +865,9 @@ while iopt<len(opt_seq):
             gp_write("set label %s '%%s' at %s %s\n"%(tag, pos, tail), parse_label(text, spaceOp)) # -lbl [<tag>/]<pos>:<text>[@<attrs>]
         elif arg=='@' and lbl in labels: del labels[lbl]
         elif arg!='@': labels[lbl] = (text, opt_dict)  # для отключения метки text и opt_dict должны быть пустыми!
-    elif opt=='-pal': gp_write('set palette defined (%s)\n'%pal_dict[arg])
+    elif opt=='-pal':
+        try: gp_write('set palette defined (%s)\n'%pal_dict[arg])
+        except KeyError: print('ERROR: incorrect palette %r, expected: '%arg+', '.join(sorted(pal_dict.keys())), file=sys.stderr); exit()
     elif opt=='-fn': func, attr = parse_dog_attr(arg); data.append([func, attr])
     elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in arg.split()]
     elif opt=='-o':
@@ -969,7 +971,7 @@ while iopt<len(opt_seq):
                     data.append([tmpf, uheader, columns, u, ('!stdin' if fname0 in ['-', '-std'] else fname)])  # <== append curve from datfile
 
 if data: plot('')  # финальная отрисовка
-if not sixel and not last_mode:
+if not sixel and not last_mode: # and __name__=='__main__':
     try:
         if stdin: print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
         else: input('gplt3: press ENTER or Ctrl-C for close')
@@ -979,10 +981,12 @@ if filters: gp_pipe.write('!rm -f /tmp/gplt3-%i-*\n'%os.getpid()); gp_pipe.flush
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # ОШИБКИ:
+# не рисуется фалй в одну колонку
 # порядок -def имеет значение?
 
 
 # TODO:
+# ставить отдельные точки?
 # curve-fitting втащить прямо в gplt? для последней построенной кривой?  -cf A,B,C:... и взаимодействие с racs fit --- gnuplot умеет строить аппроксимации?
 #               здавать н.у. для параметров и пределы как -fit A=1,B=2..3,C=..4:... нужен доступ к кривым по номерам?
 # вывод сообщений в stderr а не в stdout
@@ -1013,8 +1017,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # функцию vec в scope
 # вместо -all --- то что начинается с : разворачивается в список выражений для -U, список столбцов доступен через all
 # -[n]clif первой опцией явно в[ы]ключает CLIF
-
-# палитру как в паравью
 
 # опция -diff <expressions> --- включает diff_mode, разбирает по одной кривой для каждого следующего файла на график, число графиков = числу кривых
 #   -fn при этом добавляет кривые на все графики. -to свой аргумент рассматривает как паттерн и генерирует серию. В случае -M layout -o вызываются автоматически.

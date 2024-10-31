@@ -36,7 +36,7 @@ def gplt(*args, **kw_args):
             elif type(a) in (list, tuple) and len(a)>=3 and all(type(x) in (int, float) for x in a[:-1]) and type(a[-1]) is str:
                 cmdline += ['-lbl', ','.join(map(str, a[:-1]))+':'+a[-1]]  # метка
             elif type(a) in (list, tuple) and len(a)>=4 and all(type(x) in (int, float) for x in a):
-                cmdline += ['-arw', ','.join(map(str, a[:len(a)/2]))+':'+','.join(map(str, a[len(a)/2:]))]  # стрелка
+                cmdline += ['-arw', ','.join(map(str, a[:len(a)//2]))+':'+','.join(map(str, a[len(a)//2:]))]  # стрелка
             elif type(a) is dict:
                 fout = open('/tmp/gplt-py--%s--%s.dat'%(os.getpid(), time.time()), 'w'); tmpfiles.append(fout.name)
                 dat, head = ('@'+a['@'] if '@' in a else ''), a.get('#:')
