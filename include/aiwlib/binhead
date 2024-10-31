@@ -51,7 +51,8 @@ namespace aiw{
 		
 		inline size_t get_size() const; 
 		template <typename ST> void dump(ST &S, int align=64) const;
-		template <typename ST> bool load(ST &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+		bool load(std::istream &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+		template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>::value==false, bool>::type load(ST &S);  
 	};
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
@@ -114,7 +115,7 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	// data_offset = S.tell();
 }
 //------------------------------------------------------------------------------
-template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>::value==false, bool>::type aiw::BinaryHead::load(ST &S){ 
 	start_offset = S.tellg();
 	std::string h; int32_t dim_, szT_, h_sz = -1;
 	if(S.read(&h_sz, 4)!=4 || h_sz<0 || h_sz>(1<<16)){ S.seekg(start_offset); return false; }
@@ -166,5 +167,17 @@ template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректно
 	}
 	return true;
 }
+//------------------------------------------------------------------------------
+namespace aiw{
+	class istream_wrapper_t{
+		std::istream &cin;
+	public:
+		istream_wrapper_t(std::istream &cin_):cin(cin_){}
+		size_t tellg() const { return cin.tellg(); }
+		template<typename T> size_t read(T* ptr, size_t sz){ cin.read((char*)ptr, sz); return cin.gcount(); }
+		void seekg(size_t pos){ cin.seekg(pos); }
+	};
+}
+bool aiw::BinaryHead::load(std::istream &S){ istream_wrapper_t wrap(S); return load(wrap); }  
 //------------------------------------------------------------------------------
 #endif //AIW_BINHEAD_HPP
