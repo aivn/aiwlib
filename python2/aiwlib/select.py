@@ -194,7 +194,7 @@ class Select:
         return [p[0].args[0]+''.join([' %s=%s'%(k, cnv(v)) for k, v in zip(self.head, p[1:])])+tail for p in self._L if p]
     def paths(self, patterns=['']):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
-        return sum([[l[0].path+p for p in patterns] for l in self._L if l ], []) #and os.path.exists(l[0].path+fname)]
+        return sum([[l[0].path+p for p in patterns if os.path.exists(l[0].path+p)] for l in self._L if l], []) #and os.path.exists(l[0].path+fname)]
     def paths2py(self, patterns=['']):
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
         return repr(self.paths(patterns))

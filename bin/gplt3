@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''gplt3 ... options and [[user@]host:]filenames|!command[@<attrs>] ... --- обертка 
+'''gplt3 ... options and [[user@]host:]filenames|!command[@attrs] ... --- обертка 
    для gnuplot, строит графики типографского качества с минимальными усилиями;-)
 
 -h [<gnuplot keywords> or <gplt3 options>] --- вывод справки gnuplot и/или gplt3, 
@@ -9,8 +9,13 @@
 -fn <function>[@<attrs>] --- добавить функцию для отрисовки                    (*)
 -U|-u "<expr>[@<attrs>] ..." --- выражения для отрисовки из последующих файлов (*)
 <filename>[@<attrs>] --- добавляет кривые из файла согласно -U или y(x)/z(x,y) 
-   к ранее введеным файлам можно обращаться по номеру через [...] или задвать 
-   срезы в синтаксисе python, заголовок каждого файла читается только один раз
+   к ранее введеным файлам можно обращаться по номеру через [...] или задавать 
+   срезы в синтаксисе python, заголовок каждого файла читается только один раз.
+   В имена файлов можно встраивать запросы к racs (в том числе удаленно) как 
+   [[user@]host:]<repo>/[<select>/]<filename> при этом запрос позволяет в т.ч.
+   отсортировать файлы средствами racs
+!<command>[@<attrs>] --- запускает в shell команду <command> и отрисовывает 
+   результаты ее стандартного вывода
 -[std][@<attrs>] --- прочитать файл с данными со стандартного ввода, можно 
    использовать многократно но реальное чтение будет произведено один раз
 -def <name>[(<args>)]=[<expr>] --- добавляет (или убирает если нет <expr>) новое
@@ -928,7 +933,14 @@ while iopt<len(opt_seq):
             files = [(f, filters.get(f, f)) for f in ([files] if type(files) is str else files)]
         elif host and host+':'+fname0 in filters: files = [(host+':'+fname0, filters[host+':'+fname0])]
         elif host:
-            connect.stdin.write(b'wc -c %s; echo -----\n'%fname0.encode()); connect.stdin.flush();  getlist, files = [], []
+            if '/[' in fname0 and ']/' in fname0 and fname0.index('/[')<fname0.index(']/'):  # поиск в racs
+                repo, cond = fname0.split('/[', 1); cond, fname0 = cond.rsplit(']/', 1); tmpf = b'/tmp/gplt3-%i-%g.err'%(os.getpid(), time.time())
+                connect.stdin.write(b'racs %s/ %s --ps %s 2> %s; wc -c %s; cat %s\n'%(repo.encode(), cond.encode(), fname0.encode(), tmpf, tmpf, tmpf))
+                connect.stdin.flush(); l1, l2 = connect.stdout.readline(), connect.stdout.readline()
+                print('[ racs %s:%s/ %s --ps %s ... '%(host, repo, cond, fname0), connect.stdout.read(int(l2.split()[0])).decode().strip(), ']')
+                if not l1.strip(): connect.stdin.write(b'rm %s\n'%tmpf); connect.stdin.flush(); continue
+                connect.stdin.write(b'rm %s; wc -c %s; echo -----\n'%(tmpf, l1.strip())); connect.stdin.flush();  getlist, files = [], []
+            else: connect.stdin.write(b'wc -c %s; echo -----\n'%fname0.encode()); connect.stdin.flush();  getlist, files = [], []
             while 1:
                 line = connect.stdout.readline(); first = line.split()[0]
                 if first==b'-----': break
@@ -949,7 +961,12 @@ while iopt<len(opt_seq):
                         fout = open(tmpf+'.RACS', 'wb'); fout.write(connect.stdout.read(dat_sz)); fout.close()
                         print(' %.2gsec ]'%(time.time()-t0))  
                 files.append((fname, tmpf))
-        else: files = sorted(glob.glob(fname0)); files = list(zip(files, files))  # обычные файлы
+        elif '/[' in fname0 and ']/' in fname0 and fname0.index('/[')<fname0.index(']/'):  # поиск в racs
+            repo, cond = fname0.split('/[', 1); cond, fname0 = cond.rsplit(']/', 1)
+            sh = subprocess.Popen(os.environ['SHELL'], stdout=subprocess.PIPE, stdin=subprocess.PIPE)            
+            sh.stdin.write(b'racs %s/ %s --ps %s\n'%(repo.encode(), cond.encode(), fname0.encode())); sh.stdin.close()
+            files = [(x.decode(), x.decode()) for x in sh.stdout.readline().split()]
+        else: files = sorted(glob.glob(fname0)); files = list(zip(files, files))  
         if not files: print('[ file %r not found ]'%fname0)
         for fname, tmpf in files:
             if fname in fdict: header, columns, tmpf = fdict[fname]; header = dict(header); header.update(opts)  # в fdict лежат заголовок, столбцы, tmpf
@@ -992,7 +1009,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # вывод сообщений в stderr а не в stdout
 # сделать питоновскую обертку а-ля библиотека с соотв модулем, в т.ч. с отрисовкой из памяти (через временный файл) - убийца matplotlib?
 # для ssh хранить таблицу в json вида 'хост:файл' : (время-изменения-на-хосте: временный-файл) и лазить сначала в нее?
-# поиск в racs через .../[cond1,cond2,...]/...
 # стиль отрисовки vector
 # index
 # 0. CMYK палитра и шрифты для ЖЭТФ - добавить опцию -cmyk и -trm?
