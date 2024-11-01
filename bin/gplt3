@@ -45,8 +45,11 @@
      стрелку, координаты <from> и <to> задаются через запятую
 -lbl [<tag>#]<pos>:<text>[@<attrs>] --- добавляет текстовую метку в точке <pos>
    дополнительные атрибуты <attrs> трактуются так же как и у подписей к осям
--o <subplot-pos> --- автоматически включает режим мультиплот и задает origin 
-   следующего графика, закрывается опцией -to или автоматически
+-m{l,r,t,b} <value> --- set {l,r,t,b}margin <value>, поля и выравнивание
+-M [l...[,m...][,sc...][,o...][,sp...]][,f...][,=...] --- включает multiplot  (*)
+-o <origin> --- автоматически включает режим мультиплот (без layout) и задает 
+   origin следующего графика (для multiplot layout параметр origin игнорируется
+   но должен присутствовать, например ''), закрывается опцией -to или автоматически
 -p <time> --- задает паузу после построения графика при выводе на экран
 -sv <viewopts> --- set view <viewopts>, ориентация 3D графика 
 -[n]sixel --- [un]set term [sixelgd], для удаленной работы (работает из mlterm)
@@ -70,7 +73,7 @@ import os, sys, functools, glob, pickle, math, time, gzip, json, subprocess
 #---------------------- show help ----------------------------------------------
 if len(sys.argv)==1 or sys.argv[-1]=='-h': print(__doc__); exit()
 if len(sys.argv)>2 and sys.argv[1]=='-h':
-    cnv_opts = dict([o.split(':') for o in '''tcx:xtics tcy:ytics tcz:ztics tcx2:x2tics tcy2:y2tics tcc:cbtics 
+    cnv_opts = dict([o.split(':') for o in '''tcx:xtics tcy:ytics tcz:ztics tcx2:x2tics tcy2:y2tics tcc:cbtics o:origin ml:margin M:multiplot
     rx:xrange ry:yrange rz:zrange rx2:x2range ry2:y2range rc:cbrange rt:trange ru:urange rv:vrange 3d:splot h3d:splot,hidden3d ln:logscale sz:size 
     sk:key nk:key w:with par:parametric is:samples,isosamples sm:smooth s:set us:unset o:origin pause:pause'''.split()]) #fn:expressions.functions,plot
     gplt_opts = {'-fn': '''
@@ -203,6 +206,23 @@ name=1 (при вызове eval произойдут подстановки nam
 
 Для каждой кривой приоритет имеет опция указанная последней, например 
 -U y**2@red,5 file.dat@blue построит y**2 из file.dat голубого цвета толщины 5
+''',  #----------------------
+                 '-M': '''-M [l...[,m...][,sc...][,o...][,sp...]][,f...][,=...] --- включает режим multiplot  
+переход к следующему графику осуществляется при помощи опции -o <origin>, для 
+режима layout параметр  <origin> игнорируется но должен присутствовать (например '') 
+необязательные параметры multiplot передаются в аргументе -M  через запятую:
+ l<rows><cols>[r|с][d|u] --- включает режим layout, размеры пишутся слитно по одной 
+     цифре, буквы r|с (rowsfirst|columnsfirst вначале заполняются ряды или колонки),
+     d|u (downwards|upwards заполнение колонок происходит сверху вниз или снизу вверх),
+     другие необязательные аргументы layout задаются в произвольном порядке:
+   m<left>,<right>,<bottom>,<top> --- margins, устанавливает поля,
+   sс<scale_x>[,<scale_y>] --- масштабирование графиков по горизонтали и вертикали,
+   o<offset_x>[,<offset_y>] --- смещение графиков в единицах размера листа,
+   sp<xspacing>[,<yspacing>>] --- расстояние между графиками;
+ f<font> --- шрифт заголовка
+ =<title> --- общий заголовок графика
+
+Подробности о параметрах режима multiplot см. в gplt -h multiplot 
 '''}
     for k in 'y y2 x2 z cb'.split(): gplt_opts['-lb'+k] = gplt_opts['-lbx']
     gplt_opts['-u'] = gplt_opts['-U']
@@ -642,10 +662,12 @@ def subplot():
         if '@color' in lbl_opt: code += ' textcolor "%s"'%lbl_opt['@color']
         if '@rotate' in lbl_opt: code += ' rotate by '+lbl_opt['@rotate']
         gp_write(code+'\n', *LT[0])                
-    if title: gp_write("set title '%s'\n", parse_label(title, func_scope)) #???
+    if title: gp_write("set title '%s'\n", parse_label(title, func_scope)) # титул выводится после всего для доступа к информации от кривых
     gp_write('s'*D3+'plot '+', '.join(p[0] for p in curves)+'\n', *sum([p[1:] for p in curves], []))  # <== plot идет последним!
     data[:] = []  # обязательно очищает data
+    global_func_scope.update(func_scope)
 
+global_func_scope = {}
 def plot(fname_opts):
     global last_mode, multiplot, hstart
     if debug_mode:  print('#>>>', ' '.join((o if a is None else o+' %r'%a) for o, a in history[hstart:]))
@@ -657,7 +679,7 @@ def plot(fname_opts):
         if mode=='png': gp_pipe.write('set term png %s\nset out "/tmp/gplt3-%s.png"\n'%(termopts, os.getpid())); BaseOp.fID = 1
         else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%((termopts or 'color colortext'), os.getpid())); BaseOp.fID = 2
     if data: subplot()
-    if multiplot: gp_pipe.write('set multiplot\n')
+    if multiplot: gp_pipe.write('set multiplot %s %s %s\n'%(("title '%s'"%parse_label(multiplot[0], global_func_scope) if multiplot[0] else '',)+multiplot[1:]))
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
     if multiplot: gp_pipe.write('unset multiplot\n')  #                  >>>^^^^^^^^^^^^^^^^^^^^<<< разрешение неопределенности по толщинам линий
     if mode: gp_pipe.write('set out\n')
@@ -689,7 +711,7 @@ def plot(fname_opts):
     if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
     if not mode: gp_pipe.write('pause %s\n'%(pause if pause else -1))
     else: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
-    gp_pipe.write('\n'); gp_pipe.flush()
+    gp_pipe.write('\n'); gp_pipe.flush(); global_func_scope.clear()
     
 def parse_dog_attr(arg):
     'возвращает имя файла/функцию и словарь доп. атрибутов: @axes, @color, @width, @style, @title'
@@ -807,7 +829,7 @@ sz2str = lambda sz: [p%(sz/d) for d, p in ((2**40,'%.4fT'), (2**30,'%.3fG'), (2*
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles, connects = [], 0, [], {}
 double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
-rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o to i arw lbl pm3di'''.split())
+rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o M to i arw lbl pm3di ml mr mt mb'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
 
@@ -875,11 +897,30 @@ while iopt<len(opt_seq):
         except KeyError: print('ERROR: incorrect palette %r, expected: '%arg+', '.join(sorted(pal_dict.keys())), file=sys.stderr); exit()
     elif opt=='-fn': func, attr = parse_dog_attr(arg); data.append([func, attr])
     elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in arg.split()]
+    elif opt in ('-ml', '-mr', '-mt', '-mb'): gp_write('set %smargin %s\n'%(opt[-1], arg))
+    elif opt=='-M':
+        multiplot, margs, last = ['', '', ''], arg.split(','), None  # title, font, layout
+        if margs and margs[0][0]=='l':
+            if len(margs[0])<3 or len(margs[0])>5 or not margs[0][1:3].isdigit() or not all(x in 'rcud' for x in margs[0][3:]):
+                print('ERROR: incorrect argument %r in -M %s, see gplt -h -M'%(margs[0], arg)); exit(1)
+            multiplot[2] = 'layout %s,%s'%(margs[0][1], margs[0][2])
+            for c in margs[0][3:]: multiplot[2] += {'r':' rowsfirst', 'c':' columnsfirst', 'd':' downwards', 'u':' upwards'}[c]
+            del margs[0]
+        for i, a in enumerate(margs):
+            if a.startswith('m') and multiplot[2]: multiplot[2] += ' margins %s'%a[1:]; last = 2
+            elif a.startswith('o') and multiplot[2]: multiplot[2] += ' offset %s'%a[1:]; last = 2
+            elif a.startswith('sc') and multiplot[2]: multiplot[2] += ' scale %s'%a[2:]; last = 2
+            elif a.startswith('sp') and multiplot[2]: multiplot[2] += ' spacing %s'%a[2:]; last = 2
+            elif a.startswith('f'): multiplot[1] = a[1:]; last = 1
+            elif a.startswith('='): multiplot[0] = ','.join([a[1:]]+margs[i+1:]); break
+            elif last is None: print('ERROR: incorrect argument number %i %r in -M %s, see gplt -h -M'%(i+1, a, arg)); exit(1)
+            else: multiplot[last] += ','+a
+        multiplot = (multiplot[0], ('' if not multiplot[0] else 'font "%s"'%multiplot[1] if multiplot[1] else ''), multiplot[2])
     elif opt=='-o':
-        if not multiplot and data: sys.stderr.write('in multiplot mode the -o %s option must come before all files and functions\n'%arg);  exit(1)
-        if not multiplot: multiplot = True
+        if not multiplot and data: sys.stderr.write('ERROR: in multiplot mode the -o %s option must come before all files and functions\n'%arg);  exit(1)
+        if not multiplot: multiplot = ('', '', '') # title, font, layout
         if data: subplot()
-        gp_write('set origin %s\n'%arg)
+        if not multiplot[2]: gp_write('set origin %s\n'%arg)
     elif opt=='-to': plot(arg)
     elif opt=='-def':
         name, expr = arg.split('=', 1);  name, args = name.split('(') if '(' in name else (name, None) 
@@ -965,7 +1006,7 @@ while iopt<len(opt_seq):
             repo, cond = fname0.split('/[', 1); cond, fname0 = cond.rsplit(']/', 1)
             sh = subprocess.Popen(os.environ['SHELL'], stdout=subprocess.PIPE, stdin=subprocess.PIPE)            
             sh.stdin.write(b'racs %s/ %s --ps %s\n'%(repo.encode(), cond.encode(), fname0.encode())); sh.stdin.close()
-            files = [(x.decode(), x.decode()) for x in sh.stdout.readline().split()]
+            files = [(x.decode(), x.decode()) for x in sh.stdout.readline().split()]; del sh
         else: files = sorted(glob.glob(fname0)); files = list(zip(files, files))  
         if not files: print('[ file %r not found ]'%fname0)
         for fname, tmpf in files:
@@ -1015,7 +1056,6 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 # 1. добавить racs в csv, проверить режимы работы с csv и сжатыми файлами
 # 2. sum, prod. 
 # 3. читать скобки в -U, начало аргумента с : дает список выражений, переменная all
-# 4. -M для мультиплота с выравниванием
 # multiplot layout --- обязательно!!! решает проблемы с выравниванием. Опция -ml Ny,Nx,scale,offset,=title -o --- просто терминатор, аргумент игнорируется??
 # научить рисовать ppm.gz с палитрой и пределами в комментариях. 
 
