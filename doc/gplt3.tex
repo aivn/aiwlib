@@ -390,7 +390,20 @@ Subtopics available for style:
     zerrorfill
 \end{verbatim}
 \end{itemize}
-\newpage
+
+В \verb'aiwlib' представлен модуль \verb'gplt' с функцией \verb'gplt' позволяющей запускать утилиту \gplt{} из приложений \python.
+в том числе для отрисовки данных из памяти как это делает \verb'matplotlib'.
+Модуль может быть скачан отдельно от \verb'aiwlib' командой
+\begin{verbatim}
+$ wget https://raw.githubusercontent.com/aivn/aiwlib/master/python3/aiwlib/gplt.py
+\end{verbatim}
+За справкой лучше обращаться к самому модулю:
+\begin{verbatim}
+$ python3
+...
+>>> from aiwlib.gplt import *
+>>> help(gplt)
+\end{verbatim}
 
 \section{Заголовки файлов с данными и другие источники метаинформации}\label{metainfo:sec}
 \begin{wrapfigure}[5]{t}{.3\textwidth}
@@ -498,7 +511,7 @@ exec(src_line, {'__builtins__': None}, dst_scope)
 Векторные имена столбцов для \verb'.csv' не поддерживаются.
 
 \section{Ввод и преобразование выражений, автоматическая генерация подписей}
-\begin{wrapfigure}[8]{t}{.3\textwidth}
+\begin{wrapfigure}[7]{t}{.3\textwidth}
   \vphantom{.}
   \vspace{-1cm}
 
@@ -906,7 +919,6 @@ $ gplt3 -nav M{ dat/????.dat } i# {M} {M[::-1]} { {i} -to /tmp/png/{_i}.png }
 \item \verb'-[no-]tex-num' --- отключает/включает преобразование чисел с плавающей точкой к дробям \LaTeX.
 \end{itemize}
 
-\newpage
 \section{Примеры и некоторые рецепты использования}
 \begin{wrapfigure}[7]{t}{.3\textwidth}
   \vphantom{.}
@@ -1062,7 +1074,6 @@ set out
 Несмотря на всю лаконичность \gplt, построение сложных графиков все еще остается непростой задачей, но сравните~--- сколько всего пришлось бы писать для \gnuplot!
 При работе с файлами команды для \gplt{}, как правило, оказываются короче, чем при задании  аналитических функций.\\
 
-\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 4.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1262,7 +1273,6 @@ set out
 Если кривые совпадают, чтобы это подчеркнуть, можно первую кривую сделать гораздо толще.
 Легенда и тики могут требовать дополнительной настройки, здесь легенда вынесена за пределы графика и уменьшена длина линий на легенде.\\
 
-\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 8.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1317,6 +1327,7 @@ unset term
 Обратите внимание на формат ввода выражения для отрисовки и подпись к оси $y$.
 \vspace{3mm}
 
+\newpage
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \noindent\rule{.45\textwidth}{1pt}\hfill \raisebox{-.45\height}{\bf № 10.}  \hfill\rule{.45\textwidth}{1pt}
 
@@ -1437,6 +1448,20 @@ unset term
 $ gplt3 repo/[T==1? K==0? ~Hz]/tvals.dat
 \end{verbatim}
 выберет из репозитория \verb'repo/' файлы \verb'tvals.dat' для всех расчетов у которых параметры $T=1$, $K=0$ и отсортирует их по возрастанию параметра $H_z$.
+
+В \verb'aiwlib' добавлен модуль \verb'gplt' с функцией \verb'gplt' позволяющей запускать утилиту \gplt{} из приложений \python,
+в том числе для отрисовки данных из памяти как это делает \verb'matplotlib'.
+Модуль может быть скачан отдельно от \verb'aiwlib' командой
+\begin{verbatim}
+$ wget https://raw.githubusercontent.com/aivn/aiwlib/master/python3/aiwlib/gplt.py
+\end{verbatim}
+За справкой лучше обращаться к самому модулю:
+\begin{verbatim}
+$ python3
+...
+>>> from aiwlib.gplt import *
+>>> help(gplt)
+\end{verbatim}
 
 \paragraph{1 ноября 2024.} Добавлены опции \verb'-m{l,r,t,b} <margin>' для задания полей как\\ \verb'set <x>margin <margin>'.
 
