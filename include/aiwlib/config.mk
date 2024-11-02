@@ -16,7 +16,7 @@ INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
 
 #BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2segY segY2arr
-BIN_LIST=racs approx isolines gplt2 qplt qplt-remote sph2dat arr2segY segY2arr vtk2msh gplt3
+BIN_LIST=racs racs3 approx isolines gplt2 qplt qplt-remote sph2dat arr2segY segY2arr vtk2msh gplt3
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 

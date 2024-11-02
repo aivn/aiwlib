@@ -120,7 +120,7 @@ s_line, s_empty, s_bound --- число пробелов до вертикаль
     L0 = filter(None, LL)
     if not L0 or not L0[0]: return []
     if pattern==None: pattern = ('l|'*len(L0[0]))[:-1]
-    width_list = reduce(lambda wl, l: map(lambda i, j: max([i]+map(str_len, str(j).split('\n'))), wl, l) if l else wl, LL, [])
+    width_list = reduce(lambda wl, l: map(lambda i, j: max([i]+map(str_len, str(j).split('\n'))), wl, l) if l else wl, L0, [])
     P = reduce(lambda s, arg: s.replace(*arg), 
                [('r', '%s'), ('c', '%s'), ('l', '%s'), ('|', ' '*s_line+'|'+' '*s_line), ('s%', 's'+' '*s_empty+'%')], 
                pattern).strip()

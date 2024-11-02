@@ -3,6 +3,8 @@
 Licensed under the Apache License, Version 2.0'''
 #-----------------------------------------------------------------------------
 import sys, os, time, fnmatch
+from functools import reduce
+#from . import chrono
 #-----------------------------------------------------------------------------
 #   OS/SYS
 #-----------------------------------------------------------------------------
@@ -68,7 +70,7 @@ is_name_eq = lambda x: '=' in x and (lambda a, b: is_name(a) and not b.startswit
 #-----------------------------------------------------------------------------
 #   OUT
 #-----------------------------------------------------------------------------
-str_len = lambda S: int(reduce(lambda r, c: r+1./(1+(ord(c)>127))+4*(c=='\t'), S, 0))
+str_len = len #lambda S: int(reduce(lambda r, c: r+1./(1+(ord(c)>127))+4*(c=='\t'), S, 0))
 time2string = lambda x, precision=3: "%i:%02i:%0*.*f"%(int(x/3600), int(x/60)%60, 2+bool(precision)+precision, precision, x%60)
 #string2time = lambda x: reduce(lambda S, v: S+float(v[0])*v[1], map(None, x.split(':'), (3600, 60, 1)), 0.)
 string2time = lambda x: reduce(lambda S, v: S+float(v[0])*v[1], zip(x.split(':'), (3600, 60, 1)), 0.)
@@ -117,10 +119,10 @@ def table2strlist(LL, pattern=None, s_line=1, s_empty=2, s_bound=1, max_len=None
     '''преобразует таблицу (список списков строк) LL в список форматированных строк. 
 pattern --- паттерн аналогичный заголовку таблиц LaTeX (|lrt|), 
 s_line, s_empty, s_bound --- число пробелов до вертикальных линий, между колонками без линий и по краям (если нет линий)'''
-    L0 = filter(None, LL)
+    L0 = list(filter(None, LL))
     if not L0 or not L0[0]: return []
-    if pattern==None: pattern = ('l|'*len(L0[0]))[:-1]
-    width_list = reduce(lambda wl, l: map(lambda i, j: max([i]+map(str_len, str(j).split('\n'))), wl, l) if l else wl, LL, [])
+    if pattern is None: pattern = ('l|'*len(L0[0]))[:-1]
+    width_list = list(reduce(lambda wl, l: [max([i]+[len(x) for x in str(j).split('\n')]) for i, j in zip(wl, l)], L0, [0]*max(map(len, L0))))
     P = reduce(lambda s, arg: s.replace(*arg), 
                [('r', '%s'), ('c', '%s'), ('l', '%s'), ('|', ' '*s_line+'|'+' '*s_line), ('s%', 's'+' '*s_empty+'%')], 
                pattern).strip()
@@ -131,7 +133,7 @@ s_line, s_empty, s_bound --- число пробелов до вертикаль
     R = []
     for L in LL:
         if L == None: R.append(hline); continue
-        L = map(str, L) #L = map(conv2str, L)
+        L = list(map(str, L)) #L = map(conv2str, L)
         strnum = max([ l.count('\n')+1 for l in L ]); L = [ (l.split('\n')+['']*strnum)[:strnum] for l in L ]
         for snum in range(strnum): R.append(( P%tuple([ conv2str(j(l[snum], w)) 
                                                         for j, l, w in zip(just, L, width_list) ]) )[:max_len])

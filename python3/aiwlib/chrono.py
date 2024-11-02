@@ -18,11 +18,15 @@ class IllegaMuleTimeValue(BaseTimeException): pass
 
 try: long(1)
 except: long = int
+
 #---------------------------------------------------------------------------------------------------------
 class Time(object): 
 #    format = ...
     precision = 3
-    def __init__(self, val=0, **d): 
+    def __getattr__(self, attr):
+        if attr=='val': return 0.
+        raise AttributeError(attr)
+    def __init__(self, val=0, **d):
         if d and val: raise IllegalInitTimeValue('what use, "val=%r" or "%s"?'%(
                 val, ', '.join(['%s=%r'%(k,v) for k, v in d.items()])))
         if d: self.h, self.m, self.s = int(d.get('h',0)), int(d.get('m',0)), float(d.get('s',0)); self.setval()
@@ -67,7 +71,7 @@ class Time(object):
     def __mul__(self, other): 
         if type(other) in (int, float, long, str): return Time(self.val*float(other))
         raise IllegaMuleTimeValue(other)
-    def __div__(self, other): 
+    def __truediv__(self, other):
         if type(other) is str and ':' in other: return self.val/Time(other).val
         elif type(other) in (int, float, long, str): return Time(self.val/float(other))
         elif isinstance(other, Time): return self.val/other.val

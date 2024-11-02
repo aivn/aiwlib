@@ -1,0 +1,269 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+#-----------------------------------------------------------------------------
+'''racs директория-расчета (показывает содержимое файла .RACS) 
+либо racs -q (выводит информацию о текущих пакетных запусках)
+либо racs список-репозиториев/ список-выражений действие (строит выборку)
+либо racs + репозиторий/ [параметры-расчета] (возвращает путь к новому расчету)
+     racs @ путь-к-расчету/ [параметры-расчета] (модифицирует расчет)
+
+Репозитории должны заканчиваться на символ '/'.
+
+Выражения expr могут задаваться как [$]expr[!|!!] либо как tag+ 
+либо как [~|^][title=][$]expr[:|?|%|#][-] где title --- имя столбца    
+      ! --- выполнять выражение функцией exec для расчета, скрывать результат 
+            (колонку выборки)
+     !! --- выполнять выражение функцией exec в глобальном пространстве имен, 
+            скрывать результат (колонку выборки)      
+    ~|^ --- сортировать результаты по убыванию или возрастанию
+      $ --- форматировать выражение по словарю расчета и запустить его в sh,
+            результатом является строка прочитанная со стандартного вывода sh
+      : --- создать множество выборок, различающихся значением выражения expr 
+      ? --- фильтровать по результату, по умолчанию скрывать результат 
+            (колонку выборки)
+      % --- добавлять пустую строку (горизонтальную линию в таблицу) 
+            при изменении значения выражения
+      # --- убирать строки с одинаковыми значениями выражения кроме первого 
+            вхождения (аналог функции DISTINCT в SQL)
+      - --- скрывать результат (колонку выборки), кроме опций ! и !!
+Как альтернатива $... допускается использовать в выражении expr конструкции вида
+...[/shell-command/]..., при этом shell-command форматируется по словарю расчета
+запускается и заменяется результатом выполнения в виде строки без \\n.
+
+Одиночное выражение ':' приводит к свертке всех выборок по столбцам --- следующие
+после него выражения пишутся относительно столбцов, значением стоблца является 
+список значений выражений для расчетов исходной выборки в группе. 
+
+Должно быть задано одно (и только одно) действие. Доступные действия
+    --help --- показать эту справку и выйти
+    --ghelp --- показать справку по таблице функций и выйти
+    --ast[able] [[head=Yes] termwidth=default] --- вывести результаты в виде 
+                таблицы на стандартный вывод 
+                head      --- выводить заголовок (имена столбоцов)
+                termwidth --- ширина терминала
+    --asd[ata] [[[head=Yes] pattern=''] filename=''] --- вывести
+               результаты в формате dat--файла на стандартный вывод или
+               в файл filename
+               head    --- выводить заголовок (имена столбцов)
+               pattern --- шаблон имен для совпадающих по выбрке параметров
+                           расчетов, выводимых в заголовок dat--файла 
+    --asc[ommands] [params...] --- список команд для повторного запуска из shell,
+                                   params дописываются к каждой команде в конец 
+    --co[mmit] --- сохранить изменения расчетов (сделанные при помощи опций ! 
+                   или !!) на диск
+    --rm|--remove --- удалить выбранные расчеты с диска
+    --keys [mode=or [patterns..]] --- вывести ключи (имена параметров) расчетов
+           по всей выборке, в режиме
+           or  --- каждый ключ есть хотя бы в одном расчете
+           and --- каждый ключ есть во всех расчетах
+           xor --- каждый ключ есть только в одном расчете
+    --ps|--paths [patterns...] --- вывести на стандартный вывод пути к файлам
+                 указанным от директории расчета для всех расчетов, 
+                 по умолчанию выводятся пути к расчетам
+    --ps2py|--paths2py [patterns...] --- то же что --ps|--path, но в формате
+                                         списка Python
+    --cp|--copy repo [patterns...] --- копирует расчеты выборки в repo, разрешая 
+                конфликты имен директорий расчета. По умолчанию копируется все 
+                содержимое, однако patterns могут задавать какие именно файлы 
+                копировать/игнорировать проверка идет до первого совпадения с 
+                паттерном для игнорирования паттерн должен начинаться со знака - 
+
+    --gplt [gplt-options...] --- эквивалентно --asd | gplt -all C1 -std gplt-options...
+
+    --delone [PATH] --- проводит разбиение Делоне по двум первым колонкам,
+                        создает файлы PATH.dat с данными (в несколько колонок без пустых строк) 
+                        и PATH.cells с ячейками (тройки номеров строк из PATH.dat + статистика),
+                        выводит статистику на стандартный вывод
+
+
+Кроме того, доступны следующие опции (по умолчанию отключены):
+    --pb[ar]|--progressbar --- отображать процесс построения выборки
+    --csz|--calc-size --- определять размер расчетов (требует доп. времени)
+    --ctr|--check-tree --- двигаться вглубь репозиториев, по дереву каталогов
+    --force --- не запрашивать подтверждения на удаление расчетов и сохранение
+                изменений
+    --cl[ustering] --- разворачивает значения в первой колонке горизонтально
+                       и кластеризует выборку по первой и второй колонке,
+                       в результате получается двумерная таблица
+
+Для пакетной обработки выборок используется ... [title=][$]expr: ... 
+
+Copyright (C) 2003-2018  Antov V. Ivanov  <aiv.racs@gmail.com>
+Licensed under the Apache License, Version 2.0
+'''
+#-----------------------------------------------------------------------------
+#   show help or single calc
+#-----------------------------------------------------------------------------
+import os, sys, pickle, pprint
+
+if len(sys.argv)==1 or '--help' in sys.argv: print(__doc__); sys.exit()
+
+if os.path.islink(sys.argv[0]): sys.path.append(os.readlink(sys.argv[0]).rsplit('/', 2)[0]+'/python')
+
+if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
+    sys.path.append('')
+    if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
+    X = pickle.load(open(sys.argv[1], 'rb'), encoding='bytes')
+    if type(X) is dict: X = dict([(k.decode(), v.decode() if type(v) is bytes else v)  for k, v in X.items()])
+    #class Key:
+    #    def __init__(self, k, v): self.k, self.sz = k, getattr(v, '__sizeof__', lambda: -1)()
+    #    def __repr__(self): return repr(self.k)+'[%sB]'%self.sz if self.sz>256 else repr(self.k)
+    #    def __hash__(self): return hash(self.k)
+    #    def __cmp__(self, other): return cmp(self.k, other.k)
+    #if type(X) is dict: X = dict((Key(k, v), v) for k, v in X.items())
+    try: width = int(os.popen('stty size').readline().split()[1]) if sys.stdout.isatty() else 80
+    except: width = 80
+    print(pprint.PrettyPrinter(width=width).pformat(X)) 
+    #print pprint.pformat(cPickle.load(open(sys.argv[1]))).replace('\\n','\n')
+    sys.exit()
+
+#-----------------------------------------------------------------------------
+#   show queue
+#-----------------------------------------------------------------------------
+from aiwlib.mixt import *
+
+if len(sys.argv)==2 and sys.argv[1]=='-q':
+    pids = []
+    for f in set(sum([[d+i for i in os.listdir(d) if i.startswith('started-') and i[-4:]!='.log' and os.path.exists(d+i)]
+                      for d in ('/tmp/racs/', '.racs/') if os.path.exists(d)], [])):
+        L, D, S, C, H = open(f).readlines(), {}, '', '', []; PID = L[0].split()[-1].split('=')[1]        
+        if f.startswith('/tmp/racs/') and PID not in os.listdir('/proc'): continue 
+        if PID in pids: continue
+        pids.append(PID); print('')
+        for l in L:
+            if l[0]=='#': print(l, end=' '); continue
+            l = l.split(); k = l[1][1:]
+            if not H: H, C = ['date', 'PID', 'started']+[a.split('=', 1)[0] for a in l[3:]], l[0]
+            if l[1][0]=='+':
+                l[1] = k
+                if k in D:
+                    rt = string2date(l[0])-string2date(C)
+                    S = '\nfinished %s\nstarted  %s\ncompleted %s (%s from %s)'%(
+                        l[0], C, D[k][2], time2string(rt), time2string(rt/float(D[k][2][:-1])*100) if float(D[k][2][:-1]) else '???')
+                D[k] = l[:3]+[a.split('=', 1)[1] for a in l[3:]]
+            else: del D[k]; l[1] = C; S = '\nfinished %s\nstarted  %s\ncompleted %s (%s from %s)'%tuple(l)
+        sys.stdout.writelines(table2strlist([None, H, None]+sorted(D.values())+[None]))
+        print('changed  '+date2string(os.path.getmtime(f)), S, f)
+        if PID not in os.listdir('/proc'): print('\033[31mMaster process not found!\033[0m')
+    sys.exit()
+        
+#-----------------------------------------------------------------------------
+#   shell API for make new calc
+#-----------------------------------------------------------------------------
+import math, aiwlib.gtable, aiwlib.calc, aiwlib.chrono
+
+if '--ghelp' in sys.argv: print('\n'.join(aiwlib.calc.ghelp)); sys.exit()
+
+if sys.argv[1] in ('+', '@'):
+    if len(sys.argv)==2: print(__doc__, file=sys.stderr); sys.exit()
+    if sys.argv[1]=='+':
+        calc = aiwlib.calc.Calc(path=aiwlib.mixt.make_path(sys.argv[2], 3))
+        try:
+            if os.path.islink('_') or os.path.exists('_'): os.remove('_')
+            os.symlink(calc.path, '_')
+        except Exception as e: print(e, file=sys.stderr)
+        calc.set_state('started', os.getppid()); print(calc.path)
+    else: calc = aiwlib.calc.Calc(path=sys.argv[2])
+    calc.runtime = aiwlib.chrono.Time(time.time()-float(calc.statelist[0][3]))
+    for a in sys.argv[3:]:
+        k, v = a.split('=', 1)
+        if k=='state': calc.set_state(v)
+        elif v.startswith('@'): calc.__dict__[k] = eval(v[1:], math.__dict__, dict(calc.__dict__))
+        else: calc.__dict__[k] = v
+    calc.commit(); sys.exit()
+
+#-----------------------------------------------------------------------------
+#   parse arguments for results analys
+#-----------------------------------------------------------------------------
+fromL, ev_lists, action, a_sz, pbar, csz, ctr, force, cl, gplt = [], [[]], None, len(sys.argv), False, False, False, False, False, None
+for i in range(1, a_sz):
+    arg = sys.argv[i]
+    if arg in ('--ast', '--astable'):
+        action = ['astable']
+        if i+1<a_sz: action.append(string2bool(sys.argv[i+1])) # head on/off
+        if i+2<a_sz: action.append(int(sys.argv[i+2]))         # termwidth
+        break
+    elif arg in ('--asd', '--asdata'):
+        action = ['asdata']
+        action.append(string2bool(sys.argv[i+1]) if i+3<a_sz else True)         # head on/off
+        action.append(sys.argv[i+1+(i+3<a_sz)] if i+2<a_sz else '')             # pattern
+        action.append(sys.argv[i+1+(i+3<a_sz)+(i+2<a_sz)] if i+1<a_sz else '')  # filename
+        break
+    elif arg in ('--asc', '--ascommands'):
+        action = ['ascommands']+sys.argv[i+1:]
+        break
+    elif arg in '--co --commit'.split(): action = ['Xcommit']; break
+    elif arg in '--rm --remove'.split(): action = ['Xremove']; break
+    elif arg=='--keys':
+        action = ['get_keys']
+        if i+1<a_sz: action += sys.argv[i+1:] # mode
+        break
+    elif arg in '--ps --paths --ps2py --paths2py'.split():
+        action = ['paths'+'2py'*('2' in arg)]
+        if i+1<a_sz: action.append(sys.argv[i+1:]) # fname
+        break        
+    elif arg in '--pb --pbar --progressbar'.split(): pbar = ProgressBar(stdout=sys.stderr)
+    elif arg in '--csz --calc-size'.split(): csz = True
+    elif arg in '--ctr --check-tree'.split(): ctr = True
+    elif arg in '--cl --clustering'.split(): cl = True
+    elif arg=='--force': force = True
+    elif arg.endswith('/'): fromL.append(arg)
+    elif arg==':': ev_lists.append([])
+    elif arg=='--gplt': action = ['asdata']; gplt = sys.argv[i+1:]; break
+    elif arg in ('--cp', '--copy'): action = ['Xcopy']+sys.argv[i+1:]; break
+    elif arg=='--delone': action = ['delone']+sys.argv[i+1:i+2]; break
+    else: ev_lists[-1].append(arg)
+else: print(__doc__, '\033[31mAction not setting!\033[0m', file=sys.stderr); sys.exit()
+#-----------------------------------------------------------------------------
+#   make select and call action
+#-----------------------------------------------------------------------------
+from aiwlib.select import Select
+
+S = Select(fromL, ev_lists[0], pbar, csz, ctr)
+for ev_list in ev_lists[1:]:
+    table, Srep = [], [0]*3
+    for i in range(len(S.ring)):
+        D = dict(S.upar.__dict__); D.update(list(zip(S.head, list(zip(*[l[1:] for l in S._L if l])))))
+        table.append(D); Srep[0] += S.runtime; Srep[1] += S.c_runtime; Srep[2] += S.c_size
+        S.click()
+    S = Select([], ev_list, table=table)
+    S.runtime, S.c_runtime, S.c_size = Srep
+    
+if cl: S.clusteringXY()
+report = ''.join(['\033[31m']+aiwlib.calc.Calc._except_report_table+['\033[0m']) if  aiwlib.calc.Calc._except_report_table else ''
+#report += 'selected %i items [%s]: %s total'%(len(S), time2string(S.runtime),
+#                                              (size2string(S.c_size)+', ' if csz else '')+time2string(S.c_runtime))
+report += S.report()
+
+if not gplt is None: sys.stdout = open('/tmp/racs4gplt-%i.dat'%os.getpid(), 'w')
+#    sys.stdout = os.popen('gplt -all %s -std'%S.head[0]+' %r'*len(gplt)%tuple(gplt), 'w')
+
+starttime = time.time()
+if action==['Xremove']:
+    print(report)
+    if force or input(' '.join([r.path for r in S.nodes()])+
+                          ' (%i items total to remove, y/[any input])?'%len(S))=='y': S.Xremove()
+    else: print('aborted', file=sys.stderr); sys.exit()
+elif action==['Xcommit']:
+    print(report)
+    if force or input('commit changes (%i items, y/[any input])?'%len(S))=='y': S.Xcommit()
+    else: print('aborted', file=sys.stderr); sys.exit()
+elif action[0]=='Xcopy':
+    print(report)
+    if force or input('copy calcs to %r (%i items, y/[any input])?'%(action[1], len(S)))=='y': S.Xcopy(*action[1:])
+    else: print('aborted', file=sys.stderr); sys.exit()
+elif action[0]=='asdata' and len(S.ring)>1:
+    for i in range(len(S.ring)):
+        if len(S): sys.stdout.write(''.join(S.asdata(*action[1:])))
+        S.click()
+elif action[0]=='delone': S.delone(action[1] if len(action)>1 else None)
+else:
+    sep, end = ('','') if action[0][:2]=='as' else (' '*(action[0]!='paths2py'),'\n')
+    sys.stdout.write(sep.join(getattr(S, action[0])(*action[1:]))); sys.stdout.write(end)
+print(report, '... completed [%s]'%time2string(time.time()-starttime), file=sys.stderr)
+
+if not gplt is None:
+    sys.stdout.close()
+    os.system('gplt -all %r %s'%(S.head[0].split()[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
+    os.remove(sys.stdout.name)
+#-----------------------------------------------------------------------------

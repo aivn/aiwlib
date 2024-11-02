@@ -43,7 +43,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	template <int P> struct calc_3pow { static const int x = 3*calc_3pow<P-1>::x; };
 	template <> struct calc_3pow<1> { static const int x = 3; };
-	template <int D> int calc_tamr_rank_lim(Ind<D> tbox){ int sz = tbox.prod()-1, w = 0; while(sz>>++w){}  return (64 - w - 5)/D; } 
+	template <int D> int calc_tamr_rank_lim(Ind<D> tbox){ int sz = tbox.prod()-1, w = 0; while(sz>>++w){}  return std::min((64 - w - 5)/D, 22/D); } 
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R/*, bool CellBased=false*/> class TiledAdaptiveMesh {		
 	protected:
@@ -138,7 +138,7 @@ namespace aiw{
 			}
 
 			void remove();  ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
-			bool check_dec_rank() const { return tile->rank() && !Dbits(); }  ///< проверяет возможность уменьшения существования узла с рангом на единицу меньше
+			bool check_dec_rank() const { return tile->rank() && !Dbits(); }  ///< проверяет возможность существования узла с рангом на единицу меньше
 
 			const T* get_inc_rank_comrade() const noexcept;  ///< возвращает узел с рангом на единицу больше (если есть, иначе nullptr)
 			const T* get_dec_rank_comrade() const noexcept;  ///< возвращает узел с рангом на единицу меньше (если есть, иначе nullptr)
