@@ -148,12 +148,12 @@ class Calc:
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
         # pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
         data = dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items()))
-        try: pickle.dump(data,  open(self.path+'.RACS', 'wb'))
+        try: pickle.dump(data,  open(self.path+'.RACS', 'wb'), protocol=1)
         except:
             for k, v in list(data.items()):
-                try: pickle.dumps(v)
+                try: pickle.dumps(v, protocol=1)
                 except Excepstion as e: print(e, '--- %s skipped'%k); del data[k]
-            pickle.dump(data,  open(self.path+'.RACS', 'wb'))
+            pickle.dump(data,  open(self.path+'.RACS', 'wb'), protocol=1)
         os.utime(self.path, None) # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')

@@ -105,9 +105,8 @@ def _calc_configure(self):
     if calc._racs_params['_statechecker']:
         import inspect
         f = open('/tmp/racs-schk-%i'%os.getpid(), 'w')
-        print('''#!/usr/bin/python -S
-# -*- coding: utf-8 -*-
-import os, sys, cPickle, time, socket
+        print('''#!/usr/bin/python3 -S
+import os, sys, pickle, time, socket
 d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))
 ''', file=f)
         print(inspect.getsource(mixt.get_login), file=f)
@@ -117,10 +116,10 @@ d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))
 while 1:
     if '%i' in os.listdir('/proc/'): time.sleep(10)
     else: 
-        R = cPickle.load(open(%r+'.RACS'))
+        R = pickle.load(open(%r+'.RACS', 'rb'))
         if R['statelist'][-1][0]=='started':
             R['statelist'].append(('killed', get_login(), socket.gethostname(), d2s(time.time()), 'racs-statechecker'))
-            cPickle.dump(R, open(%r+'.RACS', 'w')); os.utime(%r, None)
+            pickle.dump(R, open(%r+'.RACS', 'wb'), protocol=1); os.utime(%r, None)
         break
         '''%(os.getpid(), self.path, self.path, self.path), file=f)
         f.close(); os.chmod(f.name, 0o700); os.system(f.name); os.remove(f.name)
@@ -159,7 +158,7 @@ def _on_exit(self):
     if hasattr(self, '_run4stat'):
         connect = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connect.connect(('127.0.0.1', self._run4stat[0]))
-        s = pickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]]) 
+        s = pickle.dumps([self._run4stat[1]]+[getattr(self, i) for i in self._run4stat[2:]], protocol=1) 
         connect.send('%08i'%len(s)+s); connect.close()
         return 
     import os, time
@@ -217,7 +216,7 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
         pids.append(pid)
     while(pids): pids.remove(os.waitpid(-1, 0)[0])
     #-------------- окончание расчета --------------------
-    pickle.dump(stat, open(path+'.stat', 'w'))
+    pickle.dump(stat, open(path+'.stat', 'wb'), protocol=1)
     for k, f in params.items(): setattr(self, k, f(*dict([(i, stat[i]) for i in inspect.getargspec(f)])))
     sys.exit()
 #calc.Calc.run4stat = run4stat

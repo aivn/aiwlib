@@ -104,7 +104,7 @@ def _calc_configure(self):
     if calc._racs_params['_statechecker']:
         import inspect
         f = open('/tmp/racs-schk-%i'%os.getpid(), 'w')
-        print>>f, '''#!/usr/bin/python -S
+        print>>f, '''#!/usr/bin/python2 -S
 # -*- coding: utf-8 -*-
 import os, sys, cPickle, time, socket
 d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))

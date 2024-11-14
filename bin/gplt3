@@ -129,7 +129,7 @@ file1.dat -U 'x(y) 2*z(x+y)' file{2,3}.dat -U '' file4.dat построит 6 к
 При рисовании в png/pdf по умолчанию толщина линии равна трем;  результаты сразу 
 отображаются (командами png/pdfview из ~/.gplt3), отображение отключается через -nav.
 Для создания .pdf требуются pdflatex, epstopdf и pdfcrop, для создания .png требуется
-convert обрезающая поля. 
+convert для обрезки полей. 
 ''', #----------------------
                  '-lbx': '''
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям.
@@ -246,7 +246,10 @@ LaTeX = r'''\documentclass{article}
 \usepackage{epsfig}
 \usepackage[usenames]{color}
 \usepackage{colortbl}
-\pagestyle{empty}'''
+\pagestyle{empty}
+%\setlength{\textwidth}{100cm}
+%\setlength{\textheight}{100cm}
+'''
 
 pal_dict = { 'grey': '0 0 0 0, 1 1 1 1', 
              'inv-grey': '0 1 1 1, 1 0 0 0',
@@ -278,10 +281,10 @@ if os.path.exists(fconf):
                     else: pal_dict[l[1]] = ' '.join(l[2:])
                     continue
                 opt, val = l[:2]
-            except Exception as e: print('error in ~/.gplt3:', ' '.join(l), e); continue
+            except Exception as e: print('\033[1;31m[ error in ~/.gplt3:', ' '.join(l), e, ']\033[0m', file=sys.stderr); continue
             if opt=='aiwlib': sys.path.append(os.path.expanduser(val))
             elif opt in conf: conf[opt] = val
-            else: print('error in ~/.gplt3:', ' '.join(l))
+            else: print('\033[1;31m[ error in ~/.gplt3:', ' '.join(l), ']\033[0m', file=sys.stderr)
 if '-dump-config-file' in sys.argv[1:]:
     fconf = open(fconf, 'w'); fconf.write(''.join('%s %s\n'%kv for kv in conf.items()))
     fconf.write('\n#---- set special path to aiwlib/python3/ if required ----\n#aiwlib ... \n\n')
@@ -639,8 +642,10 @@ def subplot():
         scope, expr, pname, isfunc = crv[1:]; del crv[1:]  # expr - кортеж вида (exprX, exprY[, exprZ]) для легенды
         XY = scope.get('@axes', 'xy');  X, Y = ('x1' if XY[1]=='y' else XY[:2]), (XY[1:] if XY[1]=='y' else XY[2:])+'1'*(XY[-1]=='y');  XY = X+Y 
         if XY!='x1y1': crv[0] += ' axes '+XY
-        add_lbl(X, expr[0]); add_lbl(Y, expr[1])
-        if D3: add_lbl('cb' if pm3d else 'z', expr[2]) 
+        if len(expr)>=2: add_lbl(X, expr[0]); add_lbl(Y, expr[1])
+        elif not D3: add_lbl(X, 'C0'); add_lbl(Y, expr[0])
+        if D3 and len(expr)>=3: add_lbl('cb' if pm3d else 'z', expr[2])
+        elif D3: print('\033[1;31m[ ERROR: too short expression list %r for 3D plot ]\033[0m'%expr, file=sys.stderr); exit(1)
         if keymode==0 or scope.get('@title')=='': crv[0] += ' notitle '
         elif '@title' in scope: crv[0] += " title '%s' ";  crv.append(parse_label(scope['@title'], scope))
         elif keymode==1 and pname:  crv[0] += " title '%s' ";  crv.append(Verb(repr(pname)[1:-1]))
@@ -656,7 +661,7 @@ def subplot():
         if k[-1]=='2' and not k in tics: fmt = 'set %stics format "%%g"\n'%k; gp_write(fmt); tics[k] = fmt
         lbl_text, lbl_opt = labels.get(k, ('', {}))
         if k in labels and not lbl_text and not lbl_opt: gp_write('unset %slabel\n'%(k[0] if k[1]=='1' else k)); continue
-        if lbl_text: LT[0][:] = [parse_label(lbl_text, {})]  # в пустом scope? А как еще?
+        if lbl_text: LT[0][:] = [parse_label(lbl_text, func_scope)]  # в пустом scope? А как еще?
         code = "set %slabel '%s'"%(k[0] if k[-1]=='1' else k, ', '.join(['%s']*len(LT[0])))
         if '@offset' in lbl_opt: code += ' offset '+lbl_opt['@offset'] 
         if '@color' in lbl_opt: code += ' textcolor "%s"'%lbl_opt['@color']
@@ -674,28 +679,29 @@ def plot(fname_opts):
     fname, termopts = (fname_opts.split('@', 1)+[''])[:2]
     mode, old_fID = fname.split('.')[-1] if '.' in fname else '', BaseOp.fID
     if fname:
+        tmpname = '/tmp/gplt3-%s-%s'%(os.getpid(), str(time.time()).split('.')[-1])
         if not mode in ('png', 'pdf'): sys.stderr.write('incorrect output file extention %s in option -to %r, .png or .pdf expected\n'%(mode, fname)); exit(1)
         if os.system('touch %r 2> /dev/null'%fname): sys.stderr.write("can't create file %r\n"%fname); exit(1)
-        if mode=='png': gp_pipe.write('set term png %s\nset out "/tmp/gplt3-%s.png"\n'%(termopts, os.getpid())); BaseOp.fID = 1
-        else: gp_pipe.write('set term epslatex %s\nset out "/tmp/gplt3-%s-p.eps"\n'%((termopts or 'color colortext'), os.getpid())); BaseOp.fID = 2
+        if mode=='png': gp_pipe.write('set term png %s\nset out "%s.png"\n'%(termopts, tmpname)); BaseOp.fID = 1
+        else: gp_pipe.write('set term epslatex %s\nset out "%s-p.eps"\n'%((termopts or 'color colortext'), tmpname)); BaseOp.fID = 2
     if data: subplot()
     if multiplot: gp_pipe.write('set multiplot %s %s %s\n'%(("title '%s'"%parse_label(multiplot[0], global_func_scope) if multiplot[0] else '',)+multiplot[1:]))
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
     if multiplot: gp_pipe.write('unset multiplot\n')  #                  >>>^^^^^^^^^^^^^^^^^^^^<<< разрешение неопределенности по толщинам линий
     if mode: gp_pipe.write('set out\n')
     if mode=='pdf':  # вызов pdflatex
-        ftex = open('/tmp/gplt3-%s.tex'%os.getpid(), 'w'); ft = ftex.name[:-4]
+        ftex = open('%s.tex'%tmpname, 'w'); ft = ftex.name[:-4]
         ftex.write(LaTeX+'\n\\begin{document}\n\\input{%s-p}\n\\end{document}\n'%ft); ftex.close()
         gp_pipe.write(f'!epstopdf --outfile {ft}-p.pdf {ft}-p.eps; (cd /tmp; pdflatex {ft}.tex | grep \\!); pdfcrop -m 0 {ft}.pdf {fname} > /dev/null\n')
         gp_pipe.write(f'!rm -f {ft}.* {ft}-p.*\n')
-    elif mode=='png': gp_pipe.write('!convert /tmp/gplt3-%s.png -trim %r && rm /tmp/gplt3-%s.png\n'%(os.getpid(), fname, os.getpid()))
+    elif mode=='png': gp_pipe.write('!convert %s.png -trim %r && rm %s.png\n'%(tmpname, fname, tmpname))
     if mode:  # создаем gplt3 файл
-        fgplt, lo_mode = open(fname[:-3]+'gplt3', 'w'), False
+        fgplt = open(fname[:-3]+'gplt3', 'w')
         fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
-        def write_opt(o, v=None): l = not v is None; fgplt.write('\n'*(l and not lo_mode)+o+' '+(v if l else '')+'\n'*l); return l
-        for o, v in history[:hstart]: lo_mode = write_opt(o, v)
-        lo_mode = write_opt('# start of options related to this picture:', '')
-        for o, v in history[hstart:]: lo_mode = write_opt(o, v)
+        def write_opt(o, v=None): print(o, (v if v else ''), file=fgplt)
+        for o, v in history[:hstart]: write_opt(o, v)
+        fgplt.write('# start of options related to this picture:\n')
+        for o, v in history[hstart:]: write_opt(o, v)
         iov, hstate = len(history)-1, set()
         while history and iov>=0:
             o = history[iov][0]
@@ -708,7 +714,7 @@ def plot(fname_opts):
             else: hstate.add(t); iov -= 1
         fgplt.close(); os.chmod(fgplt.name, 0o755)
     gp_mbuf[:], multuplot, BaseOp.fID, last_mode, hstart = [], False, old_fID, mode, len(history)
-    if mode and conf[mode+'view']: gp_pipe.write('!%s %r\n'%(conf[mode+'view'], fname))
+    if mode and conf[mode+'view']: gp_pipe.write('!%s %r \n'%(conf[mode+'view'], fname))
     if not mode: gp_pipe.write('pause %s\n'%(pause if pause else -1))
     else: gp_pipe.write('set term sixelgd\n' if sixel else 'unset term\n') # <== установить терминал по умолчанию
     gp_pipe.write('\n'); gp_pipe.flush(); global_func_scope.clear()
@@ -735,7 +741,7 @@ def read_header(fname, tmpf, add_opts, base_opts):
             line = line[2:]
             if '=' in line: params.append(line) # доп. данные в заголовке
             else: columns.append(line.split())
-    if not cols_sz: print('[ skipped file %r without data ]'%fname); return None, None, None
+    if not cols_sz: print('\033[1;31m[ skipped file %r without data ]\033[0m'%fname, file=sys.stderr); return None, None, None
     for cols in columns:
         cols_var, vecs = [], {}
         for cID, name in enumerate(cols):
@@ -752,7 +758,7 @@ def read_header(fname, tmpf, add_opts, base_opts):
             for i, v in enumerate(comp): cols_var[clist[i][2]] = v
     for line in params:
         try: exec(line.strip(), {'__builtins__': None}, scope)
-        except Exception as E: print('%r in %r'%(E, fin.__name__))            
+        except Exception as E: print('\033[1;31m[ %r in %r ]\033[0m'%(E, fin.__name__), file=sys.stderr)            
     scope.update(add_opts)
     for c, v in list(zip(range(1, cols_sz+1), 'xyz'))+[(i, 'C%i'%i) for i in range(cols_sz+1)]:
         if not v in scope: base_scope[v] = scope[v] = Var(v, '($%i)'%c)
@@ -811,7 +817,7 @@ def clif(src_seq, scope={}, scope_upd={}):  # src_sec ==> dst_sec
 def try_convert_csv_or_gz(fname, fdata):
     if fname.endswith('.csv') or fname.endswith('.csv.gz'):
         tmpf, fin = tmpfile(), (gzip.open if fname[-3:]=='.gz' else open)(fdata, 'rt'); header = fin.readline()
-        if not header: print('[ empty file %r skipped ]'%fname); return
+        if not header: print('\033[1;31m[ empty file %r skipped ]\033[0m'%fname, file=sys.stderr); return
         sep = ';' if ';' in header else ','; header, ftmpf = header.split(sep), open(tmpf, 'w'); cols_sz = len(header)
         try: float(header[0]);  ftmpf.write(' '.join(header)+'\n');  header = ['x', 'y', 'z'][:cols_sz] if cols_sz<=3 else ['C%i'%(i+1) for i in range(cols_sz)]
         except: ftmpf.write('#:'+' '.join(header)+'\n')
@@ -860,7 +866,14 @@ while iopt<len(opt_seq):
     elif opt=='-sv': gp_write('set view %s\n'%arg)
     elif opt=='-ln': gp_write('set logscale %s\n'%arg)
     elif opt=='-sk': gp_write('set key %s\n'%arg)
-    elif opt=='-sz': gp_write('set size %s\n'%arg)
+    elif opt=='-sz':
+        gp_write('set size %s\n'%arg)
+        #if not multiplot: 
+        #    try: L = arg.split(); L.index('ratio')<len(L)-2
+        #    if 'ratio' in L: del L[L.index('ratio'):L.index('ratio')+2] 
+        #    try:
+        #        global_sz = [float(x) for x in L[-1].split(',')]
+        #    except: pass
     elif opt=='-sm': gp_write('set smooth %s\n'%arg)
     elif opt=='-smpl': gp_write('set samples %s\n'%arg)
     elif opt=='-ismpl': gp_write('set isosamples %s\n'%arg)
@@ -894,7 +907,7 @@ while iopt<len(opt_seq):
         elif arg!='@': labels[lbl] = (text, opt_dict)  # для отключения метки text и opt_dict должны быть пустыми!
     elif opt=='-pal':
         try: gp_write('set palette defined (%s)\n'%pal_dict[arg])
-        except KeyError: print('ERROR: incorrect palette %r, expected: '%arg+', '.join(sorted(pal_dict.keys())), file=sys.stderr); exit()
+        except KeyError: print('\033[1;31m[ ERROR: incorrect palette %r, expected: '%arg+', '.join(sorted(pal_dict.keys())), ']\033[0m', file=sys.stderr); exit(1)
     elif opt=='-fn': func, attr = parse_dog_attr(arg); data.append([func, attr])
     elif opt in ('-U', '-u'): using = [parse_dog_attr(x) for x in arg.split()]
     elif opt in ('-ml', '-mr', '-mt', '-mb'): gp_write('set %smargin %s\n'%(opt[-1], arg))
@@ -902,7 +915,7 @@ while iopt<len(opt_seq):
         multiplot, margs, last = ['', '', ''], arg.split(','), None  # title, font, layout
         if margs and margs[0][0]=='l':
             if len(margs[0])<3 or len(margs[0])>5 or not margs[0][1:3].isdigit() or not all(x in 'rcud' for x in margs[0][3:]):
-                print('ERROR: incorrect argument %r in -M %s, see gplt -h -M'%(margs[0], arg)); exit(1)
+                print('\033[1;31m[ ERROR: incorrect argument %r in -M %s, see gplt -h -M ]\033[0m'%(margs[0], arg), file=sys.stderr); exit(1)
             multiplot[2] = 'layout %s,%s'%(margs[0][1], margs[0][2])
             for c in margs[0][3:]: multiplot[2] += {'r':' rowsfirst', 'c':' columnsfirst', 'd':' downwards', 'u':' upwards'}[c]
             del margs[0]
@@ -913,11 +926,12 @@ while iopt<len(opt_seq):
             elif a.startswith('sp') and multiplot[2]: multiplot[2] += ' spacing %s'%a[2:]; last = 2
             elif a.startswith('f'): multiplot[1] = a[1:]; last = 1
             elif a.startswith('='): multiplot[0] = ','.join([a[1:]]+margs[i+1:]); break
-            elif last is None: print('ERROR: incorrect argument number %i %r in -M %s, see gplt -h -M'%(i+1, a, arg)); exit(1)
+            elif last is None: print('\033[1;31m[ ERROR: incorrect argument number %i %r in -M %s, see gplt -h -M ]\033[0m'%(i+1, a, arg), file=sys.stderr); exit(1)
             else: multiplot[last] += ','+a
         multiplot = (multiplot[0], ('' if not multiplot[0] else 'font "%s"'%multiplot[1] if multiplot[1] else ''), multiplot[2])
     elif opt=='-o':
-        if not multiplot and data: sys.stderr.write('ERROR: in multiplot mode the -o %s option must come before all files and functions\n'%arg);  exit(1)
+        if not multiplot and data:
+            print('\033[1;31m[ ERROR: in multiplot mode the -o %s option must come before all files and functions ]\033[0m'%arg, file=sys.stderr); exit(1)
         if not multiplot: multiplot = ('', '', '') # title, font, layout
         if data: subplot()
         if not multiplot[2]: gp_write('set origin %s\n'%arg)
@@ -926,16 +940,16 @@ while iopt<len(opt_seq):
         name, expr = arg.split('=', 1);  name, args = name.split('(') if '(' in name else (name, None) 
         dlist = [e for e in dlist if e[0]!=name]+[[name, expr]+([a.strip() for a in args[:-1].split(',')] if args else [])]*bool(expr)
     elif opt=='-i':  # загрузка сценария
-        if arg in ifiles: print('[ gplt3 file %r has already been loaded, skipped ]'%arg); continue
+        if arg in ifiles: print('\033[1;31m[ gplt3 file %r has already been loaded, skipped ]\033[0m'%arg, file=sys.stderr); continue
         try:
             with open(arg) as ifile:
                 del history[-1]; iopt -= 2
-                opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else a
+                opt_seq[iopt:iopt+2] = sum([[a[0], b[len(a[0]):].lstrip()] if a[0][1:] in double_opts else [b]
                                             for a, b in [(l.split(), l) for l in map(str.strip, ifile) if l and l[0]!='#']], [])
             ifiles.append(arg)
-        except Exception as E: print("[ Can't open gplt3 file %r: %s ]"%(arg, E))
+        except Exception as E: print("\033[1;31m[ Can't open gplt3 file %r: %s ]\033[0m"%(arg, E), file=sys.stderr); exit()
     else:   # add filename
-        if ':' in opt and opt[0]!='!' and (not '@' in opt.split(':')[0] or (opt.split('@')[0].replace('_', '').isalnum() and opt[0]!='@')):            
+        if ':' in opt and opt[0] not in '![' and (not '@' in opt.split(':')[0] or (opt.split('@')[0].replace('_', '').isalnum() and opt[0]!='@')):            
             host, opt = opt.split(':', 1)
             if host in connects: connect = connects[host]
             else:
@@ -950,22 +964,23 @@ while iopt<len(opt_seq):
         else: host, connect = '', None
         fname0, opts = parse_dog_attr(opt)
         if fname0 in ('-', '-std'):  # read from stdin
-            if host: print('[ ERRROR: illegal read stdin from %s ]'%host); continue
+            if host: print('\033[1;31m[ ERRROR: illegal read stdin from %s ]\033[0m'%host, file=sys.stderr); continue
             if not '!stdin' in filters:  # real read from stdin
                 tmpf = filters['!stdin'] = tmpfile(); stdin = True
                 with open(tmpf, 'w') as fout: fout.writelines(sys.stdin.readlines())
             files = [('!stdin', filters['!stdin'])]   # в фильтрах лежат имена временных файлов
         elif fname0.startswith('!'):  # ssh?
             if not host and not fname0 in filters:  # real read from shell command
-                tmpf = filters[fname0] = tmpfile(); print('[ run shell command %r ]'%fname0[1:])
+                tmpf = filters[fname0] = tmpfile(); print('[ run shell command %r ... \033[;31m'%fname0[1:], end=''); sys.stdout.flush()
                 with open(tmpf, 'w') as fout: fout.writelines(os.popen(fname0[1:]).readlines())
+                print('\033[0m ]')
             elif host and not fname0 in filters:  # real read from remote shell command
                 tmpf = b'/tmp/gplt3-%i-%g.dat'%(os.getpid(), time.time()); print('[ run shell command %r'%fname0[1:], 'on', host, '...', end='', flush=1); t0 = time.time()
                 connect.stdin.write(b'(%s) 1> %s.dat 2> %s.err; wc -c %s.err %s.dat\n'%((fname0[1:].encode(),)+(tmpf,)*4)); connect.stdin.flush()
                 err_sz, dat_sz = [int(connect.stdout.readline().split()[0]) for i in range(3)][:2];  print(' %.2gsec'%(time.time()-t0), end='', flush=1)
-                if err_sz: connect.stdin.write(b'cat %s.err\n'%tmpf); connect.stdin.flush(); print(' ERROR:\n', connect.stdout.read(err_sz).decode(), end='')
-                if not dat_sz: print(' empty result skipped ]'); connect.stdin.write(b'rm %s.dat %s.err\n'%(tmpf, tmpf)); connect.stdin.flush(); continue
-                print(' ]'); connect.stdin.write(b'cat %s.dat; rm %s.dat %s.err\n'%((tmpf,)*3)); connect.stdin.flush()
+                if err_sz: connect.stdin.write(b'cat %s.err\n'%tmpf); connect.stdin.flush(); print('\033[1;31m ERROR:\n', connect.stdout.read(err_sz).decode(), end='')
+                if not dat_sz: print(' empty result skipped ]\033[0m'); connect.stdin.write(b'rm %s.dat %s.err\n'%(tmpf, tmpf)); connect.stdin.flush(); continue
+                print(' ]\033[0m'); connect.stdin.write(b'cat %s.dat; rm %s.dat %s.err\n'%((tmpf,)*3)); connect.stdin.flush()
                 t0, fname0 = time.time(), host+':'+fname0; print('[ load result of %r'%fname0, sz2str(dat_sz), '... ', end='', flush=1) 
                 tmpf2 = filters[fname0] = tmpfile();  fout = open(tmpf2, 'wb'); fout.write(connect.stdout.read(dat_sz)); fout.close(); print('%.2gsec ]'%(time.time()-t0))
             files = [(fname0, filters[fname0])]   # в фильтрах лежат имена временных файлов
@@ -1008,7 +1023,7 @@ while iopt<len(opt_seq):
             sh.stdin.write(b'racs %s/ %s --ps %s\n'%(repo.encode(), cond.encode(), fname0.encode())); sh.stdin.close()
             files = [(x.decode(), x.decode()) for x in sh.stdout.readline().split()]; del sh
         else: files = sorted(glob.glob(fname0)); files = list(zip(files, files))  
-        if not files: print('[ file %r not found ]'%fname0)
+        if not files: print('\033[1;31m[ file %r not found ]\033[0m'%fname0, file=sys.stderr)
         for fname, tmpf in files:
             if fname in fdict: header, columns, tmpf = fdict[fname]; header = dict(header); header.update(opts)  # в fdict лежат заголовок, столбцы, tmpf
             else:                
@@ -1031,7 +1046,7 @@ while iopt<len(opt_seq):
 if data: plot('')  # финальная отрисовка
 if not sixel and not last_mode: # and __name__=='__main__':
     try:
-        if stdin: print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
+        if stdin or not os.isatty(sys.stdin.fileno()): print('gplt3: press Ctrl-C for close');  time.sleep(1<<32)  # os.wait() не работает?
         else: input('gplt3: press ENTER or Ctrl-C for close')
     except: pass
 #if filters: gp_pipe.write('!rm -f %s\n'%' '.join(filters.values())); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
@@ -1039,12 +1054,17 @@ if filters: gp_pipe.write('!rm -f /tmp/gplt3-%i-*\n'%os.getpid()); gp_pipe.flush
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # ОШИБКИ:
-# не рисуется фалй в одну колонку
 # порядок -def имеет значение?
-
+# не работают большие размеры в tex --- размер по умолчанию 4.74in,3.35in = 12cm,8.5cm, надо подхватывать глобальный sz и передавать его в терминал?
+# макс размер страницы 16.8cm,19.3cm = sz 1.4,2.27 
 
 # TODO:
-# ставить отдельные точки?
+# опция -tbl с вменяемой разметкой таблицы в мультиплоте (без layout) --- размер таблицы, положение линий разграничения, метки и тики убрать/добавить?
+#               какое то кодирование в легенде а-лф tabular в tex?
+# подсвечивать ошибки красным цветом
+# для multiplot layout вместо -o ... ввести универсальный разделитель --- . , / % : @ 
+# https://habr.com/ru/articles/250087/  окружение gnuplot в LaTeX?
+# ставить отдельные точки? опция -pt
 # curve-fitting втащить прямо в gplt? для последней построенной кривой?  -cf A,B,C:... и взаимодействие с racs fit --- gnuplot умеет строить аппроксимации?
 #               здавать н.у. для параметров и пределы как -fit A=1,B=2..3,C=..4:... нужен доступ к кривым по номерам?
 # вывод сообщений в stderr а не в stdout

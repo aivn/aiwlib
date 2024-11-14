@@ -90,7 +90,7 @@ class Select:
                 start += cache_part
                 if self.progressbar: self.progressbar.out(start, 'refresh cache '+dirname+' ')
             if cache_refresh or not cache:
-                try: pickle.dump(cache, open(cache_name, 'wb')) # after commit ???
+                try: pickle.dump(cache, open(cache_name, 'wb'), protocol=1) # after commit ???
                 except Exception as exception: print(dirname, '--- cache not dumped!', exception, file=sys.stderr)
             #-------------------------------------------------------------------
             #   main cicle

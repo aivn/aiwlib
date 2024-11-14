@@ -9,6 +9,7 @@ def gplt(*args, **kw_args):
 При задании пределов отрисовки через kw_args значение должно быть строкой или кортежем из двух элементов, 
 если какой то из пределов не задается он должен быть задан как None.
 Значением опций U и u иожет быть как строка так и кортеж/список строк объединяемых через пробел.
+Опция _stdin=True информирует о вводе данных в управляющий скрипт через стандартный ввод
 
 В args допускаются следующие значения:
   Строка добавляется как обычный аргумент командной строки gplt.
@@ -63,6 +64,7 @@ def gplt(*args, **kw_args):
             else: raise Exception('incorrect argument', a)            
         if 'to' in kw_args: cmdline += ['-to', kw_args['to']]
         print('run gplt with args', cmdline[1:])
+        #try: subprocess.Popen(cmdline, stdin=(None if os.isatty(sys.stdin.fileno()) else subprocess.PIPE)).wait()
         try: subprocess.Popen(cmdline).wait()
         except KeyboardInterrupt: pass
     finally:

@@ -7,6 +7,7 @@
 -nv --- отключает рисование графиков в gplt3
 key=val --- добавляет переменную в пространство имен для вычисления выражений
 -p --- выводить только параметры аппроксимации
+-rp p1_min:p2_min,... --- задает пределы для параметров 
 '''
 # ряд тейлора/полином одной командой
 # несколько входных файлов
@@ -16,10 +17,12 @@ if len(sys.argv)<4 or '-h' in sys.argv or '-help' in sys.argv or '--help' in sys
 
 import numpy as np
 from scipy.optimize import curve_fit
+from aiwlib.gplt import gplt
 
 #-----  parse options ---------
 func_code, approx = sys.argv[1:3]; ifiles = []
 approx_args, approx_code = approx.split(':', 1)
+approx_lims = None #[[-np.inf, np.inf] for a in approx_args.split(',')]
 
 rangeX, rangeY, rangeF, mode3d, cond, head, params, plot, par_only, iarg = [None, None], [None, None], [None, None], False, '', [], {'__builtins__':None}, True, False, 3
 for k, v in np.__dict__.items():
@@ -39,7 +42,8 @@ while iarg<len(sys.argv):
     elif '=' in arg: key, val = arg.split('='); params[key] = eval(val, params, math.__dict__)
     elif arg=='-nv': plot = False
     elif arg=='-p': par_only = True
-    elif os.path.isfile(arg): ifiles.append(arg)
+    elif arg=='-' or os.path.isfile(arg): ifiles.append(arg)
+    elif arg=='-rp': iarg += 1; approx_lims = [[float(l) if l else np.inf*(2*i-1) for i, l in enumerate(ab.split(':'))] for ab in sys.argv[iarg].split(',')]
     else: print('incorrect option of file %r\n'%arg, __doc__); exit()
     iarg += 1
 
@@ -49,9 +53,9 @@ splitters, columns, etalone = [], dict([(k, []) for k in head if k!='x' and (not
 for ifile in ifiles:
     P, start = {'__builtins__': None}, len(etalone)
     for line in sys.stdin if ifile=='-' else open(ifile):
-        if line.startswith('#:') and '=' in line: exec(line[2:], P); print(P)
+        if line.startswith('#:') and '=' in line: exec(line[2:], P) #; print(P)
         elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')])
-        elif line[0]!='#':
+        elif line[0]!='#' and not 'nan' in line and not 'inf' in line:
             line = list(map(float, line.split()))
             if not line: splitters.append(len(etalone)); continue
             line = list(zip(head, line)); P.update(line)
@@ -84,7 +88,8 @@ for k, L in columns.items(): params[k] = np.array(L)
 
 func = eval('lambda x,'+approx_args+': eval(approx_code, params, {%s})'%','.join('"%s":%s'%(k, k) for k in approx_args.split(',')))
 
-popt, pcov = curve_fit(func, params['x'], np.array(etalone))
+if approx_lims: approx_lims = [[l[i] for l in approx_lims] for i in (0,1)]
+popt, pcov = curve_fit(func, params['x'], np.array(etalone), bounds=approx_lims) if approx_lims else curve_fit(func, params['x'], np.array(etalone))
 result = func(params['x'], *popt)
 
 #----- output results -------
@@ -92,7 +97,9 @@ if par_only: print(' '.join(map(str, popt))); exit()
 
 print(' '.join('%s=%g'%(k, v) for k, v in zip(approx_args.split(','), popt)))
 
-print('max.abs.error=%g, max.deriv.error=%g'%(max(np.fabs(etalone-result)), max(np.fabs(etalone-result)/max(np.fabs(etalone)))))
+print('max.abs.error=%g, max.deriv.error=%g amx.abs.av.error=%g'%(max(np.fabs(etalone-result)),
+                                                                  max(np.fabs(etalone-result)/max(np.fabs(etalone))),
+                                                                  sum(np.fabs(etalone-result))/len(etalone)))
 
 print('')
 fargs, fsrc, j = [], approx_code, 0
@@ -111,6 +118,7 @@ for k, v in list(zip(approx_args.split(','), popt))+list(zip('xy', fargs)):
         i = fsrc[j:].index(k)+j
         if (i==0 or (fsrc[i-1]!='_' and not fsrc[i-1].isalpha())) and (i+l==len(fsrc) or (fsrc[i+l]!='_' and not fsrc[i+l].isalnum())):
             fsrc = fsrc[:i]+str(v)+fsrc[i+l:]
+            #fsrc = fsrc[:i]+'%g'%v+fsrc[i+l:]
         else: j = i+l
 #print(fsrc)
 
@@ -124,7 +132,7 @@ while j<len(fsrc):
             del stack[-1]
         except: pass
     j += 1
-print(fsrc.replace('--', '+').replace('+-', '-'))
+print('==>', fsrc.replace('--', '+').replace('+-', '-'))
         
 class AST:
     def __init__(self, code, priority=0): self.code, self.priority = code, priority
@@ -159,12 +167,13 @@ tmp = open('/tmp/curve-fit-%i.dat'%os.getpid(), 'w')
 
 if not mode3d:
     for x, f0, f1, i in zip(params['x'], etalone, result, range(len(etalone))):
-        tmp.write('%g %g %g\n'%(x, f0, f1))
         if i in splitters: tmp.write('\n')
+        tmp.write('%g %g %g\n'%(x, f0, f1))
     tmp.flush()
-    #os.system('gplt3 -U "y@points z" %s -U y@x1y2 %s -rx %s:%s'%(tmp1.name, tmp2.name, rangeX[0], rangeX[1]))
-    os.system('gplt3 -ln y2 -U "y@p z |%y-z%|@x1y2" '+tmp.name)
+    gplt(tmp.name, ln='y2', U="y@p z |%y-z%|@x1y2")    
+    #gplt(zip(params['x'], etalone, result, range(len(etalone))), ln='y2', U="y@p z |%y-z%|@x1y2")    
 else:
+    tmp = open('/tmp/curve-fit-%i.dat'%os.getpid(), 'w')
     tmp.write('#:x y f1 f2\n')
     for x, y, f0, f1, i in zip(params['x'], params['y'], etalone, result, range(len(etalone))):
         if i in splitters: tmp.write('\n')
@@ -175,7 +184,7 @@ else:
         os.system('gplt3 -pm3d -U f1 ' + tmp.name)
         os.system('gplt3 -pm3d -U f2 ' + tmp.name)
     os.system('gplt3 -U "|%f1-f2%|" ' + tmp.name + ' '+mode3d)
-
+    os.system('gplt3 -U "|%f1-f2%|/|%f1+f2%|" ' + tmp.name + ' '+mode3d)
 os.remove(tmp.name)
 exit()
 if 0:

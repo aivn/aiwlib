@@ -99,7 +99,7 @@ class Select:
                     l = [R]; self._L.append(l); Select._i += 1
                     for c, s, f, h in csfhL:
                         l.append(R(c))
-                        if s: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
+                        if s and type(l[-1]) is float: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
                         if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
                 elif check_tree: vizit(p, start, part, repo)
                 start += part
