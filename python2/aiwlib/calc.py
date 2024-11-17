@@ -17,6 +17,7 @@ _racs_cl_params = set() # имена параметров RACS заданные 
 _cl_args, _cl_tags = [], [] # аргументы командной строки не обработанные RACS и тэги из командной строки  
 _args_from_racs = [] # значения параметров полученные из RACS при разборе аргументов командной строки
 _arg_seqs, _arg_order, _queue =  {}, [], None # словарь с параметрами для пакетного запуска, последовательность имен параметров, очередь заданий
+_help_mode = False
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -32,11 +33,14 @@ class Calc:
     и сохранение/восстановление параметров в файле .RACS'''
     #---------------------------------------------------------------------------
     def __init__(self, **D):
-        #self.runtime, self.progress, self.statelist, self.args, self._wraps = chrono.Time(0.), 0., [], list(_cl_args), []
+        self._comments, self._profiler, self._set_progress_time = {}, {}, time.time()
         self.runtime, self.progress, self.statelist, self.args, self._wraps, self.tags = chrono.Time(0.), 0., [], list(sys.argv), [], set(_cl_tags)
         for k, v in D.items(): # обработка аргументов конструктора
             if k in _racs_params and not k in _racs_cl_params: _racs_params[k] = v
-            elif not k in _racs_params: self.__dict__[k] = v
+            elif not k in _racs_params:
+                if type(v) is tuple and len(v)==2 and type(v[1]) is str and v[1].startswith('#'): self._comments[k], v = ' '+v[1][1:], v[0]
+                self.__dict__[k] = v
+        if _help_mode: return
         #-----------------------------------------------------------------------
         #   серийный запуск и демонизация расчета
         #-----------------------------------------------------------------------
@@ -139,21 +143,27 @@ class Calc:
     #---------------------------------------------------------------------------
     def __getattr__(self, attr):
         'нужен для создания уникальной директории расчета по первому требованию (ленивые вычисления)'
-        if attr=='path': return _make_path_hook(self)
+        if attr=='path':
+            if _help_mode:
+                print '\nAvailable options:'
+                mpl = max(len(k) for k in self._comments.keys())
+                for k, v in sorted(self._comments.items()): print k, ' '*(mpl-len(k)), v
+                exit()
+            return _make_path_hook(self)
         raise AttributeError(attr)
     #---------------------------------------------------------------------------
     def commit(self): 
         'Сохраняет содержимое расчета в базе'
         #print dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())).keys()
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
-        data = dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items()))
+        data = dict(filter(lambda i:(i[0][0]!='_' and i[0]!='path') or i[0] in ('_comments', '_profiler'), self.__dict__.items()))
         try: cPickle.dump(data,  open(self.path+'.RACS', 'w'))
         except:
             for k, v in data.items():
                 try: cPickle.dumps(v)
                 except Excepstion as e: print e, '--- %s skipped'%k; del data[k]
             cPickle.dump(data,  open(self.path+'.RACS', 'w'))
-        os.utime(self.path, None) # for racs cache refresh
+        os.utime(self.path, None); self._old_progress = self.progress # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
             shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
@@ -171,17 +181,24 @@ class Calc:
         self.add_state(state, info, host, login); self.commit()
     #---------------------------------------------------------------------------
     def set_progress(self, progress, prompt='',  runtime=-1):
-        '''Устанавливает progress и runtime, выводит при необходимости mixt.ProgressBar. 
-        prompt=@clean очищает ProgressBar, @close prompt result закрывает ProgressBar'''
+        'Устанавливает progress и runtime, выводит по возможности progressbar'
         if not hasattr(self, 'statelist'): self.statelist = []
         runtime = (chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime)
         self.__dict__['progress'], self.__dict__['runtime'] = progress, runtime
-        if os.path.exists(self.path+'.RACS'): self.commit() #self.md5sources = self.commit() ???
-        if prompt:
-            if not '_progressbar' in self.__dict__: self.__dict__['_progressbar'] = mixt.ProgressBar()
-            if prompt=='@clean': self._progressbar.clean()  
-            elif prompt.startswith('@close '): self._progressbar.close(*prompt[7:].rsplit(' ',1)) 
-            else: self._progressbar.out(progress, prompt)
+        if  time.time()-self._set_progress_time>.2:
+            self._set_progress_time = time.time()
+            if os.path.exists(self.path+'.RACS'): self.commit()
+            if os.isatty(sys.stdout.fileno()):
+                width = int(os.popen('stty size 2> /dev/null').readline().split()[1])
+                progress = max(0, min(1, progress)); plen, text = int(width*progress+.5), '[ '+prompt+str(runtime)
+                text += '/%s ETA %s'%(runtime/progress, runtime/progress-runtime) if progress else '/???'
+                for t, c, n in reversed(sorted(v+[k] for k, v in self._profiler.items())):
+                    c1, c2 = str(c), ('%.2g'%c).replace('+0', '').replace('+', '')
+                    a = ' %s:%s(%i%%)'%(n, (c1 if len(c1)<=len(c2) else c2), 100*t/float(runtime))
+                    if len(text+a)<width: text += a
+                    else: break
+                text += ' '*(width-len(text)-1)+']'
+                sys.stdout.write('\r\033[7m'+text[:plen]+'\033[0m'+text[plen:]); sys.stdout.flush()
     #---------------------------------------------------------------------------
     # def commit_sources( self, *L ) : 
     #    'Сохраняет файлы с исходным кодом программы в базе'
@@ -218,8 +235,6 @@ class Calc:
                            [not hasattr(v, '_racs_pull_lock') and not hasattr(v, '__racs_pull_denied__')]
                            ) or not _is_swig_obj(v): self[_prefix+k] = v
         for k, v in kw_args.items(): self[k] = v
-    #---------------------------------------------------------------------------
-    def wrap(self, core, prefix=''): return _Wrap(self, core, prefix)
     #---------------------------------------------------------------------------
     _except_report_table = []
     def __call__(self, expr):
@@ -275,22 +290,31 @@ class Calc:
         report = 'KeyError: %r is not defined\n'%key
         if not report in self._except_report_table: self._except_report_table.append(report)
         #raise KeyError(key)        
+    #---------------------------------------------------------------------------
     def __setitem__(self, key, val): self.__dict__[key] = val # блокировать доступ к statelist и пр???
     def __delitem__(self, key): del self.__dict__[key]
     def get(self, name, value=None): return self[name] if name in self.__dict__ else value
     def __contains__(self, key): return key in self.__dict__
+    def wrap(self, core, prefix='', progress=None): return _Wrap(self, core, prefix, progress)
     #---------------------------------------------------------------------------
 #    def __setattr__(self, attr, value):
 #        if attr in self.__dict__: self.__dict__[attr] = value.__class__(self.__dict__[attr])
 #        else: self.__dict__[attr] = value
 #-------------------------------------------------------------------------------
 class _Wrap: 
-    def __init__(self, calc, core, prefix):
-        self.__dict__['_calc'], self.__dict__['_core'] = calc, core 
-        self.__dict__['_set_attrs'], self.__dict__['_prefix'] = set(), prefix
+    def __init__(self, calc, core, prefix, progress):
+        self.__dict__.update([('_calc', calc), ('_core', core), ('_prefix', prefix), ('_progress', progress), ('_set_attrs', set())])
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
         if _racs_params['_auto_pull']: calc._wraps.append(self) # for exit hook
-    def __getattr__(self, attr): return getattr(self._core, attr)
+        for k, p in [(k, getattr(core.__class__, k, None)) for k in dir(core) if isinstance(getattr(core.__class__, k, None), property) and k!='thisown']:
+            if p.__doc__: calc._comments[prefix+k] = p.__doc__
+            if not _help_mode and prefix+k in self._calc.__dict__: setattr(self, k, calc.__dict__[self._prefix+k])
+        self._set_attrs.clear()  # для обратной совместимости
+    def __getattr__(self, attr):
+        res = getattr(self._core, attr)
+        if isinstance(getattr(self._core.__class__, attr), property): return res
+        elif callable(res): return _WrapMethod(res, self._prefix+attr, self)
+        return res
     def __setattr__(self, attr, value):
         if not attr in self._set_attrs and self._prefix+attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
             value = self._calc.__dict__[self._prefix+attr] # через getattr?
@@ -302,5 +326,14 @@ class _Wrap:
         self._set_attrs.add(attr)
         self._calc.__dict__[attr] = value
         setattr(self._core, attr, value)
+#-------------------------------------------------------------------------------
+class _WrapMethod:
+    def __init__(self, method, name, wrap): self._method, self._name, self._wrap = method, name, wrap
+    def __getattr__(self, attr): return getattr(self._method, attr)  # wrap method?
+    def __call__(self, *args, **kw_args):
+        t0 = time.time();  res = self._method(*args, **kw_args) 
+        pf = self._wrap._calc._profiler.setdefault(self._name, [0, 0]);  pf[0] += time.time()-t0; pf[1] += 1   # суммарное время работы и число вызовов
+        if self._wrap._progress: self._wrap._calc.set_progress(self._wrap._progress())
+        return res
 #-------------------------------------------------------------------------------
 __all__ = ['Calc']

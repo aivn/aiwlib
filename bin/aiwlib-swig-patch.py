@@ -25,7 +25,7 @@ if fname.endswith('_wrap.cxx'):
             n_cast += 1
             
     open(fname, 'w').writelines(src)
-    print('\033[7m    file', fname, 'patched  (%i casts added)  \033[0m'%n_cast)
+    print('\033[7m    file', fname, 'patched  (%i casts added)    \033[0m'%n_cast)
 
 elif fname.endswith('.py'):
     name = '_'+os.path.basename(fname).split('.')[0]
@@ -35,7 +35,11 @@ elif fname.endswith('.py'):
         l = src[i]; p, l = l[:len(l)-len(l.lstrip())], ' '.join(l.split()[:-1])
         src[i:i+1] = [p+"if os.environ.get('debug')=='on': "+l+' _dbg%s as %s  # aiwlib patch\n'%(name, name), p+'else: %s %s  # aiwlib patch\n'%(l, name)]
 
-    try: os.makedirs(os.path.dirname(sys.argv[2]))
-    except OSError: pass
-    open(sys.argv[2], 'w').writelines(['try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())  # aiwlib patch\n', 'except: pass  # aiwlib patch\n']+src)
-    print('\033[7m    file', fname, 'patched and copied to', sys.argv[2], '   \033[0m')
+    if len(sys.argv)==3:
+        try: os.makedirs(os.path.dirname(sys.argv[2]))
+        except OSError: pass
+    open(sys.argv[-1], 'w').writelines(['''# -*- coding: utf-8 -*-
+try: import os, sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())  # aiwlib patch
+except: pass  # aiwlib patch\n''']+src)
+    if len(sys.argv)==3: print('\033[7m    file', fname, 'patched and copied to', sys.argv[2], '    \033[0m')
+    else: print('\033[7m    file', fname, 'patched    \033[0m')

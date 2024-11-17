@@ -96,8 +96,8 @@ $(dst)build/swig/%.py: $(dst)build/swig/%_wrap.cxx;
 $(dst)build/swig/%/core.py: $(dst)build/swig/%/core_wrap.cxx;
 $(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
 $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
-$(py_dst)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
-$(py_dst)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
+$(py_dst)/aiwlib/%.py: $(dst)build/swig/%.py; bin/aiwlib-swig-patch.py $< $@
+$(py_dst)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; bin/aiwlib-swig-patch.py $< $@
 
 $(dst)build/swig/%_wrap.d: swig/%.i
 	@mkdir -p $(dst)build/swig

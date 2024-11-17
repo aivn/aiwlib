@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #-------------------------------------------------------------------------------
-'''Copyright (C) 2003-2017, 2023 Anton V. Ivanov <aiv.racs@gmail.com>
+'''Copyright (C) 2003-2017, 2023, 2024 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 
   опции командной строки:
@@ -172,8 +172,8 @@ def _on_exit(self):
             else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
     finally: self.commit()
     rsz = os.path.getsize(self.path+'.RACS') 
-    rcolor = ('' if rsz<4096 else ';33' if rsz<4096*3 else ';31' if rsz<4096*10 else ';37;41' if rsz<4096*30 else ';37;5;41')+'m%s'
-    print('RUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
+    rcolor = ('' if rsz<4096 else ';33' if rsz<4096*8 else ';31' if rsz<4096*32 else ';37;41' if rsz<4096*256 else ';37;5;41')+'m%s'
+    print('\nRUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
         runtime, os.popen('du -hs '+self.path).readline().split()[0], rcolor%mixt.size2string(rsz), self.path))
 #-------------------------------------------------------------------------------
 def run4stat(self, _count, _copies=1, _mkdir=True, **params):
@@ -223,10 +223,7 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
 #-------------------------------------------------------------------------------
 #   parse command line options
 #-------------------------------------------------------------------------------
-if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
-    print(__doc__)
-    print(''.join(l for l in open(sys.modules['__main__'].__file__) if '#@' in l))
-    sys.exit()
+if any(o in sys.argv[1:] for o in '-h -help --help'.split()): calc._help_mode = True; del sys.argv[1:]; print(__doc__)
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', False), 

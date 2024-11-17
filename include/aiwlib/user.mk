@@ -1,5 +1,5 @@
 #    user modules Makefile
-# Copyright (C) 2017, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2017, 2021, 2024 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #-------------------------------------------------------------------------------
 define reset
@@ -43,8 +43,8 @@ all_objects:=$(addsuffix .o,$(basename $(modules))) $(objects)
 .PHONY: _$(name).so
 all: $(name) $(notdir $(basename $(cxxmain)));
 $(name): _$(name).so $(name).py
-	@echo -ne "\033[7mCHECK IMPORT: python$(python) -c 'import $(name)' ... \033[0m"
-	@if (python$(python) -c 'import $(name)'); then echo -e "\033[7mOK\033[0m"; fi
+	@echo -ne "\033[7mCHECK IMPORT: python$(python) -c 'import $(name)' ... \033[0;31m"
+	@if (python$(python) -c 'import $(name)'); then echo -e "\033[0m\033[7mOK\033[0m"; else echo -e "\033[7mFAILED\033[0m"; fi
 #	@if [ "$(aiwlibs)" ]; then make-aivlib $(foreach m,$(aivlibs),'$m') ; fi
 #-------------------------------------------------------------------------------
 aiwmake:=$(sort $(aiwmake))
@@ -71,9 +71,8 @@ $(name)-sets :
 $(name).py $(name)_wrap.cxx: $(name).i $(headers)
 	$(show_target)
 	swig $(SWIGOPT) -I$(aiwlib_include) $(name).i
-	@mv $(name).py /tmp/$$$$.py; echo 'import sys; sys.setdlopenflags(0x00100|sys.getdlopenflags())' > $(name).py; \
-	cat /tmp/$$$$.py >> $(name).py; rm /tmp/$$$$.py
-	@echo -e "\033[7mFile \"$(name).py\" patched for load shared library with RTLD_GLOBAL=0x00100 flag\033[0m"
+	aiwlib-swig-patch.py $(name)_wrap.cxx
+	aiwlib-swig-patch.py $(name).py
 #-------------------------------------------------------------------------------
 #   link shared library
 #-------------------------------------------------------------------------------
@@ -96,6 +95,7 @@ endif
 $(name).i: $(MAKEFILE_LIST)
 	$(show_target)
 	$(imodule)
+#	for h in $(headers); do for f in $$($(CXX) -I$(aiwlib_include) $(CXXOPT) -M $$h); do echo $$f | grep include/aiwlib/; done; done	
 #	@echo '%include "std_string.i"' >> $@
 	@echo $(iheader) >> $@
 #	@H=$(aiwmake); $(iinclude)

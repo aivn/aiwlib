@@ -1,5 +1,5 @@
 # main options for aiwlib make
-# Copyright (C) 2017-2018,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2017-2018, 2021, 2024 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #
 # Edit this part of the file manually to configure the make
@@ -16,7 +16,7 @@ INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
 
 #BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2segY segY2arr
-BIN_LIST=racs racs3 approx isolines gplt2 qplt qplt-remote sph2dat arr2segY segY2arr vtk2msh gplt3
+BIN_LIST=racs racs3 approx isolines gplt2 qplt qplt-remote sph2dat arr2segY segY2arr vtk2msh gplt3 aiwlib-swig-patch.py
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
@@ -61,7 +61,7 @@ AR:=ar
 ifneq (on,$(mingw))
 override LINKOPT:=$(LINKOPT) -lgomp -lz -ldl
 endif
-override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -I./
+override SWIGOPT:=$(SWIGOPT) -Wall -python -doxygen -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
 # устанавливать 64x битный дистрибутив питона под wine как
@@ -122,7 +122,7 @@ define run_swig
 @mkdir -p $$(dirname $@)
 $(show_target)
 $(SWIG) $(SWIGOPT) -I$(PYTHON_H_PATH) -outdir $$(dirname $@) -o "$@" $<
-./patch_swig.py $@
+bin/aiwlib-swig-patch.py $@
 endef
 #-------------------------------------------------------------------------------
 define patch_py
