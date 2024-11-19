@@ -94,7 +94,7 @@ Licensed under the Apache License, Version 2.0
 #-----------------------------------------------------------------------------
 #   show help or single calc
 #-----------------------------------------------------------------------------
-import os, sys, pickle, pprint
+import os, sys, pickle, pprint, json
 
 if len(sys.argv)==1 or '--help' in sys.argv: print(__doc__); sys.exit()
 
@@ -105,7 +105,9 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
     X = pickle.load(open(sys.argv[1], 'rb'), encoding='bytes')
     if type(X) is dict: X = dict([(k.decode() if type(k) is bytes else k, v.decode() if type(v) is bytes else v)  for k, v in X.items()])
-    width, comments = os.get_terminal_size().columns, X.pop('_comments', {})
+    width = os.get_terminal_size().columns
+    try: comments = json.load(open(os.path.dirname(sys.argv[1])+'/.comments'))
+    except: comments = {}
     for k, v in sorted(X.items()):
         text, comment = pprint.pformat(v, width=width-len(k)-1).split('\n'), comments.get(k, '').split()
         prefix, pos = ' '*len(k), len(k+'='+text[0]); print(k+'='+text[0], end=' ')

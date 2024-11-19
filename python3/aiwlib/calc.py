@@ -2,7 +2,7 @@
 '''Copyright (C) 2002-2017, 2023-24 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
-import os, sys, time, pickle, socket, shutil 
+import os, sys, time, pickle, socket, shutil, json 
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono
 try: from aiwlib.mpi4py import *
@@ -11,7 +11,7 @@ except ImportError as e: pass
 #_is_swig_obj = lambda X: all([hasattr(X, a) for a in ('this', 'thisown', '__swig_getmethods__', '__swig_setmethods__')])
 _is_swig_obj = lambda X: any("<Swig Object" in x for x in [str(X), str(type(X)), str(type(getattr(X, 'this', None)))])
 _rtable, _G, ghelp = [], {}, [] # таблица для замыкания рекурсии, глобальная таблица и справка  
-_ignore_list = 'path statelist runtime progress args _progressbar md5sum'.split()
+_ignore_list = 'path statelist runtime progress args md5sum _wrap _comments _profiler tags _starttime this thisown'.split()
 _racs_params = {} # параметры RACS (репозиторий, демонизация расчета, символическая ссылка и т.д.)
 _racs_cl_params = set() # имена параметров RACS заданные в командной строке 
 _cl_args, _cl_tags = [], [] # аргументы командной строки не обработанные RACS и тэги из командной строки  
@@ -157,16 +157,16 @@ class Calc:
         # print(list(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())))
         if os.path.exists(self.path+'.RACS'): os.remove(self.path+'.RACS') # ??? for update mtime of self.path ???
         # pickle.dump(dict(filter(lambda i:i[0][0]!='_' and i[0]!='path', self.__dict__.items())), open(self.path+'.RACS', 'wb'), 0)
-        data = dict(filter(lambda i:(i[0][0]!='_' and i[0]!='path') or i[0] in ('_comments', '_profiler'), self.__dict__.items()))
+        data = dict(filter(lambda i:(i[0][0]!='_' and i[0]!='path') or i[0] in ('_profiler', '_lambda'), self.__dict__.items()))
         try: pickle.dump(data,  open(self.path+'.RACS', 'wb'), protocol=1)
         except:
             for k, v in list(data.items()):
                 try: pickle.dumps(v, protocol=1)
                 except Excepstion as e: print(e, '--- %s skipped'%k); del data[k]
             pickle.dump(data,  open(self.path+'.RACS', 'wb'), protocol=1)
+        if not os.path.exists(self.path+'/.comments'): json.dump(self._comments, open(self.path+'/.comments', 'w'), indent=2, sort_keys=1, ensure_ascii=0)
         os.utime(self.path, None) # for racs cache refresh
-        if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: 
-            shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
+        if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------
     def add_state(self, state, info=None, host=socket.gethostname(), login=mixt.get_login()):
         'Устанавливает статус расчета, НЕ вызывает commit()'
@@ -307,25 +307,29 @@ class _Wrap:
         self.__dict__.update([('_calc', calc), ('_core', core), ('_prefix', prefix), ('_progress', progress), ('_set_attrs', set())])
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
         if _racs_params['_auto_pull']: calc._wraps.append(self) # for exit hook
-        for k, p in [(k, getattr(core.__class__, k, None)) for k in dir(core) if isinstance(getattr(core.__class__, k, None), property) and k!='thisown']:
+        for k, p in filter(lambda kp: not kp[0] in _ignore_list and isinstance(kp[1], property), [(k, getattr(core.__class__, k, None)) for k in dir(core)]):
             if p.__doc__: calc._comments[prefix+k] = p.__doc__
-            if not _help_mode and prefix+k in self._calc.__dict__: setattr(self, k, calc.__dict__[self._prefix+k])
-        self._set_attrs.clear()  # для обратной совместимости
+            if not _help_mode and prefix+k in self._calc.__dict__: setattr(self, k, calc.__dict__[self._prefix+k]); self._set_attrs.add(k)
     def __getattr__(self, attr):
         res = getattr(self._core, attr)
         if isinstance(getattr(self._core.__class__, attr), property): return res
         elif callable(res): return _WrapMethod(res, self._prefix+attr, self)
         return res
     def __setattr__(self, attr, value):
-        if not attr in self._set_attrs and self._prefix+attr in self._calc.__dict__: # перекрываем значениe по умолчанию            
-            value = self._calc.__dict__[self._prefix+attr] # через getattr?
-            if getattr(self._core, attr).__class__==bool and type(value) is str: value = mixt.string2bool(value)
-            else:
-                dst = getattr(self._core, attr)                
-                value = dst.__class__(value, D=dst._D(), T=dst._T()) if getattr(dst, '_is_aiwlib_vec', False) \
-                    else dst.__class__(float(value) if dst.__class__ is int else value)
-        self._set_attrs.add(attr)
+        if attr in self._set_attrs:
+            print('\033[7mset parametr %r to %r is overlapped by %r from RACS\033[0m'%(attr, value, self._calc.__dict__[self._prefix+attr]))
+            return 
+        if getattr(self._core, attr).__class__ is bool and type(value) is str: value = mixt.string2bool(value)
+        else:
+            dst = getattr(self._core, attr); dst_t = dst.__class__               
+            if getattr(dst, '_is_aiwlib_vec', False): value = dst_t(value, D=dst._D(), T=dst._T())
+            elif type(value) is str and dst_t is int: value = float(vaule)
+            elif type(value) is tuple:
+                try: value = dst_t(value)
+                except: value = dst_t(*value)
+            else: value = dst_t(value)
         self._calc.__dict__[attr] = value
+        print('set parametr %r to %r'%(attr, value))
         setattr(self._core, attr, value)
 #-------------------------------------------------------------------------------
 class _WrapMethod:
@@ -334,7 +338,9 @@ class _WrapMethod:
     def __call__(self, *args, **kw_args):
         t0 = time.time();  res = self._method(*args, **kw_args) 
         pf = self._wrap._calc._profiler.setdefault(self._name, [0, 0]);  pf[0] += time.time()-t0; pf[1] += 1   # суммарное время работы и число вызовов
-        if self._wrap._progress: self._wrap._calc.set_progress(self._wrap._progress())
+        if self._wrap._progress:
+            try: self._wrap._calc.set_progress(self._wrap._progress())
+            except: pass
         return res
 #-------------------------------------------------------------------------------
 __all__ = ['Calc']

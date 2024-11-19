@@ -195,10 +195,10 @@ class Vec(PVec):
         return a
     #---------------------------------------------------------------------------
     # operator /
-    def __div__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
-                                     [x/b for x in a._getdata()]), T=_decltype(a, b)) 
-    def __rdiv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
-                                     [b/x for x in a._getdata()]), T=_decltype(a, b)) 
+    def __truediv__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
+                                         [x/b for x in a._getdata()]), T=_decltype(a, b)) 
+    def __rtruediv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
+                                         [b/x for x in a._getdata()]), T=_decltype(a, b)) 
     def __idiv__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r /= %r'%(a, b))
         for i in range(len(a)): a[i] /= b
@@ -254,6 +254,7 @@ class Vec(PVec):
     # periodic ???
     def circ(self, l): return Vec(*(self._getdata()[-l%self._D():]+self._getdata()[:-l%self._D()]), T=self._T()) #???
     def abs(self): return sum([x*x for x in self._getdata()])**.5
+    def norm(self, n=1): return self*(n/self.abs())
     def abs2(self): return sum([x*x for x in self._getdata()])
     def pow(self, p): Vec(*[x**p for x in self._getdata()])
     def fabs(self): return Vec(*map(abs, self._getdata()))
