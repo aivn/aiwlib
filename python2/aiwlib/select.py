@@ -38,8 +38,10 @@ def parse(ev):
             compile('(" ".join(l.strip() for l in os.popen(%r%%self).readlines()))'%ev[1:] if ev.startswith('$') and not evex else ev, 
                     ev+'!'*evex if evex else title, 'exec' if evex else 'eval')), sort, fltr, hide
 #-------------------------------------------------------------------------------
+_ignore_list = set('path statelist args md5sum _wrap _comments _profiler _starttime tags this thisown'.split())
 class SelCalc(calc.Calc):
     def __init__(self, path, D): self.__dict__.update(D); self.__dict__['path'] = path
+    def keys_set(self): return set(k for k in self.__dict__ if k[0]!='_' and not k in _ignore_list)
 #-------------------------------------------------------------------------------
 class Select:
     'Построение выборки по базе RACS'
@@ -198,6 +200,33 @@ class Select:
     def paths2py(self, patterns=['']):
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
         return repr(self.paths(patterns))
+    def full_report(self, *patterns):
+        table, max_len = [None, 'parametr vals min max mean'.split(), None], mixt.get_tty_width()-1
+        #-----------------------------------------------------------------------
+        conv2str = lambda x: '\n'.join(str(x[i]) for i in range(len(x))) if len(str(x))>max_len/4 and (
+            getattr(x, '_is_aiwlib_vec', 0) or type(x) in (list, tuple)) else ' '.join(str(i) for i in x) if type(x) in (list, tuple) else str(x)
+        def stat(key, L):
+            if L: 
+                try: L = sorted(set(L))
+                except: pass                
+                table.append([key, len(L), conv2str(L[0]), conv2str(L[-1]), conv2str(L[len(L)/2])])
+            else: table.append([key, None, None, None, 0])
+        #-----------------------------------------------------------------------
+        for ring_id in range(max(1, len(self.ring))):
+            if self.ring:
+                for k, v in self.upar.par_dict(): table.append([k, v, None, None])                    
+            if self.head:
+                for i, h in enumerate(self.head): stat(h, [l[i+1] for l in self._L if l])
+            if not self.head or patterns:
+                keys = sorted(reduce(set.__or__, [l[0].keys_set() for l in self._L if l], set()))
+                if patterns: keys = filter(lambda x: mixt.compare(x, patterns), keys)
+                for k in keys: stat(k, [l[0].__dict__[k] for l in self._L if l and k in l[0].__dict__])
+            tags = sorted(reduce(set.__or__, [l[0].tags for l in self._L if l], set()))
+            table.append(['tags', len(tags), conv2str(tags), '', ''])
+            if table[-1]: table[-1] += ['']*(5-len(table[-1]))
+            self.click(); table.append(None)
+        return mixt.table2strlist(table, max_len=max_len)
+        #return table
     #---------------------------------------------------------------------------
     def delone(self, path=None):
         from scipy.spatial import Delaunay
@@ -260,7 +289,7 @@ class Select:
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
         starttime = time.time()
         if not self._L: return []
-        keys = [set(l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys()) for l in self._L if l]
+        keys = [l[0].keys_set() for l in self._L if l]
         S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, keys.pop(0))
         if patterns: S = filter(lambda n: mixt.compare(n, patterns), S)
         self.runtime = time.time()-starttime

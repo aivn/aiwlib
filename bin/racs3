@@ -75,6 +75,11 @@
                         и PATH.cells с ячейками (тройки номеров строк из PATH.dat + статистика),
                         выводит статистику на стандартный вывод
 
+    --re[port] [patterns] --- выводит сводный отчет по параметрам в выборках,
+                              если заданы колонки то выводится сводная инфрмация по колонкам и
+                              дполнительно по параметрам с именами отвечающими patterns,
+                              иначе выводится отчет по всем параметрам, или только по тем 
+                              имена которых отвечают patterns 
 
 Кроме того, доступны следующие опции (по умолчанию отключены):
     --pb[ar]|--progressbar --- отображать процесс построения выборки
@@ -100,12 +105,13 @@ if len(sys.argv)==1 or '--help' in sys.argv: print(__doc__); sys.exit()
 
 if os.path.islink(sys.argv[0]): sys.path.append(os.readlink(sys.argv[0]).rsplit('/', 2)[0]+'/python')
 
+sys.path.append('')
 if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
-    sys.path.append('')
     if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
     X = pickle.load(open(sys.argv[1], 'rb'), encoding='bytes')
     if type(X) is dict: X = dict([(k.decode() if type(k) is bytes else k, v.decode() if type(v) is bytes else v)  for k, v in X.items()])
-    width = os.get_terminal_size().columns
+    try: width = os.get_terminal_size().columns
+    except: width = 80
     try: comments = json.load(open(os.path.dirname(sys.argv[1])+'/.comments'))
     except: comments = {}
     for k, v in sorted(X.items()):
@@ -217,6 +223,7 @@ for i in range(1, a_sz):
     elif arg=='--gplt': action = ['asdata']; gplt = sys.argv[i+1:]; break
     elif arg in ('--cp', '--copy'): action = ['Xcopy']+sys.argv[i+1:]; break
     elif arg=='--delone': action = ['delone']+sys.argv[i+1:i+2]; break
+    elif arg in ('--re', '--report'): action = ['full_report']+sys.argv[i+1:]; break
     else: ev_lists[-1].append(arg)
 else: print(__doc__, '\033[31mAction not setting!\033[0m', file=sys.stderr); sys.exit()
 #-----------------------------------------------------------------------------

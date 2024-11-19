@@ -302,6 +302,7 @@ class Calc:
 #        if attr in self.__dict__: self.__dict__[attr] = value.__class__(self.__dict__[attr])
 #        else: self.__dict__[attr] = value
 #-------------------------------------------------------------------------------
+_set_par_out = [1]
 class _Wrap: 
     def __init__(self, calc, core, prefix, progress):
         self.__dict__.update([('_calc', calc), ('_core', core), ('_prefix', prefix), ('_progress', progress), ('_set_attrs', set())])
@@ -329,14 +330,14 @@ class _Wrap:
                 except: value = dst_t(*value)
             else: value = dst_t(value)
         self._calc.__dict__[attr] = value
-        print('set parametr %r to %r'%(attr, value))
+        if _set_par_out[0]: print('set parametr %r to %r'%(attr, value))
         setattr(self._core, attr, value)
 #-------------------------------------------------------------------------------
 class _WrapMethod:
     def __init__(self, method, name, wrap): self._method, self._name, self._wrap = method, name, wrap
     def __getattr__(self, attr): return getattr(self._method, attr)  # wrap method?
     def __call__(self, *args, **kw_args):
-        t0 = time.time();  res = self._method(*args, **kw_args) 
+        t0 = time.time();  res = self._method(*args, **kw_args); _set_par_out[0] = 0
         pf = self._wrap._calc._profiler.setdefault(self._name, [0, 0]);  pf[0] += time.time()-t0; pf[1] += 1   # суммарное время работы и число вызовов
         if self._wrap._progress:
             try: self._wrap._calc.set_progress(self._wrap._progress())
