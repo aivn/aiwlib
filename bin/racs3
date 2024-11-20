@@ -113,7 +113,9 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     try: width = os.get_terminal_size().columns
     except: width = 80
     try: comments = json.load(open(os.path.dirname(sys.argv[1])+'/.comments'))
-    except: comments = {}
+    except: 
+        try: comments = json.load(open(os.path.dirname(os.path.dirname(sys.argv[1]))+'/.comments'))
+        except: comments = {}
     for k, v in sorted(X.items()):
         text, comment = pprint.pformat(v, width=width-len(k)-1).split('\n'), comments.get(k, '').split()
         prefix, pos = ' '*len(k), len(k+'='+text[0]); print(k+'='+text[0], end=' ')

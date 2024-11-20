@@ -111,7 +111,9 @@ if len(sys.argv)==2 and os.path.exists(sys.argv[1]):
     if os.path.isdir(sys.argv[1]): sys.argv[1] += '/.RACS'  
     X = cPickle.load(open(sys.argv[1]))
     try: comments = json.load(open(os.path.dirname(sys.argv[1])+'/.comments'))
-    except: comments = {}
+    except:
+        try: comments = json.load(open(os.path.dirname(os.path.dirname(sys.argv[1]))+'/.comments'))
+        except: comments = {}
     try: width = int(os.popen('stty size').readline().split()[1]) if sys.stdout.isatty() else 80
     except: width = 80
     for k, v in sorted(X.items()):

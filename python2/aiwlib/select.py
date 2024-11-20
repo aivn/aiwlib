@@ -201,6 +201,34 @@ class Select:
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
         return repr(self.paths(patterns))
     def full_report(self, *patterns):
+        table, max_len = [None], mixt.get_tty_width()-1
+        #-----------------------------------------------------------------------
+        def stat(key, L):
+            if L: 
+                try: L = sorted(set(L))
+                except: pass
+                line = '[%i] '%len(L)+',  '.join(map(str, L))
+                if len(line)>max_len*.7: line = '[%i] min: %s,   max: %s,   mean: %s'%(len(L), L[0], L[-1], L[len(L)/2])
+                if len(line)<max_len*.7: table.append([key, line])
+                else: table.extend([None]*(not table[-1] is None)+[[key, '[%i]'%len(L)], ['min', L[0]], ['max', L[-1]], ['mean', L[len(L)/2]], None])
+            else: table.extend([[key, '---'], None])
+        #-----------------------------------------------------------------------
+        for ring_id in range(max(1, len(self.ring))):
+            if self.ring:
+                for k, v in self.upar.par_dict(): table.append([k, v])
+                table.append(None)
+            if self.head:
+                for i, h in enumerate(self.head): stat(h, [l[i+1] for l in self._L if l])
+            if not self.head or patterns:
+                keys = sorted(reduce(set.__or__, [l[0].keys_set() for l in self._L if l], set()))
+                if patterns: keys = filter(lambda x: mixt.compare(x, patterns), keys)
+                for k in keys: stat(k, [l[0].__dict__[k] for l in self._L if l and k in l[0].__dict__])
+            tags = sorted(reduce(set.__or__, [l[0].tags for l in self._L if l], set()))
+            table.append(['tags', tags])
+            self.click(); table.append(None)
+        return mixt.table2strlist(table, pattern='r|l', max_len=max_len)
+        
+    def full_report0(self, *patterns):
         table, max_len = [None, 'parametr vals min max mean'.split(), None], mixt.get_tty_width()-1
         #-----------------------------------------------------------------------
         conv2str = lambda x: '\n'.join(str(x[i]) for i in range(len(x))) if len(str(x))>max_len/4 and (
