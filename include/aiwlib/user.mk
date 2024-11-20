@@ -121,7 +121,9 @@ $(name).i: $(MAKEFILE_LIST)
 ifneq ($(wildcard $(aiwlib)python$(python)/aiwlib/),)
 	@echo "%pythoncode %{import sys; sys.path.insert(1, '$(aiwlib)python$(python)/')%}" >> $@
 endif
-	@echo "%pythoncode %{import copyreg; _pickled_as_tuple = lambda *args: [copyreg.pickle(T, lambda x: (tuple, ([x[i] for i in range(len(x))],))) for T in args]%}" >> $@
+	@echo "%pythoncode %{try: import copyreg" >> $@
+	@echo "except: import copy_reg as copyreg" >> $@
+	@echo "_pickled_as_tuple = lambda *args: [copyreg.pickle(T, lambda x: (tuple, ([x[i] for i in range(len(x))],))) for T in args]%}" >> $@
 ifneq ($(filter Sphere%,$(aiwinst))$(filter Mesh%,$(aiwinst)),)
 	@echo "%pythoncode %{from aiwlib.vec import *%}" >> $@
 endif

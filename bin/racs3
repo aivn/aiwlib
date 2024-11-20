@@ -278,6 +278,7 @@ print(report, '... completed [%s]'%time2string(time.time()-starttime), file=sys.
 
 if not gplt is None:
     sys.stdout.close()
-    os.system('gplt -all %r %s'%(S.head[0].split()[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
+    os.system('gplt3 -U %r %s'%(' '.join('%s,%s'%(S.head[0], x) for x in S.head[1:]), sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
+    #os.system('gplt2 -all %r %s'%(S.head[0].split()[0], sys.stdout.name)+' %r'*len(gplt)%tuple(gplt))
     os.remove(sys.stdout.name)
 #-----------------------------------------------------------------------------

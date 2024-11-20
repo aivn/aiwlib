@@ -163,7 +163,8 @@ class Calc:
                 try: cPickle.dumps(v)
                 except Excepstion as e: print e, '--- %s skipped'%k; del data[k]
             cPickle.dump(data,  open(self.path+'.RACS', 'w'))
-        if not os.path.exists(self.path+'/.comments'): json.dump(self._comments, open(self.path+'/.comments', 'w'), indent=2, sort_keys=1, ensure_ascii=0)
+        if self.__dict__.get('_comments') and not os.path.exists(self.path+'/.comments'):
+            json.dump(self._comments, open(self.path+'/.comments', 'w'), indent=2, sort_keys=1, ensure_ascii=0)
         os.utime(self.path, None); self._old_progress = self.progress # for racs cache refresh
         if _racs_params.get('_mpi', -1)==2 and mpi_proc_number()==0: shutil.copyfile(self.path+'.RACS', self.path.rsplit('/', 2)[0]+'/.RACS')
     #---------------------------------------------------------------------------

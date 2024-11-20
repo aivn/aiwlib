@@ -1004,7 +1004,7 @@ while iopt<len(opt_seq):
             for dat_sz, bname in getlist[:-1] if len(getlist)>1 else getlist:
                 fname = host+':'+bname.decode(); ext = os.path.splitext(fname)[1]
                 if not fname in filters: 
-                    connect.stdin.write(b'cat %s; wc -c $(dirname %s)/.RACS\n'%(bname, bname)); connect.stdin.flush(); tmpf = filters[fname] = tmpfile(ext)
+                    connect.stdin.write(b'cat %s; wc -c $(dirname %s)/.RACS 2>&1\n'%(bname, bname)); connect.stdin.flush(); tmpf = filters[fname] = tmpfile(ext)
                     print('[ load %s %s ... '%(fname, sz2str(dat_sz)), end='', flush=1); t0 = time.time()                    
                     fout = open(tmpf, 'wb');  fout.write(connect.stdout.read(dat_sz)); fout.close(); print('%.2gsec'%(time.time()-t0), ']')
                     tmpf = try_convert_csv_or_gz(fname, tmpf)
