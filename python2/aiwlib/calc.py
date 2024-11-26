@@ -325,7 +325,7 @@ class _Wrap:
         else:
             dst = getattr(self._core, attr); dst_t = dst.__class__               
             if getattr(dst, '_is_aiwlib_vec', False): value = dst_t(value, D=dst._D(), T=dst._T())
-            elif type(value) is str and dst_t is int: value = float(vaule)
+            elif type(value) is str and dst_t is int: value = dst_t(float(value))
             elif type(value) is tuple:
                 try: value = dst_t(value)
                 except: value = dst_t(*value)
