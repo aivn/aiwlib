@@ -304,6 +304,7 @@ class Calc:
 #-------------------------------------------------------------------------------
 _set_par_out = [1]
 class _Wrap: 
+    _all_wrap = True
     def __init__(self, calc, core, prefix, progress):
         self.__dict__.update([('_calc', calc), ('_core', core), ('_prefix', prefix), ('_progress', progress), ('_set_attrs', set())])
         if hasattr(core, 'this'): self.__dict__['this'] = core.this # easy link to SWIG class O_O!
@@ -314,11 +315,11 @@ class _Wrap:
     def __getattr__(self, attr):
         res = getattr(self._core, attr)
         if isinstance(getattr(self._core.__class__, attr), property): return res
-        elif callable(res): return _WrapMethod(res, self._prefix+attr, self)
+        elif callable(res): return _WrapAttr(res, self._prefix+attr, self)
         return res
     def __setattr__(self, attr, value):
         if attr in self._set_attrs:
-            print('\033[7mset parametr %r to %r is overlapped by %r from RACS\033[0m'%(attr, value, self._calc.__dict__[self._prefix+attr]))
+            print('\033[7mset parameter %r to %r is overlapped by %r from RACS\033[0m'%(attr, value, self._calc.__dict__[self._prefix+attr]))
             return 
         if getattr(self._core, attr).__class__ is bool and type(value) is str: value = mixt.string2bool(value)
         else:
@@ -330,18 +331,27 @@ class _Wrap:
                 except: value = dst_t(*value)
             else: value = dst_t(value)
         self._calc.__dict__[attr] = value
-        if _set_par_out[0]: print('set parametr %r to %r'%(attr, value))
+        if _set_par_out[0]: print('set parameter %r to %r'%(attr, value))
         setattr(self._core, attr, value)
 #-------------------------------------------------------------------------------
-class _WrapMethod:
+class _WrapAttr:
+    _progress_errors = []
     def __init__(self, method, name, wrap): self._method, self._name, self._wrap = method, name, wrap
-    def __getattr__(self, attr): return getattr(self._method, attr)  # wrap method?
-    def __call__(self, *args, **kw_args):
-        t0 = time.time();  res = self._method(*args, **kw_args); _set_par_out[0] = 0
-        pf = self._wrap._calc._profiler.setdefault(self._name, [0, 0]);  pf[0] += time.time()-t0; pf[1] += 1   # суммарное время работы и число вызовов
-        if self._wrap._progress:
-            try: self._wrap._calc.set_progress(self._wrap._progress())
-            except: pass
+    def __getattr__(self, attr):
+        res = getattr(self._core, attr)
+        if _Wrap._all_wrap and (callable(res) or hasattr(res, 'this')): return _WrapAttr(res, self._name+'.'+attr, self._wrap)
         return res
+    def __call__(self, *args, **kw_args):
+        try:
+            all_wrap, _Wrap._all_wrap = _Wrap._all_wrap, False
+            t0 = time.time();  res = self._core(*args, **kw_args); _set_par_out[0] = 0 
+            pf = self._wrap._calc._profiler.setdefault(self._name, [0, 0]);  pf[0] += time.time()-t0; pf[1] += 1   # суммарное время работы и число вызовов
+            if self._wrap._progress:
+                try: self._wrap._calc.set_progress(self._wrap._progress())
+                except Exception as E:
+                    E = str(E)
+                    if not E in self._progress_errors: print 'set progress in %s failed:'%self._name, E; self._progress_errors.append(E)
+            return res
+        finally: _Wrap._all_wrap = all_wrap
 #-------------------------------------------------------------------------------
 __all__ = ['Calc']

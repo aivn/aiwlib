@@ -5,6 +5,8 @@
 # Edit this part of the file manually to configure the make
 # Отредактируйте эту часть файла вручную для настройки сборки
 #-------------------------------------------------------------------------------
+SHELL=/bin/bash
+
 ifeq ($(python),)
 python=2
 endif
@@ -89,7 +91,6 @@ endif
 # End of the part for editing, please DO NOT CHANGE the rest of the file!
 # Конец части для редактирования, пожалуйста НЕ МЕНЯЙТЕ остальную часть файла!
 #-------------------------------------------------------------------------------
-SHELL=/bin/bash
 
 ifeq (on,$(debug))
 _dbg=-dbg
