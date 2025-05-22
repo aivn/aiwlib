@@ -21,7 +21,10 @@
 -def <name>[(<args>)]=[<expr>] --- добавляет (или убирает если нет <expr>) новое
    выражение (или функцию если заданы <args>) в глобальное пространство имен  (*)
 -to <filename>.png|pdf[@<termopts>]|'' --- строит график (-to '' на экран)    (*) 
-    и продолжает разбор аргументов, выключает multiplot 
+   и продолжает разбор аргументов, выключает multiplot
+-tof <filename>.png|pdf[@<termopts>]|'' --- то же что и -to, но вне зависимости 
+   от местоположения вызывается после всех опций, применяется вместо -to
+   в .gplt3 файлах для возможности их перерисовки с измененными опциями 
 -nav --- отключает автоматический просмотр файлов с рисунками построенными -to                     
 -lb{x,y,z,x2,y2,cb} [<text>][@<offset>,r<degree>,<color>] --- подписи к осям  (*)
 -ttl <text> --- set title <text>,  титульная надпись над рисунком             (*)
@@ -40,7 +43,7 @@
 -[n]par --- включить/выключить параметрический режим
 -[i]smpl|-is <samle1>[,<sample2>] --- устанавливает [iso]samples (число отсчетов), 
                                      -is устанавливает сразу samples и isosamples
--sm <opts> --- set smooth <opts>,  устанавливает сглаживание
+-sm <opts> --- smooth <opts>,  устанавливает сглаживание
 -arw [<tag>#]<from>:<to>[@opts] или [<tag>#]<from>:<len>:<angle>[@opts] --- рисует 
      стрелку, координаты <from> и <to> задаются через запятую
 -lbl [<tag>#]<pos>:<text>[@<attrs>] --- добавляет текстовую метку в точке <pos>
@@ -76,7 +79,14 @@ if len(sys.argv)>2 and sys.argv[1]=='-h':
     cnv_opts = dict([o.split(':') for o in '''tcx:xtics tcy:ytics tcz:ztics tcx2:x2tics tcy2:y2tics tcc:cbtics o:origin ml:margin M:multiplot
     rx:xrange ry:yrange rz:zrange rx2:x2range ry2:y2range rc:cbrange rt:trange ru:urange rv:vrange 3d:splot h3d:splot,hidden3d ln:logscale sz:size 
     sk:key nk:key w:with par:parametric is:samples,isosamples sm:smooth s:set us:unset o:origin pause:pause'''.split()]) #fn:expressions.functions,plot
-    gplt_opts = {'-fn': '''
+    gplt_opts, last_keys  = {}, []
+    for l in __doc__.split('\n'):
+        if not l.strip(): last_keys = []; continue
+        if l[0]=='-': last_keys = l.split()[0].split('|')
+        for k in last_keys:
+            if k in gplt_opts: gplt_opts[k] += l+'\n'
+            else: gplt_opts[k] = l+'\n'
+    gplt_opts.update({'-fn': '''
 -fn <function>[@<opts>] --- добавляет функцию для отрисовки. В 2d режиме <function>
 должна быть выражением от x, в 3d от x,y. На подписях к осям и легенде <function>
 будет отображаться как выражение от аргументов последней кривой построенной из файла
@@ -223,7 +233,7 @@ name=1 (при вызове eval произойдут подстановки nam
  =<title> --- общий заголовок графика
 
 Подробности о параметрах режима multiplot см. в gplt -h multiplot 
-'''}
+'''})
     for k in 'y y2 x2 z cb'.split(): gplt_opts['-lb'+k] = gplt_opts['-lbx']
     gplt_opts['-u'] = gplt_opts['-U']
     gplt_chain = {'-fn': ['expr', 'dogopt'], '-U': ['dathead', 'expr', 'dogopt'], '-ttl':['expr'], '-def':['expr']}
@@ -315,10 +325,10 @@ class BaseOp(object):
         if self.fID>0 and type(x) in (int, float):
             if self.fID==1: return '%g'%x if abs(x)>=1 or x==0 else ('%g'%x)[1:] if x>0 else '-'+('%g'%x)[2:]  # удаляет ведущий ноль для компактности
             if x in tex_num_table: return tex_num_table[x]
-            x = ('{0:.%ig}'%tex_num_precision).format(x)
-            if not 'e' in x: return x[1:] if x[0]=='+' else x
-            m, p = x.split('e'); p = ('-' if p[0]=='-' else '') +p[1:].lstrip('0')            
-            return '10^{%s}'%p if m in ('1', '-1') else r'%s\cdot10^{%s}'%(m, p)
+            try: p = math.floor(math.log10(abs(x))); m = x/10**p
+            except: return '%g'%x
+            if abs(p)>1: return '-'*(x<0)+'10^{%s}'%p if abs(m)==1 else r'%%0.0%ig\cdot10^{%%s}'%tex_num_precision%(m, p)
+            return '%%0.0%ig'%tex_num_precision%x            
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
         return (self._2str(arg)  if getattr(arg, 'priority', 0)<=self.priority-self.nocmm*second or self.lock_bk[self.fID==2]&(1<<second) else
@@ -327,7 +337,8 @@ class BaseOp(object):
     def __call__(self, *args, **kw_args):
         if args: BaseOp.call_args = args
         return self.replace(**kw_args)
-
+    def __getitem__(self, idx): return ItemOp(self, idx)
+    
 replace_args = lambda arg, **kw_args: arg.replace(**kw_args) if isinstance(arg, BaseOp) else arg
 class UnaryOp(BaseOp):
     def __init__(self, a): self.a = a
@@ -350,12 +361,15 @@ class BinaryOp(BaseOp):
             if self.__class__ is MulOp:
                 right = self._bk(self.b, True)
                 if right[0]=='-': return self.patt[self.fID]%(self._bk(self.a), '\\cdot'+right)            
+            if self.__class__ is FloordivOp: return '\\frac{\\displaystyle%s}{\\displaystyle%s}'%(self.a, self.b)  #???
         return self.patt[self.fID]%(self._bk(self.a), self._bk(self.b, True))
     def replace(self, **kw_args):
         if hasattr(self, 'name') and self.name in kw_args: return kw_args[self.name]
         return self.__class__(replace_args(self.a, **kw_args), replace_args(self.b, **kw_args))
 class BinaryFunc(BinaryOp):
     def __str__(self): return self.patt[self.fID].format(a=self.a, b=self.b)
+class ItemOp(BinaryOp):
+    def __str__(self): return '{%s}_{%s}'%(self.a, self.b)
     
 # кодированный список операций: op name Unary|Binary priority nocmm [tex]
 for p in '''**pow:1n,{%s^{%s}} -neg.2c +pos.2c ~invert.2c,\\sim *mul:3c,%s\\,%s /truediv:3n //floordiv:3n,\\frac{%s}{%s} %mod:3n,\\% +add:4c -sub:4n 
@@ -469,6 +483,7 @@ class Var(BaseOp):
 class Num(BaseOp):
     def __init__(self, val): self.val = val
     def __str__(self): return self._2str(self.val)
+    def replace(self, **kw_args): return self
 try_wrap_num = lambda x: Num(x) if type(x) in (int, float) else x
     
 spaceOp['pi'], spaceOp['e'] = Var('pi'), Var('e', value='exp(1)')
@@ -579,6 +594,8 @@ class FreeNames:
         if name in self.scope: return self.scope[name]
         if name in spaceOp: return spaceOp[name]
         return Var(name[:-1] if name[-1]=='_' else name)
+class NameSpace:
+    def __init__(self, D): self.__dict__.update(D)
 #-------------------------------------------------------------------------------
 #                              main 
 #-------------------------------------------------------------------------------
@@ -606,9 +623,10 @@ def subplot():
     func_scope, curves, last_args = {}, [], []  # func_scope обновляется от каждого dat-файла, curves кортежи (patter, args...)
     for src in data:  # сначала формируем список всех кривых, потом готовим их отрисовку - надо заранее понять что делать с легендами
         dscope = dict(src[1])
-        for d in dlist:
+        for d in dlist:  #???
             dscope[d[0]] = e = parse(d[1], dscope) if len(d)==2 else (lambda *args: parse(d[1], dict(list(dscope.items())+[kv for kv in zip(d[2:], args)])))
             if isinstance(e, BaseOp): e.name, e.tex = d[0], name2tex(d[0])
+        dscope.update(src[1])
         if len(src)==2:  # функция            
             fscope = dict(func_scope); fscope.update(dscope) # fscope.update(src[1])  # чистить scope от мусора???
             for k in ('xy'[:1+D3] if not parametric else ('t', 'uv')[D3]): fscope[k] = Var(k, k)
@@ -698,7 +716,7 @@ def plot(fname_opts):
     if mode:  # создаем gplt3 файл
         fgplt = open(fname[:-3]+'gplt3', 'w')
         fgplt.write('#!%s -i\n# previous global options that may be relevant:\n'%os.path.abspath(sys.argv[0]))
-        def write_opt(o, v=None): print(o, (v if v else ''), file=fgplt)
+        def write_opt(o, v=None): print(('-tof' if o=='-to' else o), (v if v else ''), file=fgplt)
         for o, v in history[:hstart]: write_opt(o, v)
         fgplt.write('# start of options related to this picture:\n')
         for o, v in history[hstart:]: write_opt(o, v)
@@ -835,7 +853,7 @@ sz2str = lambda sz: [p%(sz/d) for d, p in ((2**40,'%.4fT'), (2**30,'%.3fG'), (2*
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles, connects = [], 0, [], {}
 double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
-rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o M to i arw lbl pm3di ml mr mt mb'''.split())
+rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o M to tof i arw lbl pm3di ml mr mt mb'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 iopt, opt_seq = 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
 
@@ -874,7 +892,7 @@ while iopt<len(opt_seq):
         #    try:
         #        global_sz = [float(x) for x in L[-1].split(',')]
         #    except: pass
-    elif opt=='-sm': gp_write('set smooth %s\n'%arg)
+    elif opt=='-sm': gp_write('smooth %s\n'%arg)
     elif opt=='-smpl': gp_write('set samples %s\n'%arg)
     elif opt=='-ismpl': gp_write('set isosamples %s\n'%arg)
     elif opt=='-is': gp_write('set samples %s\nset isosamples %s\n'%(arg, arg))
@@ -936,6 +954,7 @@ while iopt<len(opt_seq):
         if data: subplot()
         if not multiplot[2]: gp_write('set origin %s\n'%arg)
     elif opt=='-to': plot(arg)
+    elif opt=='-tof': del history[-1]; del opt_seq[iopt-2:iopt]; iopt -= 2; opt_seq += ['-to', arg]
     elif opt=='-def':
         name, expr = arg.split('=', 1);  name, args = name.split('(') if '(' in name else (name, None) 
         dlist = [e for e in dlist if e[0]!=name]+[[name, expr]+([a.strip() for a in args[:-1].split(',')] if args else [])]*bool(expr)
@@ -1033,6 +1052,7 @@ while iopt<len(opt_seq):
                 try:
                     with open(tmpf+'.RACS' if os.path.exists(tmpf+'.RACS') else os.path.join(srcdir, '.RACS'), 'rb') as fracs: 
                         racs = dict((k.decode(), v.decode() if type(v) is bytes else v) for k, v in pickle.load(fracs, encoding='bytes').items())
+                        racs['_'] = NameSpace(racs)
                 except Exception as E: pass #print(fname, 'racs skipped:', E)
                 header, columns, tmpf = fdict[fname] = read_header(fname, tmpf, opts, racs)   # tmpf ???
                 if not tmpf: continue
@@ -1053,13 +1073,24 @@ if not sixel and not last_mode: # and __name__=='__main__':
 if filters: gp_pipe.write('!rm -f /tmp/gplt3-%i-*\n'%os.getpid()); gp_pipe.flush()  # <=== не всегда работает, gnuplot может быть сломан?
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
+# последние изменения:
+#     исправлены ошибки
+#     перегружена операция [] для задания нижнего индекса в tex
+#     добавлена опция -tof
 # ОШИБКИ:
 # порядок -def имеет значение?
 # не работают большие размеры в tex --- размер по умолчанию 4.74in,3.35in = 12cm,8.5cm, надо подхватывать глобальный sz и передавать его в терминал?
 # макс размер страницы 16.8cm,19.3cm = sz 1.4,2.27 
+# smooth надо заносить в plot как 'splot $DATA using 1:2:3 smooth path with lines'
 
 # TODO:
-# повторный вызов -to с друшими опциями терминала
+# явный доступ к параметрам из racs с такими же именами как имена столбцов?
+#-flt <condition> --- накладывает построчное условие <condition> (выражение относительно 
+#   столбцов файла в синтаксисе python) на все последующие источники данных, если 
+#   выражение не выполняется строка заменяется пустой строкой
+#   или же механизм массового применения внешних фильтров, т.е. фильтр действует внутри gplt на пачку файлов (в т.ч. временных) и создает новые (временные) файл?
+#   что то вместо пайпов, в т.ч. использовать numpy?
+# повторный вызов -to с другими опциями терминала
 # опция -tbl с вменяемой разметкой таблицы в мультиплоте (без layout) --- размер таблицы, положение линий разграничения, метки и тики убрать/добавить?
 #               какое то кодирование в легенде а-лф tabular в tex?
 # подсвечивать ошибки красным цветом
