@@ -19,8 +19,8 @@ if fname.endswith('_wrap.cxx'):
 
     n_cast = 0
     for i, l in enumerate(src):
-        if 'SWIG_NewPointerObj' in l and '>(result))' in l and not 'static_cast' in l and ('aiw::Vec<' in l or 'aiw::Ind<' in l):
-            a, b = l.find('aiw::Vec<' if 'aiw::Vec<' in l else 'aiw::Ind<'), l.find('>(result)),'); v = l[a:b+1] #; print(v)
+        if 'SWIG_NewPointerObj' in l and '>(result))' in l and not 'static_cast' in l and ('aiw::Vec<' in l or 'aiw::Ind<' in l or 'aiw::Vecf<' in l):
+            a, b = l.find('aiw::Vec<' if 'aiw::Vec<' in l else 'aiw::Vecf<' if 'aiw::Vecf<' in l else 'aiw::Ind<'), l.find('>(result)),'); v = l[a:b+1] #; print(v)
             src[i] = l.replace('(result)', '(static_cast< const %s &>(result))'%v)
             n_cast += 1
             
