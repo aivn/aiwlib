@@ -1,0 +1,16 @@
+#!/usr/bin/gplt -i
+# previous global options that may be relevant:
+# start of options related to this picture:
+-sz 1,.2
+-us grid
+-us tics
+-fn x
+-rx 0:1
+-pm3d 
+-lbx 
+-lby 
+-is 200
+-us colorbox
+-nav 
+-pal cmyk-bw
+-tof picts/pals/cmyk-bw.png
