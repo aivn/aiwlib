@@ -852,8 +852,9 @@ $ gplt3 -nav M{ dat/????.dat } i# {M} {M[::-1]} { {i} -to /tmp/png/{_i}.png }
     color       & \epsfig{file=picts/pals/color, width=.3\textwidth} && positive    & \epsfig{file=picts/pals/positive, width=.3\textwidth} \\
     neg-pos1    & \epsfig{file=picts/pals/neg-pos1, width=.3\textwidth} && neg-pos2    & \epsfig{file=picts/pals/neg-pos2, width=.3\textwidth} \\
     cyclic      & \epsfig{file=picts/pals/cyclic, width=.3\textwidth}  &&  fv          & \epsfig{file=picts/pals/fv, width=.3\textwidth} \\
-    cmyk        & \epsfig{file=picts/pals/cmyk, width=.3\textwidth}  &&  cmyk-bw     & \epsfig{file=picts/pals/cmyk-bw, width=.3\textwidth} \\
-    paraview    & \epsfig{file=picts/pals/paraview, width=.3\textwidth} && cmyk-bw (в gray) & \epsfig{file=picts/pals/cmyk-bw-gray, width=.3\textwidth} 
+    cmyk        & \epsfig{file=picts/pals/cmyk, width=.3\textwidth}  && paraview    & \epsfig{file=picts/pals/paraview, width=.3\textwidth} \\
+    cmyk-bw     & \epsfig{file=picts/pals/cmyk-bw, width=.3\textwidth} && inv-cmyk-bw     & \epsfig{file=picts/pals/inv-cmyk-bw, width=.3\textwidth} \\
+    cmyk-bw (ч/б) & \epsfig{file=picts/pals/cmyk-bw-gray, width=.3\textwidth} && inv-cmyk-bw (ч/б) & \epsfig{file=picts/pals/inv-cmyk-bw-gray, width=.3\textwidth} 
   \end{tabular}
   \caption{Доступные по умолчанию палитры \gplt\rule{3cm}{0pt}}\label{pals:pict}
 \end{figure}
@@ -1531,10 +1532,11 @@ $ python3
 \item Перегружена операция \verb'[]' для задания нижнего индекса в выражениях \LaTeX.
 \item Во избежание конфликтов имен теперь доступ к  параметрам загруженным из файлов \verb'.RACS' осуществляется через пространство имен \verb'_',
   например как \verb'_.a';
-\item Добавлены палитры \verb'cmyk' и \verb'cmyk-bw', рис.~\ref{pals:pict}. Эти палитры предназначены специально для работ, которые будут публиковаться в т.ч.
+\item Добавлены палитры \verb'cmyk', \verb'cmyk-bw' и \verb'inv-cmyk-bw', рис.~\ref{pals:pict}.
+  Эти палитры предназначены специально для рисунков, которые будут публиковаться в т.ч.
   на бумаге~--- они не <<плывут>> при печати (при переходе от RGB к CMYK),
-  поскольку исходно имеют зауженный цветовой охват. Палитра \verb'cmyk'  близка к палитре \verb'rainbow', палитра \verb'cmyk-bw'
-  остается монотонной при переходе к градациям серого.
+  поскольку исходно имеют зауженный цветовой охват. Палитра \verb'cmyk'  близка к палитре \verb'rainbow', палитры \verb'cmyk-bw' и \verb'inv-cmyk-bw'
+  остаются монотонными при переходе к градациям серого.
 \item Для просмотра списка доступных палитр теперь служит команда \verb'gplt -pal'. В настоящее руководство добавлен рисунок~\ref{pals:pict} с
   палитрами. По прежнему палитры можно добавлять в конфигурационном файле \verb'~/.gplt3' используя нотацию \verb'gnuplot'.
 \end{itemize}
