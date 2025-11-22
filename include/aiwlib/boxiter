@@ -1,0 +1,108 @@
+// -*- C++ -*-
+#ifndef AIW_BOX_ITER_HPP
+#define AIW_BOX_ITER_HPP
+
+/**
+ * Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <omp.h>
+#include <vector>
+#include "vec"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int D> class BoxIter {  
+		size_t off = 0, sz = 0;  Vec<D, int64_t> mul;   Ind<D> pos, box; 
+	public:
+		int periodic = 0;
+
+		CU_HD size_t get_off() const { return off; }
+		CU_HD size_t size() const { return sz; }
+		CU_HD const Ind<D>& get_box() const { return box; }
+		CU_HD const Ind<D>& operator * () const { return pos; }
+
+		CU_HD void clear(){ pos = ind(0);  off = 0; }
+		CU_HD void init(const Ind<D> &box_){
+			box = box_; off = 0; pos = ind(0);  box.prod(sz);
+			mul[0] = 1; for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+		}
+		CU_HD BoxIter(){}
+		CU_HD BoxIter(const Ind<D> &box_){ init(box_); }
+
+
+		CU_HD void operator ()(size_t off2){
+			pos[0] += off2-off; off = off2;
+			if(pos[0]>=box[0]) pos = off%box;
+		}
+
+		CU_HD int64_t add(int axis, uint32_t dist) const {
+			if(pos[axis]<box[axis]-dist) return mul[axis]*dist;
+			return (periodic&(1<<axis)? 1-box[axis]: box[axis]-1-pos[axis])*mul[axis];
+		}
+		CU_HD int64_t sub(int axis, uint32_t dist) const {
+			if(pos[axis]>dist) return -mul[axis]*dist;
+			return (periodic&(1<<axis)? box[axis]-1: -pos[axis])*mul[axis];
+		}
+		CU_HD int64_t operator + (int axis) const { return add(axis, 1); }
+		CU_HD int64_t operator - (int axis) const { return sub(axis, 1); }
+
+		CU_HD bool is_bound(int axis, int dist) const {
+			if(periodic&(1<<axis)) return false;
+			int pos2 = pos[axis]+dist;
+			return pos2<0 || box[axis]<=pos2;
+		}
+		BoxIter& operator ++ () { off++; pos[0]++; if(pos[0]>=box[0]){ pos = off%box; } return *this; }
+		operator bool () const { return off<sz; }
+	};
+	//--------------------------------------------------------------------------
+	template <int D> class BoxIterOMP{
+		struct alignas(64) off_pos_t{  size_t off; Ind<D> pos; };
+		size_t sz = 0; std::vector<off_pos_t> offs;
+		Vec<D, int64_t> mul; Ind<D> box; 
+	public:
+		int periodic = 0;
+
+		CU_HD size_t get_off() const { return offs[omp_get_thread_num()].off; }
+		CU_HD size_t size() const { return sz; }
+		CU_HD const Ind<D>& get_box() const { return box; }
+		CU_HD const Ind<D>& operator * () const { return offs[omp_get_thread_num()].pos; }
+
+		CU_HD void clear(){ for(off_pos_t &fp: offs){ fp.off = 0; fp.pos = ind(0); } }
+		CU_HD void init(const Ind<D> &box_){
+			box = box_; box.prod(sz); mul[0] = 1; for(int i=1; i<D; i++) mul[i] = mul[i-1]*box[i-1];
+			offs.resize(omp_get_max_threads());  clear();
+		}
+		CU_HD BoxIterOMP(){}
+		CU_HD BoxIterOMP(const Ind<D> &box_){ init(box_); }
+
+
+		CU_HD void operator ()(size_t off2){
+			off_pos_t &fp = offs[omp_get_thread_num()];
+			fp.pos[0] += off2-fp.off; fp.off = off2;
+			if(fp.pos[0]>=box[0]) fp.pos = fp.off%box;
+		}
+
+		CU_HD int64_t add(int axis, uint32_t dist) const {
+			off_pos_t &fp = offs[omp_get_thread_num()];
+			if(fp.pos[axis]<box[axis]-dist) return mul[axis]*dist;
+			return (periodic&(1<<axis)? 1-box[axis]: box[axis]-1-fp.pos[axis])*mul[axis];
+		}
+		CU_HD int64_t sub(int axis, uint32_t dist) const {
+			off_pos_t &fp = offs[omp_get_thread_num()];
+			if(fp.pos[axis]>dist) return -mul[axis]*dist;
+			return (periodic&(1<<axis)? box[axis]-1: -fp.pos[axis])*mul[axis];
+		}
+		CU_HD int64_t operator + (int axis) const { return add(axis, 1); }
+		CU_HD int64_t operator - (int axis) const { return sub(axis, 1); }
+
+		CU_HD bool is_bound(int axis, int dist) const {
+			if(periodic&(1<<axis)) return false;
+			int pos2 = offs[omp_get_thread_num()].pos[axis]+dist;
+			return pos2<0 || box[axis]<=pos2;
+		}
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_BOX_ITER_HPP

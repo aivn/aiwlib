@@ -465,19 +465,6 @@ namespace aiw{
 	template <int D> CU_HD IndRange<D> irange(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
 	template <int D> CU_HD IndRange<D> irange(int b){ return IndRange<D>(Ind<D>(b)); }
 	template <int D> CU_HD IndRange<D> irange(int a, int b){ return IndRange<D>(Ind<D>(a), Ind<D>(b)); }
-	//--------------------------------------------------------------------------
-	template <int D> class BoxIter {  // для параллельной итерации, переименовать?
-		Ind<D> a, b, box, pos; size_t f = 0;
-	public:
-		CU_HD BoxIter(){}
-		CU_HD BoxIter(const Ind<D> &b_): b(b_), box(b_){}
-		CU_HD BoxIter(const Ind<D> &a_, const Ind<D> &b_): a(a_), b(b_), box(b-a), pos(a_) {}
-		CU_HD const Ind<D>& operator * () const { return pos; }
-		CU_HD void operator ()(size_t f2){
-			pos[0] += f2-f; f = f2;
-			if(pos[0]>=b[0]) pos = a+f%box;
-		}
-	};
 	//--------------------------------------------------------------------------	
     template <int D, class T> inline T angle(const Vec<D, T> &a, const Vec<D, T> &b, const Vec<D, T> &c){
 		Vec<D, T> ab = b-a, bc = c-b; 
