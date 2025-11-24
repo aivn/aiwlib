@@ -18,7 +18,7 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 #.PHONY: clean all install-links
 
-libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
+libaiw_n=debug_ext,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture,balls
 ifeq (on,$(bin))
 bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff,vtk2msh
@@ -244,6 +244,6 @@ mingw/%_wrap$(python).o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/obj/%.o: src/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/view/%.o: src/view/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 windows/aiwlib/_%.pyd: mingw/%_wrap$(python).o; $(MINGW) -shared -o $@ $^ $(MINGW_LINKOPT) 
-windows/aiwlib/_iostream.pyd: mingw/obj/debug.o
-windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
+windows/aiwlib/_iostream.pyd: mingw/obj/debug_ext.o
+windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug_ext,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
 #-------------------------------------------------------------------------------

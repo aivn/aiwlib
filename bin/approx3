@@ -26,7 +26,9 @@ approx_lims = None #[[-np.inf, np.inf] for a in approx_args.split(',')]
 
 rangeX, rangeY, rangeF, mode3d, cond, head, params, plot, par_only, iarg = [None, None], [None, None], [None, None], False, '', [], {'__builtins__':None}, True, False, 3
 for k, v in np.__dict__.items():
-    if not k in params and k in math.__dict__: params[k] = v
+    if not k in params: params[k] = v
+for k, v in math.__dict__.items():
+    if not k in params: params[k] = v
 
 # где то тут надо прочитать .RACS
 
@@ -35,8 +37,8 @@ while iarg<len(sys.argv):
     if arg in ('-3d', '-h3d', '-pm3d'): mode3d = arg
     elif arg in ('-rx', '-ry', '-rf'):
         iarg += 1; val = sys.argv[iarg].split(':')
-        if val[0]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[0] = float(val[0])
-        if val[1]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[1] = float(val[1])
+        if val[0]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[0] = eval(val[0], params, math.__dict__)
+        if val[1]: (rangeX if arg=='-rx' else rangeY if arg=='-ry' else rangeF)[1] = eval(val[1], params, math.__dict__)
     elif arg=='-head': iarg += 1; head = sys.argv[iarg].split()
     elif arg=='-cond': iarg += 1; cond = sys.argv[iarg]
     elif '=' in arg: key, val = arg.split('='); params[key] = eval(val, params, math.__dict__)
@@ -47,13 +49,14 @@ while iarg<len(sys.argv):
     else: print('incorrect option of file %r\n'%arg, __doc__); exit()
     iarg += 1
 
+counter = 0
 #----- read input files --------
 # сейчас заголовки у файлов должны совпадать, в будущем хотелось бы это как то развести по файлам?
 splitters, columns, etalone = [], dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')]), []
 for ifile in ifiles:
     P, start = {'__builtins__': None}, len(etalone)
     for line in sys.stdin if ifile=='-' else open(ifile):
-        if line.startswith('#:') and '=' in line: exec(line[2:], P) #; print(P)
+        if line.startswith('#:') and '=' in line: exec(line[2:].strip(), P) #; print(P)
         elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')])
         elif line[0]!='#' and not 'nan' in line and not 'inf' in line:
             line = list(map(float, line.split()))
@@ -61,6 +64,8 @@ for ifile in ifiles:
             line = list(zip(head, line)); P.update(line)
             try: xyz = eval(func_code, params, P); np.array(xyz)
             except: continue # тут надо выругаться!
+            sxyz = [str(abs(x)) for x in xyz]
+            if 'nan' in sxyz or 'inf' in sxyz: continue
             if (    (rangeX[0] is None or rangeX[0]<=xyz[0]) and
                     (rangeX[1] is None or xyz[0]<=rangeX[1]) and 
                     (not mode3d or rangeY[0] is None or rangeY[0]<=xyz[1]) and
@@ -68,6 +73,7 @@ for ifile in ifiles:
                     (rangeF[0] is None or rangeF[0]<=xyz[-1]) and
                     (rangeF[1] is None or xyz[-1]<=rangeF[1]) and
                     (not cond or eval(cond, params, D))   ):
+                counter += 1
                 for k, v in line:
                     if k!='x' and (not mode3d or k!='y'): columns[k].append(v)
                 columns.setdefault('x', []).append(xyz[0])
@@ -85,19 +91,21 @@ for ifile in ifiles:
 for k, L in columns.items(): params[k] = np.array(L)
 #del columns
 
-
+#print(list(params.keys()))
 func = eval('lambda x,'+approx_args+': eval(approx_code, params, {%s})'%','.join('"%s":%s'%(k, k) for k in approx_args.split(',')))
 
 if approx_lims: approx_lims = [[l[i] for l in approx_lims] for i in (0,1)]
-popt, pcov = curve_fit(func, params['x'], np.array(etalone), bounds=approx_lims) if approx_lims else curve_fit(func, params['x'], np.array(etalone))
+#print(list(params.keys()))
+popt, pcov = curve_fit(func, params['x'], np.array(etalone), bounds=approx_lims) if approx_lims else curve_fit(func, params['x'], np.array(etalone)) 
+#popt, pcov = curve_fit(func, params['x'], np.array(etalone), bounds=approx_lims) if approx_lims else curve_fit(func, params['x'], np.array(etalone), method='dogbox')
 result = func(params['x'], *popt)
 
 #----- output results -------
 if par_only: print(' '.join(map(str, popt))); exit()
 
-print(' '.join('%s=%g'%(k, v) for k, v in zip(approx_args.split(','), popt)))
+print(' '.join('%s=%g[%g]'%(k, v, s) for k, v, s in zip(approx_args.split(','), popt, np.sqrt(np.diag(pcov)))))
 
-print('max.abs.error=%g, max.deriv.error=%g amx.abs.av.error=%g'%(max(np.fabs(etalone-result)),
+print('max.abs.error=%g, max.deriv.error=%g max.abs.av.error=%g'%(max(np.fabs(etalone-result)),
                                                                   max(np.fabs(etalone-result)/max(np.fabs(etalone))),
                                                                   sum(np.fabs(etalone-result))/len(etalone)))
 
@@ -179,7 +187,7 @@ else:
         if i in splitters: tmp.write('\n')
         tmp.write('%g %g %g %g\n'%(x, y, f0, f1))
     tmp.flush()
-    if mode3d!='-pm3d': os.system('gplt3 %s -U "f1 f2" '%mode3d + tmp.name)
+    if mode3d!='-pm3d': os.system('gplt3 %s -U "f1 f2" '%mode3d + tmp.name+'@p')
     else:
         os.system('gplt3 -pm3d -U f1 ' + tmp.name)
         os.system('gplt3 -pm3d -U f2 ' + tmp.name)

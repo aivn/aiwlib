@@ -1,6 +1,6 @@
 // -*- C++ -*-
-#ifndef AIW_CUBE_HPP
-#define AIW_CUBE_HPP
+#ifndef AIW_ZCUBE_HPP
+#define AIW_ZCUBE_HPP
 
 /**
  * Copyright (C) 2017-19 Antov V. Ivanov  <aiv.racs@gmail.com>

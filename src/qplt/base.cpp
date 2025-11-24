@@ -5,6 +5,7 @@
 
 #include <algorithm>
 //#include <cmath>
+#include "../../include/aiwlib/debug_ext"
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
 #include "../../include/aiwlib/qplt/balls"

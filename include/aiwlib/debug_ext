@@ -1,0 +1,101 @@
+// -*- C++ -*-
+#ifndef AIW_DEBUG_EXT_HPP
+#define AIW_DEBUG_EXT_HPP
+
+/**
+ * Copyright (C) 2016-17, 2020-21, 2025 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#ifndef __NVCC__
+
+#include <cerrno>
+#include <exception>
+#include <tuple>
+#include <sys/types.h>
+
+#include "debug"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	/*
+	struct DebugStackFrame{
+		std::stringstream buf;
+		DebugStackFrame(){ buf.copyfmt(std::cerr); }
+		~DebugStackFrame(){ if(std::uncaught_exception()) std::cerr<<buf.str(); }
+	};
+	*/
+	struct BaseDebugStackTupleFrame{
+		virtual void out_msg(std::ostream&) = 0;
+		BaseDebugStackTupleFrame(bool reg); 
+		virtual ~BaseDebugStackTupleFrame(); 
+	};
+	template<typename ... Args> struct DebugStackTupleFrame: public BaseDebugStackTupleFrame{
+		std::tuple<Args...> data;
+		DebugStackTupleFrame(bool reg): BaseDebugStackTupleFrame(reg){}
+		
+		template <int I> struct counter_t{};
+		void out_node(counter_t<0>, std::ostream& out, const char* str){} // out<<str<<"="<<std::get<sizeof...(Args)-1>(data);	}
+		template <int I> void out_node(counter_t<I>, std::ostream& out, const char* str){
+			SplitArgForOut key(str); if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
+			out<<std::get<sizeof...(Args)-I>(data); if(I>1) out<<", ";
+			out_node(counter_t<I-1>(), out, str+key.next);
+		}
+		void out_msg(std::ostream &out){
+			out<<"#"<<std::get<0>(data)<<" "<<std::get<1>(data)<<"()"<<std::get<2>(data)<<": ";
+			out_node(counter_t<sizeof...(Args)-4>(), out, std::get<3>(data)); out<<'\n';
+		}	
+		~DebugStackTupleFrame(){ if(std::uncaught_exception()) out_msg(std::cerr); }
+	};
+	template<typename ... Args> DebugStackTupleFrame<const char*, const char*, int, const char*, Args...>
+	make_debug_stack_tuple_frame(bool reg, const char *fname, const char *func, int line, const char *keys, Args... args){
+		DebugStackTupleFrame<const char*, const char*, int, const char*, Args...> res(reg);
+		res.data = std::make_tuple(fname, func, line, keys, args...);
+		return res;
+	}
+	//--------------------------------------------------------------------------
+#ifndef AIW_WIN32
+	void init_signal_hook(int signal);
+	void init_segfault_hook();
+	void trace_out();
+#else  //AIW_WIN32
+	inline void init_signal_hook(int){}
+	inline void init_segfault_hook(){}
+	inline void trace_out(){}
+#endif //AIW_WIN32
+	//--------------------------------------------------------------------------
+}  // end of namespace aiw 
+
+#ifndef AIW_WIN32
+#include <unistd.h>
+#ifdef EBUG
+#   define NAME_OF_STFR1(num) tmp_wrap_stack_frame##num
+#   define NAME_OF_STFR2(num) NAME_OF_STFR1(num)
+//# define WEXC(args...) aiw::DebugStackFrame NAME_OF_STFR2(__LINE__); WSTR(NAME_OF_STFR2(__LINE__).buf, args)
+#   define WEXC(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(false, __FILE__, __FUNCTION__, __LINE__, #args,  args);
+#   define WEXT(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(true,  __FILE__, __FUNCTION__, __LINE__, #args,  args);
+#else //EBUG
+#   define WEXC(args...)
+#   define WEXT(args...)
+#endif //EBUG
+
+#undef WRAISE
+extern char bUfFoRwRaIsE0[4096];
+#define WRAISE(args...) { std::stringstream	bUfFoRwRaIsE;		\
+		bUfFoRwRaIsE<<"\033[31m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "; \
+		if(errno) bUfFoRwRaIsE<<" [\033[31;1;5m"<<strerror(errno)<<"\033[0m] ";	\
+		aiw::debug_out(bUfFoRwRaIsE, #args, args); bUfFoRwRaIsE<<"\n";	\
+		std::cerr<<bUfFoRwRaIsE.str(); aiw::trace_out();				\
+		if(fork()){ strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; } \
+		else abort();													\
+	}	
+#else //AIW_WIN32
+#include "unistd.h"
+namespace aiw{  // это заглушка для Visual Studio etc.
+	template <typename ... Args> void WEXC(Args ... args){}
+	template <typename ... Args> void WEXT(Args ... args){}
+}
+#endif //AIW_WIN32		
+#endif //__NVCC__
+
+#endif //AIW_DEBUG_EXT_HPP

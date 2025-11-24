@@ -3,34 +3,35 @@
 #define AIW_DEBUG_HPP
 
 /**
- * Copyright (C) 2016, 2017, 2020-21 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2016-17, 2020-21, 2025 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
 #ifndef __NVCC__
 
-#include <cerrno>
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#include <exception>
-#include <tuple>
 #include <cmath>
-#include <sys/types.h>
 
 namespace aiw{
 	//--------------------------------------------------------------------------
 	struct SplitArgForOut{
 		int end, next;
-		SplitArgForOut(const char *str);
+		SplitArgForOut(const char *str){
+			const char *br = "()[]{}"; int brc[3] = {0, 0, 0};
+			for(end=0; str[end] && (brc[0] || brc[1] || brc[2] || str[end]!=','); ++end)
+				for(int k=0; k<6; ++k) if(str[end]==br[k]){ brc[k/2] += 1-k%2*2; break; }
+			next = str[end]?end+1:end; while(str[next] && (str[next]==' ' || str[next]=='\t')) next++;
+		}
 	};
 	//--------------------------------------------------------------------------
 	// template <typename T> void debug_out(std::ostream& out, const char* str, T x){ out<<str<<"="<<x; }
 	inline void debug_out(std::ostream&, const char*){}
 	template <typename T, typename ... Args> void debug_out(std::ostream& out, const char* str, T x, Args ... args){
 		SplitArgForOut key(str);
-		if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
-		out<<x; if(sizeof...(Args)>0) out<<", ";
+		if(str[0]!='"'){ out.write(str, key.end); out<<"="; } out<<x;
+		if(sizeof...(Args)>0 && !(str[0]=='"' && str[key.end-1]!=' ')) out<<", ";
 		debug_out(out, str+key.next, args...);
 	} 
 	//--------------------------------------------------------------------------
@@ -38,52 +39,6 @@ namespace aiw{
 	inline bool is_bad_value(float  x){ return (std::isnan(x)) || (std::isinf(x)); }
 	inline bool is_bad_value(double x){ return (std::isnan(x)) || (std::isinf(x)); }
 	template <typename T, typename ... Args> bool is_bad_value(T x, Args ... args){ return is_bad_value(x) || is_bad_value(args...); }
-	//--------------------------------------------------------------------------
-	/*
-	struct DebugStackFrame{
-		std::stringstream buf;
-		DebugStackFrame(){ buf.copyfmt(std::cerr); }
-		~DebugStackFrame(){ if(std::uncaught_exception()) std::cerr<<buf.str(); }
-	};
-	*/
-	struct BaseDebugStackTupleFrame{
-		virtual void out_msg(std::ostream&) = 0;
-		BaseDebugStackTupleFrame(bool reg); 
-		virtual ~BaseDebugStackTupleFrame(); 
-	};
-	template<typename ... Args> struct DebugStackTupleFrame: public BaseDebugStackTupleFrame{
-		std::tuple<Args...> data;
-		DebugStackTupleFrame(bool reg): BaseDebugStackTupleFrame(reg){}
-		
-		template <int I> struct counter_t{};
-		void out_node(counter_t<0>, std::ostream& out, const char* str){} // out<<str<<"="<<std::get<sizeof...(Args)-1>(data);	}
-		template <int I> void out_node(counter_t<I>, std::ostream& out, const char* str){
-			SplitArgForOut key(str); if(str[0]!='"'){ out.write(str, key.end); out<<"="; }
-			out<<std::get<sizeof...(Args)-I>(data); if(I>1) out<<", ";
-			out_node(counter_t<I-1>(), out, str+key.next);
-		}
-		void out_msg(std::ostream &out){
-			out<<"#"<<std::get<0>(data)<<" "<<std::get<1>(data)<<"()"<<std::get<2>(data)<<": ";
-			out_node(counter_t<sizeof...(Args)-4>(), out, std::get<3>(data)); out<<'\n';
-		}	
-		~DebugStackTupleFrame(){ if(std::uncaught_exception()) out_msg(std::cerr); }
-	};
-	template<typename ... Args> DebugStackTupleFrame<const char*, const char*, int, const char*, Args...>
-	make_debug_stack_tuple_frame(bool reg, const char *fname, const char *func, int line, const char *keys, Args... args){
-		DebugStackTupleFrame<const char*, const char*, int, const char*, Args...> res(reg);
-		res.data = std::make_tuple(fname, func, line, keys, args...);
-		return res;
-	}
-	//--------------------------------------------------------------------------
-#ifndef AIW_WIN32
-	void init_signal_hook(int signal);
-	void init_segfault_hook();
-	void trace_out();
-#else  //AIW_WIN32
-	inline void init_signal_hook(int){}
-	inline void init_segfault_hook(){}
-	inline void trace_out(){}
-#endif //AIW_WIN32
 	//--------------------------------------------------------------------------
 }  // end of namespace aiw 
 
@@ -94,38 +49,26 @@ namespace aiw{
 #ifdef EBUG
 #   define WSTR(out, args...) { out<<"#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<": "; \
 		aiw::debug_out(out, #args, args); out<<"\n"; }
-#   define NAME_OF_STFR1(num) tmp_wrap_stack_frame##num
-#   define NAME_OF_STFR2(num) NAME_OF_STFR1(num)
-//# define WEXC(args...) aiw::DebugStackFrame NAME_OF_STFR2(__LINE__); WSTR(NAME_OF_STFR2(__LINE__).buf, args)
-#   define WEXC(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(false, __FILE__, __FUNCTION__, __LINE__, #args,  args);
-#   define WEXT(args...) auto NAME_OF_STFR2(__LINE__) = aiw::make_debug_stack_tuple_frame(true,  __FILE__, __FUNCTION__, __LINE__, #args,  args);
 #   define WASSERT(cond, args...) if(!(cond)) WRAISE(args)
 #else //EBUG
 #   define WSTR(S, args...)
-#   define WEXC(args...)
-#   define WEXT(args...)
 #   define WASSERT(cond, args...)
 #endif //EBUG
 
 #define WOUT(args...) WSTR(std::cout, args)
 #define WERR(args...) WSTR(std::cerr, args)
-#define WCHK(args...) WASSERT(!is_bad_value(args), "some values are bad: ", args) 
+#define WCHK(args...) WASSERT(!aiw::is_bad_value(args), "some values are bad: ", args) 
 #define WARNING(args...){ std::cerr<<"\033[1;4m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "; \
 		aiw::debug_out(std::cerr, #args, args); std::cerr<<"\n"; }
-extern char bUfFoRwRaIsE0[4096];
 #define WRAISE(args...) { std::stringstream	bUfFoRwRaIsE;		\
 		bUfFoRwRaIsE<<"\033[31m#"<<__FILE__<<" "<<__FUNCTION__<<"() "<<__LINE__<<":\033[0m "; \
 		if(errno) bUfFoRwRaIsE<<" [\033[31;1;5m"<<strerror(errno)<<"\033[0m] ";	\
-		aiw::debug_out(bUfFoRwRaIsE, #args, args); bUfFoRwRaIsE<<"\n";	\
-		std::cerr<<bUfFoRwRaIsE.str(); aiw::trace_out();				\
-		if(fork()){ strncpy(bUfFoRwRaIsE0, bUfFoRwRaIsE.str().c_str(), 4095); throw bUfFoRwRaIsE0; } \
-		else abort();													\
+		aiw::debug_out(bUfFoRwRaIsE, #args, args);	bUfFoRwRaIsE<<'\n';	\
+		std::cerr<<bUfFoRwRaIsE.str()<<std::flush;	throw bUfFoRwRaIsE; \
 	}	
 #else //AIW_WIN32
 #include "unistd.h"
 namespace aiw{  // это заглушка для Visual Studio etc.
-	template <typename ... Args> void WEXC(Args ... args){}
-	template <typename ... Args> void WEXT(Args ... args){}
 	template <typename ... Args> void WASSERT(bool cond, const char* msg, Args ... args){
 #ifdef EBUG
 		if(!cond) throw(msg);
@@ -135,6 +78,7 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 	template <typename ... Args> void WERR(Args ... args){}
 	template <typename ... Args> void WCHK(Args ... args){}
 	template <typename ... Args> void WARNING(const char *msg, Args ... args){ std::cout<<msg; }
+
 	template <typename ... Args> void WRAISE(const char* msg, Args ... args){ throw(msg); }
 }
 #endif //AIW_WIN32		
@@ -151,14 +95,5 @@ namespace aiw{  // это заглушка для Visual Studio etc.
 #define WASSERT(...)
 #define WRAISE(...)
 #endif //__NVCC__
-
-# ifdef max
-# undef max
-# endif
-
-# ifdef min
-# undef min
-# endif
-
 
 #endif //AIW_DEBUG_HPP

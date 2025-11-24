@@ -343,7 +343,8 @@ class BaseOp(object):
     def __repr__(self): old_fID, BaseOp.fID = BaseOp.fID, 0; res = str(self); BaseOp.fID = old_fID; return res 
     def __call__(self, *args, **kw_args):
         if args: BaseOp.call_args = args
-        return self.replace(**kw_args)
+        #return self.replace(**kw_args)
+        return self.replace(**dict((k, (spaceOp['crc_bk'](v) if getattr(v, 'priority', 0)>0 else v)) for k, v in kw_args.items()))
     def __getitem__(self, idx): return ItemOp(self, idx)
     
 replace_args = lambda arg, **kw_args: arg.replace(**kw_args) if isinstance(arg, BaseOp) else arg
@@ -469,7 +470,7 @@ class IfCh(BaseOp):
 spaceOp['ifch'] = IfCh
 
 tex_specials = '''alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota kappa lambda mu nu xi pi varphi rho varrho sigma varsigma tau upsilon phi chi
-psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel star'''.split()
+psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega inf ast partial angle triangle square divideontimes boxtimes perp parallel star circ'''.split()
 tex_indexes = 'ij jk ik ijk xy yz xyz'.split()
 
 def name2tex(name, is_vec=False):  # конвертация имени в тех, тут все примитивно
@@ -691,7 +692,7 @@ def subplot():
         if '@offset' in lbl_opt: code += ' offset '+lbl_opt['@offset'] 
         if '@color' in lbl_opt: code += ' textcolor "%s"'%lbl_opt['@color']
         if '@rotate' in lbl_opt: code += ' rotate by '+lbl_opt['@rotate']
-        gp_write(code+'\n', *LT[0])                
+        gp_write(code+'\n', *LT[0])
     if title: gp_write("set title '%s'\n", parse_label(title, func_scope)) # титул выводится после всего для доступа к информации от кривых
     gp_write('s'*D3+'plot '+', '.join(p[0] for p in curves)+'\n', *sum([p[1:] for p in curves], []))  # <== plot идет последним!
     data[:] = []  # обязательно очищает data
@@ -1087,7 +1088,7 @@ if filters: gp_pipe.write('!rm -f /tmp/gplt3-%i-*\n'%os.getpid()); gp_pipe.flush
 if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких задержек в этом режиме
 
 # последние изменения:
-#     исправлены ошибки
+#     исправлены ошибки, в т.ч. принудительно добавляются скобки при подстановке
 #     перегружена операция [] для задания нижнего индекса в tex
 #     добавлена опция -tof (КРИВО!!!)
 #     gplt -pal для просмотра списка палитр
@@ -1096,6 +1097,7 @@ if sixel and not gp_pipe is sys.stdout: gp_pipe.close()  # <== никаких з
 #    во ибежание конфликтов имен теперь доступ к параметрам RACS через _.
 
 # ОШИБКИ:
+# макросы не всегда корректно работают - см пример с eta2 --- НУЖНО РАССТАВЛЯТЬ СКОБКИ ПРИ ПОДСТАНОВКАХ!!!!
 # -tof работет нестабильно (теряется при повторном запуске .gplt3 файлов)
 # порядок -def имеет значение?
 # не работают большие размеры в tex --- размер по умолчанию 4.74in,3.35in = 12cm,8.5cm, надо подхватывать глобальный sz и передавать его в терминал?

@@ -54,10 +54,10 @@ endif()
 
 #find_package(ZLIB REQUIRED)
 
-#add_library(aiwlib STATIC "src/debug.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
+#add_library(aiwlib STATIC "src/debug_ext.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
 #	"src/isolines.cpp" "src/checkpoint.cpp" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
 
-add_library(aiwlib OBJECT "src/debug.cpp")
+add_library(aiwlib OBJECT "src/debug_ext.cpp")
 
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 set_target_properties(aiwlib PROPERTIES POSITION_INDEPENDENT_CODE 1)

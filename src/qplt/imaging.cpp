@@ -60,7 +60,9 @@ std::map<std::string, std::vector<aiw::QpltColor::rgb_t> > aiw::QpltColor::table
 	 {"rainbow",      {0, 0xFF0000, 0xFF7F00, 0xFFFF00, 0x00FF00, 0x00FFFF, 0x0000FF, 0xFF00FF, 0xFFFFFF}},
 	 {"inv_rainbow",  {0xFFFFFF, 0xFF00FF, 0x0000FF, 0x00FFFF, 0x00FF00, 0xFFFF00, 0xFF7F00, 0xFF0000, 0}},
 	 {"color",       {0xFF0000, 0xFF7F00, 0xFFFF00, 0x00FF00, 0x00FFFF, 0x0000FF, 0xFF00FF}},
-	 {"paraview", {0x0000FF, 0xFFFFE5, 0xFF0000}}
+	 {"paraview", {0x0000FF, 0xFFFFE5, 0xFF0000}},
+	 {"cmyk", {0x000000, 0xFF0000, 0xFF7F00, 0xFFFF00,  0x0B519, 0x088B6,  0x0387A, 0xBB4077, 0xFFFFFF}}
+	 // {"cmyk_bw", {'0 0 0 0,  1.2 0 0.71 0.1,   3.7 1 0 0,   6.2 0 .537 .714,  7.8 0.737 0.251 0.467,   8.8 1 1 0, 10 1 1 1' }}
 	};
 //------------------------------------------------------------------------------
 void aiw::QpltColor::conf(aiw::QpltColor3D *c3D, int tmask) const {

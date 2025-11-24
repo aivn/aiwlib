@@ -350,7 +350,7 @@ class _WrapAttr:
                 try: self._wrap._calc.set_progress(self._wrap._progress())
                 except Exception as E:
                     E = str(E)
-                    if not E in self._progress_errors: print 'set progress in %s failed:'%self._name, E; self._progress_errors.append(E)
+                    if not E in self._progress_errors: print('set progress in %s failed:'%self._name, E); self._progress_errors.append(E)
             return res
         finally: _Wrap._all_wrap = all_wrap
 #-------------------------------------------------------------------------------

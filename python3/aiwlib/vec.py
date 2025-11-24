@@ -95,7 +95,7 @@ def _2sz(X, sz):
     if len(X)==sz: return X._getdata() if hasattr(X, '_getdata') else X
     if len(X)==1: return (X[0],)*sz
     raise Exception('incorrect %r size, size=%i expected'%(X, sz))
-def _conv(self, other): sz = max(len(self), len(other)); return zip(_2sz(self, sz), _2sz(other, sz))
+def _conv(self, other): sz = max(len(self), len(other)); return list(zip(_2sz(self, sz), _2sz(other, sz)))
 _2tuple = lambda X: X._getdata() if hasattr(X, '_getdata') else tuple(X) if type(X) in (tuple, list) else (X,) #???
 #-------------------------------------------------------------------------------
 #   class Vec (python implementation)
