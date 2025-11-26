@@ -77,7 +77,8 @@ builtins_import, __builtins__['__import__'] = __import__, import_hook
 def _decltype(a, b):
     'take two objects, return two C++ types (as strings)'
     ab, iT = [a, b], (0 if not hasattr(a, 'T') and not hasattr(a, '_T') else 1 if not hasattr(b, 'T') and not hasattr(b, '_T') else 2)
-    if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    #if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    if iT==2 and a._T()==b._T(): return a._T()
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]

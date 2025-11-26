@@ -82,7 +82,8 @@ builtins_import, __builtins__['__import__'] = __import__, import_hook
 def _decltype(a, b):
     'take two objects, return two C++ types (as strings)'
     ab, iT = [a, b], (0 if not hasattr(a, 'T') and not hasattr(a, '_T') else 1 if not hasattr(b, 'T') and not hasattr(b, '_T') else 2)
-    if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    #if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    if iT==2 and a._T()==b._T(): return a._T()
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
@@ -90,7 +91,7 @@ def _decltype(a, b):
     TT = [_cxx_types_table[x if type(x) is str else x.T if hasattr(x, 'T') else x._T()] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
-_is_vec = lambda X: type(X) in (list, tuple) or isinstance(X, Vec)
+_is_vec = lambda X: type(X) in (list, tuple) or isinstance(X, Vec) or isinstance(X, PVec)
 def _2sz(X, sz):
     if len(X)==sz: return X._getdata() if hasattr(X, '_getdata') else X
     if len(X)==1: return (X[0],)*sz
