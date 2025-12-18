@@ -14,9 +14,8 @@
 #include "vec"
 
 /* TODO:
-1. нормировка
-2. доступ к значениям частоты
-3. сброс результатов в бинарном формате Mesh, в т.ч. того что выходит из bwd
+1. доступ к значениям частоты
+2. сброс результатов в бинарном формате Mesh, в т.ч. того что выходит из bwd
 */
 
 
@@ -131,6 +130,7 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		template <typename FSET> double bwd(FSET fset){  // fset(const Ind<D> &pos, int id, T x),  return runtime
 			double t_start = omp_get_wtime();
+			T norm = double(box[D-1])/prod(box)/zsz0;
 			for(int d=0; d<D; d++){  // цикл по направлениям
 				Ind<D> dbox = box;  dbox[d] = 1; 	size_t dsz = prod(dbox);  
 #pragma omp parallel for
@@ -140,7 +140,7 @@ namespace aiw{
 					for(int c=0; c<csz; c++){  // цикл по компонентам
 						for(int i=0, sz=box[d]; i<sz; i++){ auto x = data[off+i*mul[d]+c];  plan.c(i)[0] = x.real();  plan.c(i)[1] = x.imag(); }
 						plan.bwd();
-						if(d==D-1) for(int i=0, sz=zsz0; i<sz; i++){ pos[D-1] = i; fset(pos, c, plan.r(i)); }						
+						if(d==D-1) for(int i=0, sz=zsz0; i<sz; i++){ pos[D-1] = i; fset(pos, c, plan.r(i)*norm); }						
 						else for(int i=0, sz=box[d]; i<sz; i++){ auto &x = data[off+i*mul[d]+c];  x.real(plan.c(i)[0]);  x.imag(plan.c(i)[1]); }						
 					}  // конец цикла по компонентам
 				}  // конец цикла по 1d линиям
