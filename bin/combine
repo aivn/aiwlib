@@ -1,0 +1,104 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+'''usage: ./combine <expr11> <expr12> ... <file1.dat> [<expr21> ...  <file2.dat>  ...] ==>
+      write result to stdout
+
+file.dat должен иметь заголовок с описнаием столбоцв в формате gplt  #: ...
+для чтения данных через входной поток указывать '-'
+
+Для каждого файла выводятся выражения из списка указанного ПЕРЕД именем файла,
+выражения задаются в виде <имя-исолного-столбца> либо <имя-целевого-стобца>=<выражение>
+
+Если для файла списко выражений не указан, используются все столбцы файла.
+
+только один совпадающий столбец по всем файла быть должен
+
+можно считать интеграл от столбца (по первому столбцу), надо начинать ВЫРАЖЕНИЕ с 'int:'
+
+Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com> 
+Licensed under the Apache License, Version 2.0
+'''
+
+import os, sys, math
+
+if len(sys.argv)==1 or '-h' in sys.argv: print(__doc__); exit(1)
+#-------------------------------------------------------------------------------
+#  чтение данных
+#-------------------------------------------------------------------------------
+#  заголовок по умолчанию добавлять
+sources, columns, Itable = [], [], []
+for arg in sys.argv[1:]:
+    if not os.path.exists(arg) and arg!='-':
+        columns.append(arg.split('=', 1) if '=' in arg else [arg, arg])  # pre-compile?
+        if columns[-1][1].startswith('int:'):
+            if len(columns)==1: print('ERROR: can`t integate of first column in "%s"'%arg, file=sys.stderr); exit(1)
+            Itable.append(len(columns)-1); columns[-1][1] = columns[-1][1][4:]
+    else:  # реальное чтение данных
+        fin = sys.stdin if arg=='-' else open(arg)
+        data, scope = [], {}
+        for line in fin:
+            if line.startswith('#:'):
+                if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope)
+                else: head = line[2:].split()
+            if line[0]=='#': continue
+            line = [float(x) for x in line.split()]
+            if not line: continue
+            if not columns:
+                columns, Itable = zip(head, head), [0]*len(head)
+                data = [line]+[[float(x) for x in l.split()] for l in fin if l[0]!='#' and l.strip()]
+                break
+            D = dict(zip(head, line))
+            data.append([eval(e[1], scope, D) for e in columns])
+        if not data: print('ERROR: empty file "%s"'%arg, file=sys.stderr); exit(1)
+        if not all(len(l)==len(data[0]) for l in data): print('ERROR: different size of lines in "%s"'%arg, file=sys.stderr); exit(1)
+        if Itable:  # интегрирование
+             Ibuf = list(data[0])
+             for i in Itable: data[0][i] = 0
+             for I in range(1, len(data)):
+                 dx = data[I][0]-data[I-1][0]
+                 for i in Itable: v = data[I][i]; data[I][i] = data[I-1][i]+(Ibuf[i]+v)*dx/2; Ibuf[i] = v
+        sources.append([arg, [i[0] for i in columns], data]);  columns, Itable, head = [], [], []
+#-------------------------------------------------------------------------------
+#   объединение файлов и вывод результатов
+#-------------------------------------------------------------------------------
+if not sources: print('ERROR: not input data', file=sys.stderr); exit(1)
+if len(sources)==1:
+    print('#:'+' '.join(sources[0][1]))
+    for l in sources[0][2]: print(*l)
+    exit(0)
+
+X = set(sources[0][1])
+for i in range(len(sources)):
+    for j in range(i):
+        cross = set(sources[i][1])&set(sources[j][1]); X &= cross
+        if len(cross)>1: print('ERROR: conflict name of column %s: "%s" %s and "%s" %s'%(cross, sources[i][0], sources[i][1], sources[j][0], sources[j][1]),
+                               file=sys.stderr); exit(1) 
+if len(X)!=1: print('ERROR: not unique column for join, variants=%s'%X, file=sys.stderr); exit(1)
+
+X = X.pop()
+for f, c, d in sources:
+    if not X in c:  print('ERROR: not column "%s" for join in source "%s" with header %s'%(X, f, c), file=sys.stderr); exit(1) 
+#-------------------------------------------------------------------------------
+print('#:'+X, *sum([[x for x in s[1] if x!=X] for s in sources], []))
+
+for src in sources: src[:2] = 0, src[1].index(X)
+X = sorted(set(sum([[l[ix] for l in data] for I, ix, data in sources], [])))
+
+for x in X:
+    print(x, end=' ')
+    for src in sources:
+        I, ix, data = src; sz = len(data[0])
+        if I==len(data): print(' nan'*(sz-1), end=' '); continue  # вышли за область определения 
+        line0 = data[I]; x0 = x1 = line0[ix]
+        if x<x0 and I==0: print(' nan'*(sz-1), end=' '); continue  # еще не вошли в область определения
+        if x==x0:  print(*(line0[:ix]+line0[ix+1:]), end=' '); continue # точно попали в точку 
+        if I<len(data)-1: line1 = data[I+1]; x1 = line1[ix]
+        if I<len(data)-1 and x0<=x and x<=x1:  # интерполяция интервала
+            w0 = (x1-x)/(x1-x0); w1 = 1-w0
+            print(*[line0[i]*w0+line1[i]*w1 for i in range(sz) if i!=ix], end=' ')
+        else: print(' nan'*(sz-1), end=' ')   # что то пошло не так, ругацца?
+        if x1<=x: src[0] += 1
+    print('')
+    #print('#>>>', x, [(I,data[I][ix],data[I+1][ix]) for I, ix, data in sources])
+#-------------------------------------------------------------------------------
+    

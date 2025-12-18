@@ -40,7 +40,14 @@ namespace aiw{
 	inline bool is_bad_value(double x){ return (std::isnan(x)) || (std::isinf(x)); }
 	template <typename T, typename ... Args> bool is_bad_value(T x, Args ... args){ return is_bad_value(x) || is_bad_value(args...); }
 	//--------------------------------------------------------------------------
-}  // end of namespace aiw 
+	template <typename T> struct CSVOut{
+		const T &ref;
+		CSVOut(const T &ref_):ref(ref_){}
+	};
+	template <typename T> CSVOut<T> csv_out(const T& ref){ return CSVOut<T>(ref); }
+	template <typename T> std::ostream& operator << (std::ostream& S, const CSVOut<T>& R){ return S<<R.ref; }
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw 
 
 #ifndef AIW_WIN32
 #include <unistd.h>

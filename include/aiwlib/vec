@@ -415,6 +415,9 @@ namespace aiw{
 	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
+	template <int D, typename T> std::ostream& operator << (std::ostream &s, const CSVOut<Vec<D, T> > &v){
+		if(D){ s<<v.ref[0]; } for(int i=1; i<D; i++){ s<<','<<v.ref[i]; } return s;
+	}
 	template <int D, typename T> std::istream& operator >> (std::istream &s, Vec<D, T> &v){	
 		for(int i=0; i<D; i++){ s>>v[i]; if(i<D-1 && s.get()!=',') s.unget(); } return s;
 	}	
@@ -422,7 +425,7 @@ namespace aiw{
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
-#endif //AIW_IOSTREAM_HPP		
+#endif //AIW_IOSTREAM_HPP	
 	//--------------------------------------------------------------------------
 	//   other functions
 	//--------------------------------------------------------------------------
