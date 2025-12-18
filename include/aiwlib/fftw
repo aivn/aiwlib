@@ -1,0 +1,155 @@
+// -*- C++ -*-
+#ifndef AIW_FAST_FOURIER_TRANSITION_WRAPPER_HPP
+#define AIW_FAST_FOURIER_TRANSITION_WRAPPER_HPP
+
+/**
+ * Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com>, Nina S. Tolmacheva
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <fftw3.h>
+#include <omp.h>
+#include <complex>
+#include <vector>
+#include "vec"
+
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T> class FFTW1D{};
+	
+	template <> class FFTW1D<float>{
+		float *rbuf = nullptr;
+		fftwf_complex *cbuf = nullptr;
+		fftwf_plan plan_fwd, plan_bwd;
+		int sz = 0; bool r2c = false;
+	public:
+		void init(int sz_, bool r2c_){
+			sz = sz_;  r2c = r2c_;
+			if(rbuf) fftwf_free(rbuf);
+			if(cbuf){ fftwf_free(cbuf); fftwf_destroy_plan(plan_fwd); fftwf_destroy_plan(plan_bwd); }
+			if(r2c){
+				rbuf = (float*) fftwf_malloc(sizeof(float)*sz);
+				cbuf = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(sz/2+1));
+				plan_fwd = fftwf_plan_dft_r2c_1d(sz, rbuf, cbuf, FFTW_ESTIMATE);
+				plan_bwd = fftwf_plan_dft_c2r_1d(sz, cbuf, rbuf, FFTW_ESTIMATE);
+			} else {
+				rbuf = nullptr;
+				cbuf = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*sz);
+				plan_fwd = fftwf_plan_dft_1d(sz, cbuf, cbuf, FFTW_FORWARD, FFTW_ESTIMATE);
+				plan_bwd = fftwf_plan_dft_1d(sz, cbuf, cbuf, FFTW_BACKWARD, FFTW_ESTIMATE);
+			}
+		}
+		FFTW1D(){}
+		FFTW1D(const FFTW1D& other){ init(other.sz, other.r2c); }
+		~FFTW1D(){
+			if(rbuf) fftwf_free(rbuf);
+			if(cbuf){ fftwf_free(cbuf); fftwf_destroy_plan(plan_fwd); fftwf_destroy_plan(plan_bwd); }
+		}
+
+		float& r(int i){ return rbuf[i]; }
+		fftwf_complex& c(int i){ return cbuf[i]; }
+
+		void fwd(){ fftwf_execute(plan_fwd); }
+		void bwd(){ fftwf_execute(plan_bwd); }		
+	};
+
+	template <> class FFTW1D<double>{
+		double *rbuf = nullptr;
+		fftw_complex *cbuf = nullptr;
+		fftw_plan plan_fwd, plan_bwd;
+		int sz = 0; bool r2c = false;
+	public:
+		void init(int sz_, bool r2c_){
+			sz = sz_;  r2c = r2c_;
+			if(rbuf) fftw_free(rbuf);
+			if(cbuf){ fftw_free(cbuf); fftw_destroy_plan(plan_fwd); fftw_destroy_plan(plan_bwd); }
+			if(r2c){
+				rbuf = (double*) fftw_malloc(sizeof(float)*sz);
+				cbuf = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*(sz/2+1));
+				plan_fwd = fftw_plan_dft_r2c_1d(sz, rbuf, cbuf, FFTW_ESTIMATE);
+				plan_bwd = fftw_plan_dft_c2r_1d(sz, cbuf, rbuf, FFTW_ESTIMATE);
+			} else {
+				rbuf = nullptr;
+				cbuf = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*sz);
+				plan_fwd = fftw_plan_dft_1d(sz, cbuf, cbuf, FFTW_FORWARD, FFTW_ESTIMATE);
+				plan_bwd = fftw_plan_dft_1d(sz, cbuf, cbuf, FFTW_BACKWARD, FFTW_ESTIMATE);
+			}
+		}
+		FFTW1D(){}
+		FFTW1D(const FFTW1D& other){ init(other.sz, other.r2c); }
+		~FFTW1D(){
+			if(rbuf) fftw_free(rbuf);
+			if(cbuf){ fftw_free(cbuf); fftw_destroy_plan(plan_fwd); fftw_destroy_plan(plan_bwd); }
+		}
+
+		double& r(int i){ return rbuf[i]; }
+		fftw_complex& c(int i){ return cbuf[i]; }
+
+		void fwd(){ fftw_execute(plan_fwd); }
+		void bwd(){ fftw_execute(plan_bwd); }		
+	};
+	//--------------------------------------------------------------------------
+	template <int D, typename T> class FFTW{
+		std::vector<std::complex<T> > data;
+		int csz = 0, zsz0 = 0, Nth = 0; Ind<D> box;  Vec<D, uint64_t>  mul;
+		T* real_buf = nullptr;
+		std::vector<FFTW1D<T> > plans;
+	public:
+		size_t size() const { return data.size(); }
+		
+		FFTW(){}
+		void init(const Ind<D> &box_, int csz_){
+			box = box_;  zsz0 = box[D-1];  box[D-1] = box[D-1]/2+1; csz = csz_;
+			data.resize(prod(box)*csz);
+			mul[0] = csz; for(int i=0; i<D-1; i++) mul[i+1] = mul[i]*box[i];
+			Nth = omp_get_max_threads();plans.resize(Nth*D);
+			for(int ith=0; ith<Nth; ith++) for(int d=0; d<D; d++) plans[ith*D+d].init(box_[d], d==D-1);
+		}
+		FFTW(const Ind<D> &box_, int csz_){ init(box_, csz_); }
+
+		std::complex<T>* operator [](size_t i){ return &data[i*csz]; }
+		const std::complex<T>* operator [](size_t i) const { return data.data()+i*csz; }
+		//----------------------------------------------------------------------
+		template <typename FGET> double fwd(FGET fget){  // fget(const Ind<D> &pos, int id) ==> T x,  return runtime
+			double t_start = omp_get_wtime();
+			for(int d=D-1; d>=0; d--){  // цикл по направлениям
+				Ind<D> dbox = box;  dbox[d] = 1; 	size_t dsz = prod(dbox);  // WMSG(d, dbox, dsz);
+#pragma omp parallel for
+				for(size_t wid=0; wid<dsz; wid++){  // цикл по 1d линиями
+					int thID = omp_get_thread_num();  FFTW1D<T>& plan = plans[thID*D+d];
+					Ind<D> pos = wid%dbox;  size_t off = mul*pos;   
+					for(int c=0; c<csz; c++){  // цикл по компонентам
+						if(d==D-1) for(int i=0, sz=zsz0; i<sz; i++){ pos[D-1] = i; plan.r(i) = fget(pos, c); }
+						else for(int i=0, sz=box[d]; i<sz; i++){ auto x = data[off+i*mul[d]+c];  plan.c(i)[0] = x.real();  plan.c(i)[1] = x.imag(); }
+						plan.fwd();
+						for(int i=0, sz=box[d]; i<sz; i++){ auto &x = data[off+i*mul[d]+c];  x.real(plan.c(i)[0]);  x.imag(plan.c(i)[1]); }						
+					}  // конец цикла по компонентам
+				}  // конец цикла по 1d линиям
+			}  // конец цикла по направлениям
+			return omp_get_wtime()-t_start;
+		}
+		//----------------------------------------------------------------------
+		template <typename FSET> double bwd(FSET fset){  // fset(const Ind<D> &pos, int id, T x),  return runtime
+			double t_start = omp_get_wtime();
+			for(int d=0; d<D; d++){  // цикл по направлениям
+				Ind<D> dbox = box;  dbox[d] = 1; 	size_t dsz = prod(dbox);  
+#pragma omp parallel for
+				for(size_t wid=0; wid<dsz; wid++){  // цикл по 1d линиями
+					int thID = omp_get_thread_num();  FFTW1D<T>& plan = plans[thID*D+d];
+					Ind<D> pos = wid%dbox;  size_t off = mul*pos;   
+					for(int c=0; c<csz; c++){  // цикл по компонентам
+						for(int i=0, sz=box[d]; i<sz; i++){ auto x = data[off+i*mul[d]+c];  plan.c(i)[0] = x.real();  plan.c(i)[1] = x.imag(); }
+						plan.bwd();
+						if(d==D-1) for(int i=0, sz=zsz0; i<sz; i++){ pos[D-1] = i; fset(pos, c, plan.r(i)); }						
+						else for(int i=0, sz=box[d]; i<sz; i++){ auto &x = data[off+i*mul[d]+c];  x.real(plan.c(i)[0]);  x.imag(plan.c(i)[1]); }						
+					}  // конец цикла по компонентам
+				}  // конец цикла по 1d линиям
+			}  // конец цикла по направлениям
+			return omp_get_wtime()-t_start;
+		}
+		//----------------------------------------------------------------------
+	};
+	//--------------------------------------------------------------------------
+}   // end of namespace aiw
+#endif //AIW_FAST_FOURIER_TRANSITION_WRAPPER_HPP
