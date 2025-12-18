@@ -13,82 +13,81 @@
 #include <vector>
 #include "vec"
 
+/* TODO:
+1. нормировка
+2. доступ к значениям частоты
+3. сброс результатов в бинарном формате Mesh, в т.ч. того что выходит из bwd
+*/
+
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <typename T> class FFTW1D{};
+	//  fftw3 plans for float and double
+	//--------------------------------------------------------------------------
+	template <typename T> struct fftw3_t;
 	
-	template <> class FFTW1D<float>{
-		float *rbuf = nullptr;
-		fftwf_complex *cbuf = nullptr;
-		fftwf_plan plan_fwd, plan_bwd;
+	template <> struct fftw3_t<float>{
+		typedef fftwf_complex complex ;
+		typedef fftwf_plan plan;
+		static constexpr auto free = fftwf_free;
+		static constexpr auto destroy_plan = fftwf_destroy_plan;
+		static constexpr auto malloc = fftwf_malloc;
+		static constexpr auto plan_r2c = fftwf_plan_dft_r2c_1d; 
+		static constexpr auto plan_c2r = fftwf_plan_dft_c2r_1d;
+		static constexpr auto plan_1d = fftwf_plan_dft_1d;
+		static constexpr auto execute = fftwf_execute;
+	};	
+
+	template <> struct fftw3_t<double>{
+		typedef fftw_complex complex ;
+		typedef fftw_plan plan;
+		static constexpr auto free = fftw_free;
+		static constexpr auto destroy_plan = fftw_destroy_plan;
+		static constexpr auto malloc = fftw_malloc;
+		static constexpr auto plan_r2c = fftw_plan_dft_r2c_1d; 
+		static constexpr auto plan_c2r = fftw_plan_dft_c2r_1d;
+		static constexpr auto plan_1d = fftw_plan_dft_1d;
+		static constexpr auto execute = fftw_execute;
+	};	
+	//--------------------------------------------------------------------------
+	template <typename T> class FFTW1D{
+		typedef fftw3_t<T> fftw3;
+		T *rbuf = nullptr;
+		typename fftw3::complex *cbuf = nullptr;
+		typename fftw3::plan plan_fwd, plan_bwd;
 		int sz = 0; bool r2c = false;
 	public:
 		void init(int sz_, bool r2c_){
 			sz = sz_;  r2c = r2c_;
-			if(rbuf) fftwf_free(rbuf);
-			if(cbuf){ fftwf_free(cbuf); fftwf_destroy_plan(plan_fwd); fftwf_destroy_plan(plan_bwd); }
+			if(rbuf) fftw3::free(rbuf);
+			if(cbuf){ fftw3::free(cbuf); fftw3::destroy_plan(plan_fwd); fftw3::destroy_plan(plan_bwd); }
 			if(r2c){
-				rbuf = (float*) fftwf_malloc(sizeof(float)*sz);
-				cbuf = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(sz/2+1));
-				plan_fwd = fftwf_plan_dft_r2c_1d(sz, rbuf, cbuf, FFTW_ESTIMATE);
-				plan_bwd = fftwf_plan_dft_c2r_1d(sz, cbuf, rbuf, FFTW_ESTIMATE);
+				rbuf = (T*) fftw3::malloc(sizeof(T)*sz);
+				cbuf = (typename fftw3::complex*) fftw3::malloc(sizeof(typename fftw3::complex)*(sz/2+1));
+				plan_fwd = fftw3::plan_r2c(sz, rbuf, cbuf, FFTW_ESTIMATE);
+				plan_bwd = fftw3::plan_c2r(sz, cbuf, rbuf, FFTW_ESTIMATE);
 			} else {
 				rbuf = nullptr;
-				cbuf = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*sz);
-				plan_fwd = fftwf_plan_dft_1d(sz, cbuf, cbuf, FFTW_FORWARD, FFTW_ESTIMATE);
-				plan_bwd = fftwf_plan_dft_1d(sz, cbuf, cbuf, FFTW_BACKWARD, FFTW_ESTIMATE);
+				cbuf = (typename fftw3::complex*) fftw3::malloc(sizeof(typename fftw3::complex)*sz);
+				plan_fwd = fftw3::plan_1d(sz, cbuf, cbuf, FFTW_FORWARD, FFTW_ESTIMATE);
+				plan_bwd = fftw3::plan_1d(sz, cbuf, cbuf, FFTW_BACKWARD, FFTW_ESTIMATE);
 			}
 		}
 		FFTW1D(){}
 		FFTW1D(const FFTW1D& other){ init(other.sz, other.r2c); }
 		~FFTW1D(){
-			if(rbuf) fftwf_free(rbuf);
-			if(cbuf){ fftwf_free(cbuf); fftwf_destroy_plan(plan_fwd); fftwf_destroy_plan(plan_bwd); }
+			if(rbuf) fftw3::free(rbuf);
+			if(cbuf){ fftw3::free(cbuf); fftw3::destroy_plan(plan_fwd); fftw3::destroy_plan(plan_bwd); }
 		}
 
-		float& r(int i){ return rbuf[i]; }
-		fftwf_complex& c(int i){ return cbuf[i]; }
+		T& r(int i){ return rbuf[i]; }
+		typename fftw3::complex& c(int i){ return cbuf[i]; }
 
-		void fwd(){ fftwf_execute(plan_fwd); }
-		void bwd(){ fftwf_execute(plan_bwd); }		
+		void fwd(){ fftw3::execute(plan_fwd); }
+		void bwd(){ fftw3::execute(plan_bwd); }		
 	};
-
-	template <> class FFTW1D<double>{
-		double *rbuf = nullptr;
-		fftw_complex *cbuf = nullptr;
-		fftw_plan plan_fwd, plan_bwd;
-		int sz = 0; bool r2c = false;
-	public:
-		void init(int sz_, bool r2c_){
-			sz = sz_;  r2c = r2c_;
-			if(rbuf) fftw_free(rbuf);
-			if(cbuf){ fftw_free(cbuf); fftw_destroy_plan(plan_fwd); fftw_destroy_plan(plan_bwd); }
-			if(r2c){
-				rbuf = (double*) fftw_malloc(sizeof(float)*sz);
-				cbuf = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*(sz/2+1));
-				plan_fwd = fftw_plan_dft_r2c_1d(sz, rbuf, cbuf, FFTW_ESTIMATE);
-				plan_bwd = fftw_plan_dft_c2r_1d(sz, cbuf, rbuf, FFTW_ESTIMATE);
-			} else {
-				rbuf = nullptr;
-				cbuf = (fftw_complex*) fftw_malloc(sizeof(fftw_complex)*sz);
-				plan_fwd = fftw_plan_dft_1d(sz, cbuf, cbuf, FFTW_FORWARD, FFTW_ESTIMATE);
-				plan_bwd = fftw_plan_dft_1d(sz, cbuf, cbuf, FFTW_BACKWARD, FFTW_ESTIMATE);
-			}
-		}
-		FFTW1D(){}
-		FFTW1D(const FFTW1D& other){ init(other.sz, other.r2c); }
-		~FFTW1D(){
-			if(rbuf) fftw_free(rbuf);
-			if(cbuf){ fftw_free(cbuf); fftw_destroy_plan(plan_fwd); fftw_destroy_plan(plan_bwd); }
-		}
-
-		double& r(int i){ return rbuf[i]; }
-		fftw_complex& c(int i){ return cbuf[i]; }
-
-		void fwd(){ fftw_execute(plan_fwd); }
-		void bwd(){ fftw_execute(plan_bwd); }		
-	};
+	//--------------------------------------------------------------------------
+	//   Final wrapper
 	//--------------------------------------------------------------------------
 	template <int D, typename T> class FFTW{
 		std::vector<std::complex<T> > data;
