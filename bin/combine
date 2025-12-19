@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-'''usage: ./combine <expr11> <expr12> ... <file1.dat> [<expr21> ...  <file2.dat>  ...] ==>
+'''usage: ./combine <expr11> <expr12> ... <file1.dat> [<expr21> ...  <file2.dat>  ...] [-rx [x_min]:[x_max]] ==>
       write result to stdout
 
 file.dat должен иметь заголовок с описнаием столбоцв в формате gplt  #: ...
@@ -22,6 +22,9 @@ Licensed under the Apache License, Version 2.0
 import os, sys, math
 
 if len(sys.argv)==1 or '-h' in sys.argv: print(__doc__); exit(1)
+
+sys_argv, x_min_max = list(sys.argv[1:]), None
+if '-rx' in sys.argv: irx = sys.argv.index('-rx'); x_min_max = sys.argv[irx+1]; del sys.argv[irx:irx+2], irx
 #-------------------------------------------------------------------------------
 #  чтение данных
 #-------------------------------------------------------------------------------
@@ -38,9 +41,10 @@ for arg in sys.argv[1:]:
         data, scope = [], {}
         for line in fin:
             if line.startswith('#:'):
-                if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope)
+                if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope); print(line[:-1], '# <<<', arg)
                 else: head = line[2:].split()
-            if line[0]=='#': continue
+                continue
+            if line[0]=='#': print('#', arg, ':', line[1:-1]); continue
             line = [float(x) for x in line.split()]
             if not line: continue
             if not columns:
@@ -58,6 +62,7 @@ for arg in sys.argv[1:]:
                  dx = data[I][0]-data[I-1][0]
                  for i in Itable: v = data[I][i]; data[I][i] = data[I-1][i]+(Ibuf[i]+v)*dx/2; Ibuf[i] = v
         sources.append([arg, [i[0] for i in columns], data]);  columns, Itable, head = [], [], []
+print('#>>>', ' '.join(map(repr, sys_argv)))
 #-------------------------------------------------------------------------------
 #   объединение файлов и вывод результатов
 #-------------------------------------------------------------------------------
@@ -83,7 +88,11 @@ print('#:'+X, *sum([[x for x in s[1] if x!=X] for s in sources], []))
 
 for src in sources: src[:2] = 0, src[1].index(X)
 X = sorted(set(sum([[l[ix] for l in data] for I, ix, data in sources], [])))
-
+if x_min_max:
+    x_min, x_max = x_min_max.split(':')
+    x_min, x_max = (float(x_min) if x_min else -math.inf), (float(x_max) if x_max else math.inf)
+    X = [x for x in X if x_min<=x<=x_max]
+    
 for x in X:
     print(x, end=' ')
     for src in sources:
