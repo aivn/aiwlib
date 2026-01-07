@@ -58,7 +58,7 @@ for ifile in ifiles:
     for line in sys.stdin if ifile=='-' else open(ifile):
         if line.startswith('#:') and '=' in line: exec(line[2:].strip(), P) #; print(P)
         elif line.startswith('#:') and not head: head = line[2:].split(); columns = dict([(k, []) for k in head if k!='x' and (not mode3d or k!='y')])
-        elif line[0]!='#' and not 'nan' in line and not 'inf' in line:
+        elif line[0]!='#' and not 'None' in line and not 'nan' in line and not 'inf' in line:
             line = list(map(float, line.split()))
             if not line: splitters.append(len(etalone)); continue
             line = list(zip(head, line)); P.update(line)

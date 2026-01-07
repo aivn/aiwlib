@@ -20,8 +20,10 @@ namespace aiw{
 	template <typename T> class RandN01{
 		struct alignas(64) rand_gauss_t {
 			std::normal_distribution<T> N01;
+			std::uniform_real_distribution<T> U01;
 			std::mt19937 gen;
 			T operator () () { return N01(gen); }
+			T u() { return U01(gen); }
 		};
 		std::vector<rand_gauss_t> generators;
 
@@ -30,7 +32,11 @@ namespace aiw{
 	public:
 		void init(int threads_num=1){			
 			generators.resize(threads_num);  std::random_device rd;
-			for(auto &g: generators){ g.N01 = std::normal_distribution<T>(0, 1); g.gen.seed(rd()); }
+			for(auto &g: generators){
+				g.N01 = std::normal_distribution<T>(0, 1);
+				g.U01 = std::uniform_real_distribution<T>(0, 1);
+				g.gen.seed(rd());
+			}
 		}
 		RandN01(int threads_num=1){ init(threads_num); }
 		T operator()(int thID=0){ return generators[thID](); }
@@ -38,6 +44,7 @@ namespace aiw{
 			Vec<D, T> res; for(int i=0; i<D; i++) res[i] = generators[thID]();
 			return res;
 		}
+		T u(int thID=0){ return generators[thID].u(); }
 	};
 	//--------------------------------------------------------------------------
 	const double rand_alpha = 1./(1.+RAND_MAX), rand_alpha2PI = 2*M_PI/(1.+RAND_MAX);

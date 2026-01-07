@@ -3,7 +3,7 @@
 #define AIW_FAST_FOURIER_TRANSITION_WRAPPER_HPP
 
 /**
- * Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com>, Nina S. Tolmacheva
+ * Copyright (C) 2025-2026 Antov V. Ivanov  <aiv.racs@gmail.com>, Nina S. Tolmacheva
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -12,10 +12,13 @@
 #include <complex>
 #include <vector>
 #include "vec"
+#include "binhead"
+#include "boxiter"
 
 /* TODO:
 1. доступ к значениям частоты
 2. сброс результатов в бинарном формате Mesh, в т.ч. того что выходит из bwd
+3. вынести имплементацию в отдельный файл?
 */
 
 
@@ -93,21 +96,24 @@ namespace aiw{
 		int csz = 0, zsz0 = 0, Nth = 0; Ind<D> box;  Vec<D, uint64_t>  mul;
 		T* real_buf = nullptr;
 		std::vector<FFTW1D<T> > plans;
+		Vecf<D> step, _step;
 	public:
-		size_t size() const { return data.size(); }
+		size_t size() const { return data.size(); }		
+		const Ind<D>& bbox() const { return box; }
 		
 		FFTW(){}
-		void init(const Ind<D> &box_, int csz_){
+		void init(const Ind<D> &box_, int csz_, Vecf<D> step_=Vecf<D>(1.f)){
 			box = box_;  zsz0 = box[D-1];  box[D-1] = box[D-1]/2+1; csz = csz_;
 			data.resize(prod(box)*csz);
 			mul[0] = csz; for(int i=0; i<D-1; i++) mul[i+1] = mul[i]*box[i];
-			Nth = omp_get_max_threads();plans.resize(Nth*D);
+			Nth = omp_get_max_threads();  plans.resize(Nth*D);
 			for(int ith=0; ith<Nth; ith++) for(int d=0; d<D; d++) plans[ith*D+d].init(box_[d], d==D-1);
+			step = step_; _step = 1.f/step;
 		}
-		FFTW(const Ind<D> &box_, int csz_){ init(box_, csz_); }
+		FFTW(const Ind<D> &box_, int csz_, Vecf<D> step_=Vecf<D>(1.f)){ init(box_, csz_, step_); }
 
 		std::complex<T>* operator [](size_t i){ return &data[i*csz]; }
-		const std::complex<T>* operator [](size_t i) const { return data.data()+i*csz; }
+		const std::complex<T>* operator [](size_t i) const { return data.data()+i*csz; }		
 		//----------------------------------------------------------------------
 		template <typename FGET> double fwd(FGET fget){  // fget(const Ind<D> &pos, int id) ==> T x,  return runtime
 			double t_start = omp_get_wtime();
@@ -145,6 +151,53 @@ namespace aiw{
 					}  // конец цикла по компонентам
 				}  // конец цикла по 1d линиям
 			}  // конец цикла по направлениям
+			return omp_get_wtime()-t_start;
+		}
+		//----------------------------------------------------------------------
+		// mask --- по 4 бита на компоненту: re, im, abs, arg
+		template <typename S, typename T2=float> double dump(S &&fout, uint64_t mask, std::vector<std::string> axis) const {  // return runtime
+			double t_start = omp_get_wtime();
+			BinaryHead bh; bh.dim = D; bh.type = aiw::BinaryHead::mesh;
+			bh.szT = 0; for(int i=0; i<csz*4; i++) bh.szT += sizeof(T2)*bool(mask&(uint64_t(1)<<i));
+			bh.bbox[D-1] = box[D-1];  bh.bmin[D-1] = 0; bh.bmax[D-1] = .5f/step[D-1];
+			for(int i=0; i<D-1; i++){ bh.bbox[i] = box[i]/2;  bh.bmin[i] = 0;  bh.bmax[i] = .5f/step[i]; }
+			for(int i=0, sz=std::min(D, int(axis.size())); i<sz; i++) bh.axis[i] = axis[i];
+			bh.dump(fout);
+			Ind<D> lim = box/2; lim[D-1] = box[D-1];
+			for(Ind<D> pos: irange(lim)){
+				const std::complex<T>* p = data.data()+pos*mul*csz; 
+				for(int i=0; i<csz; i++){  // это можно как то оптимизировать? Собрать вектор из смещений и типов обработки?
+					if(mask&(uint64_t(1)<<i*4+0)){ T2 v = p[i].real();     fout.write((const char*)&v, sizeof(T2)); }
+					if(mask&(uint64_t(1)<<i*4+1)){ T2 v = p[i].imag();     fout.write((const char*)&v, sizeof(T2)); }
+					if(mask&(uint64_t(1)<<i*4+2)){ T2 v = std::abs(p[i]);  fout.write((const char*)&v, sizeof(T2)); }
+					if(mask&(uint64_t(1)<<i*4+3)){ T2 v = std::arg(p[i]);  fout.write((const char*)&v, sizeof(T2)); }
+				}
+			}
+			return omp_get_wtime()-t_start;
+		}
+		template <typename S, typename T2=float> double dump(S &fout, uint64_t mask, std::vector<std::string> axis) const {  return dump(std::move(fout), mask, axis); } 
+		//----------------------------------------------------------------------
+		double spectrum(std::vector<T> &res, float &f_max, int cmask=~0) const {  // return runtime
+			double t_start = omp_get_wtime();
+			Ind<D> lim = box/2;  lim[D-1] = box[D-1];
+			if(!res.size()) res.resize(int(lim.abs()));
+			if(f_max<=0) f_max = .5f*_step.abs();
+			std::vector<T> buf(res.size()*Nth, 0.);  std::vector<float> norm(res.size()*Nth, 0.);
+			int f_sz = res.size(); float _df = f_sz/f_max;  Vecf<D> _fstep = .5f*_step/lim;
+			BoxIterOMP<D> biter(box);  size_t sz = biter.size();
+			// #pragma omp parallel for
+			for(int off=0; off<sz; off++){
+				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
+				int f = ::floorf((F&_fstep).abs()*_df); // WMSG(*biter, F, f, f_sz, off, sz);
+				if(f>=f_sz) continue; 
+				int thID = omp_get_thread_num();				
+				T& dst = buf[f_sz*thID+f];  norm[f_sz*thID+f] += 1;
+				const std::complex<T>* p = data.data()+off*csz;
+				for(int i=0; i<csz; i++) if(cmask&(1<<i)) dst += std::abs(p[i]); 
+			}
+			for(int i=f_sz, nsz=norm.size(); i<nsz; i++) norm[i%f_sz] += norm[i];
+			for(int i=0; i<f_sz; i++){ res[i] = 0; norm[i] = norm[i]? 1.f/norm[i]: 0; }
+			for(int i=0, bsz=buf.size(); i<bsz; i++) res[i%f_sz] += buf[i]*norm[i%f_sz];
 			return omp_get_wtime()-t_start;
 		}
 		//----------------------------------------------------------------------
