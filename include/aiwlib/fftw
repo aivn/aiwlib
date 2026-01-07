@@ -185,8 +185,8 @@ namespace aiw{
 			std::vector<T> buf(res.size()*Nth, 0.);  std::vector<float> norm(res.size()*Nth, 0.);
 			int f_sz = res.size(); float _df = f_sz/f_max;  Vecf<D> _fstep = .5f*_step/lim;
 			BoxIterOMP<D> biter(box);  size_t sz = biter.size();
-			// #pragma omp parallel for
-			for(int off=0; off<sz; off++){
+#pragma omp parallel for
+			for(size_t off=0; off<sz; off++){
 				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
 				int f = ::floorf((F&_fstep).abs()*_df); // WMSG(*biter, F, f, f_sz, off, sz);
 				if(f>=f_sz) continue; 
