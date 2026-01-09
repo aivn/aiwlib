@@ -274,7 +274,8 @@ class Calc:
     def __getitem__(self, key):
         if key=='self': return self
         if key in self.__dict__: return self.__dict__[key]
-        if key in self.__dict__.get('tags', []): return True
+        tags = self.__dict__.get('tags', [])
+        if key in tags or key.encode() in tags: return True
         if key in _G or key in __builtins__: raise KeyError(key)        
         ak = '@'+key; c = key if not key.replace('_','').isalnum() else self.__dict__[ak] if ak in self.__dict__ else _G.get(ak)
 
@@ -286,7 +287,7 @@ class Calc:
         if key=='runtime': return Time(0.) #???
         if key=='statelist': return
         if key and key[0]=='_'  and key[-1]=='_' and key[1].isalpha() and key.replace('_','0').isalnum():
-            return key[1:-1] in self.__dict__ or key[1:-1] in self.__dict__.get('tags', [])
+            return key[1:-1] in self.__dict__ or key[1:-1] in tags or key[1:-1].encode() in tags
         #for r, a in _getitem_rules: 
         #    if r(key, self): return a(key, self)
         report = 'KeyError: %r is not defined\n'%key
