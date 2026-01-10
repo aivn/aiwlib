@@ -129,6 +129,7 @@ while 1:
         except Exception as e: print>>sys.stderr, e
     if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1) or calc._racs_params['_mpi']: 
         mixt.set_output(self.path+'logfile')
+    if os.path.exists('.racs/started-%s'%os.getppid()): open('.racs/path-%s'%os.getpid(), 'w').write(self.path+'\n')
     self.commit() #???
 #-------------------------------------------------------------------------------
 def _init_hook(self):
@@ -171,6 +172,7 @@ def _on_exit(self):
             if hasattr(sys, 'last_value'): self.add_state('stopped')
             else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
     finally: self.commit()
+    if os.path.exists('.racs/path-%s'%os.getpid()): os.remove('.racs/path-%s'%os.getpid())
     rsz = os.path.getsize(self.path+'.RACS') 
     rcolor = ('' if rsz<4096 else ';33' if rsz<4096*8 else ';31' if rsz<4096*32 else ';37;41' if rsz<4096*256 else ';37;5;41')+'m%s'
     print('\nRUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(

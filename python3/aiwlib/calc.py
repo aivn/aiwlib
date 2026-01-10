@@ -18,6 +18,7 @@ _cl_args, _cl_tags = [], [] # аргументы командной строки
 _args_from_racs = [] # значения параметров полученные из RACS при разборе аргументов командной строки
 _arg_seqs, _arg_order, _queue =  {}, [], None # словарь с параметрами для пакетного запуска, последовательность имен параметров, очередь заданий
 _help_mode = False
+_queue_main_par = set()  # набор основных параметров для отображения в очереди (вызов racs -q)
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self):
@@ -33,6 +34,7 @@ class Calc:
     и сохранение/восстановление параметров в файле .RACS'''
     #---------------------------------------------------------------------------
     def __init__(self, **D):
+        _queue_main_par.update(D.pop('_queue_main_par', '').split())
         self._comments, self._profiler, self._set_progress_time = {}, {}, time.time()
         self.runtime, self.progress, self.statelist, self.args, self._wraps, self.tags = chrono.Time(0.), 0., [], list(sys.argv), [], set(_cl_tags)
         for k, v in D.items(): # обработка аргументов конструктора
@@ -97,7 +99,8 @@ class Calc:
             os.symlink(os.path.abspath(logfile), symlink)
             if _racs_params['_daemonize']: mixt.set_output(logfile+'.log')
             OUT('# %s@%s:%s repo=%r tasks=%i threads=%i PID=%i\n# '%(mixt.get_login(), socket.gethostname(), os.getcwd(),
-                                                                     _racs_params['_repo'], lenQ, copies, os.getpid())+' '.join(sys.argv))            
+                                                                     _racs_params['_repo'], lenQ, copies, os.getpid())+' '.join(sys.argv))
+            OUT('#   '+', '.join('%s=%r'%(a, self.get(a)) for a in _queue_main_par))
             for a in _arg_order: OUT('#   %s: %s'%(a, _arg_seqs[a]))
             finish_msg = lambda: OUT('%s -%i %g%% %s %s'%(chrono.Date(), p, 100.*n_finish/lenQ, mixt.time2string(time.time()-t_start),
                                                           mixt.time2string((time.time()-t_start)*lenQ/n_finish)))
