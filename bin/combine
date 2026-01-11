@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 '''usage: ./combine <expr11> <expr12> ... <file1.dat> [<expr21> ...  <file2.dat>  ...] [-rx [x_min]:[x_max]] ==>
       write result to stdout

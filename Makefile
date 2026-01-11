@@ -11,6 +11,7 @@
 #    make ... debug=on   for make debug version
 #
 # See include/aiwlib/config.mk and doc/aiwlib.pdf for details.
+SHELL=/usr/bin/bash
 
 include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------

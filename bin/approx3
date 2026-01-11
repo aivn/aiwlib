@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 '''usage: approx3 SOURCE-FUNCTION  APPROX-EXPRESSION inputfile.dat|- [OPTIONS]
 -3d|-h3d|-pm3d --- включает 3d режим, задает режим отображения в gplt3 
 -rx|-ry|-rf [MIN]:[MAX] --- задает пределы отображения и аппроксимации по x, y, f

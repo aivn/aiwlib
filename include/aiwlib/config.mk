@@ -5,7 +5,7 @@
 # Edit this part of the file manually to configure the make
 # Отредактируйте эту часть файла вручную для настройки сборки
 #-------------------------------------------------------------------------------
-SHELL=/bin/bash
+SHELL=/usr/bin/bash
 
 ifeq ($(python),)
 python=2
