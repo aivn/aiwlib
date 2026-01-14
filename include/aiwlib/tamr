@@ -3,13 +3,14 @@
 #define AIW_STENCIL_AMR_HPP
 
 /**
- * Copyright (C) 2024 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2024, 2026 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  *
- * Tiled adaptive mesh header
+ * Tiled Adaptive Mesh header
  **/
 
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -45,30 +46,33 @@ namespace aiw{
 	template <> struct calc_3pow<1> { static const int x = 3; };
 	template <int D> int calc_tamr_rank_lim(Ind<D> tbox){ int sz = tbox.prod()-1, w = 0; while(sz>>++w){}  return std::min((64 - w - 5)/D, 22/D); } 
 	//--------------------------------------------------------------------------
+	// T --- тип узла или ячейки
+	// D --- размерность пространства
+	// R --- размер тайла 1<<R по каждой из осей
 	template <typename T, int D, int R/*, bool CellBased=false*/> class TiledAdaptiveMesh {		
 	protected:
 		struct stencil_node_t;
 		struct tile_t; 
-		struct item_node_t{
+		struct item_node_t{  ///< соседний тайл в кубе тайлов 3х3х... при обходе сетки
 			const tile_t *tile = nullptr, *parent = nullptr;
 			item_node_t *childs[1<<D];
 			uint64_t toff;  // нужен, т.к. такого тайла может не быть         
 			int rank() const { return toff&31; }
  		};
-		int rank_lim;   // максимально возможный ранг измельчения сетки
-		bool fix_mode;  // режим обработки новых узлов, см. for_each
+		int rank_lim;   ///< максимально возможный ранг измельчения сетки
+		bool fix_mode;  ///< режим обработки новых узлов, см. for_each
 	public:
-		Vecf<D> bmin, bmax;  ///< границы сетки, их надо не забывать задавать!
+		Vecf<D> bmin, bmax;  ///< границы сетки, их надо не забывать задавать ПОСЛЕ вызова init, по умолчанию в init задается bmin=0, bmax=tbox*2^R
 
 		int get_rank_lim() const { return rank_lim; }  ///< максимально возможный ранг измельчения сетки
 		void init(const Ind<D> &tbox_);  ///< инициалиазирует сетку нулевым рангом, принимает размер в ТАЙЛАХ
 		int get_max_rank() const;        ///< максимальный ранг измельчения сетки в настоящий момент
-		int size(int rmask=~0) const;    ///< общее число узлов с рангами задаваемыми rmask
+		int size(int rmask=~0) const;    ///< общее число узлов с рангами разбиения задаваемыми rmask
 
-		int add_stencil(const std::vector<Ind<D> > &stencil);  ///< добавляет шаблон в таблицу шаблонов, возвращает stencilID>0
+		int add_stencil(const std::vector<Ind<D> > &stencil);  ///< добавляет шаблон в таблицу stencil-ов, возвращает stencilID>0
 		// int add_stencil(int sphmask);   ///< генерирует шаблон по коорд сферам задаваемым через битовую маску sphmask --- а как нумеровать внутри шаблона???
 		//----------------------------------------------------------------------
-		class Stencil{
+		class Stencil{   ///< интерфейс обхода соседей по шаблону
 			const item_node_t *cube;
 			const stencil_node_t *snodes;
 			int sz;
@@ -95,20 +99,20 @@ namespace aiw{
 			};
 			Iterator begin() const { Iterator I; I.st = this; I.ptr = (*this)[0]; while(!I.ptr && I.pos<sz){ I.ptr = (*this)[++I.pos]; } return I; }
 			Iterator end() const { return Iterator(); }
-		};
+		};  // end of Stencil struct
 		//----------------------------------------------------------------------
-		class alignas(64) Item {
+		class alignas(64) Item {  ///< интерфейс доступа к одному узлу или ячейке при обходе сетки, каждый поток работает с одним экземляром Item
 			friend class TiledAdaptiveMesh;
-			const TiledAdaptiveMesh *storage;
-			tile_t * tile;
-			const item_node_t cube[calc_3pow<D>::x];  // кубик тайлов 3х3х...
-			std::deque<item_node_t> tnodes;  // хранилище для node_t дополняющих фрагменты деревьев в cube
+			const TiledAdaptiveMesh *storage;         ///< указатель на саму сетку
+			tile_t * tile;                            ///< указатель на тайл к которому относится узел или ячейка 
+			const item_node_t cube[calc_3pow<D>::x];  ///< кубик тайлов 3х3х...
+			std::deque<item_node_t> tnodes;           ///< хранилище для node_t дополняющих фрагменты деревьев в cube
 
-			union change_t {  // информация о создаваемом узле:
+			union change_t {  ///< информация о создаваемом узле (64b):
 				struct {
-					uint64_t off: 22;  // позиция узла в тайле
-					uint64_t mode: 3;  // режим создания узла: 1 - создан сверху, 2 - снизу, 4 - сбоку
-					uint64_t msg: 39;  // сообщение от создателя
+					uint64_t off: 22;  ///< позиция узла в тайле
+					uint64_t mode: 3;  ///< режим создания узла: 1 - создан сверху, 2 - снизу, 4 - сбоку
+					uint64_t msg: 39;  ///< сообщение от создателя
 				} data; 
 				uint64_t blob;  // при конфликте (создании одного и того же узла с разных сторон) делается побитовое 'или'
 				bool operator < (change_t other) const { return data.off < other.data.off; }
@@ -148,13 +152,13 @@ namespace aiw{
 			
 			// для cell_based сетки создавать узлы-комрады из шаблона нельзя			
 			bool add_comrade(int stencilID, int itemID, uint64_t msg=0);    ///< создает НОВЫЙ узел itemID из шаблона stencilID на том же ранге
-		    int  add_comrade(int stencilID, uint64_t msg=0){                ///< создает все НОВЫЕ узлы из шаблона stencilID, возвращает число созданных узлов
+		    int  add_all_comrades(int stencilID, uint64_t msg=0){           ///< создает все НОВЫЕ узлы из шаблона stencilID, возвращает число созданных узлов
 				const auto &st = storage->stencils[stencilID]; int res = 0; 
 				for(int i=0, sz=R*D>>st.size(); i<sz; i++) res+= add_comrade(stencilID, i, msg);    // это можно оптимизировать?
 				return res;
 			}
 			// нужен итератор для хождения по узлам сверху/снизу!
-		};				
+		};	// end of Item struct			
 		//----------------------------------------------------------------------		
 		struct ForEachStat {  // времена работы, число узлов и тд
 			double for_each_runtime;
@@ -189,19 +193,21 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		//         !!! детали реализации, слабонервным не смотреть !!!
 		//----------------------------------------------------------------------
-		struct tile_t {
-			const tile_t *parent = nullptr;  // вышележащий тайл, можно с разрывом ранга
-			uint64_t toff, groups = ~uint64_t(0);
-			BitMask<1<<R*D> usage; 
-			T data[1<<R*D];			
-			int tID = -1;
+		struct tile_t {  ///< собственно тайл который хранит данные
+			const tile_t *parent = nullptr;  ///< вышележащий (по дереву) тайл, можно с разрывом ранга
+			uint64_t toff;                   ///< ключ тайла в таблице forest, 5 --- ранг, 
+			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем???
+			BitMask<1<<R*D> usage;           ///< битовая маска показываюая использание узлов
+			T data[1<<R*D];	                 ///< хранилище данных в тайле
+			int tID = -1;                    ///< позиция тайла в таблице указателей tiles???
 			
-			int rank() const { return toff&31; }			
+			int rank() const { return toff&31; }  			
 		};
 		
-		Ind<D> tbox, coords[1<<R*D];  ///< размер сетки в тайлах нулевого ранга и позиции по Z-кривой в тайле		
-		std::map<uint64_t, tile_t> forest;   ///< хранилище тайлов обеспечивающее быстрый доступ при необходимости
-		std::vector<tile_t*> tiles;  ///< таблица указателей на тайлы для параллельного обхода, сделать таблицу по рангам?
+		Ind<D> tbox;                        ///< размер сетки в тайлах нулевого ранга 
+		Ind<D>  coords[1<<R*D];             ///< позиции по Z-кривой в тайле
+		std::map<uint64_t, tile_t> forest;  ///< хранилище тайлов обеспечивающее быстрый доступ при необходимости
+		std::vector<tile_t*> tiles;         ///< таблица указателей на тайлы для параллельного обхода, сделать таблицу по рангам?
 		// проверить родителя тайла просто поскольку forest+cloud не имеют дыр
 
 		tile_t& add_tile(const Ind<D> &pos, const int rank);  ///< при необходимости добавляет тайл и встраивает его в струкутуру данных
@@ -211,7 +217,7 @@ namespace aiw{
 		// при R*D<=24 макс ранги 2D:12 3D:8 4D:6 5D:4 6D:4
 		// при R*D<=22 макс ранги 2D:11 3D:7 4D:5 5D:4 6D:3
 		struct stencil_node_t { int off: 22; int tID: 10; };  // рассматривается куб из тайлов 3х3х3..., tID задает тайл, off смещение в тайле, D<=6
-		std::vector<std::vector<stencil_node_t> > stencils;  // для каждого шаблона хранится stencil_sz вариантов по 1<<R*D элементов
+		std::vector<std::vector<stencil_node_t> > stencils;   // для каждого шаблона хранится stencil_sz вариантов по 1<<R*D элементов
 
 		// static int rank(uibt64_t toff){ return toff&31; }  ///< перевод оффсета тайла в ранг
 		uint64_t tpos2toff(const Ind<D> &tpos, int rank) const {  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
@@ -222,13 +228,13 @@ namespace aiw{
 			}				
 			Ind<D> P, p; for(int i=0; i<D; i++){ int x = (tpos[i]+(tbox[i]<<rank))%(tbox[i]<<rank); P[i] = x>>rank; p[i] = x&((1<<rank)-1); } // ПГУ и расщепление
 			uint64_t toff = 0; for(int i=D-1; i>0; i--){ toff = (toff+P[i])*tbox[i-1]; } toff += P[0];  // смещение на исходной сетке тайлов
-			return (toff<<rank_lim*D+5)|(ZCurev64(p, rank).off<<(rank_lim-rank)*D+5)|(rank&31);
+			return (toff<<rank_lim*D+5)|(ZCurve64<D>(p, rank).off<<(rank_lim-rank)*D+5)|(rank&31);
 		}
 		Ind<D> toff2tpos(uint64_t toff) const {  ///< пересчитывает ключ из forest в позицию тайла
 			int rank = toff&31;  toff >>= 5;  if(!rank) return (toff>>rank_lim*D)%tbox;
 			return (toff>>rank_lim*D)%tbox*(1<<rank) + *ZCurve64((toff>>(rank_lim-rank)*D)&((uint64_t(1)<<rank*D)-1), rank);
 		}
-		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<((rank_lim-(toff&31))*D+5); }
+		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<((rank_lim-(toff&31))*D+5)); }
 		uint64_t up_toff(uint64_t toff) const { int r = toff&31; return toff&~((uint64_t(1)<<5+(rank_lim-r-1)*D)-1) | r-1; }  ///< тайл сверху !!! не проверяет rank>0 !!!
 		int up_chID(uint64_t toff) const { return (toff>>5+(rank_lim-(toff&31))*D)&((1<<D)-1); }  ///< позиция в тайле сверху !!! не проверяет rank>0 !!!
 		int up_chID(uint64_t toff, uint64_t utoff) const { return (toff>>5+(rank_lim-(utoff&31)-1)*D)&((1<<D)-1); } 
@@ -236,11 +242,11 @@ namespace aiw{
 				
 		int up_off(int off, uint64_t toff) const { return (up_chID(toff)<<(R-1)*D)|(off>>D); }  ///< позиция УЗЛА в тайле сверху
 		static int up_off(int off, const Ind<D> &tpos){ off >>= D; for(int i=0; i<D; i++){ off += tpos[i]%2<<R*(D-1)+i; } return off; }  ///< позиция УЗЛА в тайле сверху
-		static int up_chID(const Ind<D> &tpos){ int res = 0; for(int i=0; i<D; i++){ res += pos[i]%2<<i; } return res; }                 ///< позиция ТАЙЛА в тайле сверху
+		static int up_chID(const Ind<D> &tpos){ int res = 0; for(int i=0; i<D; i++){ res += tpos[i]%2<<i; } return res; }                ///< позиция ТАЙЛА в тайле сверху
 		static int down_off(int off){ return (off<<D)&((1<<R*D)-1); }  ///< позиция УЗЛА в тайле снизу
 		static int down_chID(int off){ return off>>D*(R-1); }          ///< позиция нижнего тайла в который попалает узел
 				
-		void extend_tree(item_node_t& node, std::map<uint64_t, tile_t>::iterator& I, uint64_t ntoff, std::deque<item_node_t> &tnodes) const;
+		void extend_tree(item_node_t& node, typename std::map<uint64_t, tile_t>::iterator& I, uint64_t ntoff, std::deque<item_node_t> &tnodes) const;
 		void mk_item(Item& item, const tile_t* tile) const;
 		//----------------------------------------------------------------------
 	};  // end of class TiledAdaptiveMesh
