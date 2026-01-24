@@ -157,13 +157,13 @@ if len(sys.argv)==2 and sys.argv[1]=='-q':
             try:
                 p = cPickle.load(open(path+'.RACS'))['progress']; progress += p/tasks
                 ETA = (time.time()-time.mktime(time.strptime(v[0], '%Y.%m.%d-%H:%M:%S')))*(1./p-1) if p else -1
-                v[2] = '%i%% ETA %s'%(p*100, ('%.2gh'%(ETA/3600) if ETA>3600 else '%.2gm'%(ETA/60) if ETA>60 else '%.2gs'%ETA if ETA>=0 else '???'))
+                v[2] = '%i%% ETA %s'%(p*100, time2shorts(ETA))
             except: v[2] = '???'
             if path and path.startswith(cwd): path = path[len(cwd)+1:]
             elif path and path.startswith(home): path = '~'+path[len(home)-1:] 
             v.append(path if path else '???')
         sys.stdout.writelines(table2strlist([None, H, None]+sorted(D.values())+[None]))
-        print f, 'completed %s/%s tasks, runtime %s, ETA %s'%(fincount, tasks, time2string(runtime), (time2string(runtime/progress-runtime) if progress else '???'))
+        print f, 'completed %s/%s tasks, runtime %s, ETA %s'%(fincount, tasks, time2shorts(runtime), (time2shorts(runtime/progress-runtime) if progress else '???'))
         if PID not in os.listdir('/proc'): print '\033[31mMaster process not found!\033[0m'
     sys.exit()
         

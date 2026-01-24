@@ -72,6 +72,7 @@ is_name_eq = lambda x: '=' in x and (lambda a, b: is_name(a) and not b.startswit
 #-----------------------------------------------------------------------------
 str_len = len #lambda S: int(reduce(lambda r, c: r+1./(1+(ord(c)>127))+4*(c=='\t'), S, 0))
 time2string = lambda x, precision=3: "%i:%02i:%0*.*f"%(int(x/3600), int(x/60)%60, 2+bool(precision)+precision, precision, x%60)
+time2shorts = lambda x: ('%.2gh'%(x/3600.) if x>3600 else '%.2gm'%(x/60.) if x>60 else '%.2gs'%x if x>=0 else '???')
 #string2time = lambda x: reduce(lambda S, v: S+float(v[0])*v[1], map(None, x.split(':'), (3600, 60, 1)), 0.)
 string2time = lambda x: reduce(lambda S, v: S+float(v[0])*v[1], zip(x.split(':'), (3600, 60, 1)), 0.)
 date2string = lambda t: time.strftime("%Y.%m.%d-%X", time.localtime(t))
