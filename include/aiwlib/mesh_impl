@@ -39,7 +39,7 @@ template <typename T, int D, typename A> void Mesh<T, D, A>::dump(aiw::IOstream 
 	if(aiw_dump_load<T>::mode!=1){ for(Ind<D> pos; pos^=box; ++pos) S.dump((*this)[pos]); }
 	else {
 		// bh.szT = sizeof(T); 	bh.dump(S);
-		Ind<D> b = box;  int muli = bh.szT;
+		Ind<D> b = box;  int64_t muli = bh.szT;
 		for(int i=0; i<D; i++){
 			if(muli!=mul[i]) break;
 			muli *= box[i]; b[i] = 1;   
