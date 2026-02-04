@@ -63,7 +63,7 @@ $(name)-sets :
 	@echo LINKOPT=\"$(LINKOPT)\" --- linker options
 	@echo SWIGOPT=\"$(SWIGOPT)\" --- SWIG options
 	@echo debug=\"$(debug)\" --- debug mode
-	@echo cxxmain=\"$(cxxmain)\" --- .cpp files with main() functions for make
+	@echo cxxmain=\"$(cxxmain)\" --- .cpp files with main\(\) functions for make
 #-------------------------------------------------------------------------------
 #   start swig
 #-------------------------------------------------------------------------------

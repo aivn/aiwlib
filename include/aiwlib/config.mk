@@ -61,7 +61,7 @@ AR:=ar
 
 #  -I/usr/lib/openmpi/include/
 ifneq (on,$(mingw))
-override LINKOPT:=$(LINKOPT) -lgomp -lz -ldl
+override LINKOPT:=$(LINKOPT) -lgomp -ldl
 endif
 override SWIGOPT:=$(SWIGOPT) -Wall -python -doxygen -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu

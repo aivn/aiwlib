@@ -63,7 +63,7 @@ inline size_t aiw::BinaryHead::get_size() const {
 	if(type==mesh){ size = szT; for(int i=0; i<dim; i++)  size *= bbox[i]; }
 	if(type==sphere) size = (sph_mode? (sph_mode==1? (30l<<2*rank)+2 : 90l<<2*rank) : 60l<<2*rank)*szT; 
 	if(type==zcube) size = size_t(szT)<<(dim*rank); 
-	if(type==balls) size = count*szT; 
+	if(type==balls) size = count*szT;
 	return size;
 }
 //------------------------------------------------------------------------------

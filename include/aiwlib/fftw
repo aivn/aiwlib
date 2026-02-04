@@ -19,6 +19,9 @@
 1. доступ к значениям частоты
 2. сброс результатов в бинарном формате Mesh, в т.ч. того что выходит из bwd
 3. вынести имплементацию в отдельный файл?
+4. сделать обрезаниче частот при сохранении
+5. использовать фильтр перед сохранением?
+6. complex 2 complex опицонально
 */
 
 
@@ -96,7 +99,7 @@ namespace aiw{
 		int csz = 0, zsz0 = 0, Nth = 0; Ind<D> box;  Vec<D, uint64_t>  mul;
 		T* real_buf = nullptr;
 		std::vector<FFTW1D<T> > plans;
-		Vecf<D> step, _step;
+		Vecf<D> step, _step, fstep;
 	public:
 		size_t size() const { return data.size(); }		
 		const Ind<D>& bbox() const { return box; }
@@ -108,12 +111,14 @@ namespace aiw{
 			mul[0] = csz; for(int i=0; i<D-1; i++) mul[i+1] = mul[i]*box[i];
 			Nth = omp_get_max_threads();  plans.resize(Nth*D);
 			for(int ith=0; ith<Nth; ith++) for(int d=0; d<D; d++) plans[ith*D+d].init(box_[d], d==D-1);
-			step = step_; _step = 1.f/step;
+			step = step_; _step = 1.f/step; fstep = 1.f/(step&box); fstep[D-1] = 1.f/(step[D-1]*zsz0); 
 		}
 		FFTW(const Ind<D> &box_, int csz_, Vecf<D> step_=Vecf<D>(1.f)){ init(box_, csz_, step_); }
 
 		std::complex<T>* operator [](size_t i){ return &data[i*csz]; }
 		const std::complex<T>* operator [](size_t i) const { return data.data()+i*csz; }		
+		float get_nu(int axis, int nui) const { return fstep[axis]*(axis==D-1 || nui<=box[axis]/2 ? nui: box[axis]-nui); }
+		Vecf<D> get_nu(const Ind<D> &nui) const {  Vecf<D> nu; for(int i=0; i<D; i++){ nu[i] = get_nu(i, nui[i]); }  return nu; } 
 		//----------------------------------------------------------------------
 		template <typename FGET> double fwd(FGET fget){  // fget(const Ind<D> &pos, int id) ==> T x,  return runtime
 			double t_start = omp_get_wtime();
@@ -189,29 +194,41 @@ namespace aiw{
 			if(!res.size()) res.resize(int(lim.abs()));
 			if(f_max<=0) f_max = .5f*_step.abs();
 			std::vector<T> buf(res.size()*Nth, 0.);  std::vector<float> norm(res.size()*Nth, 0.);
-			int f_sz = res.size(); float _df = f_sz/f_max;  Vecf<D> _fstep = .5f*_step/lim;
+			int f_sz = res.size(); float _df = f_sz/f_max;
 			std::vector<size_t> max_off(Nth);  std::vector<T> max_ampl(Nth, 0.);
 			spectr_t av;  double l_av = 0, nu_av = 0, nu2_av = 0, Z = 0;  
 			BoxIterOMP<D> biter(box);  size_t sz = biter.size();
 #pragma omp parallel for reduction(+:l_av,nu_av,nu2_av,Z)
 			for(size_t off=0; off<sz; off++){
 				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
-				T nu = (F&_fstep).abs(); const std::complex<T>* p = data.data()+off*csz;
+				float nu = (F&fstep).abs(); const std::complex<T>* p = data.data()+off*csz;
 				int thID = omp_get_thread_num();				
-				T a = 0; for(int i=0; i<csz; i++){ if(cmask&(1<<i)) a += std::abs(p[i]); }
+				// T a = 0; for(int i=0; i<csz; i++){ if(cmask&(1<<i)) a += std::abs(p[i]); }
+				T a = 0; for(int i=0; i<csz; i++){ if(cmask&(1<<i)) a += std::norm(p[i]); } a = sqrt(a);
 				int f = ::floorf(nu*_df); if(f<f_sz){	buf[f_sz*thID+f] += a;  norm[f_sz*thID+f] += 1; }
 				if(max_ampl[thID]<a){ max_ampl[thID] = a;  max_off[thID] = off; }
 				if(nu){ a /= nu*nu;  Z += a;  l_av += a/nu; nu_av += a*nu;  nu2_av += a*nu*nu; }
 			}
 			for(int i=f_sz, nsz=norm.size(); i<nsz; i++) norm[i%f_sz] += norm[i];
-			for(int i=0; i<f_sz; i++){ res[i] = 0; norm[i] = norm[i]? 1.f/norm[i]: 0; }
+			for(int i=0; i<f_sz; i++){ res[i] = 0; norm[i] = norm[i]? 1.f/norm[i]: 0; }			
 			for(int i=0, bsz=buf.size(); i<bsz; i++) res[i%f_sz] += buf[i]*norm[i%f_sz];
 			av.l_av = l_av/Z;  av.nu_av = nu_av/Z; av.nu2_av = nu2_av/Z;
 			for(int i=0; i<Nth; i++) if(av.max_ampl<max_ampl[i]){ av.max_ampl = max_ampl[i]; av.max_off = max_off[i]; }
 			Ind<D> F = av.max_off%box;  for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
-			av.max_nu = F&_fstep;
+			av.max_nu = F&fstep;
 			// return omp_get_wtime()-t_start;
 			return av;
+		}
+		void norm(std::vector<int> &res, float &f_max) const {  
+			Ind<D> lim = box/2;  lim[D-1] = box[D-1]-1;
+			if(!res.size()) res.resize(int(lim.abs()));
+			if(f_max<=0) f_max = .5f*_step.abs();
+			int f_sz = res.size(); float _df = f_sz/f_max;
+			BoxIter<D> biter(box);  size_t sz = biter.size();
+			for(size_t off=0; off<sz; off++){
+				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
+				int f = ::floorf((F&fstep).abs()*_df); if(f<f_sz) res[f]++;
+			}
 		}
 		//----------------------------------------------------------------------
 	};

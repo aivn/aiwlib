@@ -45,7 +45,7 @@ for arg in sys.argv[1:]:
                 else: head = line[2:].split()
                 continue
             if line[0]=='#': print('#', arg, ':', line[1:-1]); continue
-            line = [float(x) for x in line.split()]
+            line = [float(x) for x in line.replace('None', 'nan').split()]
             if not line: continue
             if not columns:
                 columns, Itable = zip(head, head), [0]*len(head)

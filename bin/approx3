@@ -6,7 +6,7 @@
 -head HEAD --- замещает заголовок входного файла (имена столбцов через пробел без #:)
 -nv --- отключает рисование графиков в gplt3
 key=val --- добавляет переменную в пространство имен для вычисления выражений
--p --- выводить только параметры аппроксимации
+-p [racspar1[,racspar2...]] --- выводить только параметры аппроксимации, перед ними выводить значения racs_par
 -rp p1_min:p2_min,... --- задает пределы для параметров 
 '''
 # ряд тейлора/полином одной командой
@@ -25,6 +25,7 @@ approx_args, approx_code = approx.split(':', 1)
 approx_lims = None #[[-np.inf, np.inf] for a in approx_args.split(',')]
 
 rangeX, rangeY, rangeF, mode3d, cond, head, params, plot, par_only, iarg = [None, None], [None, None], [None, None], False, '', [], {'__builtins__':None}, True, False, 3
+racs_par = []
 for k, v in np.__dict__.items():
     if not k in params: params[k] = v
 for k, v in math.__dict__.items():
@@ -43,7 +44,10 @@ while iarg<len(sys.argv):
     elif arg=='-cond': iarg += 1; cond = sys.argv[iarg]
     elif '=' in arg: key, val = arg.split('='); params[key] = eval(val, params, math.__dict__)
     elif arg=='-nv': plot = False
-    elif arg=='-p': par_only = True
+    elif arg=='-p':
+        par_only = True
+        if iarg<len(sys.argv)-1 and sys.argv[iarg+1]  and sys.argv[iarg+1][0]!='-' and not '=' in sys.argv[iarg+1]:
+            racs_par = sys.argv[iarg+1].split(',');  iarg += 1 
     elif arg=='-' or os.path.isfile(arg): ifiles.append(arg)
     elif arg=='-rp': iarg += 1; approx_lims = [[float(l) if l else np.inf*(2*i-1) for i, l in enumerate(ab.split(':'))] for ab in sys.argv[iarg].split(',')]
     else: print('incorrect option of file %r\n'%arg, __doc__); exit()
@@ -101,7 +105,11 @@ popt, pcov = curve_fit(func, params['x'], np.array(etalone), bounds=approx_lims)
 result = func(params['x'], *popt)
 
 #----- output results -------
-if par_only: print(' '.join(map(str, popt))); exit()
+if par_only:
+    try: racs = pickle.load(open(os.path.dirname(ifiles[0])+'/.RACS', 'rb'), encoding='bytes')
+    except: racs = {}
+    print(*([racs.get(bytes(p, encoding='ascii')) for p in racs_par]+list(popt)))
+    exit()
 
 print(' '.join('%s=%g[%g]'%(k, v, s) for k, v, s in zip(approx_args.split(','), popt, np.sqrt(np.diag(pcov)))))
 
