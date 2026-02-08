@@ -19,6 +19,7 @@ _args_from_racs = [] # значения параметров полученны�
 _arg_seqs, _arg_order, _queue =  {}, [], None # словарь с параметрами для пакетного запуска, последовательность имен параметров, очередь заданий
 _help_mode = False
 _queue_main_par = set()  # набор основных параметров для отображения в очереди (вызов racs -q)
+_restore_calc = False  # флаг указывающий на то, что расчет был восстановлен из файла .RACS?
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self):
@@ -127,7 +128,9 @@ class Calc:
         if 'path' in self.__dict__: # подготовка пути
             self.path = mixt.normpath(self.path)
             if self.path[-1]!='/': self.path += '/'
-            if os.path.exists(self.path+'.RACS'): self.__dict__.update(pickle.load(open(self.path+'.RACS', 'rb'), encoding='bytes'))
+            if os.path.exists(self.path+'.RACS'):
+                self.__dict__.update(pickle.load(open(self.path+'.RACS', 'rb'), encoding='bytes'))
+                global _restore_calc; _restore_calc = True
         for k, v in _args_from_racs: # накат сторонних параметров            
             if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
             self.__dict__[k] = v
@@ -322,7 +325,7 @@ class _Wrap:
         elif callable(res): return _WrapAttr(res, self._prefix+attr, self)
         return res
     def __setattr__(self, attr, value):
-        if attr in self._set_attrs:
+        if attr in self._set_attrs and not _restore_calc:
             print('\033[7mset parameter %r to %r is overlapped by %r from RACS\033[0m'%(attr, value, self._calc.__dict__[self._prefix+attr]))
             return 
         if getattr(self._core, attr).__class__ is bool and type(value) is str: value = mixt.string2bool(value)
