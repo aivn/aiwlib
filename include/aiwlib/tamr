@@ -25,15 +25,13 @@
 #include "aiwlib/binhead"
 
 /*  TODO:
-	1)  dump2balls
 	2)  вернуть параллельность в for_each (с возможностью отключения?)
 	3)  вернуть сообщения от создателя при создании узлов
-	5)  оптимизация границ через шаблонный полиморфизм и lambda auto
-	8)  for_each с удвоением шага по времени?
-	9)  всякая диагностика (как работы for_each так и числа узлов, тайлов и т.д.), в т.ч. оверхед по памяти?  size()? memory()?
+	8)  for_each с удвоением/учетверением шага по времени?
+	9)  диагностика работы for_each
 	10) бинарный формат хранения и визуализации в qplt 
 	11) не хватает тестов!!!
-	12) произвольный доступ для задания н.у.?
+	12) произвольный доступ --- насколько для ячеек имеет смысл поиска вниз по дереву? Можно ли это оптимизировать через std::map::lower_bound?
 	13) LRnLA обход?
 	14) битовые маски periodic и logscale, добавить шаг  и пределы сетки
 	15) в cellBased если соседней ячейки нет (разбита) нужно вернуть указатель на  группу соседних ячеек и как то проинформировать что это группа (через rank доступа)?
@@ -90,8 +88,9 @@ namespace aiw{
 
 		//------------------  диагностика  -------------------------------------
 		void tiles2dat(std::string fname) const;  ///< выводит для отладки все тайлы, по z ранг разбиения. Только для 2D сетки 
-		void items2dat(std::string fname) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки
-		// template <int V, typename Func> void dump2balls(Func func, std::ofstream &&fout) const; 
+		void items2dat(std::string fname) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки		
+		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
 
 		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
 		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
@@ -117,6 +116,7 @@ namespace aiw{
 		template <typename Func> void for_each(Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
 		//----------------------------------------------------------------------
 		class Item {  ///< интерфейс доступа к одному узлу или ячейке при обходе сетки, каждый поток работает с одним экземляром Item
+		protected:
 			friend class TiledAdaptiveMesh;
 			const TiledAdaptiveMesh *storage;     ///< указатель на саму сетку
 			tile_t *tile;                         ///< указатель на тайл к которому относится узел или ячейка
@@ -148,10 +148,11 @@ namespace aiw{
 				const auto &st = storage->stencils[stID];  int stencil_sz = st.size()>>R*D; 
 				snodes = st.data()+stencil_sz*off;
 			}			
-			int size() const { return stencil_sz; }   ///< число узлов в шаблоне
-			int srank;                                ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
-			const T* operator [] (int cID) noexcept;  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
-
+			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
+			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
+			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
+				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть
+			}
 			const T* get_up_item() const noexcept;    ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr)
 			const T* get_down_item() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
 			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
@@ -162,7 +163,21 @@ namespace aiw{
 			// сделать add_item по шаблону?
 		};	// end of Item struct			
 		//----------------------------------------------------------------------		
-	protected:  // детали реализации   
+	protected:  // детали реализации
+		struct BItem: public Item {
+		protected:
+			friend class TiledAdaptiveMesh;
+			using Item::storage;
+			using Item::tile;
+			using Item::cube;
+			using Item::toff_cube;
+			using Item::tpos;
+			using Item::snodes;
+			using Item::off;
+		public:
+			using Item::srank;
+			const T* operator [] (int cID) noexcept;  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
+		};
 		//-------  функции для работы с ключами и позициями тайлов  -----------
 		Ind<D> tbox, tmul;  int zbound, rank_lim;  uint64_t zmask;   ///< zbound = 64-log2(tbox.prod()),  rank_lim --- максимально возможный ранг разбиения сетки
 		//  key 59 bit offset,  5 bit rank, offset максимально прижат влево
@@ -219,7 +234,7 @@ namespace aiw{
 
 		bool fix_mode;  ///< задает стадию обхода для Item
 
-		void config_item(Item& item, tile_t* tile);
+		bool config_item(BItem& item, tile_t* tile);  ///< конфигурирует Item, возвращает принадлежность к границе разбиения
 		//----------------------------------------------------------------------		
 	};
 	//--------------------------------------------------------------------------
