@@ -384,11 +384,15 @@ namespace aiw{
 	template<typename ... Args> CU_HD UInd<sizeof...(Args)> uind(Args ... args){ return UInd<sizeof...(Args)>(args...); }
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> CU_HD Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
+	template<int D> using UIndl = Vec<D, uint64_t>;
+	template<typename ... Args> CU_HD UIndl<sizeof...(Args)> uind(Args ... args){ return UIndl<sizeof...(Args)>(args...); }
+	template<int D> using Indl = Vec<D, int64_t>;
+	template<typename ... Args> CU_HD Indl<sizeof...(Args)> indl(Args ... args){ return Indl<sizeof...(Args)>(args...); }
 
-	using Ind1 = Ind<1>;  using UInd1 = UInd<1>;
-	using Ind2 = Ind<2>;  using UInd2 = UInd<2>;
-	using Ind3 = Ind<3>;  using UInd3 = UInd<3>;
-	using Ind4 = Ind<4>;  using UInd4 = UInd<4>;
+	using Ind1 = Ind<1>;  using UInd1 = UInd<1>;  using Indl1 = Indl<1>;  using UIndl1 = UIndl<1>;
+	using Ind2 = Ind<2>;  using UInd2 = UInd<2>;  using Indl2 = Indl<2>;  using UIndl2 = UIndl<2>;
+	using Ind3 = Ind<3>;  using UInd3 = UInd<3>;  using Indl3 = Indl<3>;  using UIndl3 = UIndl<3>;
+	using Ind4 = Ind<4>;  using UInd4 = UInd<4>;  using Indl4 = Indl<4>;  using UIndl4 = UIndl<4>;
 	//--------------------------------------------------------------------------
 	template<int D> CU_HD Ind<D>& operator ++ (Ind<D> &I){ I[0]++; return I; }
 	template<int D> CU_HD bool operator ^= (Ind<D> &pos, const Ind<D> &Up){

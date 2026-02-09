@@ -8,9 +8,11 @@
  **/
 
 //------------------------------------------------------------------------------
+//  инициализация
+//------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based>
 void TiledAdaptiveMesh<T, D, R, cell_based>::init(const Ind<D> &tbox_){
-	static_assert(2<=D && D<=6 && 0<R && R*D<=22, "illegal TAMR parameters");
+	static_assert(2<=D && D<=6 && 0<R && R*D<=22, "illegal TAMR template parameters");
 	tbox = tbox_;  tmul[0] = 1; for(int i=1; i<D; i++) tmul[i] = tmul[i-1]*tbox[i-1];
 	zbound = 64; for(int sz=tbox.prod(); sz; sz>>=1) zbound--;  // log2(sz)
 	zmask = (uint64_t(1)<<zbound)-1;  rank_lim = (zbound-5)/D;
@@ -62,6 +64,8 @@ TiledAdaptiveMesh<T, D, R, cell_based>::add_stencil(const std::vector<Ind<D> > &
 	return stencils.size()-1;
 }
 //------------------------------------------------------------------------------
+//  диагностика
+//------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> void
 TiledAdaptiveMesh<T, D, R, cell_based>::tiles2dat(std::string fname) const {
 	if(D!=2) return;
@@ -85,6 +89,47 @@ TiledAdaptiveMesh<T, D, R, cell_based>::items2dat(std::string fname) const {
 		else for(int p: I->second.usage) fout<<pos+coords[p]*d<<' '<<rank<<'\n';
 	}
 }
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> Indl<2>
+TiledAdaptiveMesh<T, D, R, cell_based>::size(uint32_t rmask, uint64_t gmask) const {
+	Indl<2> res;
+	for(const tile_t *t: tiles) if((t->groups&gmask) && ((1<<t->rank())&rmask)){ res[0] += t->usage.size(); res[1]++; }
+	return res;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> Ind<2>
+TiledAdaptiveMesh<T, D, R, cell_based>::ranks_range() const {
+	Ind<2> res(rank_lim, 0);
+	for(int i=0; i<rank_lim; i++) if(rtiles[i].size()){
+			if(res[0]>i) res[0] = i;
+			if(res[1]<i) res[1] = i;
+		}
+	return res;
+}
+//------------------------------------------------------------------------------
+//  произвольный доступ
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> Ind<2>
+TiledAdaptiveMesh<T, D, R, cell_based>::get_addr(const Ind<D+1> &pos_rank) const {
+	Ind<D> tpos, p;  int r = pos_rank[D];
+	for(int i=0; i<D; i++){
+		p[i] = (pos_rank[i]<0? pos_rank[i]+(tbox[i]<<(R+r)): pos_rank[i])%(tbox[i]<<(R+r)); // ПГУ  
+		tpos[i] = p[i]>>R;  p[i] &= (1<<R)-1; 
+	}
+	uint64_t toff0 = tpos2toff(tpos, r), toff = toff0;  int off0 = ZCurve32<D>(p, R).off, off = off0;  
+	do {  // поиск вверх по дереву, оптимизировать через t->parent?
+		auto I = forest.find(toff);
+		if(I!=forest.end() && I->second.usage[off]) return ind(I->second.tID, off);
+	} while(dec_rank(off, toff));
+	off = off0; toff = toff0;
+	while(inc_rank(off0, toff0)){  // поиск вниз по дереву, м.б. лучше  сделать через std::map::lower_bound? Вынести в отд. функцию? насколько для ячейки такой поиcк имеет смысл?
+		auto I = forest.find(toff);
+		if(I!=forest.end() && I->second.usage[off]) return ind(I->second.tID, off);		
+	}
+	return ind(-1, -1);;
+}
+//------------------------------------------------------------------------------
+//  обход и перестроение сетки
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> const T*
 TiledAdaptiveMesh<T, D, R, cell_based>::Item::operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr

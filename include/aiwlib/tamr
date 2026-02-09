@@ -25,13 +25,12 @@
 #include "aiwlib/binhead"
 
 /*  TODO:
-	1) dump2balls
-	2) вернуть параллельность в for_each (с возможностью отключения?)
-	3) вернуть сообщения от создателя при создании узлов
-	4) NodeBased/CellBased реализации
-	5) оптимизация границ через шаблонный полиморфизм и lambda auto
-	8) for_each с удвоением шага по времени?
-	9) всякая диагностика (как работы for_each так и числа узлов, тайлов и т.д.), в т.ч. оверхед по памяти?  size()? memory()?
+	1)  dump2balls
+	2)  вернуть параллельность в for_each (с возможностью отключения?)
+	3)  вернуть сообщения от создателя при создании узлов
+	5)  оптимизация границ через шаблонный полиморфизм и lambda auto
+	8)  for_each с удвоением шага по времени?
+	9)  всякая диагностика (как работы for_each так и числа узлов, тайлов и т.д.), в т.ч. оверхед по памяти?  size()? memory()?
 	10) бинарный формат хранения и визуализации в qplt 
 	11) не хватает тестов!!!
 	12) произвольный доступ для задания н.у.?
@@ -40,7 +39,7 @@
 	15) в cellBased если соседней ячейки нет (разбита) нужно вернуть указатель на  группу соседних ячеек и как то проинформировать что это группа (через rank доступа)?
 	    при этом нужен контроль за разбиениями (избегать резких скачков S)
 	16) сделать Item::add_item по шаблону?
-	17) ограничение на градиент ранга разбиения? 
+	17) ограничение на градиент ранга разбиения? Ограничение на дырки по рангам разбиения? 
 	18) запоминать в отдельной таблице смещения stencil-а
 	19) отдельный метод проверки границы сетки?
 	20) сетка со сложной границей?
@@ -70,10 +69,10 @@ namespace aiw{
 	template <> struct calc_3pow<1> { static const int x = 3; };
 	//--------------------------------------------------------------------------
 	template <typename T, int D, int R, bool cell_based=true> class TiledAdaptiveMesh{
-		struct stencil_node_t { uint32_t off: 22; uint32_t tID: 10; };  // tID задает тайл в кубе из тайлов 3х3х3..., off смещение в тайле, D<=6
+		struct stencil_node_t { uint32_t off: 22; uint32_t tID: 10; };  // tID задает тайл в кубе из соседей 3х3х3..., off смещение в тайле, D<=6, R*D<=22
 		struct tile_t{
-			const tile_t *parent = nullptr;  ///< вышележащий (по дереву) тайл, можно с разрывом ранга
 			T data[1<<R*D];	                 ///< хранилище данных в тайле
+			const tile_t *parent = nullptr;  ///< вышележащий (по дереву) тайл, можно с разрывом ранга
 			uint64_t toff;                   ///< ключ тайла в таблице forest, 5 --- ранг,
 			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем
 			BitMask<1<<R*D> usage;           ///< битовая маска показывающая использывание узлов
@@ -83,14 +82,31 @@ namespace aiw{
 		};
 		//----------------------------------------------------------------------
 	public:  // user interface
+		//------------------  инициализация  -----------------------------------
 		void init(const Ind<D> &tbox_);  ///< инициализирует сетку нулевого ранга разбиения, tbox --- размер в ТАЙЛАХ
 		TiledAdaptiveMesh(const Ind<D> &tbox_){ init(tbox_); }
 
 		int add_stencil(const std::vector<Ind<D> > &stencil);  ///< добавляет шаблон в таблицу, возвращает stencilID>=0
 
+		//------------------  диагностика  -------------------------------------
 		void tiles2dat(std::string fname) const;  ///< выводит для отладки все тайлы, по z ранг разбиения. Только для 2D сетки 
 		void items2dat(std::string fname) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки
+		// template <int V, typename Func> void dump2balls(Func func, std::ofstream &&fout) const; 
 
+		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
+		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
+		Ind<2>  ranks_range() const;                                         ///< минимальный и максимальный ранги разбиения сетки
+		
+		//---  произвольный доступ, всегда очень медленный и неэффективный  ----
+		Ind<2> get_addr(const Ind<D+1> &pos_rank) const;  ///< возвращает пару tileID, offset_in_tile, при промахе оба значения =-1, после перестроения сетки теряют смысл 
+		int rank(int tileID) const { return tiles[tileID]->rank(); }
+		uint64_t groups(int tileID) const { return tiles[tileID]->groups; }
+		
+		T dummy;  ///< элемент на который возвращается ссылка если произошел промах при произвольном доступе
+		const T& operator [] (const Ind<D+1> &pos_rank) const { Ind<2> addr = get_addr(pos_rank); return addr[0]>=0? tiles[addr[0]]->data[addr[1]]: dummy; }
+		T&       operator [] (const Ind<D+1> &pos_rank)       { Ind<2> addr = get_addr(pos_rank); return addr[0]>=0? tiles[addr[0]]->data[addr[1]]: dummy; }
+
+		//-- обход сетки, любые сложные вычисления должны делаться только так -- 
 		/**
 		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к узлам сетки. Обход проводится в две стадии:
 		 * 1) перестроение сетки --- обходятся узлы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
@@ -161,6 +177,11 @@ namespace aiw{
 		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&((1<<D)-1); }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
 		int up_off(int off, uint64_t toff) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
 
+		bool dec_rank(int &off, uint64_t &toff) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
+			if((toff&31)==0 || (!cell_based && (off&((1<<D)-1)))) return false;
+			off = up_off(off, toff);  toff = up_toff(toff);
+			return true;
+		}
 		bool inc_rank(int &off, uint64_t &toff) const {  ///< увеличивает (по возможности) ранг тайла и согласованно изменяет off и toff
 			if((toff&31)>=rank_lim) return false;
 			toff++;  toff |= uint64_t(off>>(R-1)*D)<<(zbound-(toff&31)*D);  off = (off<<D)&((1<<(R*D))-1);
