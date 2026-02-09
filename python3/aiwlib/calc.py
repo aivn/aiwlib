@@ -343,7 +343,7 @@ class _Wrap:
 #-------------------------------------------------------------------------------
 class _WrapAttr:
     _progress_errors = []
-    def __init__(self, method, name, wrap): self._method, self._name, self._wrap = method, name, wrap
+    def __init__(self, _core, name, wrap): self._core, self._name, self._wrap = _core, name, wrap
     def __getattr__(self, attr):
         res = getattr(self._core, attr)
         if _Wrap._all_wrap and (callable(res) or hasattr(res, 'this')): return _WrapAttr(res, self._name+'.'+attr, self._wrap)
