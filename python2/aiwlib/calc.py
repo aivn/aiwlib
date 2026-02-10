@@ -19,7 +19,7 @@ _args_from_racs = [] # значения параметров полученны�
 _arg_seqs, _arg_order, _queue =  {}, [], None # словарь с параметрами для пакетного запуска, последовательность имен параметров, очередь заданий
 _help_mode = False
 _queue_main_par = set()  # набор основных параметров для отображения в очереди (вызов racs -q)
-_restore_calc = False  # флаг указывающий на то, что расчет был восстановлен из файла .RACS?
+_restore_calc, _restore_runtime = False, 0  # флаг указывающий на то, что расчет был восстановлен из файла .RACS и полученное из .RACS время счета
 #-------------------------------------------------------------------------------
 def _init_hook(self): pass
 def _make_path_hook(self): 
@@ -130,7 +130,7 @@ class Calc:
             if self.path[-1]!='/': self.path += '/'
             if os.path.exists(self.path+'.RACS'):
                 self.__dict__.update(cPickle.load(open(self.path+'.RACS')))
-                global _restore_calc; _restore_calc = True
+                global _restore_calc, _restore_runtime; _restore_calc, _restore_runtime = True, self.__dict__.get('runtime', 0)
         for k, v in _args_from_racs: # накат сторонних параметров            
             if k in self.__dict__: v = mixt.string2bool(v) if type(self.__dict__[k]) is bool else self.__dict__[k].__class__(v)
             self.__dict__[k] = v
@@ -190,7 +190,7 @@ class Calc:
     def set_progress(self, progress, prompt='',  runtime=-1):
         'Устанавливает progress и runtime, выводит по возможности progressbar'
         if not hasattr(self, 'statelist'): self.statelist = []
-        runtime = (chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime)
+        runtime = _restore_runtime + ((chrono.Date()-self.statelist[-1][3] if self.statelist else 0.) if runtime<0 else chrono.Time(runtime))
         self.__dict__['progress'], self.__dict__['runtime'] = progress, runtime
         if  time.time()-self._set_progress_time>.2:
             self._set_progress_time = time.time()
