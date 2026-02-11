@@ -42,6 +42,12 @@ _ignore_list = set('path statelist args md5sum _wrap _comments _profiler _startt
 class SelCalc(calc.Calc):
     def __init__(self, path, D): self.__dict__.update(D); self.__dict__['path'] = path
     def keys_set(self): return set(k for k in self.__dict__ if k[0]!='_' and not k in _ignore_list)
+    def __getitem__(self, key):
+        if key in self.__dict__:
+            val = self.__dict__[key]
+            if type(val) is float: a, b = math.frexp(val); return math.ldexp(round(a*1e6)/1e6, b)
+            return val
+        return calc.Calc.__getitem__(self, key)
 #-------------------------------------------------------------------------------
 class Select:
     'Построение выборки по базе RACS'
