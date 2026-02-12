@@ -135,7 +135,9 @@ class Select:
             U = dict(self._L[0][0].__dict__) if self._L else {} # определение совпадающих параметров в выборке
             for l in filter(None, self._L[1:]):
                 for k, v in U.items():
-                    if not k in l[0].__dict__ or l[0][k]!=v: del U[k]
+                    try:
+                        if not k in l[0].__dict__ or l[0][k]!=v: del U[k]
+                    except: del U[k]
                 if not U: break
             if ev_ring: U.update(zip(ring_keys, rk))
             self.upar = SelCalc(None, U) # поддержка в delslice и т.д.?
