@@ -159,7 +159,8 @@ namespace aiw{
 			
 			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
 			void remove(){ if(!storage->fix_mode){ del_tiles[tile->toff].insert(off); } }     ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
-			void add_item(const Ind<D> &dpos, int drank); ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
+			void add_item(const Ind<D> &dpos, int drank);        ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
+			bool new_item() const { return storage->fix_mode; }  ///< отмечает второй проход (это новый узел)
 			// сделать add_item по шаблону?
 		};	// end of Item struct			
 		//----------------------------------------------------------------------		
