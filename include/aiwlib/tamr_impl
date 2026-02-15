@@ -250,9 +250,10 @@ TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint
 	for(auto I: item.add_tiles){
 		tile_t* tile = &add_tile(toff2tpos(I.first), I.first&31);  config_item(item, tile);
 		for(int f: I.second){
-			item.off = f; item.groups = 0; func(tile->data[f], item);
+			item.off = f; item.groups = 0; func(tile->data[f], item); 
 			if(item.groups){ tile->usage.set(f);  tile->groups |= item.groups; }
 		}
+		if(!tile->usage.any()) del_tile(tile->tID);
 	}
 	for(auto I: item.del_tiles){
 		auto J = forest.find(I.first);  if(J==forest.end()) continue;
