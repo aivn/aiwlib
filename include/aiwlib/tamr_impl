@@ -71,7 +71,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::tiles2dat(std::string fname) const {
 	if(D!=2) return;
 	std::ofstream fout(fname);
 	for(auto I=forest.begin(); I!=forest.end(); ++I){
-		int rank = I->second.rank();  float d = 1.f/(1<<rank); Vecf<D> pos = toff2tpos(I->first)*d;
+		int rank = I->second.rank();  float d = float(1<<R)/(1<<rank);  Vecf<D> pos = toff2tpos(I->first)*d;
 		fout<<pos             <<' '<<rank<<'\n'
 			<<pos+vecf(0.f, d)<<' '<<rank<<'\n'
 			<<pos+vecf(d, d)  <<' '<<rank<<'\n'
@@ -233,20 +233,9 @@ TiledAdaptiveMesh<T, D, R, cell_based>::config_item(typename TiledAdaptiveMesh<T
 	return !easy;
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R, bool cell_based> template <typename Func> void
-TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint64_t groups){
-	fix_mode = false;
-	BItem item; item.storage = this;
-	// for(int tID=0, tsz=tiles.size(); tID<tsz; tID++){
-	for(auto &I: forest){
-		tile_t *tile = &I.second; if(!((1<<tile->rank())&rmask) || !(tile->groups&groups)) continue;
-		bool is_bound = config_item(item, tile);  uint64_t new_groups = 0;
-		if(is_bound) for(int f: tile->usage){ item.off = f; item.groups = tile->groups; func(tile->data[f], item); new_groups |= item.groups;  }
-		else for(int f=0; f<(1<<R*D); f++){ item.off = f; item.groups = tile->groups; func(tile->data[f], (Item&)item); new_groups |= item.groups;  }
-		tile->groups = new_groups;
-		// if(!tile->groups) item.del_tiles[tile->toff];
-	}
-	fix_mode = true;
+template <typename T, int D, int R, bool cell_based> template <typename Func>
+void TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiveMesh<T, D, R, cell_based>::BItem& item){  ///< завершает перестроение сетки
+	fix_mode = true;  
 	for(auto I: item.add_tiles){
 		tile_t* tile = &add_tile(toff2tpos(I.first), I.first&31);  config_item(item, tile);
 		for(int f: I.second){
@@ -260,6 +249,49 @@ TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint
 		for(int f: I.second) J->second.usage.set(f, false);
 		if(!J->second.groups || !J->second.usage) del_tile(J->second.tID); 
 	}
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> template <typename Func> void
+TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint64_t groups){
+	BItem item; item.storage = this;
+	fix_mode = false;
+	// for(int tID=0, tsz=tiles.size(); tID<tsz; tID++){
+	for(auto &I: forest){
+		tile_t *tile = &I.second; if(!((1<<tile->rank())&rmask) || !(tile->groups&groups)) continue;
+		bool is_bound = config_item(item, tile);  uint64_t new_groups = 0;
+		if(is_bound) for(int f: tile->usage){ item.off = f; item.groups = tile->groups; func(tile->data[f], item); new_groups |= item.groups;  }
+		else for(int f=0; f<(1<<R*D); f++){ item.off = f; item.groups = tile->groups; func(tile->data[f], (Item&)item); new_groups |= item.groups;  }
+		tile->groups = new_groups;
+		// if(!tile->groups) item.del_tiles[tile->toff];
+	}
+	rebuild(func, item);
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> template <typename Func>
+void TiledAdaptiveMesh<T, D, R, cell_based>::for_zorder(const Ind<D> &tpos0, Func func, uint32_t rmask, uint64_t groups){
+	uint64_t toff0 = tpos2toff(tpos0, 0); 
+	std::vector<tile_t*> ttbl;  size_t isz = 0; int r_max = 0;
+	for(typename std::map<uint64_t, tile_t>::iterator I=forest.lower_bound(toff0),
+			Imax=forest.find(toff0+(uint64_t(1)<<zbound)); I!=forest.end() && I!=Imax; ++I){
+		if(((1<<I->second.rank())&rmask) && (I->second.groups&groups)){  // собираем информацию о тайлах
+			isz += I->second.usage.size(); r_max = std::max(r_max, I->second.rank());
+			ttbl.push_back(&(I->second));
+		}
+	}
+	std::vector<item_addr_t> items;  items.reserve(isz);
+	for(int tID=0, sz=ttbl.size(); tID<sz; tID++){
+		tile_t *t = ttbl[tID];  int r = t->rank(), s = D*(r_max-r);
+		uint64_t tf = (t->toff&(((uint64_t(1)<<(zbound-5))-1)<<5)) >> (zbound-(r_max+R)*D);		
+		for(int f: t->usage) items.emplace_back(tf|(uint64_t(f)<<s), tID, f);
+	}
+	std::sort(items.begin(), items.end());	
+	BItem item; item.storage = this;  
+	fix_mode = false;
+	for(item_addr_t& I: items){
+		if(item.tile!=ttbl[I.tID]) config_item(item, ttbl[I.tID]);
+		item.off = I.off;  func(item.tile->data[item.off], item);
+	}
+	rebuild(func, item);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> uint64_t
