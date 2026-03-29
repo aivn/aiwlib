@@ -90,6 +90,10 @@ class _Region:
     def __radd__(self, other): return _Region(other+self.a, other+self.b)
     def __eq__(self, other): return self.a<=other and other<=self.b
 use('EPS', _Region(0,0), 'объект интевала')
+
+class _Trim:
+    def __getitem__(self, x):  a, b = math.frexp(x); return math.ldexp(round(a*1e6)/1e6, b)
+use('trim', _Trim(), 'округляет float32')
 #-------------------------------------------------------------------------------
 for k, v in math.__dict__.items() : 
     if k[0]!='_': use(k, v,  'число %k'%k if type(k) is float else v.__doc__.replace('\n',' '))

@@ -81,6 +81,8 @@ namespace aiw{
 		//----------------------------------------------------------------------
 	public:  // user interface
 		//------------------  инициализация  -----------------------------------
+		TiledAdaptiveMesh() = default;
+		
 		void init(const Ind<D> &tbox_);  ///< инициализирует сетку нулевого ранга разбиения, tbox --- размер в ТАЙЛАХ
 		TiledAdaptiveMesh(const Ind<D> &tbox_){ init(tbox_); }
 
@@ -259,4 +261,4 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 #include "tamr_impl"
 }
-#endif AIW_TILED_AMR_HPP
+#endif //AIW_TILED_AMR_HPP

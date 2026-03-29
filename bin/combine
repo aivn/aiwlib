@@ -14,6 +14,8 @@ file.dat должен иметь заголовок с описнаием сто
 только один совпадающий столбец по всем файла быть должен
 
 можно считать интеграл от столбца (по первому столбцу), надо начинать ВЫРАЖЕНИЕ с 'int:'
+можно считать сумму от столбца, надо начинать ВЫРАЖЕНИЕ с 'sum:'
+
 
 Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com> 
 Licensed under the Apache License, Version 2.0
@@ -29,30 +31,36 @@ if '-rx' in sys.argv: irx = sys.argv.index('-rx'); x_min_max = sys.argv[irx+1]; 
 #  чтение данных
 #-------------------------------------------------------------------------------
 #  заголовок по умолчанию добавлять
-sources, columns, Itable = [], [], []
+sources, columns, Itable, Stable = [], [], [], []
 for arg in sys.argv[1:]:
     if not os.path.exists(arg) and arg!='-':
         columns.append(arg.split('=', 1) if '=' in arg else [arg, arg])  # pre-compile?
         if columns[-1][1].startswith('int:'):
             if len(columns)==1: print('ERROR: can`t integate of first column in "%s"'%arg, file=sys.stderr); exit(1)
             Itable.append(len(columns)-1); columns[-1][1] = columns[-1][1][4:]
+        if columns[-1][1].startswith('sum:'):
+            Stable.append(len(columns)-1); columns[-1][1] = columns[-1][1][4:]
     else:  # реальное чтение данных
         fin = sys.stdin if arg=='-' else open(arg)
-        data, scope = [], {}
+        data, scope = [], dict(math.__dict__)
         for line in fin:
             if line.startswith('#:'):
                 if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope); print(line[:-1], '# <<<', arg)
                 else: head = line[2:].split()
                 continue
             if line[0]=='#': print('#', arg, ':', line[1:-1]); continue
-            line = [float(x) for x in line.replace('None', 'nan').split()]
+            line = [float(x) for x in line.split('#')[0].replace('None', 'nan').split()]
             if not line: continue
             if not columns:
                 columns, Itable = zip(head, head), [0]*len(head)
                 data = [line]+[[float(x) for x in l.split()] for l in fin if l[0]!='#' and l.strip()]
                 break
             D = dict(zip(head, line))
-            data.append([eval(e[1], scope, D) for e in columns])
+            # data.append([eval(e[1], scope, D) for e in columns])
+            data.append([])
+            for e in columns:
+                try: data[-1].append(eval(e[1], scope, D))
+                except ArithmeticError: data[-1].append(float('nan'))  #<<< тут нужно выкидывать сообщение об ошибке!
         if not data: print('ERROR: empty file "%s"'%arg, file=sys.stderr); exit(1)
         if not all(len(l)==len(data[0]) for l in data): print('ERROR: different size of lines in "%s"'%arg, file=sys.stderr); exit(1)
         if Itable:  # интегрирование
@@ -61,6 +69,9 @@ for arg in sys.argv[1:]:
              for I in range(1, len(data)):
                  dx = data[I][0]-data[I-1][0]
                  for i in Itable: v = data[I][i]; data[I][i] = data[I-1][i]+(Ibuf[i]+v)*dx/2; Ibuf[i] = v
+        if Stable:  # суммирование
+             for I in range(1, len(data)):
+                 for i in Stable: data[I][i] += data[I-1][i]
         sources.append([arg, [i[0] for i in columns], data]);  columns, Itable, head = [], [], []
 print('#>>>', ' '.join(map(repr, sys_argv)))
 #-------------------------------------------------------------------------------
