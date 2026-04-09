@@ -95,8 +95,10 @@ namespace aiw{
 		static constexpr T zmasks[12] = { T(0x5555555555555555), T(0x9249249249249249), T(0x1111111111111111), T(0x1084210842108421),   // массив для
 										  T(0x1041041041041041), T(0x8102040810204081), T(0x0101010101010101), T(0x8040201008040201),   // всех возможных D
 										  T(0x1004010040100401), T(0x0080100200400801), T(0x1001001001001001), T(0x0010008004002001) };
-		static constexpr T omasks[12] = { zmasks[D-2],       T(zmasks[D-2]<<1), T(zmasks[D-2]<<2), T(zmasks[D-2]<<3), T(zmasks[D-2]<<4),  T(zmasks[D-2]<<5),  // по осям
-										  T(zmasks[D-2]<<6), T(zmasks[D-2]<<7), T(zmasks[D-2]<<8), T(zmasks[D-2]<<9), T(zmasks[D-2]<<10), T(zmasks[D-2]<<11) }; 
+		static constexpr T omasks[12] = { zmasks[D-2],  T(uint64_t(zmasks[D-2])<<1), T(uint64_t(zmasks[D-2])<<2), T(uint64_t(zmasks[D-2])<<3),
+										  T(uint64_t(zmasks[D-2])<<4), T(uint64_t(zmasks[D-2])<<5), T(uint64_t(zmasks[D-2])<<6),  // по осям
+										  T(uint64_t(zmasks[D-2])<<7), T(uint64_t(zmasks[D-2])<<8), T(uint64_t(zmasks[D-2])<<9),
+										  T(uint64_t(zmasks[D-2])<<10), T(uint64_t(zmasks[D-2])<<11) }; 
 		static constexpr T imasks[12] = { T(~omasks[0]), T(~omasks[1]), T(~omasks[2]), T(~omasks[3]), T(~omasks[4]),  T(~omasks[5]),
 										  T(~omasks[6]), T(~omasks[7]), T(~omasks[8]), T(~omasks[9]), T(~omasks[10]), T(~omasks[11]) }; 
 		static T lshift(T f, int axe){ return (f&omasks[axe])-1; }  // позиция соседа слева по оси axe, биты смещения по остальным осям ломаются
