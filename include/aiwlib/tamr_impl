@@ -20,6 +20,7 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::init(const Ind<D> &tbox_){
 	forest.clear();  stencils.clear();  tiles.clear();  rtiles.clear(); rtiles.resize(rank_lim+1);
 	for(Ind<D> tpos: irange<D>(tbox)){ add_tile(tpos, 0).usage.fill(1); }
 	for(ZCurve64<D> z(0, R); z; z.off++) coords[z.off] = *z;  // заполнение таблицы координат
+	int n=0; for(Ind<D> p: irange<D>(-1, 2)){ int m = 0;  for(int i=0; i<D; i++){ m |= ((p[i]<0)<<(2*i))|((p[i]>1)<<(2*i+1)); }  bmask[n++] = m; } 
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t&
@@ -32,6 +33,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::add_tile(const Ind<D> &tpos, const int r
 		toff = up_toff(toff); I = forest.find(toff);
 		if(I!=forest.end()){ tile.parent = &(I->second); break; }
 	}
+	for(int i=0; i<D; i++){ int sz = tbox[i]<<rank, p = (tpos[i]+sz)%sz;  tile.bmask |= ((p==0)<<(2*i))|((p==sz-1)<<(2*i+1)); }
 	return tile;
 }
 //------------------------------------------------------------------------------
@@ -47,7 +49,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::del_tile(int tID){
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> int
 TiledAdaptiveMesh<T, D, R, cell_based>::add_stencil(const std::vector<Ind<D> > &stencil){  ///< добавляет шаблон в таблицу stencil-ов, возвращает stencilID>0
-	stencil_pos.push_back(stencil);  stencils.emplace_back();  std::vector<stencil_node_t>& nodes = stencils.back();  nodes.reserve(stencil.size()<<R*D);
+	stencils.emplace_back();  std::vector<stencil_node_t>& nodes = stencils.back();  nodes.reserve(stencil.size()<<R*D);
 	for(const Ind<D>& pos: stencil) if(!(-ind(1<<R)<=pos) || !(pos<=ind(1<<R))){ WMSG("incorrect stencil pos ", pos, 1<<R); abort(); }
 	for(int itID=0; itID<(1<<R*D); itID++) for(int nID=0, sz=stencil.size(); nID<sz; nID++){						
 			Ind<D> pos = coords[itID]+stencil[nID]; stencil_node_t n; n.tID = 0;  int tmul = 1;
@@ -111,7 +113,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::ranks_range() const {
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> template <int V, typename Func, typename Fout> void
-TiledAdaptiveMesh<T, D, R, cell_based>::dump2balls(Func func, Fout &&fout, std::string head) const {  ///< func(const T&, int rank, const Ind<D> &pos) ==> Vecf<V>
+TiledAdaptiveMesh<T, D, R, cell_based>::dump2balls(Func func, Fout &&fout, std::string head) const {  // func(const T&) ==> Vecf<V>
 	// как то по уровням выводить при многослойном покрытии?
 	// double t_start = omp_get_wtime();
 	Vecf<D> bmin, bmax(tbox*(1<<R));
@@ -131,6 +133,23 @@ TiledAdaptiveMesh<T, D, R, cell_based>::dump2balls(Func func, Fout &&fout, std::
 		}
 	}
 	// return omp_get_wtime()-t_start;	
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based>  template <int V, typename Func, typename Fout> void
+TiledAdaptiveMesh<T, D, R, cell_based>::dump2msh(Func func, Fout &&fout, std::string head) const {  // func(const T&) ==> Vecf<V>
+	int max_rank = ranks_range()[1];  Ind<D> bb = tbox*(1<<(R+max_rank));
+	Vec<D, uint64_t> mul; mul[0] = 1; for(int i=1; i<D; i++) mul[i] = mul[i-1]*bb[i-1];
+	std::vector<Vecf<V+1> > data(prod(bb));
+	for(const tile_t* t: tiles){
+		int r = t->rank(), sc = 1<<(max_rank-r); Ind<D> tpos = toff2tpos(t->toff)*(sc<<R);
+		for(int f: t->usage){
+			Vecf<V> v = func(t->data[f]); Ind<D> a = tpos+coords[f]*sc, b = a+ind(sc);
+			for(Ind<D> p: irange(a, b)){ uint64_t off = mul*p;  if(data[off][0]<=r) data[off] = float(r)|v; }
+		}
+	}
+	BinaryHead bh;  bh.dim = D; bh.szT = (V+1)*4; bh.head = head;  bh.type = BinaryHead::mesh;
+	for(int i=0; i<D; i++){ bh.bbox[i] = bb[i]; bh.bmin[i] = bmin[i];  bh.bmax[i] = bmin[i]+bb[i]*step[i]/(1<<max_rank);  }
+	bh.dump(fout);  fout.write((const char*)data.data(), data.size()*bh.szT);
 }
 //------------------------------------------------------------------------------
 //  произвольный доступ
@@ -157,11 +176,9 @@ TiledAdaptiveMesh<T, D, R, cell_based>::get_addr(const Ind<D+1> &pos_rank) const
 //------------------------------------------------------------------------------
 //  обход и перестроение сетки
 //------------------------------------------------------------------------------
-// тут надо избавиться от storage->stencil_pos и перейти на sn.tID и маски - у каждого тайла bmask (2 бита на ось) и куб 3x3x... из bmask в storage
 template <typename T, int D, int R, bool cell_based> uint64_t
 TiledAdaptiveMesh<T, D, R, cell_based>::Item::out_border_mask() const {  // выход шаблона за границу сетки
-	uint64_t m = 0;  Ind<D> p0 = pos(), bbox = storage->tbox*(1<<(R+rank()));  const std::vector<Ind<D> > st = storage->stencil_pos[current_stID];
-	for(int cID=0; cID<stencil_sz; cID++){	Ind<D> p = p0+st[cID];	for(int i=0; i<D; i++) m |= uint64_t(p[i]<0 || p[i]>=bbox[i])<<i;  }
+	uint64_t m = 0;  for(int cID=0; cID<stencil_sz; cID++) m |= bool(storage->bmask[snodes[cID].tID]|tile->bmask)<<cID;  
 	return m;
 }
 //------------------------------------------------------------------------------
@@ -335,9 +352,10 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAd
 	}
 	for(auto I: item.del_tiles){  // удаление ячеек
 		auto J = forest.find(I.first);  if(J==forest.end()) continue;
-		auto A = item.add_tiles.find(I.first);
-		if(A==item.add_tiles.end()) for(int f: I.second) J->second.usage.set(f, false);
-		else for(int f: I.second) if(A->second.find(f)==A->second.end()) J->second.usage.set(f, false);  // если этот узел был кем то создан, он уже не может быть удален
+		//auto A = item.add_tiles.find(I.first);
+		//if(A==item.add_tiles.end())
+		for(int f: I.second) J->second.usage.set(f, false);
+		//else for(int f: I.second) if(A->second.find(f)==A->second.end()) J->second.usage.set(f, false);  // если этот узел был кем то создан, он уже не может быть удален
 		if(!J->second.groups || !J->second.usage) del_tile(J->second.tID); 
 	}
 }

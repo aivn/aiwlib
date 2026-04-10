@@ -38,6 +38,7 @@ namespace aiw{
 			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем
 			BitMask<1<<R*D> usage;           ///< битовая маска показывающая использывание узлов
 			int tID = -1, rtID = -1;         ///< позиции тайла в таблицах указателей tiles и rtiles[rank()]
+			uint32_t bmask = 0;              ///< маска описывающая положение тайла относительно границ сетки, по 2 бита на ось
 			
 			int rank() const { return toff&31; }
 		};
@@ -59,6 +60,8 @@ namespace aiw{
 		template <typename Func> void items2dat(std::string fname, std::string head, Func func) const;  ///< дополнительно выводит результаты работы func(const T&)
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
+		template <int V, typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <int V, typename Func, typename Fout> void dump2msh(Func func, Fout &fout, std::string head="") const { dump2msh<V>(func, std::move(fout), head); }
 
 		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
 		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
@@ -226,7 +229,6 @@ namespace aiw{
 		void del_tile(int tID);
 		
 		Ind<D> coords[1<<R*D];              ///< позиции по Z-кривой в тайле
-		std::vector<std::vector<Ind<D> > > stencil_pos;       // исходный вид шаблона
 		std::vector<std::vector<stencil_node_t> > stencils;   // для каждого шаблона хранится stencil_sz вариантов по 1<<R*D элементов
 
 		bool fix_mode;  ///< задает стадию обхода для Item
@@ -239,6 +241,8 @@ namespace aiw{
 			item_addr_t(uint64_t zoff_, int32_t tID_, int32_t off_): zoff(zoff_), tID(tID_), off(off_){}
 			bool operator < (const item_addr_t& other) const { return zoff<other.zoff; }
 		};
+		//----------------------------------------------------------------------		
+		uint32_t bmask[calc_3pow<D>::x];  // куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
 		//----------------------------------------------------------------------		
 	};
 	//--------------------------------------------------------------------------
