@@ -107,8 +107,9 @@ namespace aiw{
 			Ind<D> tpos;                          ///< позиция тайла на сетке соотв. ранга
 			int off;                              ///< смещение узла в тайле
 
-			std::unordered_map<uint64_t, std::map<int, T*> > add_tiles;  ///< создаваемые узлы по тайлам, накапливаются при проходе, T* это creator
-			std::unordered_map<uint64_t, std::set<int> > del_tiles;      ///< позиции удаляемых узлов по тайлам, накапливаются при проходе
+			std::unordered_map<uint64_t, std::map<int, T*> > add_tiles;    ///< создаваемые узлы по тайлам, накапливаются при проходе, T* это creator
+			std::unordered_map<uint64_t, std::set<int> > del_tiles;        ///< позиции удаляемых узлов по тайлам, накапливаются при проходе
+			std::unordered_map<uint64_t, std::map<int, int> > join_nodes;  ///< счетчики для кубов ближайших соседей при выозве join() в node_based сетках
 			// std::unordered_map<uint64_t, std::set<int> > join_cells, split_cells;  ///< объединяемые (первая в блоке) и разбиваемые ячейки по тайлам, накапливаются при проходе
 			T *creator = nullptr;       ///< указатель на ячейку/узел, инициировавший создание данной ячейки/узла
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
@@ -138,10 +139,10 @@ namespace aiw{
 			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
 			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
 			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
-				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, нештатную реализацию см. BItem[]
+				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
 			}
-			const T* get_up_item() const noexcept;    ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr)
-			const T* get_down_item() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
+			const T* get_parent() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
+			const T* get_child()  const noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr)
 			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
 			
 			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
@@ -150,8 +151,8 @@ namespace aiw{
 			bool new_item() const { return storage->fix_mode; }  ///< отмечает второй проход (это новый узел)
 			// сделать add_item по шаблону?
 
-			bool split();  ///< разбивает ячейку для cell_based сеток
-			bool join();   ///< объединяет ячейку для cell_based сеток, все под-ячейки должны иметь ранг на единицу больший? должна вызываться для каждой из под-ячеек?
+			bool split(bool rm_parent=true);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
+			bool join();  ///< объединяет 2^D ячеек или 3^D узлов, все объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
 			const T* get_creator() const noexcept { return creator; }  ///< возвращает указатель на узел/ячейку, инициировавшую создание данного узла/ячейки
 			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей 
 		};	// end of Item struct			
