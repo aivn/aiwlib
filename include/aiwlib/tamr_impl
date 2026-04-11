@@ -261,7 +261,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::add_item(const Ind<D> &dpos, int d
 		tp[i] = p[i]>>R;
 	}
 	// add_tiles[storage->tpos2toff(tp, r)].insert(ZCurve32<D>(p, R).off);
-	add_tiles[storage->tpos2toff(tp, r)][ZCurve32<D>(p, R).off] = tile.data + off;
+	add_tiles[storage->tpos2toff(tp, r)][ZCurve32<D>(p, R).off] = tile->data + off;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> bool
