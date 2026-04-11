@@ -360,7 +360,7 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAd
 	}
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R, bool cell_based> void TiledAdaptiveMesh<T, D, R, cell_based>::Item::prepare(int f){
+template <typename T, int D, int R, bool cell_based> void TiledAdaptiveMesh<T, D, R, cell_based>::Item::prepare(int f) noexcept {
 	off = f;  groups = tile->groups;
 	if(cell_based && (off&((1<<D)-1))==0) join_cell_counter = 0;
 }
