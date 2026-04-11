@@ -2,7 +2,8 @@
 '''Copyright (C) 2002-2017, 2023-24 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
 
-import os, sys, time, pickle, socket, shutil, json 
+import os, sys, time, pickle, socket, shutil, json
+from functools  import reduce
 import aiwlib.mixt as mixt 
 import aiwlib.chrono as chrono
 try: from aiwlib.mpi4py import *
