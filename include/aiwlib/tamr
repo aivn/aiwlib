@@ -56,8 +56,8 @@ namespace aiw{
 
 		//------------------  диагностика  -------------------------------------
 		void tiles2dat(std::string fname) const;  ///< выводит для отладки все тайлы, по z ранг разбиения. Только для 2D сетки 
-		void items2dat(std::string fname, std::string head="") const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки		
-		template <typename Func> void items2dat(std::string fname, std::string head, Func func) const;  ///< дополнительно выводит результаты работы func(const T&)
+		void items2dat(std::string fname, std::string head="", int rmask=~0) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки		
+		template <typename Func> void items2dat(std::string fname, std::string head, Func func, int rmask=~0) const;  ///< дополнительно выводит результаты работы func(const T&)
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
 		template <int V, typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
@@ -68,13 +68,22 @@ namespace aiw{
 		Ind<2>  ranks_range() const;                                         ///< минимальный и максимальный ранги разбиения сетки
 		
 		//---  произвольный доступ, всегда очень медленный и неэффективный  ----
-		Ind<2> get_addr(const Ind<D+1> &pos_rank) const;  ///< возвращает пару tileID, offset_in_tile, при промахе оба значения =-1, после перестроения сетки теряют смысл 
-		int rank(int tileID) const { return tiles[tileID]->rank(); }
-		uint64_t groups(int tileID) const { return tiles[tileID]->groups; }
+		struct Key{
+			uint64_t toff=-1;  ///< позиция тайла в лесу, всегда акутальна, даже если тайл исчезнет а потом появится
+			int off=-1;        ///< позиция элемента в тайле
+			int tID=-1;        ///< ID тайла в таблице для быстрого доступа, может меняться при перестроении сетки, если тайл исчезает становится =-1 но м.б. восстановлена
+			int rank() const { return toff&31; }
+			bool operator == (const Key &other) const { return toff==other.toff && off==other.off; }
+			bool operator < (const Key &other) const { return toff<other.toff || (toff==other.toff && off<other.off); }
+		};
+		bool patch(Key& key) const;  ///< пытается восстановить ключ (поле tID) после перестроения сетки, возвращает true если ключ актуален
+		//---------------------------------------------------------------------
+		Key get_key(const Ind<D+1> &pos_rank) const; 
+		uint64_t groups(Key &key) const { return patch(key)? tiles[key.tID]->groups: 0; }
 		
 		T dummy;  ///< элемент на который возвращается ссылка если произошел промах при произвольном доступе
-		const T& operator [] (const Ind<D+1> &pos_rank) const { Ind<2> addr = get_addr(pos_rank); return addr[0]>=0? tiles[addr[0]]->data[addr[1]]: dummy; }
-		T&       operator [] (const Ind<D+1> &pos_rank)       { Ind<2> addr = get_addr(pos_rank); return addr[0]>=0? tiles[addr[0]]->data[addr[1]]: dummy; }
+		const T& operator [] (const Ind<D+1> &pos_rank) const { Key key = get_key(pos_rank); return key.tID>=0? tiles[key.tID]->data[key.off]: dummy; }
+		T&       operator [] (const Ind<D+1> &pos_rank)       { Key key = get_key(pos_rank); return key.tID>=0? tiles[key.tID]->data[key.off]: dummy; }
 
 		//-- обход сетки, любые сложные вычисления должны делаться только так --
 		// int  check_rebuild_stID = -1;  ///< ID шаблона для проверки ограничений на скачок ранга разбиения, -1 отключает все проверки
@@ -116,6 +125,7 @@ namespace aiw{
 			// std::unordered_map<uint64_t, std::set<int> > join_cells, split_cells;  ///< объединяемые (первая в блоке) и разбиваемые ячейки по тайлам, накапливаются при проходе
 			T *creator = nullptr;       ///< указатель на ячейку/узел, инициировавший создание данной ячейки/узла
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
+			int join_cell_chunk = 0;    ///< чанк f>>D, при его смене обнуляется join_cell_counter
 			
 			const stencil_node_t *snodes = nullptr;
 			int stencil_sz = 0, current_stID = -1;
@@ -157,7 +167,8 @@ namespace aiw{
 			bool split(bool rm_parent=true);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
 			bool join();  ///< объединяет 2^D ячеек или 3^D узлов, все объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
 			const T* get_creator() const noexcept { return creator; }  ///< возвращает указатель на узел/ячейку, инициировавшую создание данного узла/ячейки
-			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей 
+			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
+			bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
 		};	// end of Item struct			
 		//----------------------------------------------------------------------		
 	protected:  // детали реализации
@@ -185,7 +196,8 @@ namespace aiw{
 		Ind<D> toff2tpos(uint64_t toff) const { int r = toff&31; return (toff>>zbound)%tbox*(1<<r) + *ZCurve64<D>((toff&zmask)>>(zbound-D*r), r); }  ///< вычисляет позицию тайла
 
 		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<(zbound-(toff&31)*D)); }   ///< следующий тайл на том же ранге
-		uint64_t up_toff(uint64_t toff) const { int r = toff&31; return (toff&~((uint64_t(1)<<(zbound-(r-1)*D))-1)) | (r-1); }  ///< тайл сверху !!! не проверяет rank>0 !!!
+		// uint64_t up_toff(uint64_t toff) const { int r = toff&31; return (toff&~((uint64_t(1)<<(zbound-(r-1)*D))-1)) | (r-1); }  ///< тайл сверху !!! не проверяет rank>0 !!!
+		uint64_t up_toff(uint64_t toff) const { int r = (toff&31)-1; return (toff&~(zmask>>r*D))|r; }  ///< тайл сверху !!! не проверяет rank>0 !!!
 
 		//  up_chID нигде кроме up_off не используется?
 		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&((1<<D)-1); }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
@@ -247,5 +259,8 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 #include "tamr_impl"
+
+	//	template <typename T, int D, int R, bool cell_based> std::ostream&
+	//	operator << (std::ostream &S, typename TiledAdaptiveMesh<T, D, R, cell_based>::Key &key){}
 }
 #endif //AIW_TILED_AMR_HPP
