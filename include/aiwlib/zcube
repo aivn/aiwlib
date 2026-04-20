@@ -108,6 +108,14 @@ namespace aiw{
 			}
 			return res;
 		}
+		/*
+		Ind<D> pos; int N, periodic, R, off;
+		inline int64_t operator [](const Ind<D> &nb) const {
+			Ind<D> pos2 = pos+nb;
+			for(int i=0; i<D; i++) if(periodic&(1<<i)) pos2[i] = (pos2[i]+N)%N;
+			return pos2zoff<D>(pos2, R)-off;
+		}
+		*/
 	};
 	//--------------------------------------------------------------------------
 	template <typename T, int D, typename A=double> class ZCube: public BaseMesh<D, A> {
@@ -148,6 +156,7 @@ namespace aiw{
 				// res.plus[i] = (p&mask[i])-c; if(N<=res.plus[i]) res.plus[i] = 0;
 				// res.minus[i] = (m&mask[i])-c; if(res.minus[i]<=-N) res.minus[i] = 0;
 			}
+			// res.pos = zoff2pos<D>(offset, R); res.N = 1<<R; res.R = R;  res.periodic = periodic; res.off = offset;
 			return res;
 		}
 		inline uint64_t pos2offset(const aiw::Ind<D> &pos) const {

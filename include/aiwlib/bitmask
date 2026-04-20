@@ -8,6 +8,7 @@
  **/
 
 #include <cstdint>
+#include <algorithm>
 
 namespace aiw{
 	//--------------------------------------------------------------------------
@@ -31,9 +32,11 @@ namespace aiw{
 			if(inv){
 				for(int i=0; i<sz-bool(D%64); i++) p[i] = ~src.p[i];
 				if(D%64) p[sz-1] = ~src.p[sz-1]&((uint64_t(1)<<D%64)-1);
-			} else for(int i=0; i<sz; i++) p[i] = src.p[i];
-			count = size0();
+				count = D-src.count;
+			} else { count = src.count;  for(int i=0; i<sz; i++) p[i] = src.p[i]; }
+			// count = size0();
 		}
+		void swap(BitMask &other){ std::swap(p, other.p);  std::swap(count, other.count); }
 		
 		bool get(int i) const { return p[i/64]&(uint64_t(1)<<i%64); }
 		bool operator [](int i) const { return get(i); }
@@ -92,6 +95,7 @@ namespace aiw{
 			return *this;
 		}
 		// добавить срезы?
+		// operator ~ ?
 	};
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw

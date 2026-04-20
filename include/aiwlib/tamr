@@ -33,7 +33,8 @@ namespace aiw{
 		struct stencil_node_t { uint32_t off: 22; uint32_t tID: 10; };  // tID задает тайл в кубе из соседей 3х3х3..., off смещение в тайле, D<=6, R*D<=22
 		struct tile_t{
 			T data[1<<R*D];	                 ///< хранилище данных в тайле
-			const tile_t *parent = nullptr;  ///< вышележащий (по дереву) тайл, можно с разрывом ранга
+			tile_t *parent = nullptr;        ///< вышележащий (по дереву) тайл, можно с разрывом ранга
+			uint64_t children = 0;           ///< битовая маска показывающая наличие детей, внуков и т.д.
 			uint64_t toff;                   ///< ключ тайла в таблице forest, 5 --- ранг,
 			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем
 			BitMask<1<<R*D> usage;           ///< битовая маска показывающая использывание узлов
@@ -108,10 +109,25 @@ namespace aiw{
 		template <typename Func> void for_zorder(const Ind<D> &tpos0, Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
 		//----------------------------------------------------------------------
 	public:
+		struct CreatorInfo {
+			uint32_t rank:    5;   ///< ранг создателя элемента 
+			uint32_t message: 25;  ///< сообщение от создателя
+			uint32_t mode: 2;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join			
+			// int jcounter: 10;  ///< счетчик join-ов в node_based сетке 
+			// int message: 16;   ///< сообщение от создателя
+			bool add() const { return !(mode&1); }
+			bool del_by_join() const { return mode==3; }
+			/*
+			bool del() const { return mode==1; }
+			bool join() const { return mode>1; }
+			bool add_by_join() const { return mode==2; }
+			*/
+			CreatorInfo(int r=0, int msg=0, int md=1): rank(r), message(msg), mode(md) {}
+		};
 		class Item {  ///< интерфейс доступа к одному узлу или ячейке при обходе сетки, каждый поток работает с одним экземляром Item
 		protected:
 			friend class TiledAdaptiveMesh;
-			const TiledAdaptiveMesh *storage;     ///< указатель на саму сетку
+			TiledAdaptiveMesh *storage;     ///< указатель на саму сетку
 
 			tile_t *tile = nullptr;               ///< указатель на тайл к которому относится узел или ячейка
 			const tile_t *cube[calc_3pow<D>::x];  ///< кубик 3x3х... из указателей на тайлы
@@ -119,27 +135,35 @@ namespace aiw{
 			Ind<D> tpos;                          ///< позиция тайла на сетке соотв. ранга
 			int off;                              ///< смещение узла в тайле
 
-			std::unordered_map<uint64_t, std::map<int, T*> > add_tiles;    ///< создаваемые узлы по тайлам, накапливаются при проходе, T* это creator
-			std::unordered_map<uint64_t, std::set<int> > del_tiles;        ///< позиции удаляемых узлов по тайлам, накапливаются при проходе
-			std::unordered_map<uint64_t, std::map<int, int> > join_nodes;  ///< счетчики для кубов ближайших соседей при выозве join() в node_based сетках
-			// std::unordered_map<uint64_t, std::set<int> > join_cells, split_cells;  ///< объединяемые (первая в блоке) и разбиваемые ячейки по тайлам, накапливаются при проходе
-			T *creator = nullptr;       ///< указатель на ячейку/узел, инициировавший создание данной ячейки/узла
+			//------------------------------------------------------------------
+			struct patch_t{
+				uint64_t toff = ~uint64_t(0);
+				tile_t *tile = nullptr;
+				std::map<int, CreatorInfo> table;
+				BitMask<1<<R*D> usage;
+			};
+			std::unordered_map<uint64_t, patch_t> patches;    ///< изменения в сетке по тайлам, накапливаются при проходе
+			patch_t *pself = nullptr, *pother = nullptr;     
+			patch_t* add_patch(uint64_t toff, tile_t *t=nullptr);                
+			patch_t& patch_self();                
+			patch_t& patch_other(uint64_t toff);
+			
+			void fix_join(typename std::map<int, CreatorInfo>::iterator I);  ///< проверяет и фиксирует/удаляет join, требует установленных tile и pself
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
 			int join_cell_chunk = 0;    ///< чанк f>>D, при его смене обнуляется join_cell_counter
+			//------------------------------------------------------------------
 			
 			const stencil_node_t *snodes = nullptr;
 			int stencil_sz = 0, current_stID = -1;
 
 			Vecf<D> bmin, step;            ///< позиция и шаг для данного тайла
 			void prepare(int f) noexcept;  ///< готовит item к обратоке очередной ячейки
-			uint64_t out_border_mask() const;  ///< выход шаблона за границу сетки
+			uint64_t out_border_mask() const;   ///< выход шаблона за границу сетки, что делать с шаблонами содержащими больше 64х элементов?
+			// int check_nb_by_rank(int cID) const;  ///< проверяет наличие соседей на различных рангах, возвращает маску: 1 - есть на том же ранге, 2 - рангом больше, 4 - меньше
 		public:
-			/** @brief очень важный параметр! При первом проходе, при входе в лямбда-функцию пользователя содержит группы тайла  и позволяет их изменить
-				При втором проходе (инициализации новых узлов) при входе в лямбда-функцию пользователя инициализируется нулем, что позволяет отличить второй проход и
-				позволяет задать группы тайла, если оставить его без изменений нулем то узел НЕ будет создан.
-			 */
-			uint64_t groups;  
-
+			uint64_t groups;    ///< при входе в лямбда-функцию пользователя содержит объединение групп тайла  и позволяет их изменить
+			CreatorInfo cinfo;  ///< информация о создателе (определена только для второго прохода)
+			
 			int rank() const { return tile->rank(); }                           ///< ранг узла
 			Ind<D> pos() const { return tpos*(1<<R) + storage->coords[off]; }   ///< позиция узла на глобальной сетке соответствующего ранга
 			Vecf<D> coord() const { return bmin+(storage->coords[off]&step); }  ///< координаты узла 
@@ -151,6 +175,7 @@ namespace aiw{
 			}			
 			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
 			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
+			uint32_t smask;                            ///< если srank=rank()+1 то содержит информацию о существующих по чанку элементах
 			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
 				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
 			}
@@ -159,14 +184,14 @@ namespace aiw{
 			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
 			
 			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
-			void remove(){ if(!storage->fix_mode){ del_tiles[tile->toff].insert(off); } }     ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
-			void add_item(const Ind<D> &dpos, int drank);        ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
-			bool new_item() const { return storage->fix_mode; }  ///< отмечает второй проход (это новый узел)
+			void remove(){ if(!storage->fix_mode) patch_self().table[off]; }                  ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
+			void add_item(const Ind<D> &dpos, int drank, int message=0);  ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
+			bool new_item() const { return storage->fix_mode; }           ///< отмечает второй проход (это новый узел)
 			// сделать add_item по шаблону?
 
-			bool split(bool rm_parent=true);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
-			bool join();  ///< объединяет 2^D ячеек или 3^D узлов, все объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
-			const T* get_creator() const noexcept { return creator; }  ///< возвращает указатель на узел/ячейку, инициировавшую создание данного узла/ячейки
+			// split выполняется всегда, join м.б. отменен созданием элемента со стороны или контролем ранга разбиения или через гало
+			bool split(bool rm_parent=true, int message=0);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
+			bool join(int message=0);  ///< объединяет 2^D ячеек или 3^D узлов, объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
 			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
 			bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
 		};	// end of Item struct			
@@ -188,10 +213,15 @@ namespace aiw{
 			const T* operator [] (int cID) noexcept;  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
 			uint64_t bmask(bool out_border) const;    ///< возвращает маску с информацией о расположении соседей по шаблону за границей сетки или границей разбиения
 		};
-		//-------  функции для работы с ключами и позициями тайлов  -----------
-		Ind<D> tbox, tmul;  int zbound, rank_lim;  uint64_t zmask;   ///< zbound = 64-log2(tbox.prod()),  rank_lim --- максимально возможный ранг разбиения сетки
-		//  key 59 bit offset,  5 bit rank, offset максимально прижат влево
+		//-------  скрытые поля  -----------
+		Ind<D> tbox;     ///< размер сетки в тайлах нулевого ранга разбиения
+		Ind<D> tmul;     ///< множитель расчета смещения на основе позиции на сетке тайлов нулевого ранга
+		int zbound;      ///< 64-log2(tbox.prod()) --- граница в ключе (toff) отделяющая смещение по сетке нулевого ранга от Z-кривой
+		int rank_lim;    ///< максимально возможный ранг разбиения сетки
+		uint64_t zmask;  ///< (1<<zbound)-1, в ключе 59 bit offset,  5 bit rank, offset максимально прижат влево
+		static const uint32_t dbits = (1<<D)-1; 
 
+		//-------  функции для работы с ключами и позициями тайлов  -----------
 		uint64_t tpos2toff(Ind<D> tpos, int rank) const;  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
 		Ind<D> toff2tpos(uint64_t toff) const { int r = toff&31; return (toff>>zbound)%tbox*(1<<r) + *ZCurve64<D>((toff&zmask)>>(zbound-D*r), r); }  ///< вычисляет позицию тайла
 
@@ -200,11 +230,11 @@ namespace aiw{
 		uint64_t up_toff(uint64_t toff) const { int r = (toff&31)-1; return (toff&~(zmask>>r*D))|r; }  ///< тайл сверху !!! не проверяет rank>0 !!!
 
 		//  up_chID нигде кроме up_off не используется?
-		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&((1<<D)-1); }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
+		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&dbits; }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
 		int up_off(int off, uint64_t toff) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
 
 		bool dec_rank(int &off, uint64_t &toff) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
-			if((toff&31)==0 || (!cell_based && (off&((1<<D)-1)))) return false;
+			if((toff&31)==0 || (!cell_based && (off&dbits))) return false;
 			off = up_off(off, toff);  toff = up_toff(toff);
 			return true;
 		}
