@@ -87,9 +87,8 @@ namespace aiw{
 		T&       operator [] (const Ind<D+1> &pos_rank)       { Key key = get_key(pos_rank); return key.tID>=0? tiles[key.tID]->data[key.off]: dummy; }
 
 		//-- обход сетки, любые сложные вычисления должны делаться только так --
-		// int  check_rebuild_stID = -1;  ///< ID шаблона для проверки ограничений на скачок ранга разбиения, -1 отключает все проверки
-		// bool chain_rebuild = false;    ///< режим цепной реакции при проверках на скачок ранга разбиения (false блокирует перестроение фрагмента сетки)
-		int halo_stID = -1;  ///< id шаблона по которому автоматически формируется гало на границах разбиения сетки при перестроении
+		int rebuild_stID = -1;  ///< ID шаблона для проверки ограничений на скачок ранга разбиения, -1 отключает все проверки
+		int halo_stID = -1;     ///< ID шаблона по которому автоматически формируется гало на границах разбиения сетки при перестроении
 		/**
 		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к узлам сетки. Обход проводится в две стадии:
 		 * 1) перестроение сетки --- обходятся узлы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
@@ -110,9 +109,9 @@ namespace aiw{
 		//----------------------------------------------------------------------
 	public:
 		struct CreatorInfo {
-			uint32_t rank:    5;   ///< ранг создателя элемента 
-			uint32_t message: 25;  ///< сообщение от создателя
-			uint32_t mode: 2;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join			
+			uint32_t rank: 5;      ///< ранг создателя элемента 
+			uint32_t mode: 3;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join, 4 - создан как гало			
+			uint32_t message: 24;  ///< сообщение от создателя
 			// int jcounter: 10;  ///< счетчик join-ов в node_based сетке 
 			// int message: 16;   ///< сообщение от создателя
 			bool add() const { return !(mode&1); }
@@ -130,7 +129,7 @@ namespace aiw{
 			TiledAdaptiveMesh *storage;     ///< указатель на саму сетку
 
 			tile_t *tile = nullptr;               ///< указатель на тайл к которому относится узел или ячейка
-			const tile_t *cube[calc_3pow<D>::x];  ///< кубик 3x3х... из указателей на тайлы
+			tile_t *cube[calc_3pow<D>::x];        ///< кубик 3x3х... из указателей на тайлы
 			uint64_t toff_cube[calc_3pow<D>::x];  ///< кубик 3x3х... из оффсетов тайлов, в отличие от указателей они всегда определены
 			Ind<D> tpos;                          ///< позиция тайла на сетке соотв. ранга
 			int off;                              ///< смещение узла в тайле
@@ -219,7 +218,8 @@ namespace aiw{
 		int zbound;      ///< 64-log2(tbox.prod()) --- граница в ключе (toff) отделяющая смещение по сетке нулевого ранга от Z-кривой
 		int rank_lim;    ///< максимально возможный ранг разбиения сетки
 		uint64_t zmask;  ///< (1<<zbound)-1, в ключе 59 bit offset,  5 bit rank, offset максимально прижат влево
-		static const uint32_t dbits = (1<<D)-1; 
+		static const uint32_t dbits = (1<<D)-1;
+		uint32_t bmask[calc_3pow<D>::x];  ///< куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
 
 		//-------  функции для работы с ключами и позициями тайлов  -----------
 		uint64_t tpos2toff(Ind<D> tpos, int rank) const;  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
@@ -231,37 +231,18 @@ namespace aiw{
 
 		//  up_chID нигде кроме up_off не используется?
 		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&dbits; }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
-		int up_off(int off, uint64_t toff) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
+		int up_off(uint64_t toff, int off) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
 
-		bool dec_rank(int &off, uint64_t &toff) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
+		bool dec_rank(uint64_t &toff, int &off) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
 			if((toff&31)==0 || (!cell_based && (off&dbits))) return false;
-			off = up_off(off, toff);  toff = up_toff(toff);
+			off = up_off(toff, off);  toff = up_toff(toff);
 			return true;
 		}
-		bool inc_rank(int &off, uint64_t &toff) const {  ///< увеличивает (по возможности) ранг тайла и согласованно изменяет off и toff
+		bool inc_rank(uint64_t &toff, int &off) const {  ///< увеличивает (по возможности) ранг тайла и согласованно изменяет off и toff
 			if((toff&31)>=rank_lim) return false;
 			toff++;  toff |= uint64_t(off>>(R-1)*D)<<(zbound-(toff&31)*D);  off = (off<<D)&((1<<(R*D))-1);
 			return true;
 		}
-		
-		//int up_chID(uint64_t toff, uint64_t utoff) const { return (toff>>5+(rank_lim-(utoff&31)-1)*D)&((1<<D)-1); }
-		//uint64_t down_toff(uint64_t toff, uint64_t chID) const { return (toff|(chID<<(zbound-(toff&31)*D-D)))+1; }  ///< ключ тайла снизу
-		//static int up_off(int off, const Ind<D> &tpos){ off >>= D; for(int i=0; i<D; i++){ off += tpos[i]%2<<R*(D-1)+i; } return off; }  ///< позиция УЗЛА в тайле сверху
-		//static int up_chID(const Ind<D> &tpos){ int res = 0; for(int i=0; i<D; i++){ res += tpos[i]%2<<i; } return res; }                ///< позиция ТАЙЛА в тайле сверху
-		//static int down_off(int off){ return (off<<D)&((1<<R*D)-1); }  ///< позиция УЗЛА в тайле снизу
-		//static int down_chID(int off){ return off>>D*(R-1); }          ///< позиция нижнего тайла в который попалает узел
-		/*
-		void dec_rank(uint64_t &toff, int &off, int dr=1) const {      ///< уменьшает ранг на dr>0 согласованно изменяя toff и off
-			int r = toff&31;  uint64_t mask = ((uint64_t(1)<<(dr*D))-1) << (zbound-r*D);
-			off >>= dr*D;  off |= (toff&mask)>>(zbound-(r-R+dr)*D);
-			toff &= ~mask;  toff -= dr;
-		}
-		void inc_rank(uint64_t &toff, int &off, int dr=1) const {       ///< увеличивает ранг на dr>0 согласованно изменяя toff и off
-			if(dr>=R){ toff += dr;  off = 0; }
-			else{  toff += dr;  toff |= uint64_t(off>>(R-dr)*D)<<(zbound-(toff&31)*D);  off = (off<<(dr*D))&((1<<(R*D))-1); }
-		}
-		*/
-
 		//-----------------  основная структура данных  ------------------------  
 		std::map<uint64_t, tile_t> forest;          ///< хранилище тайлов обеспечивающее быстрый доступ при необходимости
 		std::vector<tile_t*> tiles;                 ///< таблица указателей на тайлы для параллельного обхода
@@ -283,8 +264,11 @@ namespace aiw{
 			item_addr_t(uint64_t zoff_, int32_t tID_, int32_t off_): zoff(zoff_), tID(tID_), off(off_){}
 			bool operator < (const item_addr_t& other) const { return zoff<other.zoff; }
 		};
-		//----------------------------------------------------------------------		
-		uint32_t bmask[calc_3pow<D>::x];  // куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
+
+		// эту функцию можно соптимизировать если известен итератор на тайл?
+		bool check_children(uint64_t toff, int off, const tile_t* tile=nullptr) const;  ///< проверяет наличие потомка на один уровень вниз, tile позволяет сиключить forest.find
+
+		struct grad_patch_t{ typename Item::patch_t *ipp; int off; };
 		//----------------------------------------------------------------------		
 	};
 	//--------------------------------------------------------------------------
