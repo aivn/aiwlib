@@ -9,7 +9,7 @@
  * Tiled Adaptive Mesh header
  **/
 
-
+#include <omp.h>
 #include <set>
 #include <map>
 #include <unordered_map>
@@ -29,6 +29,33 @@ namespace aiw{
 	template <int P> struct calc_3pow { static const int x = 3*calc_3pow<P-1>::x; };
 	template <> struct calc_3pow<1> { static const int x = 3; };
 	//--------------------------------------------------------------------------
+	struct TAMR_pf {  ///< статистика по последнему обходу и перестроению сетки, заполняется при вызовах for_each/rebuild
+		enum {	n_main,   ///< число обработанных элементов во время основного прохода
+				n_add,    ///< число созданных элементов
+				n_del,    ///< число удаленных элементов
+				n_halo,   ///< число элементов созданных при автоматическом формировании гало
+				n_tmain,  ///< число обработанных тайлов во время основного прохода
+				n_tadd,   ///< число созданных тайлов
+				n_tdel    ///< число удаленных тайлов
+		};
+		Vec<7, uint64_t> count;
+		static constexpr char *hcount = "n_main  n_add  n_del  n_halo  n_tmain n_tadd n_tdel";
+
+		enum {  t_main,     ///< время первичного прохода по сетке
+				t_rebuild,  ///< время перестроения сетки, которое состоит из:
+				t_join,     ///<       объединения патчей
+				t_alloc,    ///<       первичного создания новых тайлов и подготовки новых масок
+				t_grad,     ///<       разглаживания скачков рангов разбиения
+				t_halo,     ///<       формирования гало
+				t_add,      ///<       вызова func для новых ячеек
+				t_del       ///<       удаления пустых тайлов
+		};
+		Vec<8> runtime;
+		static constexpr char *hruntime = "t_main t_rebuild t_join t_alloc t_grad t_halo t_add t_del";
+
+		void operator += (const TAMR_pf &other){ count += other.count;  runtime += other.runtime; }
+	};
+	//--------------------------------------------------------------------------
 	template <typename T, int D, int R, bool cell_based=true> class TiledAdaptiveMesh{
 		struct stencil_node_t { uint32_t off: 22; uint32_t tID: 10; };  // tID задает тайл в кубе из соседей 3х3х3..., off смещение в тайле, D<=6, R*D<=22
 		struct tile_t{
@@ -47,6 +74,7 @@ namespace aiw{
 	public:  // user interface
 		Vecf<D> bmin;                 ///< позиция левого нижнего угла сетки
 		Vecf<D> step = Vecf<D>(1.f);  ///< шаг сетки на нулевом ранге разбиения
+		int threads = 0;              ///< число тредов OpenMP в for_each (1 - посл. версия, 0 - автоматически)
 		//------------------  инициализация  -----------------------------------
 		TiledAdaptiveMesh() = default;
 		
@@ -107,8 +135,7 @@ namespace aiw{
 		 */
 		template <typename Func> void for_zorder(const Ind<D> &tpos0, Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
 		//----------------------------------------------------------------------
-	public:
-		struct CreatorInfo {
+		struct CreatorInfo {  ///< информация о созданном элементе 
 			uint32_t rank: 5;      ///< ранг создателя элемента 
 			uint32_t mode: 3;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join, 4 - создан как гало			
 			uint32_t message: 24;  ///< сообщение от создателя
@@ -123,6 +150,7 @@ namespace aiw{
 			*/
 			CreatorInfo(int r=0, int msg=0, int md=1): rank(r), message(msg), mode(md) {}
 		};
+		//----------------------------------------------------------------------
 		class Item {  ///< интерфейс доступа к одному узлу или ячейке при обходе сетки, каждый поток работает с одним экземляром Item
 		protected:
 			friend class TiledAdaptiveMesh;
@@ -145,7 +173,7 @@ namespace aiw{
 			patch_t *pself = nullptr, *pother = nullptr;     
 			patch_t* add_patch(uint64_t toff, tile_t *t=nullptr);                
 			patch_t& patch_self();                
-			patch_t& patch_other(uint64_t toff);
+			patch_t& patch_other(uint64_t toff, tile_t *t=nullptr);
 			
 			void fix_join(typename std::map<int, CreatorInfo>::iterator I);  ///< проверяет и фиксирует/удаляет join, требует установленных tile и pself
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
@@ -194,8 +222,12 @@ namespace aiw{
 			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
 			bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
 		};	// end of Item struct			
-		//----------------------------------------------------------------------		
-	protected:  // детали реализации
+		//----------------------------------------------------------------------
+		TAMR_pf profile;
+		//----------------------------------------------------------------------
+		//                      детали реализации
+		//----------------------------------------------------------------------
+	protected:  
 		struct BItem: public Item {
 		protected:
 			friend class TiledAdaptiveMesh;
@@ -257,7 +289,7 @@ namespace aiw{
 		bool fix_mode;  ///< задает стадию обхода для Item
 
 		bool config_item(BItem& item, tile_t* tile);  ///< конфигурирует Item, возвращает принадлежность к границе разбиения
-		template <typename Func> void rebuild(Func func, BItem& item);  ///< завершает перестроение сетки
+		template <typename Func> void rebuild(Func func, BItem* items, int items_sz);  ///< завершает перестроение сетки
 		struct item_addr_t{  ///< для for_zorder
 			uint64_t zoff;
 			int32_t tID, off;
@@ -266,9 +298,11 @@ namespace aiw{
 		};
 
 		// эту функцию можно соптимизировать если известен итератор на тайл?
-		bool check_children(uint64_t toff, int off, const tile_t* tile=nullptr) const;  ///< проверяет наличие потомка на один уровень вниз, tile позволяет сиключить forest.find
-
-		struct grad_patch_t{ typename Item::patch_t *ipp; int off; };
+		bool check_children(uint64_t toff, int off, const tile_t* tile=nullptr) const;  ///< проверяет наличие потомка на один уровень вниз, tile позволяет иcключить forest.find
+		bool check_parent(uint64_t &toff, int &off, tile_t** tile);  ///< проверяет наличие родителя на один уровень вверх, в случае успеха настраивает аргументы на родителя		
+		
+		struct grad_patch_t{ typename Item::patch_t *ipp; std::set<int> table; };
+		void split_item(BItem& item, uint64_t toff, int off, tile_t *tile, std::unordered_map<uint64_t, grad_patch_t> &table); 
 		//----------------------------------------------------------------------		
 	};
 	//--------------------------------------------------------------------------
