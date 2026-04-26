@@ -21,7 +21,7 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::init(const Ind<D> &tbox_){
 	for(Ind<D> tpos: irange<D>(tbox)){ add_tile(tpos, 0).usage.fill(1); }
 	for(ZCurve64<D> z(0, R); z; z.off++) coords[z.off] = *z;  // заполнение таблицы координат
 	int n=0; for(Ind<D> p: irange<D>(-1, 2)){ int m = 0;  for(int i=0; i<D; i++){ m |= ((p[i]<0)<<(2*i))|((p[i]>0)<<(2*i+1)); }  bmask[n++] = m; }
-	WMSG(rank_lim, zbound);
+	// WMSG(rank_lim, zbound);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t&
@@ -464,48 +464,52 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 	}
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_grad] = tpf2-tpf1;  tpf1 = tpf2;
 
-	if(halo_stID>=0){  // стоит столько же, сколько все остальное перестроение
+	if(halo_stID>=0){  // автоматическое формирование гало
 		if(halo_stID>=int(stencils.size())){ WMSG("incorrect ", halo_stID, ">=", stencils.size());  exit(1); }
-		std::unordered_map<int, std::vector<int>> htable;  // tID:{offs} для элементов относящихся к гало, это патчи для tile_t::usage
-		for(auto &I: item.patches){  // автоматическое формирование гало
-			config_item(item, I.second.tile); 
-			for(auto &J: I.second.table){
-				if(J.second.mode==4) continue;  // halo				
-				item.off = J.first;  item.stencil(halo_stID);
-				// if(item.pos()[1]==0 && item.rank()==0) WMSG(item.rank(), item.pos(), J.second.rank, J.second.mode);
+		std::vector<std::unordered_map<uint64_t, std::vector<int>>> htables(items_sz);  // tID:{offs} для элементов относящихся к гало, это патчи для tile_t::usage
+		std::vector<typename Item::patch_t*> patches(item.patches.size()); int patches_sz = 0;  for(auto &I: item.patches) patches[patches_sz++] = &I.second;
+#pragma omp parallel for if(items_sz>1)
+		for(int ip=0; ip<patches_sz; ip++){
+			int thID = omp_get_thread_num();  BItem &itm = items[thID];  auto &htable = htables[thID];  
+			typename Item::patch_t &P = *(patches[ip]);  config_item(itm, P.tile); 
+			for(auto &J: P.table){
+				itm.off = J.first;  itm.stencil(halo_stID);
 				if(J.second.mode==2){  // элемент отмечен для создания через join
-					// if(item.pos()[1]==0 && item.rank()==0) WMSG(item.rank(), item.pos(), J.second.rank, J.second.mode);
-					for(int cID=0; cID<item.stencil_sz; cID++){
-						stencil_node_t sn = item.snodes[cID];
-						if(bmask[sn.tID]&item.tile->bmask) continue;  // попали за границу сетки, вообще это надо регулировать битовой маской priodic? 
-						tile_t* t = item.cube[sn.tID];  uint64_t tf = item.toff_cube[sn.tID];
-						if((!t || !t->usage[sn.off]) && check_children(tf, sn.off, t)){  // нет соседа на том же ранге и у соседа есть какие то ячейки снизу - создаем соседа
-							if(!t) item.cube[sn.tID] = t = &add_tile(toff2tpos(tf), I.first&31);
-							CreatorInfo &cr = item.patch_other(tf).table[sn.off];  cr.rank = I.first&31;  cr.mode = 4;
-							htable[t->tID].push_back(sn.off);
-						}
+					for(int cID=0; cID<itm.stencil_sz; cID++){
+						stencil_node_t sn = itm.snodes[cID];
+						if(bmask[sn.tID]&itm.tile->bmask) continue;  // попали за границу сетки, вообще это надо регулировать битовой маской periodic? 
+						tile_t* t = itm.cube[sn.tID];  uint64_t tf = itm.toff_cube[sn.tID];
+						if((!t || !t->usage[sn.off]) && check_children(tf, sn.off, t))  // нет соседа на том же ранге и у соседа есть какие то ячейки снизу - создаем соседа
+							htable[P.toff].push_back(sn.off);
+							// if(!t) itm.cube[sn.tID] = t = &add_tile(toff2tpos(tf), P.toff&31);  это надо делать в критической секции, лучше сделать это потом
+							// CreatorInfo &cr = itm.patch_other(tf).table[sn.off];  cr.rank = P.toff&31;  cr.mode = 4;							
 					}
-				} else if(J.second.mode==1 && check_children(I.first, J.first, I.second.tile)){  // элемент отмечен для удаления
-					// if(item.pos()[1]==0 && item.rank()==0) WMSG(item.pos(), J.second.mode, I.second.tile->usage[J.first], I.second.usage[J.first]);
-					for(int cID=0; cID<item.stencil_sz; cID++){
-						stencil_node_t sn = item.snodes[cID];
-						if(bmask[sn.tID]&item.tile->bmask) continue;  // попали за границу сетки, вообще это надо регулировать битовой маской priodic? 
-						tile_t* t = item.cube[sn.tID];  
-						if(t && t->usage[sn.off]){  // есть сосед на том же ранге, надо восстановить элемент
-							J.second.mode = 4;  htable[I.second.tile->tID].push_back(J.first);
-							break;
-						}
+				} else if(J.second.mode==1 && check_children(P.toff, J.first, P.tile)){  // элемент отмечен для удаления
+					for(int cID=0; cID<itm.stencil_sz; cID++){
+						stencil_node_t sn = itm.snodes[cID];
+						if(bmask[sn.tID]&itm.tile->bmask) continue;  // попали за границу сетки, вообще это надо регулировать битовой маской periodic? 
+						tile_t* t = itm.cube[sn.tID];  
+						if(t && t->usage[sn.off]){ htable[P.toff].push_back(J.first);  break; } // есть сосед на том же ранге, надо восстановить элемент и все
 					}
 				}
 			}
 		}
-		for(auto &I: htable){ tile_t *t = tiles[I.first]; for(int f: I.second){ t->usage.set(f);  profile.count[TAMR_pf::n_halo]++; } }
+		for(int thID=1; thID<items_sz; thID++)  for(auto &H: htables[thID]){
+				std::vector<int> &dst = htables[0][H.first];
+				if(dst.size()==0) dst.swap(H.second);	else for(int x: H.second) dst.push_back(x);
+			}
+		for(auto &H: htables[0]){
+			tile_t *tile = &add_tile(toff2tpos(H.first), H.first&31);  typename Item::patch_t *patch = item.add_patch(H.first, tile);			
+			for(int f: H.second) if(!tile->usage[f]){
+					CreatorInfo &cr = patch->table[f];  cr.mode = 4;  cr.rank = (H.first&31)+1;
+					tile->usage.set(f);  profile.count[TAMR_pf::n_halo]++;
+				}
+		}
 	}
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_halo] = tpf2-tpf1;  tpf1 = tpf2;
 
-	for(auto &I: item.patches) I.second.tile->usage.swap(I.second.usage);  // восстанавливаем старые маски, это можно оптимизировать для пустых тайлов?
-	std::vector<typename Item::patch_t*> patches(item.patches.size()); int patches_sz=0;  uint64_t cell_count = 0;
-	for(auto &I: item.patches) patches[patches_sz++] = &I.second; 
+	std::vector<typename Item::patch_t*> patches(item.patches.size()); int patches_sz = 0;  uint64_t cell_count = 0;
+	for(auto &I: item.patches){ patches[patches_sz++] = &I.second;  I.second.tile->usage.swap(I.second.usage); } // восстанавливаем старые маски
 #pragma omp parallel for reduction(+:cell_count) if (items_sz>1)
 	for(int ip=0; ip<patches_sz; ip++){
 		typename Item::patch_t &P = *(patches[ip]);
