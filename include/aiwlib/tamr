@@ -10,6 +10,7 @@
  **/
 
 #include <omp.h>
+#include <tuple>
 #include <set>
 #include <map>
 #include <unordered_map>
@@ -89,8 +90,8 @@ namespace aiw{
 		template <typename Func> void items2dat(std::string fname, std::string head, Func func, int rmask=~0) const;  ///< дополнительно выводит результаты работы func(const T&)
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
 		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
-		template <int V, typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
-		template <int V, typename Func, typename Fout> void dump2msh(Func func, Fout &fout, std::string head="") const { dump2msh<V>(func, std::move(fout), head); }
+		template <typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <typename Func, typename Fout> void dump2msh(Func func, Fout &fout, std::string head="") const { dump2msh(func, std::move(fout), head); }
 
 		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
 		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
@@ -175,7 +176,7 @@ namespace aiw{
 			patch_t& patch_self();                
 			patch_t& patch_other(uint64_t toff, tile_t *t=nullptr);
 			
-			void fix_join(typename std::map<int, CreatorInfo>::iterator I);  ///< проверяет и фиксирует/удаляет join, требует установленных tile и pself
+			bool fix_join(typename std::map<int, CreatorInfo>::iterator I);  ///< проверяет, возвращает и фиксирует в tile->usage запрос на join, требует установленных tile и pself
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
 			int join_cell_chunk = 0;    ///< чанк f>>D, при его смене обнуляется join_cell_counter
 			//------------------------------------------------------------------
@@ -202,12 +203,12 @@ namespace aiw{
 			}			
 			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
 			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
-			uint32_t smask;                            ///< если srank=rank()+1 то содержит информацию о существующих по чанку элементах
+			uint64_t smask;                            ///< если srank=rank()+1 то содержит информацию о существующих по чанку элементах
 			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
 				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
 			}
 			const T* get_parent() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
-			const T* get_child()  const noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr)
+			const T* get_child()        noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr), устанавливает smask
 			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
 			
 			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
@@ -220,7 +221,7 @@ namespace aiw{
 			bool split(bool rm_parent=true, int message=0);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
 			bool join(int message=0);  ///< объединяет 2^D ячеек или 3^D узлов, объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
 			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
-			bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
+			// bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
 		};	// end of Item struct			
 		//----------------------------------------------------------------------
 		TAMR_pf profile;
@@ -257,7 +258,7 @@ namespace aiw{
 		uint64_t tpos2toff(Ind<D> tpos, int rank) const;  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
 		Ind<D> toff2tpos(uint64_t toff) const { int r = toff&31; return (toff>>zbound)%tbox*(1<<r) + *ZCurve64<D>((toff&zmask)>>(zbound-D*r), r); }  ///< вычисляет позицию тайла
 
-		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<(zbound-(toff&31)*D)); }   ///< следующий тайл на том же ранге
+		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<(zbound-(toff&31)*D))-(toff&31); }   ///< следующий тайл на том же ранге
 		// uint64_t up_toff(uint64_t toff) const { int r = toff&31; return (toff&~((uint64_t(1)<<(zbound-(r-1)*D))-1)) | (r-1); }  ///< тайл сверху !!! не проверяет rank>0 !!!
 		uint64_t up_toff(uint64_t toff) const { int r = (toff&31)-1; return (toff&~(zmask>>r*D))|r; }  ///< тайл сверху !!! не проверяет rank>0 !!!
 

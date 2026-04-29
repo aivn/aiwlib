@@ -39,6 +39,7 @@ namespace aiw{
 		template <typename T2, typename ... Args> CU_HD 
 		void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
+		static constexpr int dim = D;
 		CU_HD static int size(){ return D; }
 		
         CU_HD explicit Vec(T val=T{}) { for(int i=0; i<D; i++) p[i] = val; }    

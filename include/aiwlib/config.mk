@@ -50,10 +50,12 @@ PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.d
 ifeq (on,$(debug))
 #override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
 #LINKOPT += -lasan -lubsan
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
+override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
 #LINKOPT += -lasan -lubsan
 else
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+#override CXXOPT:=-std=c++17 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+#override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2  $(CXXOPT) 
 endif
 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)

@@ -282,7 +282,7 @@ while i<len(calc._cl_args):
                     if ((tr[j][0]-tr[(j+1)%3][0])**2 + (tr[j][1]-tr[(j+1)%3][1])**2)**.5 <= l_cr:
                         calc._queue.append([(H[k], .5*(points[ij[0]][k]+points[ij[1]][k])) for k in (2, 3)])        
     elif A.startswith('-') and A!='-':
-        for k, v in opts.items()+[('repeat', ('R', '')), ('continue', ('C', ''))]:
+        for k, v in list(opts.items())+[('repeat', ('R', '')), ('continue', ('C', ''))]:
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):
                 calc._racs_params['_'+k] = True; calc._racs_cl_params.add('_'+k); del calc._cl_args[i]; break
             elif any(A.startswith(x+'=') and not A.split('=', 1)[1].startswith('=') for x in ('-'+k, '--'+k, '-'+v[0])):
