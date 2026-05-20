@@ -27,7 +27,7 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	//  fftw3 plans for float and double
+	//  fftw3 original interface wrapper
 	//--------------------------------------------------------------------------
 	template <typename T> struct fftw3_t;
 	
@@ -54,6 +54,72 @@ namespace aiw{
 		static constexpr auto plan_1d = fftw_plan_dft_1d;
 		static constexpr auto execute = fftw_execute;
 	};	
+	//--------------------------------------------------------------------------
+	/*
+	template <int D, typename T> struct fftw3Xd_t;
+
+	template <> struct fftw3Xd_t<1, float>{
+		static constexpr auto plan = fftwf_plan_dft_1d;
+		static constexpr auto plan_fwd = fftwf_plan_dft_r2c_1d;
+		static constexpr auto plan_bwd = fftwf_plan_dft_c2r_1d;
+	};
+	template <> struct fftw3Xd_t<2, float>{
+		static constexpr auto plan = fftwf_plan_dft_2d;
+		static constexpr auto plan_fwd = fftwf_plan_dft_r2c_2d;
+		static constexpr auto plan_bwd = fftwf_plan_dft_c2r_2d;
+	};
+	template <> struct fftw3Xd_t<3, float>{
+		static constexpr auto plan = fftwf_plan_dft_3d;
+		static constexpr auto plan_fwd = fftwf_plan_dft_r2c_3d;
+		static constexpr auto plan_bwd = fftwf_plan_dft_c2r_3d;
+	};
+
+	template <> struct fftw3Xd_t<1, double>{
+		static constexpr auto plan = fftw_plan_dft_1d;
+		static constexpr auto plan_fwd = fftw_plan_dft_r2c_1d;
+		static constexpr auto plan_bwd = fftw_plan_dft_c2r_1d;
+	};
+	template <> struct fftw3Xd_t<2, double>{
+		static constexpr auto plan = fftw_plan_dft_2d;
+		static constexpr auto plan_fwd = fftw_plan_dft_r2c_2d;
+		static constexpr auto plan_bwd = fftw_plan_dft_c2r_2d;
+	};
+	template <> struct fftw3Xd_t<3, double>{
+		static constexpr auto plan = fftw_plan_dft_3d;
+		static constexpr auto plan_fwd = fftw_plan_dft_r2c_3d;
+		static constexpr auto plan_bwd = fftw_plan_dft_c2r_3d;
+	};
+	//--------------------------------------------------------------------------
+	template <int D, typename T> class FFTW_XD{
+		typedef fftw3_t<T> fftw3;
+		T *rbuf = nullptr;
+		typename fftw3::complex *cbuf = nullptr;
+		Indl<D> rmul, cmul; Ind<D> rbox, cbox;
+		int csz; bool r2c = false;
+	public:
+		size_t rsize() const { return prod(rbox); }
+		size_t csize() const { return prod(cbox); }
+		
+		void init(const Ind<D> &box_, int csz_, bool r2c_){}
+		FFTW_XD(){}
+		FFTW_XD(const Ind<D> &box_, int csz_, bool r2c_){ init(box_, csz_, r2c_); }
+		~FFTW_XD(){}
+
+		T* operator [](const Ind<D> &pos) { return rbuf + rmul*pos; }
+		const T* operator [](const Ind<D> &pos) const  { return rbuf + rmul*pos; }
+		T* operator [](size_t i) { return rbuf + i*csz; }
+		const T* operator [](size_t i) const { return rbuf + i*csz; }
+		
+		std::complex<T> get(const Ind<D> &pos, int c) const { auto z = cbuf[cmul*pos+c]; return std::complex<T>(z[0], z[1]); }
+		void set(const Ind<D> &pos, int c, const std::complex<T>& z) const { auto dst = cbuf[cmul*pos+c]; dst[0] = z.real(); dst[1] = z.imag(); }
+		std::complex<T> get(size_t i, int c) const { auto z = cbuf[i*csz+c]; return std::complex<T>(z[0], z[1]); }
+		void set(size_t i, int c, const std::complex<T>& z) const { auto dst = cbuf[i*csz+c]; dst[0] = z.real(); dst[1] = z.imag(); }
+
+		// никаких csz, работа только с одной компонентой?
+	};
+	*/
+	//--------------------------------------------------------------------------
+	//  1D fftw3 plans for float and double
 	//--------------------------------------------------------------------------
 	template <typename T> class FFTW1D{
 		typedef fftw3_t<T> fftw3;
@@ -85,8 +151,8 @@ namespace aiw{
 			if(cbuf){ fftw3::free(cbuf); fftw3::destroy_plan(plan_fwd); fftw3::destroy_plan(plan_bwd); }
 		}
 
-		T& r(int i){ return rbuf[i]; }
-		typename fftw3::complex& c(int i){ return cbuf[i]; }
+		T& r(int i){ /*if(!r2c || i<0 || i>=sz){ WMSG(r2c, i, sz); abort(); }*/ return rbuf[i]; }
+		typename fftw3::complex& c(int i){ /*if(i<0 || i>=sz){ WMSG(r2c, i, sz); abort(); }*/ return cbuf[i]; }
 
 		void fwd(){ fftw3::execute(plan_fwd); }
 		void bwd(){ fftw3::execute(plan_bwd); }		
@@ -109,9 +175,9 @@ namespace aiw{
 		void init(const Ind<D> &box_, int csz_, Vecf<D> step_=Vecf<D>(1.f)){
 			box = box_;  zsz0 = box[D-1];  box[D-1] = box[D-1]/2+1; csz = csz_;
 			data.resize(prod(box)*csz);
-			mul[0] = csz; for(int i=0; i<D-1; i++) mul[i+1] = mul[i]*box[i];
-			Nth = omp_get_max_threads();  plans.resize(Nth*D);
-			for(int ith=0; ith<Nth; ith++) for(int d=0; d<D; d++) plans[ith*D+d].init(box_[d], d==D-1);
+			mul[0] = csz; for(int i=0; i<D-1; i++) mul[i+1] = mul[i]*box[i];  // традиционное следование осей (x самая быстрая)
+			Nth = omp_get_max_threads();   plans.resize(Nth*D);
+			for(int ith=0; ith<Nth; ith++) for(int d=0; d<D; d++) plans[ith*D+d].init(box_[d], d==D-1); 
 			step = step_; _step = 1.f/step; fstep = 1.f/(step&box); fstep[D-1] = 1.f/(step[D-1]*zsz0);
 			data_size = data.size()/csz;
 		}
@@ -125,11 +191,11 @@ namespace aiw{
 		template <typename FGET> double fwd(FGET fget){  // fget(const Ind<D> &pos, int id) ==> T x,  return runtime
 			double t_start = omp_get_wtime();
 			for(int d=D-1; d>=0; d--){  // цикл по направлениям
-				Ind<D> dbox = box;  dbox[d] = 1; 	size_t dsz = prod(dbox);  // WMSG(d, dbox, dsz);
+				Ind<D> dbox = box;  dbox[d] = 1;  size_t dsz = prod(dbox);  // WMSG(d, dbox, dsz);
 #pragma omp parallel for
 				for(size_t wid=0; wid<dsz; wid++){  // цикл по 1d линиями
 					int thID = omp_get_thread_num();  FFTW1D<T>& plan = plans[thID*D+d];
-					Ind<D> pos = wid%dbox;  size_t off = mul*pos;   
+					Ind<D> pos = wid%dbox;  size_t off = mul*pos;  // if(pos[d]){ WMSG(d, pos); abort(); }  
 					for(int c=0; c<csz; c++){  // цикл по компонентам
 						if(d==D-1) for(int i=0, sz=zsz0; i<sz; i++){ pos[D-1] = i; plan.r(i) = fget(pos, c); }
 						else for(int i=0, sz=box[d]; i<sz; i++){ auto x = data[off+i*mul[d]+c];  plan.c(i)[0] = x.real();  plan.c(i)[1] = x.imag(); }
@@ -172,79 +238,71 @@ namespace aiw{
 			return omp_get_wtime()-t_start;
 		}
 		//----------------------------------------------------------------------
-		// mask --- по 4 бита на компоненту: re, im, abs, arg
-		template <typename S, typename T2=float> double dump(S &&fout, uint64_t mask, std::vector<std::string> axis) const {  // return runtime
+		// fget(const std::complex<T> p[csz], size_t N) ==> Vec<D2, T2>
+		template <int D2, typename T2, typename S, typename FGET>
+		double dump(S &&fout, FGET fget, std::vector<std::string> axis={}, bool shift_zero=true) const {  // return runtime
 			double t_start = omp_get_wtime();
-			BinaryHead bh; bh.dim = D; bh.type = aiw::BinaryHead::mesh;
-			bh.szT = 0; for(int i=0; i<csz*4; i++) bh.szT += sizeof(T2)*bool(mask&(uint64_t(1)<<i));
-			bh.bbox[D-1] = box[D-1];  bh.bmin[D-1] = 0; bh.bmax[D-1] = .5f/step[D-1];
-			for(int i=0; i<D-1; i++){ bh.bbox[i] = box[i]/2;  bh.bmin[i] = 0;  bh.bmax[i] = .5f/step[i]; }
+			BinaryHead bh; bh.dim = D; bh.type = aiw::BinaryHead::mesh;  bh.szT = sizeof(T2)*D2; 
+			for(int i=0; i<D; i++) bh.bbox[i] = box[i];
 			for(int i=0, sz=std::min(D, int(axis.size())); i<sz; i++) bh.axis[i] = axis[i];
+			if(shift_zero){
+				for(int i=0; i<D-1; i++){  bh.bmin[i] = (-box[i]/2+1)/step[i]/box[i];  bh.bmax[i] = (box[i]/2+1)/step[i]/box[i]; }
+				bh.bmin[D-1] = 0;  bh.bmax[D-1] = .5f/step[D-1];
+			} else for(int i=0; i<D; i++){  bh.bmin[i] = 0;  bh.bmax[i] = box[i]; }
 			bh.dump(fout);
-			Ind<D> lim = box/2; lim[D-1] = box[D-1];
-			for(Ind<D> pos: irange(lim)){
-				const std::complex<T>* p = data.data()+pos*mul*csz; 
-				for(int i=0; i<csz; i++){  // это можно как то оптимизировать? Собрать вектор из смещений и типов обработки?
-					if(mask&(uint64_t(1)<<i*4+0)){ T2 v = p[i].real();     fout.write((const char*)&v, sizeof(T2)); }
-					if(mask&(uint64_t(1)<<i*4+1)){ T2 v = p[i].imag();     fout.write((const char*)&v, sizeof(T2)); }
-					if(mask&(uint64_t(1)<<i*4+2)){ T2 v = std::abs(p[i]);  fout.write((const char*)&v, sizeof(T2)); }
-					if(mask&(uint64_t(1)<<i*4+3)){ T2 v = std::arg(p[i]);  fout.write((const char*)&v, sizeof(T2)); }
+
+			size_t N = prod(box)/box[D-1]*zsz0;
+			if(shift_zero){
+				Ind<D> a = -box/2+ind(1), b = box/2+ind(1); a[D-1] = 0; b[D-1] = box[D-1];
+				for(Ind<D> p: irange(a, b)){
+					Ind<D> pos; for(int i=0; i<D-1; i++) pos[i] = p[i]<0? box[i]+p[i]: p[i];
+					pos[D-1] = p[D-1];  Vec<D2, T2> v = fget(data.data()+pos*mul, N);  fout.write((const char*)&v, sizeof(v)); 
 				}
-			}
+			} else for(Ind<D> pos: irange(box)){  Vec<D2, T2> v = fget(data.data()+pos*mul, N);  fout.write((const char*)&v, sizeof(v));  }
 			return omp_get_wtime()-t_start;
 		}
-		template <typename S, typename T2=float> double dump(S &fout, uint64_t mask, std::vector<std::string> axis) const {  return dump(std::move(fout), mask, axis); } 
+		template <int D2, typename T2, typename S, typename FGET>
+		double dump(S &fout, FGET fget, std::vector<std::string> axis={}, bool shift_zero=true) const { return dump(std::move(fout), fget, axis, shift_zero); }
 		//----------------------------------------------------------------------
 		struct spectr_t{
-			double l_av=0, nu_av=0, nu2_av=0, max_nu=0;
-			T max_ampl=0;  int max_g=-1, max_f=-1;
-			size_t max_off=0;
-			Vecf<D> max_k;
+			double l_av=0;     ///< средняя длина волны 
+			double nu_av=0;    ///< средняя частота
+			double nu2_av=0;   ///< средний квадрат частоты
+			T ampl_max=0;      ///< максимум амплитуды в FFTW::data
+			size_t off_max=0;  ///< смещение в FFTW::data отвечающее максимуму амплитуды
+			Vecf<D> k_max;     ///< волновой вектор отвечающий максимуму амплитуды в FFTW::data
+			int i_max=0;       ///< позиция в spectr отвечающая максимуму амплитуды
+			std::vector<Vec<3> > spectr;  ///< вектор {nu, fget(...), g}
+			void operator += (const spectr_t& other){
+				l_av += other.l_av;  nu_av += other.nu_av;  nu2_av += other.nu2_av;
+				for(int i=0, sz=spectr.size(); i<sz; i++) spectr[i][1] += other.spectr[i][1];
+			}
+			void operator /= (int n){  l_av /= n;  nu_av /= n;  nu2_av /= n;  for(auto &v: spectr) v[1] /= n; }
 		};
-		spectr_t spectrum(std::vector<T> &res, float &f_max, int cmask=~0) const {  
-			// double t_start = omp_get_wtime();
-			Ind<D> lim = box/2;  lim[D-1] = box[D-1]-1;
-			if(!res.size()) res.resize(int(lim.abs()));
-			if(f_max<=0) f_max = .5f*_step.abs();
-			std::vector<T> buf(res.size()*Nth, 0.);  std::vector<float> norm(res.size()*Nth, 0.);
-			int f_sz = res.size(); float _df = f_sz/f_max;
-			std::vector<size_t> max_off(Nth);  std::vector<T> max_ampl(Nth, 0.);  std::vector<int> max_f(Nth, 0.);  
-			spectr_t av;  double l_av = 0, nu_av = 0, nu2_av = 0, Z = 0;  
-			BoxIterOMP<D> biter(box);  size_t sz = biter.size();
-#pragma omp parallel for reduction(+:l_av,nu_av,nu2_av,Z)
-			for(size_t off=0; off<sz; off++){
-				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
-				float nu = (F&fstep).abs(); const std::complex<T>* p = data.data()+off*csz;
-				int thID = omp_get_thread_num();				
-				// T a = 0; for(int i=0; i<csz; i++){ if(cmask&(1<<i)) a += std::abs(p[i]); }
-				T a = 0; for(int i=0; i<csz; i++){ if(cmask&(1<<i)) a += std::norm(p[i]); } // a = sqrt(a);
-				int f = ::floorf(nu*_df); if(f<f_sz){	buf[f_sz*thID+f] += a;  norm[f_sz*thID+f] += 1; }
-				if(max_ampl[thID]<a){ max_ampl[thID] = a; max_f[thID] = f;  max_off[thID] = off; }
-				if(nu){ a /= nu*nu;  Z += a;  l_av += a/nu; nu_av += a*nu;  nu2_av += a*nu*nu; }
-			}
-			for(int i=f_sz, nsz=norm.size(); i<nsz; i++) norm[i%f_sz] += norm[i];
-			std::vector<float> _norm(res.size()); for(int i=0; i<f_sz; i++){ res[i] = 0; _norm[i] = norm[i]? 1.f/norm[i]: 0; }			
-			for(int i=0, bsz=buf.size(); i<bsz; i++) res[i%f_sz] += buf[i]*_norm[i%f_sz];
+		//----------------------------------------------------------------------
+		template <typename FGET> spectr_t spectr(FGET fget, int sz=0, float f_max=0) const {  ///< fget(std::complex<T> z[csz], size_t N) ==> double
+			Ind<D> lim = box/2;  lim[D-1] = box[D-1]-1;  if(sz<=0) sz = 1+lim.abs();
+			spectr_t res;  res.spectr.resize(sz);  if(f_max<=0) f_max = .5f*_step.abs();
+			size_t N = prod(box)/box[D-1]*zsz0;  double norm = 0;
+			res.spectr[0] = vec(0., double(fget(data.data(), N)), 1.); res.ampl_max = res.spectr[0][1];
 
-			// for(int i=0; i<f_sz; i++) res[i] = sqrt(res[i]); // ???
-
-			av.l_av = l_av/Z;  av.nu_av = nu_av/Z; av.nu2_av = nu2_av/Z;
-			for(int i=0; i<Nth; i++) if(av.max_ampl<max_ampl[i]){ av.max_ampl = max_ampl[i];  av.max_f = max_f[i];  av.max_off = max_off[i]; }
-			Ind<D> F = av.max_off%box;  for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
-			av.max_k = (F&fstep)*2*M_PI;  av.max_g = norm[av.max_f];
-			// return omp_get_wtime()-t_start;
-			return av;
-		}
-		void norm(std::vector<int> &res, float &f_max) const {  
-			Ind<D> lim = box/2;  lim[D-1] = box[D-1]-1;
-			if(!res.size()) res.resize(int(lim.abs()));
-			if(f_max<=0) f_max = .5f*_step.abs();
-			int f_sz = res.size(); float _df = f_sz/f_max;
-			BoxIter<D> biter(box);  size_t sz = biter.size();
-			for(size_t off=0; off<sz; off++){
+			BoxIter<D> biter(box);  float _df = (sz-1)/f_max;  
+			for(size_t off=1, data_sz=data.size()/csz; off<data_sz; off++){
 				biter(off); Ind<D> F = *biter; for(int i=0; i<D-1; i++) if(F[i]>lim[i]) F[i] = box[i]-F[i];
-				int f = ::floorf((F&fstep).abs()*_df); if(f<f_sz) res[f]++;
+				float nu = (F&fstep).abs();  int f = 1+::floorf(nu*_df);  double ampl = fget(data.data()+off*csz, N);
+				if(res.ampl_max<ampl){ res.ampl_max = ampl;  res.off_max = off; }
+				if(F[D-1]) ampl *= 2;
+				norm += ampl; res.l_av += ampl/nu;  res.nu_av += nu*ampl;  res.nu2_av += nu*nu*ampl;
+				if(f<sz){ res.spectr[f][1] += ampl;  res.spectr[f][2] += 1+bool(F[D-1]); }
 			}
+			_df = 1./_df;
+			for(int i=1; i<sz; i++){
+				res.spectr[i][0] = (i-.5)*_df;
+				if(res.spectr[i][2]) res.spectr[i][1] /= res.spectr[i][2];
+				if(res.spectr[i][1]>res.spectr[res.i_max][1]) res.i_max = i;
+			}
+			res.l_av /= norm;  res.nu_av /= norm; res.nu2_av /= norm;
+			return res;
 		}
 		//----------------------------------------------------------------------
 	};
