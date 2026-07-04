@@ -153,8 +153,9 @@ class Calc:
         if attr=='path':
             if _help_mode:
                 print('\nAvailable options:')
-                mpl = max(len(k) for k in self._comments.keys())
-                for k, v in sorted(self._comments.items()): print(k, ' '*(mpl-len(k)), v)
+                table = dict(('%s=%s'%(k, ([getattr(w, k) for w in [self]+self._wraps if hasattr(w, k)]+['???'])[0]), v.strip()) for k, v in self._comments.items())
+                mpl = max(len(k) for k in table.keys())
+                for k, v in sorted(table.items()): print(' ', k, ' '*(mpl-len(k)), v)
                 exit()
             return _make_path_hook(self)
         raise AttributeError(attr)
