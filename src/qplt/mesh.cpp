@@ -27,7 +27,7 @@ using namespace aiw;
 bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load0: %p\n", mem_ptr);
 	BinaryHead bh; size_t s = S.tell();
-	if(!bh.load(S) || bh.type!=BinaryHead::mesh || bh.dim>6){ S.seek(s); return false; }
+	if(!bh.load(S) || bh.type!=BinaryHead::mesh || bh.dim>6){ S.seek(s); printf("invalid header!\n"); return false; }
 	head = bh.head; dim = bh.dim; szT = bh.szT; logscale = bh.logscale; for(int i=0; i<dim; i++){ bbox[i] = bh.bbox[i]; anames[i] = bh.axis[i]; }
 	for(int i=0; i<dim; i++) if(anames[i].empty()) anames[i] = default_anames[i];
 	
@@ -38,7 +38,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	data_sz = szT; for(int i=0; i<dim; i++) data_sz *= bbox[i];
-	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)) return false;  // файл битый, записан не до конца
+  mem_sz = data_sz / 1e9;  fin = S.copy();  mem_offset = S.tell(); if (!S.seek(data_sz, SEEK_CUR)) { printf("invalid file!\n");  return false; }  // файл битый, записан не до конца
 	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
 	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(bh.bmin, dim*8); S.read(bh.bmax, dim*8); S.seek(dim*8, SEEK_CUR); S.seek(szT, SEEK_CUR); logscale = 0;  } 

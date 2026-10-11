@@ -11,6 +11,14 @@
 #include "../../include/aiwlib/qplt/balls"
 using namespace aiw;
 
+# if defined(min)
+# undef min
+# endif
+
+# if defined(max)
+# undef max
+# endif
+
 //------------------------------------------------------------------------------
 //   load data
 //------------------------------------------------------------------------------
@@ -26,7 +34,7 @@ bool aiw::QpltBalls::load(IOstream &S){
 	
 	count = bh.count;  data_sz = szT*count; mem_sz = data_sz/1e9;
 	fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, SEEK_CUR)){ return false; }   // файл битый, записан не до конца
-	WMSG(mem_offset, S.tell());
+	//WMSG(mem_offset, S.tell());
 	if(calc_bb){
 		S.seek(mem_offset); float rR[4]; // ???
 		for(size_t i=0; i<count; i++){
@@ -78,7 +86,7 @@ template <int AID> void aiw::QpltBallsPlotter::init_impl(int autoscale){
 		int act_numthreads = -1; // to be determined in the following
 #pragma omp parallel for //shared(f_mina, f_maxa)
 #endif //AIW_WIN32
-		for(size_t bID=0; bID<count; bID++){
+		for(ptrdiff_t bID=0; bID<(ptrdiff_t)count; bID++){
 			const char *ptr = ptr0+bID*cnt->szT;
 			const Vecf<3> r = ptr2vec<3>((const float*)ptr);
 			float R = *(const float*)(ptr+12);
@@ -133,7 +141,7 @@ template <int AID> void aiw::QpltBallsPlotter::plot_impl(std::string &res) const
 	
 	// WMSG(bmin, bmax);
 #pragma omp parallel for
-	for(size_t bID=0; bID<count; bID++){
+	for(ptrdiff_t bID=0; bID<(ptrdiff_t)count; bID++){
 		const char *ptr = ptr0+bID*cnt->szT;
 		const Vecf<3> r0 = ptr2vec<3>((const float*)ptr); Vecf<3> r;
 		for(int i=0; i<3; i++){ r[i] = r0[axisID[i]]; if(flips&(1<<i)) r[i] = bmax[i]-r[i]; }  // flips???
