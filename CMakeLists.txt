@@ -1,12 +1,29 @@
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 #project(qplt LANGUAGES CXX VERSION 1.0.0)
 
-option(CUDA "Use CUDA for rendering" ON)
+# NB: the option must not be named CUDA --- CMake's own compiler detection tests `if(lang STREQUAL CUDA)`
+# unquoted, so a variable named CUDA breaks it (Visual Studio generators then build the CUDA test with cl.exe)
+option(QPLT_CUDA "Use CUDA for rendering" ON)
+if(DEFINED CUDA)  # backward compatibility with -DCUDA=ON|OFF
+	set(QPLT_CUDA ${CUDA} CACHE BOOL "Use CUDA for rendering" FORCE)
+	unset(CUDA CACHE)
+	unset(CUDA)
+endif()
 
-if(CUDA)
-  project(qplt LANGUAGES CXX CUDA)
-else()
-  project(qplt LANGUAGES CXX)
+project(qplt LANGUAGES CXX)
+
+if(QPLT_CUDA)
+	include(CheckLanguage)
+	check_language(CUDA)
+	if(CMAKE_CUDA_COMPILER)
+		enable_language(CUDA)
+		set(CMAKE_CUDA_STANDARD 14)
+		set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+		set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+	else()
+		message(STATUS "No CUDA compiler found, building without CUDA")
+		set(QPLT_CUDA OFF CACHE BOOL "Use CUDA for rendering" FORCE)
+	endif()
 endif()
 
 
@@ -28,25 +45,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 
-if(CUDA)
-#    find_package(CUDA REQUIRED)
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-#set(CMAKE_CUDA_ARCHITECTURES OFF)
-#set(CUDA_NVCC_FLAGS "${CMAKE_CXX_FLAGS} -rdc=true -c")
-#	include(CheckLanguage)
-#	check_language(CUDA)
-	if(CMAKE_CUDA_COMPILER)
-#		enable_language(CUDA)
-		set(CMAKE_CUDA_STANDARD 14)
-        
-		cmake_policy(SET CMP0104 OLD)
-	else()
-		message(STATUS "No CUDA support")
-		set(CUDA OFF CACHE BOOL "Use CUDA for rendering" FORCE) # Overwrite option
-	endif()
-endif()
-
 if (NOT WIN32)
 	string(APPEND CMAKE_CXX_FLAGS " -Wall -Wpedantic -fdiagnostics-color=always")
 else()
@@ -64,7 +62,7 @@ add_library(aiwlib OBJECT "src/debug_ext.cpp")
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 set_target_properties(aiwlib PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-if (CUDA)
+if(QPLT_CUDA)
 	set_source_files_properties("src/qplt/mesh_cu.cpp" PROPERTIES LANGUAGE CUDA)
 	set_source_files_properties("src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "src/qplt/base.cpp"
 		"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" PROPERTIES LANGUAGE CXX)
@@ -74,7 +72,7 @@ add_library(qplt_static STATIC "src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "s
 target_include_directories(qplt_static PUBLIC "src/qplt")
 set_target_properties(qplt_static PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-if(CUDA)
+if(QPLT_CUDA)
 	set_target_properties(qplt_static PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 	#set_target_properties(qplt_cu_objs PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 	find_package(OpenMP REQUIRED)
