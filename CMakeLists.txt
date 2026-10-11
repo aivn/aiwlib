@@ -110,7 +110,8 @@ target_link_libraries(qplt_python PUBLIC aiwlib PUBLIC ${Python3_LIBRARIES} PRIV
 #	COMMENT "Patching core.py")
 #message("Generated file name:${swig_generated_file_fullname}")
 
-set_property(TARGET qplt_python PROPERTY LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt")
+# $<1:...> keeps multi-config generators (Visual Studio) from appending /Release, so the .pyd lands next to core.py
+set_property(TARGET qplt_python PROPERTY LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt>")
 #add_executable(qplt-remote src/bin/qplt-remote.cpp)
 #target_link_libraries(qplt-remote PRIVATE qplt_static PUBLIC aiwlib PUBLIC ${CMAKE_DL_LIBS})
 
