@@ -88,8 +88,11 @@ namespace aiw{
 		
 		virtual void close() = 0;
 		virtual long long tell() const = 0;
-		bool check_tail(long sz) const { return max_sz<0 || sz<=max_sz-tell(); }
-    virtual bool seek(long long offset, int whence = SEEK_SET) { return false; } // = 0;
+		bool check_tail(unsigned long long sz) const {  // sz is unsigned: a corrupted huge size must not wrap to negative and pass
+			if(max_sz<0) return true;
+			long long rest = max_sz-tell(); return rest>=0 && sz<=(unsigned long long)rest;
+		}
+		virtual bool seek(long long offset, int whence=SEEK_SET) = 0;
 		virtual size_t read(void* buf, size_t size) = 0; // add swig typemap for bind to python style?
 		// std::string read(size_t size){ char buf[size]; read(buf, size); return buf; }
 		virtual size_t write(const void* buf, size_t size) = 0;
@@ -98,8 +101,8 @@ namespace aiw{
 		virtual bool eof() const = 0;
 
 		// for iostream compability ;-(
-		long tellg() const { return this->tell(); }
-		bool seekg(long offset, int whence=SEEK_SET){ return this->seek(offset, whence); }
+		long long tellg() const { return this->tell(); }
+		bool seekg(long long offset, int whence=SEEK_SET){ return this->seek(offset, whence); }
 		
 #ifndef SWIG
 		virtual std::shared_ptr<IOstream> copy() const = 0;
