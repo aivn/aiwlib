@@ -173,7 +173,7 @@ namespace aiw{
 		ZBuffer(int Nx_=0, int Ny_=0){  init(Nx_, Ny_); }
 
 		void set_pixel(int x, int y, int c, float z){
-			WASSERT(0<=x<Nx && 0<=y<Ny, "oops...", x, y, Nx, Ny, c, z);
+			WASSERT(0<=x && x<Nx && 0<=y && y<Ny, "oops...", x, y, Nx, Ny, c, z);
 			pixel_t &p = data[x+y*Nx]; if(p.z>z){ p.z = z; p.c = c; }
 		}
 	};
