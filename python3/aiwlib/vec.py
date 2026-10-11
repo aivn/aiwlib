@@ -4,10 +4,10 @@ Licensed under the Apache License, Version 2.0'''
 
 import struct, math
 from .swig import *
-from functools import reduce
 #-------------------------------------------------------------------------------
 #   C++ TYPES TABLE
 #-------------------------------------------------------------------------------
+long = int #???
 #                    C++-type                 T   D  py-type  S     sz  unpack struct tuple    pack to strucr tuple
 _cxx_types_table = { 'char':                 (10, 1, int,     'c',  1,  lambda t:t[0],         lambda x:(x,)            ),
                      'unsigned char':        (20, 1, int,     'B',  1,  lambda t:t[0],         lambda x:(x,)            ),
@@ -19,17 +19,17 @@ _cxx_types_table = { 'char':                 (10, 1, int,     'c',  1,  lambda t
                      'uint16_t':             (40, 1, int,     'H',  2,  lambda t:t[0],         lambda x:(x,)            ),
                      'int':                  (50, 1, int,     'i',  4,  lambda t:t[0],         lambda x:(x,)            ),
                      'int32_t':              (50, 1, int,     'i',  4,  lambda t:t[0],         lambda x:(x,)            ),
-                     'usigned int':          (60, 1, int,    'I',  4,  lambda t:t[0],         lambda x:(x,)            ),
-                     'uint32_t':             (60, 1, int,    'I',  4,  lambda t:t[0],         lambda x:(x,)            ),
-                     'long':                 (70, 1, int,    'l',  8,  lambda t:t[0],         lambda x:(x,)            ),
-                     'int64_t':              (70, 1, int,    'l',  8,  lambda t:t[0],         lambda x:(x,)            ),
-                     'unsigned long':        (80, 1, int,    'L',  8,  lambda t:t[0],         lambda x:(x,)            ),
-                     'uint64_t':             (80, 1, int,    'L',  8,  lambda t:t[0],         lambda x:(x,)            ),
+                     'usigned int':          (60, 1, long,    'I',  4,  lambda t:t[0],         lambda x:(x,)            ),
+                     'uint32_t':             (60, 1, long,    'I',  4,  lambda t:t[0],         lambda x:(x,)            ),
+                     'long':                 (70, 1, long,    'l',  8,  lambda t:t[0],         lambda x:(x,)            ),
+                     'int64_t':              (70, 1, long,    'l',  8,  lambda t:t[0],         lambda x:(x,)            ),
+                     'unsigned long':        (80, 1, long,    'L',  8,  lambda t:t[0],         lambda x:(x,)            ),
+                     'uint64_t':             (80, 1, long,    'L',  8,  lambda t:t[0],         lambda x:(x,)            ),
                      'float':                (90, 1, float,   'f',  4,  lambda t:t[0],         lambda x:(x,)            ),
                      'double':               (95, 1, float,   'd',  8,  lambda t:t[0],         lambda x:(x,)            ),
                      'std::complex<float>':  (90, 2, complex, 'ff', 8,  lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
                      'std::complex<double>': (95, 2, complex, 'dd', 16, lambda t:t[0]+t[1]*1j, lambda x:(x.real, x.imag)),
-                     int: 'int', int: 'int64_t', float: 'double', complex:'std::complex<double>'
+                     int: 'int', long: 'int64_t', float: 'double', complex:'std::complex<double>'
 }
 for k, v in list(_cxx_types_table.items()):
     if type(k) is str: _cxx_types_table[v[:2]] = k
@@ -41,15 +41,18 @@ del k, v
 _vec_types_table, _swig_modules, _vec_swig_type = {}, [], []
 def view_swig_modules():
     for stt in _swig_modules: stt.out_table()
-_get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
-_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] \
-    else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
+#_get_D = lambda V: int(V.split('<')[1].split('>')[0].split(',')[0])
+_get_D = lambda V: int((V.decode() if type(V) is bytes else V).split('<')[1].split('>')[0].split(',')[0])
+#_get_T = lambda V: V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
+def _get_T(V):
+    if type(V) is bytes: V = V.decode()
+    return V.split('|')[0].split(',',1)[1].rsplit('>',1)[0].strip() if ',' in V.split('|')[0] else 'float' if 'Vecf' in V else'double' if 'Vec' in V else 'int'
 
 def checkout_swig_types_table(stt):
     if stt in _swig_modules: return 
     _swig_modules.append(stt); patchL = []
     for i in range(stt.size()):
-        V = stt.get_item(i) #; print i, V
+        V = stt.get_item(i).decode() #; print(i, V)
         if not V: continue
         if V.split()[0] in ('PVec', 'aiw::PVec') and not _vec_swig_type: _vec_swig_type[:] = stt, i  # find self
         elif V.split()[0] in ('Vec<', 'Vecf', 'Ind<', 'aiw::Vec<', 'aiw::Vecf<', 'aiw::Ind<'):
@@ -57,7 +60,7 @@ def checkout_swig_types_table(stt):
             except: continue
             _vec_types_table[T,D] = (stt, i) # overload types?
             patchL.append(i)
-            # print i, D, repr(T), repr(V)
+            # print( i, D, repr(T), repr(V))
     for i in patchL: stt.patch(i, *_vec_swig_type)
 def checkout_swig_modules():
     stt0 = stt = SwigTypesTable()
@@ -70,6 +73,7 @@ checkout_swig_modules()
 def import_hook(*args, **kw_args):
     M = builtins_import(*args, **kw_args)    
     checkout_swig_modules()
+    #view_swig_modules()
     return M
 builtins_import, __builtins__['__import__'] = __import__, import_hook
 #-------------------------------------------------------------------------------
@@ -78,7 +82,8 @@ builtins_import, __builtins__['__import__'] = __import__, import_hook
 def _decltype(a, b):
     'take two objects, return two C++ types (as strings)'
     ab, iT = [a, b], (0 if not hasattr(a, 'T') and not hasattr(a, '_T') else 1 if not hasattr(b, 'T') and not hasattr(b, '_T') else 2)
-    if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    #if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    if iT==2 and a._T()==b._T(): return a._T()
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
@@ -86,7 +91,7 @@ def _decltype(a, b):
     TT = [_cxx_types_table[x if type(x) is str else x.T if hasattr(x, 'T') else x._T()] for x in ab]
     return _cxx_types_table[max(TT[0][0], TT[1][0]), max(TT[0][1], TT[1][1])]
 #-------------------------------------------------------------------------------
-_is_vec = lambda X: type(X) in (list, tuple) or isinstance(X, Vec)
+_is_vec = lambda X: type(X) in (list, tuple) or isinstance(X, Vec) or isinstance(X, PVec)
 def _2sz(X, sz):
     if len(X)==sz: return X._getdata() if hasattr(X, '_getdata') else X
     if len(X)==1: return (X[0],)*sz
@@ -96,13 +101,14 @@ _2tuple = lambda X: X._getdata() if hasattr(X, '_getdata') else tuple(X) if type
 #-------------------------------------------------------------------------------
 #   class Vec (python implementation)
 #-------------------------------------------------------------------------------
-class Vec:
+class Vec(PVec):
     _is_aiwlib_vec = True
-    def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
-    def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
+    #def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
+    def _T(self): return self.T if 'T' in self.__dict__ else _get_T(get_swig_type(self.this))
+    def _D(self): return self.D if 'D' in self.__dict__ else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
-        #print self.__class__.__name__, '*******', args, kw_args, '******'
-        self._swig_init()
+        #print(self.__class__.__name__, '*******', args, kw_args, '******')
+        if not 'this' in self.__dict__: self._swig_init()
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
             elif args[0].__class__ in (list, tuple) or isinstance(args[0], Vec): args = args[0]
@@ -135,12 +141,11 @@ class Vec:
         'set Vec data'
         if len(data)!=self._D(): raise Exception("incorrect length %r, %i expected"%(data, self._D()))
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
-        #push_vec_data(self, 0, struct.pack(let*D, *sum(list(map(pack, list(map(pyT, data)))), ())).decode('utf-16-be'), szT*D)    
-        push_vec_data(self, 0, struct.pack(let*D, *sum(list(map(pack, list(map(pyT, data)))), ())), szT*D)    
+        push_vec_data(self, 0, struct.pack(let*D, *sum(map(pack, map(pyT, data)), ())), szT*D)    
     #---------------------------------------------------------------------------
     def __getitem__(self, i):
         D = self._D()
-        if type(i) is slice: return list(map(self._getdata().__getitem__, list(range(*i.indices(D)))))
+        if type(i) is slice: return map(self._getdata().__getitem__, range(*i.indices(D)))
         if i<0: i+= D
         if i<0 or D<=i: raise IndexError(i)
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
@@ -155,19 +160,18 @@ class Vec:
         if i<0: i+= D
         if i<0 or D<=i: raise IndexError(i)
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]
-        # push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))).decode('utf-16-be'), szT)    
         push_vec_data(self, i*szT, struct.pack(let, *pack(pyT(val))), szT)    
     #---------------------------------------------------------------------------
-    def __getstate__(self):
+    def __getstate__(self):        
         T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self._T()]; D = self._D()
+        #print('getstate ==>', struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D))
         return struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D)
     def __setstate__(self, state):
-        self._swig_init() #???
+        if not 'this' in self.__dict__: self._swig_init() #???
         sT, sC, self.D = struct.unpack('BBh', state[:4])    
         self.T = _cxx_types_table[sT, sC]
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T] #; print(T, C, pyT, let, szT, unpack, pack)
         if szT*self.D!=len(state)-4: raise Exception('incorrect state size')
-        #push_vec_data(self, 0, state[4:].decode('utf-16-be'), szT*self.D)
         push_vec_data(self, 0, state[4:], szT*self.D)
         cxx_m, i = _vec_types_table.get((self.T, self.D), (0,0))
         if cxx_m: cxx_m.set_type(self.this, i)
@@ -192,10 +196,10 @@ class Vec:
         return a
     #---------------------------------------------------------------------------
     # operator /
-    def __div__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
-                                     [x/b for x in a._getdata()]), T=_decltype(a, b)) 
-    def __rdiv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
-                                     [b/x for x in a._getdata()]), T=_decltype(a, b)) 
+    def __truediv__ (a, b): return Vec(*([x/y for x, y in _conv(a, b)] if _is_vec(b) else
+                                         [x/b for x in a._getdata()]), T=_decltype(a, b)) 
+    def __rtruediv__(a, b): return Vec(*([y/x for x, y in _conv(a, b)] if _is_vec(b) else
+                                         [b/x for x in a._getdata()]), T=_decltype(a, b)) 
     def __idiv__(a, b):
         if _is_vec(b): raise Exception('incorrect second argument in %r /= %r'%(a, b))
         for i in range(len(a)): a[i] /= b
@@ -251,26 +255,27 @@ class Vec:
     # periodic ???
     def circ(self, l): return Vec(*(self._getdata()[-l%self._D():]+self._getdata()[:-l%self._D()]), T=self._T()) #???
     def abs(self): return sum([x*x for x in self._getdata()])**.5
+    def norm(self, n=1): return self*(n/self.abs())
     def abs2(self): return sum([x*x for x in self._getdata()])
     def pow(self, p): Vec(*[x**p for x in self._getdata()])
-    def fabs(self): return Vec(*list(map(abs, self._getdata())))
-    def ceil(self): return Vec(*list(map(math.ceil, self._getdata())), T=self._T())
-    def floor(self): return Vec(*list(map(math.floor, self._getdata())), T=self._T())
+    def fabs(self): return Vec(*map(abs, self._getdata()))
+    def ceil(self): return Vec(*map(math.ceil, self._getdata()), T=self._T())
+    def floor(self): return Vec(*map(math.floor, self._getdata()), T=self._T())
 #    def round(self): return Vec(*[math.round(x) for x in self._getdata()], T=self._T()) ???
     def fmod(self, b): return Vec(*([math.fmod(x, y) for x, y in zip(self._getdata(), b)] 
                                     if (b.__class__ in (list, tuple) or isinstance(b, Vec)) and len(b)==self._D()
                                     else [math.fmod(x, b) for x in self._getdata()]), T=_decltype(self, b))
     def min(self): return min(self._getdata())
     def max(self): return max(self._getdata())
-    def imin(self): return min(list(zip(self._getdata(), list(range(self._D())))))[1]
-    def imax(self): return max(list(zip(self._getdata(), list(range(self._D())))))[1]
+    def imin(self): return min(zip(self._getdata(), range(self._D())))[1]
+    def imax(self): return max(zip(self._getdata(), range(self._D())))[1]
     def sum(self): return sum(self._getdata())
-    def nan(self): return Ind(*list(map(math.isnan, self._getdata())))
-    def inf(self): return Ind(*list(map(math.isinf, self._getdata())))
+    def nan(self): return Ind(*map(math.isnan, self._getdata()))
+    def inf(self): return Ind(*map(math.isinf, self._getdata()))
     def cknan(self): return any(map(math.isnan, self._getdata()))
     def ckinf(self): return any(map(math.isinf, self._getdata()))
     def prod(self): return reduce(lambda a, b: a*b, self._getdata())
-    def __bool__(self): return any(self._getdata())    
+    def __nonzero__(self): return any(self._getdata())    
     def __hash__(self): return hash(tuple(self._getdata()))
     def contains(self, x): return x in tuple(self._getdata())
     def __contains__(self, x): return x in tuple(self._getdata())
@@ -305,7 +310,18 @@ class Vec:
     #---------------------------------------------------------------------------
     def __sizeof__(self): return self.D*_cxx_types_table[self.T][4]
     #def __del__(self): destroy_swig_object(self.this)
-    def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1])
+    def __del__(self): _vec_swig_type[0].set_type(self.this, _vec_swig_type[1]) #print(_vec_swig_type);
+    def __getattr__(self, attr):
+        #print('@', id(self), attr, list(self.__dict__.keys()))
+        if attr=='T': return self._T()
+        if attr=='D': return self._D()
+        if len(attr)==1 and attr in 'xyztuvw': return self['xyztuvw'.index(attr)]
+        #if attr=='this' and not 'this' in self.__dict__: self._swig_init(); print('SW', id(self), list(self.__dict__.keys()))
+        if attr in self.__dict__: return self.__dict__[attr]
+        raise AttributeError(self, attr)
+    def __setattr__(self, attr, val):
+        if len(attr)==1 and attr in 'xyztuvw': self['xyztuvw'.index(attr)] = val
+        else: self.__dict__[attr] = val
 #-------------------------------------------------------------------------------
 def iterbox(bbox):
     bbox, pos = Ind(bbox), Ind(D=len(bbox))
@@ -313,7 +329,7 @@ def iterbox(bbox):
 def Range(a, b=None):
     if b is None: a, b = Ind(D=len(a)), Ind(a)
     else: a, b = Ind(a), Ind(b)
-    pos, bmax, R = Ind(a), b[-1], list(range(len(a)-1))
+    pos, bmax, R = Ind(a), b[-1], range(len(a)-1)
     while pos[-1]<bmax:
         yield pos
         pos[0] += 1
@@ -327,11 +343,15 @@ def angle(a, b, c):
 #-------------------------------------------------------------------------------
 #   FINAL ACTIONS
 #-------------------------------------------------------------------------------
-#del PVec.__swig_destroy__ # ugly workaround!!!
+##del PVec.__swig_destroy__ # ugly workaround!!!
 PVec._swig_init = PVec.__init__
-for k, v in list(Vec.__dict__.items()):
+for k, v in Vec.__dict__.items():
     if k not in ('__doc__', '__dict__'): setattr(PVec, k, v)
-PVec.__name__, Vec = 'Vec', PVec; del PVec
+
+        #PVec.__name__, Vec = 'Vec', PVec; del PVec  # это ломает pickle.dump, попробовать наследование?
+if 0:
+    Vec =  PVec
+
 
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
 

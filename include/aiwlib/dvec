@@ -302,7 +302,8 @@ namespace std{
 	//--------------------------------------------------------------------------
 	template<typename T> struct less<aiw::DynVec<T> > {
 		bool operator()(const aiw::DynVec<T> &x, const aiw::DynVec<T> &y ) const { 
-			if(x.size()!=y.size()) WRAISE("", x.size(), y.size());
+			if(x.size()<y.size()) return true;
+			if(x.size()>y.size()) return false;
 	        less<T> cmp_l;
 	        for(int i=x.size()-1; i>=0; i--){
 				if(cmp_l(x[i], y[i])) return true;

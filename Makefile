@@ -11,6 +11,7 @@
 #    make ... debug=on   for make debug version
 #
 # See include/aiwlib/config.mk and doc/aiwlib.pdf for details.
+SHELL=/usr/bin/bash
 
 include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
@@ -18,10 +19,10 @@ include include/aiwlib/config.mk
 #-------------------------------------------------------------------------------
 #.PHONY: clean all install-links
 
-libaiw_n=debug,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
+libaiw_n=debug_ext,sphere,configfile,segy,isolines,checkpoint,mixt,racs,farfield,typeinfo
 qplt_n=imaging,accessor,base,mesh,mesh_cu,vtexture,balls
 ifeq (on,$(bin))
-bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff
+bin_n=arr2segY,segY2arr,isolines,sph2dat,arrconv,aiw-diff,vtk2msh
 #dat2mesh,fv-slice,uplt-remote
 endif
 #-------------------------------------------------------------------------------
@@ -74,15 +75,15 @@ $(dst)libaiw$(_dbg).a: $(src_o)
 $(dst)build/src/%.d: src/%.cpp
 	@mkdir -p $(dst)build/src
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/dbg_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 $(dst)build/src/bin/%.d: src/bin/%.cpp
 	@mkdir -p $(dst)build/src/bin
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/bin/dbg_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 $(dst)build/src/qplt/%.d: src/qplt/%.cpp
 	@mkdir -p $(dst)build/src/qplt
 	@p="$@"; echo -n "$@ $${p%.*}.o $(dst)build/qplt/dbg/qplt_" > $@
-	@$(CXX) -M $< >> $@
+	$(CXX) -std=c++11 -M $< >> $@
 
 -include $(shell echo $(dst)build/src/{$(libaiw_n)}.d $(dst)build/src/bin/{$(bin_n)}.d $(dst)build/src/qplt/{$(qplt_n)}.d)
 
@@ -96,8 +97,8 @@ $(dst)build/swig/%.py: $(dst)build/swig/%_wrap.cxx;
 $(dst)build/swig/%/core.py: $(dst)build/swig/%/core_wrap.cxx;
 $(dst)build/swig/%_wrap.cxx: swig/%.i; $(run_swig)
 $(dst)build/swig/%/core_wrap.cxx: swig/%/core.i; $(run_swig)
-$(py_dst)/aiwlib/%.py: $(dst)build/swig/%.py; ./patch_swig.py $< $@
-$(py_dst)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; ./patch_swig.py $< $@
+$(py_dst)/aiwlib/%.py: $(dst)build/swig/%.py; bin/aiwlib-swig-patch.py $< $@
+$(py_dst)/aiwlib/%/core.py: $(dst)build/swig/%/core.py; bin/aiwlib-swig-patch.py $< $@
 
 $(dst)build/swig/%_wrap.d: swig/%.i
 	@mkdir -p $(dst)build/swig
@@ -108,11 +109,11 @@ $(dst)build/swig/%/core_wrap.d: swig/%/core.i
 $(dst)build/swig/$(python)_%.d: $(dst)build/swig/%_wrap.cxx
 	@mkdir -p $(dst)build/swig
 	@p=$$(basename $@); echo -n "$@ " $(dst)build/swig/$(python)_dbg_$${p%.*}_wrap.o $(dst)build/swig/$(python)_ > $@
-	@$(CXX) -I $(PYTHON_H_PATH) -I./ -M $< >> $@
+	$(CXX) -std=c++11 -I $(PYTHON_H_PATH) -I./ -M $< >> $@
 $(dst)build/swig/%/$(python)_core.d: $(dst)build/swig/%/core_wrap.cxx
 	@mkdir -p $$(dirname $@)
 	@p=$$(dirname $@); echo -n "$@ " $$p/$(python)_dbg_core_wrap.o $$p/$(python)_ > $@
-	@$(CXX) -I $(PYTHON_H_PATH) -I./ -M $< >> $@
+	$(CXX) -std=c++11 -I $(PYTHON_H_PATH) -I./ -M $< >> $@
 
 
 ifeq (on,$(swig))
@@ -219,19 +220,21 @@ clean-qplt-cu:; rm -f bin/qplt-remote $(py_dst)/aiwlib/{_core$(so),_dbg_core$(so
 #-------------------------------------------------------------------------------
 uninstall: 
 	rm -rf $(INCLUDEDIR)/aiwlib $(PYTHONDIR)/aiwlib $(LIBDIR)/libaiw{,-dbg}.a 
-	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done
-install: all uninstall
+	for i in $(BIN_LIST); do rm -rf $(BINDIR)/$$i; done; rm -f $(BINDIR)/gplt
+install: uninstall
 	-cp -r include/aiwlib $(INCLUDEDIR)
 	-cp -r python$(python)/aiwlib  $(PYTHONDIR)
 	-cp libaiw.a $(LIBDIR)/
 	-cp libaiw-dbg.a $(LIBDIR)/
 	-for i in $(BIN_LIST); do cp -f bin/$$i $(BINDIR); done
-links-install install-links: all uninstall
+	-cp bin/gplt3 $(BINDIR)/gplt
+links-install install-links: uninstall
 	-ln -s "$$(pwd)/include/aiwlib" $(INCLUDEDIR)
 	-ln -s "$$(pwd)/python$(python)/aiwlib"  $(PYTHONDIR)
 	-ln -s "$$(pwd)/libaiw.a"  $(LIBDIR)
 	-ln -s "$$(pwd)/libaiw-dbg.a"  $(LIBDIR)
 	-for i in $(BIN_LIST); do ln -s "$$(pwd)/bin/$$i" $(BINDIR); done
+	-ln -s "$$(pwd)/bin/gplt3" $(BINDIR)/gplt
 #-------------------------------------------------------------------------------
 #   windows
 #-------------------------------------------------------------------------------
@@ -242,6 +245,6 @@ mingw/%_wrap$(python).o: swig/%_wrap.cxx; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/obj/%.o: src/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 mingw/view/%.o: src/view/%.cpp; $(MINGW) $(MINGW_OPT) -o $@ -c $<
 windows/aiwlib/_%.pyd: mingw/%_wrap$(python).o; $(MINGW) -shared -o $@ $^ $(MINGW_LINKOPT) 
-windows/aiwlib/_iostream.pyd: mingw/obj/debug.o
-windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
+windows/aiwlib/_iostream.pyd: mingw/obj/debug_ext.o
+windows/aiwlib/_view.pyd: $(shell echo mingw/obj/{debug_ext,sphere,binary_format,segy}.o  mingw/view/{color,mesh}.o) 
 #-------------------------------------------------------------------------------

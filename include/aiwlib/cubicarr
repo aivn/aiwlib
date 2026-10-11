@@ -1,6 +1,6 @@
 // -*- C++ -*-
-#ifndef AIW__HPP
-#define AIW__HPP
+#ifndef AIW_CUBICARR_HPP
+#define AIW_CUBICARR_HPP
 
 /**
  * Copyright (C) 2018 Antov V. Ivanov  <aiv.racs@gmail.com>
@@ -40,4 +40,4 @@ namespace aiw{
 	};
 	//--------------------------------------------------------------------------
 };
-#endif //AIW__HPP
+#endif //AIW_CUBICARR_HPP

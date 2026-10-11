@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #-------------------------------------------------------------------------------
-'''Copyright (C) 2003-2017 Anton V. Ivanov <aiv.racs@gmail.com>
+'''Copyright (C) 2003-2017, 2023 Anton V. Ivanov <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0
 
   опции командной строки:
@@ -26,8 +26,10 @@ Licensed under the Apache License, Version 2.0
 
   -h|--help --- показать эту справку и выйти
 
-Для всех параметров (кроме серийных) возможно дублирование, актуальным является 
-последнее значение. Значения параметров по умолчанию могут быть изменены при вызове 
+Для всех параметров возможно дублирование. Для обычных параметров актуальным является 
+последнее значение. Для серийных параметров при дублировании серии объединяются и 
+и сортируются. 
+Значения параметров по умолчанию могут быть изменены при вызове 
 конструктора расчета Calc (за исключением параметров daemonize и copies), но параметры 
 командной строки их перекрывают.
 Для булевых параметров имя параметра экивалентно заданию значения True, кроме того
@@ -57,6 +59,20 @@ N|n|NO|No|no|OFF|Off|off|FALSE|False|false|X|x|0. Длинные имена па
   -a|--auto-pull[=Y] --- автоматически сохранять все параметры расчета из 
                          контролируемых расчетом объектов.
   -m|--commit-sources[=Y] --- сохранять исходные коды расчета
+  -z|--zip[=N] --- при построении очереди расчетов вместо декартового произведения 
+                   последовательностей значений параметров использовать функцию zip 
+  -q|--queue filename.dat --- формирует очередь заданий из файла filename.dat 
+                              в формате gplt
+  -D|--delone umesh l_cr --- формирует очередь заданий для досчета (уточнения) на 
+                             основе неравномерной сетки. Сетка должна быть представлена 
+                             файлами umesh.dat (узлы в формате gplt) и umesh.cells 
+                             (индексы вершин ячеек), полученными например при помощи 
+                             racs ... --delone ...  Файл umesh.dat должен содержать
+                             минимум четрые колонки --- две колонки в пространстве
+                             неоднородной сетки, две колонки в пространстве управляющих
+                             параметров. l_cr задает критическую длину ребра, более длинные
+                             ребра разбиваются пополам и формируют задания в пространстве
+                             управляющих параметров.  
 
   -T|--title=TITLE --- задать имя серии
   -R|--repeat=.racs/... --- повторить серию
@@ -88,7 +104,7 @@ def _calc_configure(self):
     if calc._racs_params['_statechecker']:
         import inspect
         f = open('/tmp/racs-schk-%i'%os.getpid(), 'w')
-        print>>f, '''#!/usr/bin/python -S
+        print>>f, '''#!/usr/bin/python2 -S
 # -*- coding: utf-8 -*-
 import os, sys, cPickle, time, socket
 d2s = lambda t: time.strftime('%Y.%m.%d-%X', time.localtime(t))
@@ -113,6 +129,7 @@ while 1:
         except Exception as e: print>>sys.stderr, e
     if calc._racs_params['_daemonize'] or (calc._arg_seqs and calc._racs_params['_copies']>1) or calc._racs_params['_mpi']: 
         mixt.set_output(self.path+'logfile')
+    if os.path.exists('.racs/started-%s'%os.getppid()): open('.racs/path-%s'%os.getpid(), 'w').write(self.path+'\n')
     self.commit() #???
 #-------------------------------------------------------------------------------
 def _init_hook(self):
@@ -138,7 +155,7 @@ def _make_path_hook(self):
     return self.path
 calc._make_path_hook = _make_path_hook
 #-------------------------------------------------------------------------------
-def _on_exit(self): 
+def _on_exit(self):
     if hasattr(self, '_run4stat'):
         connect = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         connect.connect(('127.0.0.1', self._run4stat[0]))
@@ -154,9 +171,10 @@ def _on_exit(self):
             if hasattr(sys, 'last_value'): self.add_state('stopped')
             else: self.progress, self.runtime = 1., runtime; self.add_state('finished')
     finally: self.commit()
+    if os.path.exists('.racs/path-%s'%os.getpid()): os.remove('.racs/path-%s'%os.getpid())
     rsz = os.path.getsize(self.path+'.RACS') 
-    rcolor = ('' if rsz<4096 else ';33' if rsz<4096*3 else ';31' if rsz<4096*10 else ';37;41' if rsz<4096*30 else ';37;5;41')+'m%s'
-    print('RUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
+    rcolor = ('' if rsz<4096 else ';33' if rsz<4096*8 else ';31' if rsz<4096*32 else ';37;41' if rsz<4096*256 else ';37;5;41')+'m%s'
+    print('\nRUNTIME \033[1m%s\033[0m SIZE \033[1m%s\033[0m (.RACS \033[1%s\033[0m) %s'%(
         runtime, os.popen('du -hs '+self.path).readline().split()[0], rcolor%mixt.size2string(rsz), self.path))
 #-------------------------------------------------------------------------------
 def run4stat(self, _count, _copies=1, _mkdir=True, **params):
@@ -206,14 +224,11 @@ def run4stat(self, _count, _copies=1, _mkdir=True, **params):
 #-------------------------------------------------------------------------------
 #   parse command line options
 #-------------------------------------------------------------------------------
-if any(o in sys.argv[1:] for o in '-h -help --help'.split()):
-    print(__doc__)
-    print(''.join(l for l in open(sys.modules['__main__'].__file__) if '#@' in l))
-    sys.exit()
+if any(o in sys.argv[1:] for o in '-h -help --help'.split()): calc._help_mode = True; del sys.argv[1:]; print(__doc__)
 #-------------------------------------------------------------------------------
 opts = { 'symlink':('s', True), 'daemonize':('d', False), 'statechecker':('S', True), 'repo':('r', 'repo'),
          'on-exit':('e', True), 'calc-num':('n', 3), 'auto-pull':('a', True), 'clean-path':('p', False), 
-         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', '') }
+         'copies':('c', 1), 'commit-sources':('m', True), 'mpi':('', False), 'title':('T', ''), 'zip':('z', False) }
 for k, v in opts.items(): calc._racs_params['_'+k.replace('-', '_')] = v[1]
 calc._cl_args, calc._arg_seqs, calc._arg_order, i, repeat_mode = list(sys.argv[1:]), {}, [], 0, False
 while i<len(calc._cl_args):
@@ -237,13 +252,34 @@ while i<len(calc._cl_args):
                     L = [float('%g'%x) for x in L]
                     break
             else: L = s.split() #raise Exception('incorrect sequence expression '+A) ???
-        calc._arg_seqs[arg] = L; calc._arg_order.append(arg); del calc._cl_args[i]
-        calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
+        if arg in calc._arg_seqs:  calc._arg_seqs[arg] += L; calc._arg_seqs[arg].sort()
+        else:  calc._arg_seqs[arg] = L; calc._arg_order.append(arg)
+        del calc._cl_args[i]; calc._args_from_racs = filter(lambda i: i[0]!=arg, calc._args_from_racs)
     elif mixt.is_name_eq(A): 
         k, v = A.split('=', 1)
         if k in calc._arg_seqs: del calc._arg_seqs[k]; calc._arg_order.remove(k)
         if v.startswith('@'): v = eval(v[1:], math.__dict__, dict(calc._args_from_racs))
         calc._args_from_racs.append((k, v)); del calc._cl_args[i]
+    elif A in ('-q', '-queue', '--queue'):
+        D = {}
+        for l in open(calc._cl_args[i+1]):
+            if l.startswith('#:') and '=' in l: exec(l[2:], math.__dict__, D)
+            elif l.startswith('#:') and not '=' in l: H = l[2:].split()
+            elif l[0]!='#' and l.strip(): calc._queue.append(D.items()+zip(H, map(float, l.split())))
+        del D, calc._cl_args[i:i+2]
+    elif A in ('-D', '-delone', '--delone'):
+        l_cr, points, edges, cells = float(calc._cl_args[i+2]), [], set(), [map(int, l.split()) for l in open(calc._cl_args[i+1]+'.cells')]
+        for l in open(calc._cl_args[i+1]+'.dat'):
+            if l.startswith('#:') and not '=' in l: H = l[2:].split()
+            elif l[0]!='#' and l.strip(): points.append(map(float, l.split()))
+        for c in cells:
+            tr = [points[j] for j in c]            
+            for j in (0, 1, 2):
+                ij = tuple(sorted([c[j], c[(j+1)%3]])) 
+                if not ij in edges:
+                    edges.add(ij)
+                    if ((tr[j][0]-tr[(j+1)%3][0])**2 + (tr[j][1]-tr[(j+1)%3][1])**2)**.5 <= l_cr:
+                        calc._queue.append([(H[k], .5*(points[ij[0]][k]+points[ij[1]][k])) for k in (2, 3)])        
     elif A.startswith('-') and A!='-':
         for k, v in opts.items()+[('repeat', ('R', '')), ('continue', ('C', ''))]:
             if type(v[1]) is bool and any(A==x for x in ('-'+k, '--'+k, '-'+v[0])):

@@ -22,28 +22,28 @@ except: long = int
 class Time(object): 
 #    format = ...
     precision = 3
-    def __init__(self, val=0, **d): 
-        if d and val: raise IllegalInitTimeValue('what use, "val=%r" or "%s"?'%(
-                val, ', '.join(['%s=%r'%(k,v) for k, v in d.items()])))
+    def __init__(self, val=0, **d):
+        if d and val: raise IllegalInitTimeValue('what use, "val=%r" or "%s"?'%(val, ', '.join(['%s=%r'%(k,v) for k, v in d.items()])))
         if d: self.h, self.m, self.s = int(d.get('h',0)), int(d.get('m',0)), float(d.get('s',0)); self.setval()
         elif type(val) in (int, float, long): self.val = float(val)
         elif isinstance(val, Time): self.val = val.val
         elif type(val)==str:
             pm, val = (-1, val[1:]) if val.startswith('-') else (1, val)
             try:
-                if not ':' in val: self.val = pm*float(val) #secs
+                if not ':' in val:  self.val = pm*float(val) #secs
                 elif val.count(':')==1: h, m = map(float,val.split(':')); self.val = pm*(3600*h+60*m)
                 elif val.count(':')==2: h, m, s = map(float,val.split(':')); self.val = pm*(3600*h+60*m+s)
                 else: raise IllegalInitTimeValue(val)
             except ValueError as e: raise IllegalInitTimeValue(val)
-        else: raise IllegalInitTimeValue(val)
+        else:  raise IllegalInitTimeValue(val)
         self.h, self.m, self.s = int(abs(self.val)/3600), int(abs(self.val)/60)%60, self.val%60
+    def __getattr__(self, attr): return 0
     def setval(self): self.val = self.h*3600+self.m*60+self.s
     def __call__(self, **d): dd = dict(self.__dict__); del dd['val']; dd.update(d); return Time(**dd)
     def __float__(self): return self.val
     def __int__(self):   return int(self.val)
     def __getstate__(self): return self.val
-    def __setstate__(self, val): self.__init__(val)
+    def __setstate__(self, val):  self.__init__(val)
     def __str__(self):
         if not hasattr(self, 's'): return '---'
         if not self.s: return '-'*(self.val<0)+'%i:%02i'%(self.h, self.m)
@@ -67,7 +67,7 @@ class Time(object):
     def __mul__(self, other): 
         if type(other) in (int, float, long, str): return Time(self.val*float(other))
         raise IllegaMuleTimeValue(other)
-    def __div__(self, other): 
+    def __div__(self, other):        
         if type(other) is str and ':' in other: return self.val/Time(other).val
         elif type(other) in (int, float, long, str): return Time(self.val/float(other))
         elif isinstance(other, Time): return self.val/other.val

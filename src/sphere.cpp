@@ -52,14 +52,15 @@ template<int N,typename T> inline Vec<N,T> shift( const Vec<N,T>& r, int i ) {
 }
 //------------------------------------------------------------------------------
 //вспомогательная ф-я определяющая номер грани
-uint64_t id( const Vec<5,uint64_t>& ind ) { return ( ( ind[ (ind[3]+1)%3 ]+1 )/2 + ind [ (ind[3]+2)%3 ]+1 + 4*ind[3] )*5 + ind[4]; }
+uint64_t id( const Vec<5, int64_t>& ind ) { return ( ( ind[ (ind[3]+1)%3 ]+1 )/2 + ind [ (ind[3]+2)%3 ]+1 + 4*ind[3] )*5 + ind[4]; }
 //------------------------------------------------------------------------------
 //вспомагательная функция возвращающая соседний снизу треугольник для сетки 0-го уровня.
-inline Vec<5, uint64_t> down_nb(Vec<5, uint64_t> ind){
+inline Vec<5, int64_t> down_nb(Vec<5, int64_t> ind){
 	ind[ind[3]]=1;
 	int l = ind[0] * ind[1] * ind[2];//Это не ind.volume()
-	ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
-	Vec<5,int64_t> nb;
+	// ind[ ind[3] ] = ind[ ind[3] ]*(1-l)*0.5-(l+1)*0.5;
+	ind[ ind[3] ] = ind[ ind[3] ]*(1-l)/2 - (l+1)/2;
+	Vec<5, int64_t> nb;
 	if ( ind[4]<2 ) {
 		Vec<3,int64_t> tmp = ULInd3(ind[0],ind[1],ind[2]);
 		tmp[ind[3]] = -tmp[ind[3]];
@@ -157,6 +158,7 @@ void aiw::sph_free_table(int rank){ // освобождает таблицы с�
 }
 //------------------------------------------------------------------------------
 void init_zero_rank(){
+	// WMSG(current_rank);
 	// здесь должна быть инициализация массивов для 0-го уровня рекурсии.
 	// Заполнение vertex, vertex_cells, cell_vertex
 	// Здесь два типа вершин - вершины додекаэдра и центры граней,
@@ -196,7 +198,7 @@ void init_zero_rank(){
 				ULInd6 buf;
 				buf[0] = 5*i+k;
 				buf[5] = 5*i+((k+1)%5);
-				Vec<5,uint64_t> tmp2 = down_nb(ind|ind3|((k+1)%5));
+				Vec<5, int64_t> tmp2 = down_nb(ind|ind3|((k+1)%5));
 				buf[4] = id(tmp2);
 				tmp2[4] = (tmp2[4]+1)%5;
 				buf[3] = id(tmp2);
@@ -326,7 +328,8 @@ void mass_finish(int rank){
 void arrs_init(int rank){
 	//WOUT(rank);
 	if(rank<0 || rank>=MAX_RANK) WRAISE("incorrect ", rank, MAX_RANK);
-	if(rank==0) init_zero_rank();
+	// WMSG(rank, current_rank);
+	if(rank==0) init_zero_rank(); // current_rank = 0; }
 	else {
 		//тут нужна другая функция
 		//Увеличивать быстродействе здесь будем потом
@@ -406,7 +409,9 @@ void arrs_init(int rank){
 			}
 		}
 	}
+	// WMSG(rank, current_rank);
 	mass_finish(rank);
+	// WMSG(rank, current_rank);
 	
 	// добиваем вершины и грани
 	uint64_t cells_sz = sph_cells_num(rank), vertex_sz = sph_vertex_num(rank), edges_sz = sph_edges_num(rank);
@@ -423,6 +428,7 @@ void arrs_init(int rank){
 		vertex_vertex[rank][i] = vertex_edges[rank][i] = ULInd6(uint64_t(-1));
 		vertex_areas[rank][i] = 0.;
 	}
+	// WMSG(rank, current_rank);
 	
 	std::map<ULInd2, size_t> edges_table; // таблица пары ячеек: - ID ребер
 	for(size_t i=0; i<cells_sz; i++){
@@ -449,6 +455,7 @@ void arrs_init(int rank){
 		}
 	}
 	//--------------------
+	current_rank = rank; // WMSG(rank, current_rank);
 	size_t sz = sph_vertex_num(rank);
 	interp_radius[rank] = new double[sz];
 	for(size_t i=0; i<sz; i++){
@@ -463,8 +470,7 @@ void arrs_init(int rank){
 }
 //------------------------------------------------------------------------------
 void aiw::sph_init_table(int rank){
-	//  WOUT(_R, AR);
-	//WOUT(rank, current_rank);
+	// WMSG(rank, current_rank);
 	if(current_rank>=rank) return;
 	else {
 		Vec<3> *tmp3 = vertex;
@@ -476,8 +482,7 @@ void aiw::sph_init_table(int rank){
 			arrs_init(i); // инициализация массивов
 		}
 	}
-	current_rank = rank;
-	//  WOUT(2);
+	current_rank = rank;  // это избыточно, делается выше
 }
 //------------------------------------------------------------------------------
 size_t aiw::sph_cellInd(const Vec<3> &r, int rank){ // пока только для существующего ранга

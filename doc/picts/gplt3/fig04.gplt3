@@ -1,0 +1,23 @@
+#!/usr/bin/gplt3 -i
+# previous global options that may be relevant:
+
+# start of options related to this picture: 
+-sz 1.2,.5
+-o 0,0
+-sz square .5
+-par 
+-rt 0:30
+-rx -1:1
+-ry -1:1
+-fn sin(t)*exp(-.1*t),cos(t)*exp(-.1*t)
+-lbx x
+-lby v@2
+-o 0.4,0
+-sz nosquare .65,.5
+-lbx t
+-lby 
+-npar 
+-rx 0:30
+-fn sin(x)*exp(-.1*x)@=x
+-fn cos(x)*exp(-.1*x)@=v
+-to picts/gplt3/fig04.pdf

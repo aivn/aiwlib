@@ -1,11 +1,15 @@
 # main options for aiwlib make
-# Copyright (C) 2017-2018,2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+# Copyright (C) 2017-2018, 2021, 2024 Antov V. Ivanov  <aiv.racs@gmail.com>
 # Licensed under the Apache License, Version 2.0
 #
 # Edit this part of the file manually to configure the make
 # Отредактируйте эту часть файла вручную для настройки сборки
 #-------------------------------------------------------------------------------
-python:=2
+SHELL=/usr/bin/bash
+
+ifeq ($(python),)
+python=2
+endif
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки
 PYTHONDIR=$(shell python$(python) -c 'import os; print(os.path.dirname(os.__file__))')
@@ -14,7 +18,7 @@ INCLUDEDIR=/usr/include
 BINDIR=/usr/bin
 
 #BIN_LIST=racs approx isolines gplt uplt splt mplt fplt uplt-remote sph2dat arr2segY segY2arr
-BIN_LIST=racs approx isolines gplt qplt qplt-remote sph2dat arr2segY segY2arr
+BIN_LIST=racs racs3 approx isolines gplt2 qplt qplt-remote sph2dat arr2segY segY2arr vtk2msh gplt3 aiwlib-swig-patch.py
 #-------------------------------------------------------------------------------
 # comment out lines for refusing to use the unwanted modules
 # закомментируйте строки для отказа от использования лишних модулей 
@@ -46,10 +50,12 @@ PYTHON_H_PATH:=$(shell python$(python) -c 'import os, sysconfig; print(os.path.d
 ifeq (on,$(debug))
 #override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -Wextra -pedantic  -Wshadow -Wformat=2 -Wfloat-equal -Wconversion -Wlogical-op  -Wcast-qual -Wcast-align -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 -fsanitize=address -fsanitize=undefined -fno-sanitize-recover -fstack-protector -DEBUG $(CXXOPT) 
 #LINKOPT += -lasan -lubsan
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
+override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -DEBUG -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2 $(CXXOPT) 
 #LINKOPT += -lasan -lubsan
 else
-override CXXOPT:=-std=c++11 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+#override CXXOPT:=-std=c++17 -g -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -O3 $(CXXOPT) 
+#override CXXOPT:=-g -std=c++20 -fopenmp -fPIC -Wall -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -D_FORTIFY_SOURCE=2  $(CXXOPT) 
 endif
 
 override MPICXXOPT:=$(MPICXXOPT) $(CXXOPT)
@@ -57,9 +63,9 @@ AR:=ar
 
 #  -I/usr/lib/openmpi/include/
 ifneq (on,$(mingw))
-override LINKOPT:=$(LINKOPT) -lgomp -lz -ldl
+override LINKOPT:=$(LINKOPT) -lgomp -ldl
 endif
-override SWIGOPT:=$(SWIGOPT) -Wall -python -c++ -I./
+override SWIGOPT:=$(SWIGOPT) -Wall -python -doxygen -c++ -I./
 override NVCCOPT:=$(NVCCOPT) --compiler-options -fPIC -O3 -x cu
 
 # устанавливать 64x битный дистрибутив питона под wine как
@@ -87,7 +93,6 @@ endif
 # End of the part for editing, please DO NOT CHANGE the rest of the file!
 # Конец части для редактирования, пожалуйста НЕ МЕНЯЙТЕ остальную часть файла!
 #-------------------------------------------------------------------------------
-SHELL=/bin/bash
 
 ifeq (on,$(debug))
 _dbg=-dbg
@@ -120,7 +125,7 @@ define run_swig
 @mkdir -p $$(dirname $@)
 $(show_target)
 $(SWIG) $(SWIGOPT) -I$(PYTHON_H_PATH) -outdir $$(dirname $@) -o "$@" $<
-./patch_swig.py $@
+bin/aiwlib-swig-patch.py $@
 endef
 #-------------------------------------------------------------------------------
 define patch_py

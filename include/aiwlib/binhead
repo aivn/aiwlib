@@ -7,6 +7,7 @@
  * Licensed under the Apache License, Version 2.0
  **/
 
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <sstream>
@@ -45,11 +46,14 @@ namespace aiw{
 		// size_t size = 0;
 
 		enum type_t { unknown, mesh, sphere, zcube, balls };
-		type_t type = unknown; 
+		type_t type = unknown;
 
+		std::string typeinfo; 
+		
 		inline size_t get_size() const; 
 		template <typename ST> void dump(ST &S, int align=64) const;
-		template <typename ST> bool load(ST &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+		bool load(std::istream &S);  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+		template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>::value==false, bool>::type load(ST &S);  
 	};
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
@@ -59,7 +63,7 @@ inline size_t aiw::BinaryHead::get_size() const {
 	if(type==mesh){ size = szT; for(int i=0; i<dim; i++)  size *= bbox[i]; }
 	if(type==sphere) size = (sph_mode? (sph_mode==1? (30l<<2*rank)+2 : 90l<<2*rank) : 60l<<2*rank)*szT; 
 	if(type==zcube) size = size_t(szT)<<(dim*rank); 
-	if(type==balls) size = count*szT; 
+	if(type==balls) size = count*szT;
 	return size;
 }
 //------------------------------------------------------------------------------
@@ -77,6 +81,11 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	
 	uint32_t tail = type==sphere||type==balls? 0: logscale;
 	if(faxis) tail |= uint32_t(1)<<31;
+	
+	if(typeinfo.size()){
+		uint32_t sz = typeinfo.size(); buf.write((const char*)&sz, 4); buf.write(typeinfo.c_str(), sz);
+		tail |= uint32_t(1)<<30;
+	}
 	if(!info.empty()){
 		uint32_t sz = info.size(); buf.write((const char*)&sz, 4); buf.write(info.c_str(), sz);
 		tail |= uint32_t(1)<<29;
@@ -107,7 +116,7 @@ template <typename ST> void aiw::BinaryHead::dump(ST &S, int align) const {
 	// data_offset = S.tell();
 }
 //------------------------------------------------------------------------------
-template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректность прочитанного заголовка (тип, размерность и пр.) должна проверяться снаружи
+template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>::value==false, bool>::type aiw::BinaryHead::load(ST &S){ 
 	start_offset = S.tellg();
 	std::string h; int32_t dim_, szT_, h_sz = -1;
 	if(S.read(&h_sz, 4)!=4 || h_sz<0 || h_sz>(1<<16)){ S.seekg(start_offset); return false; }
@@ -144,6 +153,11 @@ template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректно
 			}
 			if(!faxis) for(int i=0; i<dim; i++) axis[i].clear(); 
 		}
+		if(tail&(1<<30)){  // читаем typeinfo
+			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
+			if(sz>=0 && off+sz<h_sz-4){ typeinfo.resize(sz); if(sz){ memcpy(&(typeinfo[0]), buf+off, sz); } off += sz; }
+			else typeinfo.clear();
+		} else typeinfo.clear();
 		if(tail&(1<<29)){  // читаем info
 			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
 			if(sz>=0 && off+sz<h_sz-4){ info.resize(sz); if(sz){ memcpy(&(info[0]), buf+off, sz); } off += sz; }
@@ -154,5 +168,17 @@ template <typename ST> bool aiw::BinaryHead::load(ST &S){  // корректно
 	}
 	return true;
 }
+//------------------------------------------------------------------------------
+namespace aiw{
+	class istream_wrapper_t{
+		std::istream &cin;
+	public:
+		istream_wrapper_t(std::istream &cin_):cin(cin_){}
+		size_t tellg() const { return cin.tellg(); }
+		template<typename T> size_t read(T* ptr, size_t sz){ cin.read((char*)ptr, sz); return cin.gcount(); }
+		void seekg(size_t pos){ cin.seekg(pos); }
+	};
+}
+inline bool aiw::BinaryHead::load(std::istream &S){ istream_wrapper_t wrap(S); return load(wrap); }  
 //------------------------------------------------------------------------------
 #endif //AIW_BINHEAD_HPP

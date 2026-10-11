@@ -77,7 +77,8 @@ builtins_import, __builtins__['__import__'] = __import__, import_hook
 def _decltype(a, b):
     'take two objects, return two C++ types (as strings)'
     ab, iT = [a, b], (0 if not hasattr(a, 'T') and not hasattr(a, '_T') else 1 if not hasattr(b, 'T') and not hasattr(b, '_T') else 2)
-    if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    #if iT==2 and getattr(a, 'T', a._T())==getattr(b, 'T', b._T()): return getattr(a, 'T', a._T())
+    if iT==2 and a._T()==b._T(): return a._T()
     if iT<2 and type(ab[iT]) in (tuple, list):
         L = [ _cxx_types_table[_cxx_types_table[type(x)]] for x in ab[iT] ]
         ab[iT] = _cxx_types_table[max(l[0] for l in L), max(l[1] for l in L)]
@@ -100,7 +101,7 @@ class Vec:
     def _T(self): return self.T if hasattr(self, 'T') else _get_T(get_swig_type(self.this))
     def _D(self): return self.D if hasattr(self, 'D') else _get_D(get_swig_type(self.this))
     def __init__(self, *args, **kw_args):
-        #print self.__class__.__name__, '*******', args, kw_args, '******'
+        # print self.__class__.__name__, '*******', args, kw_args, '******'
         self._swig_init()
         if len(args)==1: 
             if isinstance(args[0], Vec) and not 'T' in kw_args: args, kw_args['T'] = args[0], args[0].T
@@ -160,9 +161,9 @@ class Vec:
         return struct.pack('BBh', T, C, D)+pull_vec_data(self, 0, szT*D)
     def __setstate__(self, state):
         self._swig_init() #???
-        sT, sC, self.D = struct.unpack('BBh', state[:4])    
+        sT, sC, self.D = struct.unpack('BBh', state[:4]) #; print(sT, sC, self.D)
         self.T = _cxx_types_table[sT, sC]
-        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T]
+        T, C, pyT, let, szT, unpack, pack = _cxx_types_table[self.T] #; print(T, C, pyT, let, szT, unpack, pack)
         if szT*self.D!=len(state)-4: raise Exception('incorrect state size')
         push_vec_data(self, 0, state[4:], szT*self.D)
         cxx_m, i = _vec_types_table.get((self.T, self.D), (0,0))
@@ -247,6 +248,7 @@ class Vec:
     # periodic ???
     def circ(self, l): return Vec(*(self._getdata()[-l%self._D():]+self._getdata()[:-l%self._D()]), T=self._T()) #???
     def abs(self): return sum([x*x for x in self._getdata()])**.5
+    def norm(self, n=1.): return self*(n/self.abs())
     def abs2(self): return sum([x*x for x in self._getdata()])
     def pow(self, p): Vec(*[x**p for x in self._getdata()])
     def fabs(self): return Vec(*map(abs, self._getdata()))
@@ -331,7 +333,7 @@ def angle(a, b, c):
 PVec._swig_init = PVec.__init__
 for k, v in Vec.__dict__.items():
     if k not in ('__doc__',): setattr(PVec, k, v)
-PVec.__name__, Vec = 'Vec', PVec; del PVec
+PVec.__name__, Vec = 'Vec', PVec #; del PVec
 
 vec = lambda *args, **kw_args: Vec(*args, T=_cxx_types_table[type(args[0])], **kw_args)
 

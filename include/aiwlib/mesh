@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <utility>
 #include <typeinfo>
+#include <sstream>
 
 // #endif //SWIG
 #include "op_traits"
@@ -79,9 +80,9 @@ namespace aiw{
 #ifndef SWIG
 		template <typename T2, typename A2> void init(const Mesh<T2, D, A2> &M){ init_(M.box(), M.bmin(), M.bmax(), M.logscale); }
 		//----------------------------------------------------------------------		
-		void dump(aiw::IOstream &&S) const; //???оптимизировать для простых случаев???
+		void dump(aiw::IOstream &&S) const;  //???оптимизировать для простых случаев???
 		bool load(aiw::IOstream &&S, int use_mmap=0, bool raise_on_error=true, int align=0); // mmap = 0 - not use, 1 - readonly, 2 - rw
-#endif //SWIG
+#endif //SWIG 
 		void dump(aiw::IOstream &S) const { dump(std::move(S)); }
 		bool load(aiw::IOstream &S, int use_mmap=0, bool raise_on_error=true){ // mmap = 0 - not use, 1 - readonly, 2 - rw 
 			return load(std::move(S), use_mmap, raise_on_error); 
@@ -99,6 +100,8 @@ namespace aiw{
 		      T& operator [] (const aiw::Vec<D> &r)       { return (*this)[this->coord2pos(r)]; }
 		const T& operator [] (const aiw::Vecf<D> &r) const { return (*this)[this->coord2pos(r)]; }
 		      T& operator [] (const aiw::Vecf<D> &r)       { return (*this)[this->coord2pos(r)]; }
+	    const T& raw(size_t cID) const { return *(const T*)((const char*)ptr+cID*mul[0]); }
+		      T& raw(size_t cID)       { return *(T*)((char*)ptr+cID*mul[0]); }
 
 		template <typename ... Args>       T& ind(Args ... pos)       { return (*this)[Ind<D>(pos...)]; }
 		template <typename ... Args> const T& ind(Args ... pos) const { return (*this)[Ind<D>(pos...)]; }

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2017, 2021 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2017, 2021, 2025 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -12,18 +12,10 @@
 #include <csignal>
 #include <execinfo.h>
 #endif //AIW_WIN32
-#include "../include/aiwlib/debug" 
+#include "../include/aiwlib/debug_ext" 
 using namespace aiw;
 
 char bUfFoRwRaIsE0[4096];
-//------------------------------------------------------------------------------
-SplitArgForOut::SplitArgForOut(const char *str){
-	const char *br = "()[]{}"; int brc[3] = {0, 0, 0};
-	for(end=0; str[end] && (brc[0] || brc[1] || brc[2] || str[end]!=','); ++end)
-		for(int k=0; k<6; ++k) if(str[end]==br[k]){ brc[k/2] += 1-k%2*2; break; }
-	next = str[end]?end+1:end; while(str[next] && (str[next]==' ' || str[next]=='\t')) next++;
-}
-//------------------------------------------------------------------------------
 static BaseDebugStackTupleFrame *exc_frames[4096];
 static int exc_counter = 0;
 BaseDebugStackTupleFrame::BaseDebugStackTupleFrame(bool reg){ if(reg && exc_counter<4095) exc_frames[exc_counter++] = this; } 

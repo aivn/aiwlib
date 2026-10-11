@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 '''qplt --- мультиформатный кроссплатформенный 3D вьювер с клиент-серверной архитектурой.
 Copyright (C) 2021-22 Antov V. Ivanov  <aiv.racs@gmail.com> with support Kintech Lab
 Licensed under the Apache License, Version 2.0

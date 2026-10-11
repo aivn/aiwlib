@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''Copyright (C) 2003-2017 Antov V. Ivanov  <aiv.racs@gmail.com>
+'''Copyright (C) 2003-2017, 2023 Antov V. Ivanov  <aiv.racs@gmail.com>
 Licensed under the Apache License, Version 2.0'''
-import os, sys, time, gzip, mixt, gtable, calc, cPickle, fnmatch
+import os, sys, time, gzip, mixt, gtable, calc, cPickle, fnmatch, math
 #-------------------------------------------------------------------------------
 def parse(ev): 
     '''parse('ev![!] либо [~|^][title=][$]ev[?|%|#][-] либо tag+') возвращает кортеж csfh из 4-х значений
@@ -38,8 +38,16 @@ def parse(ev):
             compile('(" ".join(l.strip() for l in os.popen(%r%%self).readlines()))'%ev[1:] if ev.startswith('$') and not evex else ev, 
                     ev+'!'*evex if evex else title, 'exec' if evex else 'eval')), sort, fltr, hide
 #-------------------------------------------------------------------------------
+_ignore_list = set('path statelist args md5sum _wrap _comments _profiler _starttime tags this thisown'.split())
 class SelCalc(calc.Calc):
     def __init__(self, path, D): self.__dict__.update(D); self.__dict__['path'] = path
+    def keys_set(self): return set(k for k in self.__dict__ if k[0]!='_' and not k in _ignore_list)
+    def __getitem__(self, key):
+        if key in self.__dict__:
+            val = self.__dict__[key]
+            if type(val) is float: a, b = math.frexp(val); return math.ldexp(round(a*1e6)/1e6, b)
+            return val
+        return calc.Calc.__getitem__(self, key)
 #-------------------------------------------------------------------------------
 class Select:
     'Построение выборки по базе RACS'
@@ -87,7 +95,7 @@ class Select:
                 if self.progressbar: self.progressbar.out(start, 'refresh cache '+dirname+' ')
             if cache_refresh or not cache:
                 try: cPickle.dump(cache, open(cache_name, 'w')) # after commit ???
-                except: print dirname, '--- cache not dumped!'
+                except: print>>sys.stderr, dirname, '--- cache not dumped!'
             #-------------------------------------------------------------------
             #   main cicle
             #-------------------------------------------------------------------
@@ -99,6 +107,7 @@ class Select:
                     l = [R]; self._L.append(l); Select._i += 1
                     for c, s, f, h in csfhL:
                         l.append(R(c))
+                        if s and type(l[-1]) is float: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
                         if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break
                 elif check_tree: vizit(p, start, part, repo)
                 start += part
@@ -116,6 +125,7 @@ class Select:
                 l = [R]; self._L.append(l); Select._i += 1
                 for c, s, f, h in csfhL:
                     l.append(R(c))
+                    if s: m, p = math.frexp(l[-1]); l[-1] = math.ldexp(int(m*1e7+(.5 if m>0 else -.5 if m<0 else 0))/1e7, p)
                     if f==1 and not l[-1]: self._L.pop(-1); Select._i -= 1; break                
 
         if ev_ring: self.ring_keys = ring_keys
@@ -125,7 +135,9 @@ class Select:
             U = dict(self._L[0][0].__dict__) if self._L else {} # определение совпадающих параметров в выборке
             for l in filter(None, self._L[1:]):
                 for k, v in U.items():
-                    if not k in l[0].__dict__ or l[0][k]!=v: del U[k]
+                    try:
+                        if not k in l[0].__dict__ or l[0][k]!=v: del U[k]
+                    except: del U[k]
                 if not U: break
             if ev_ring: U.update(zip(ring_keys, rk))
             self.upar = SelCalc(None, U) # поддержка в delslice и т.д.?
@@ -192,10 +204,93 @@ class Select:
         return [p[0].args[0]+''.join([' %s=%s'%(k, cnv(v)) for k, v in zip(self.head, p[1:])])+tail for p in self._L if p]
     def paths(self, patterns=['']):
         'Возвращает пути (к расчету или файлу), проверяя на их на существование'
-        return sum([[l[0].path+p for p in patterns] for l in self._L if l ], []) #and os.path.exists(l[0].path+fname)]
+        return sum([[l[0].path+p for p in patterns if os.path.exists(l[0].path+p)] for l in self._L if l], []) #and os.path.exists(l[0].path+fname)]
     def paths2py(self, patterns=['']):
         'Возвращает пути (к расчету или файлу) в формате списка Python, проверяя на их на существование'
         return repr(self.paths(patterns))
+    def full_report(self, *patterns):
+        table, max_len = [None], mixt.get_tty_width()-1
+        #-----------------------------------------------------------------------
+        def stat(key, L):
+            if L: 
+                try: L = sorted(set(L))
+                except: pass
+                line = '[%i] '%len(L)+',  '.join(map(str, L))
+                if len(line)>max_len*.7: line = '[%i] min: %s,   max: %s,   mean: %s'%(len(L), L[0], L[-1], L[len(L)/2])
+                if len(line)<max_len*.7: table.append([key, line])
+                else: table.extend([None]*(not table[-1] is None)+[[key, '[%i]'%len(L)], ['min', L[0]], ['max', L[-1]], ['mean', L[len(L)/2]], None])
+            else: table.extend([[key, '---'], None])
+        #-----------------------------------------------------------------------
+        for ring_id in range(max(1, len(self.ring))):
+            if self.ring:
+                for k, v in self.upar.par_dict(): table.append([k, v])
+                table.append(None)
+            if self.head:
+                for i, h in enumerate(self.head): stat(h, [l[i+1] for l in self._L if l])
+            if not self.head or patterns:
+                keys = sorted(reduce(set.__or__, [l[0].keys_set() for l in self._L if l], set()))
+                if patterns: keys = filter(lambda x: mixt.compare(x, patterns), keys)
+                for k in keys: stat(k, [l[0].__dict__[k] for l in self._L if l and k in l[0].__dict__])
+            tags = sorted(reduce(set.__or__, [l[0].tags for l in self._L if l], set()))
+            table.append(['tags', tags])
+            self.click(); table.append(None)
+        return mixt.table2strlist(table, pattern='r|l', max_len=max_len)
+        
+    def full_report0(self, *patterns):
+        table, max_len = [None, 'parametr vals min max mean'.split(), None], mixt.get_tty_width()-1
+        #-----------------------------------------------------------------------
+        conv2str = lambda x: '\n'.join(str(x[i]) for i in range(len(x))) if len(str(x))>max_len/4 and (
+            getattr(x, '_is_aiwlib_vec', 0) or type(x) in (list, tuple)) else ' '.join(str(i) for i in x) if type(x) in (list, tuple) else str(x)
+        def stat(key, L):
+            if L: 
+                try: L = sorted(set(L))
+                except: pass                
+                table.append([key, len(L), conv2str(L[0]), conv2str(L[-1]), conv2str(L[len(L)/2])])
+            else: table.append([key, None, None, None, 0])
+        #-----------------------------------------------------------------------
+        for ring_id in range(max(1, len(self.ring))):
+            if self.ring:
+                for k, v in self.upar.par_dict(): table.append([k, v, None, None])                    
+            if self.head:
+                for i, h in enumerate(self.head): stat(h, [l[i+1] for l in self._L if l])
+            if not self.head or patterns:
+                keys = sorted(reduce(set.__or__, [l[0].keys_set() for l in self._L if l], set()))
+                if patterns: keys = filter(lambda x: mixt.compare(x, patterns), keys)
+                for k in keys: stat(k, [l[0].__dict__[k] for l in self._L if l and k in l[0].__dict__])
+            tags = sorted(reduce(set.__or__, [l[0].tags for l in self._L if l], set()))
+            table.append(['tags', len(tags), conv2str(tags), '', ''])
+            if table[-1]: table[-1] += ['']*(5-len(table[-1]))
+            self.click(); table.append(None)
+        return mixt.table2strlist(table, max_len=max_len)
+        #return table
+    #---------------------------------------------------------------------------
+    def delone(self, path=None):
+        from scipy.spatial import Delaunay
+        points = [l[1:] for l in self._L if l]
+        cells, edges = Delaunay(points), {} # ij: len
+        # calc stat
+        #angles = []
+        for c in cells:
+            tr = [points[i] for i in c]            
+            S = (tr[1][0]-tr[0][0])*(tr[2][1]-tr[0][1]) - (tr[1][1]-tr[0][1])*(tr[2][0]-tr[0][0]) #a[0]*b[1]-a[1]*b[0]
+            for i in (0, 1, 2):
+                ij, l = tuple(sorted([c[i], c[(i+1)%3]])),  ((tr[i][0]-tr[(i+1)%3][0])**2 + (tr[i][1]-tr[(i+1)%3][1])**2)**.5
+                if not ij in edges: edges[ij] = l
+                #angles.append(acos(.5*S/l))
+        edge_av = sum(edges.values())/len(edges)
+        stat = '%i points, %i cells, edge_min=%g, edge_max=%g, edge_av=%g, edge_sigma=%g'%(
+            len(points), len(cells), min(edges.values()), max(edges.values()), edge_av, (sum((e-edge_av)**2 for e in edges.values())/len(edges))**.5)
+        print stat
+                
+        if path:
+            fname %= self.upar; dname = os.path.dirname(fname)
+            if dname and not os.path.exists(dname): os.makedirs(dname)
+            H = [h.strip().split('\n')[0] for h in self.head]
+            R = mixt.table2strlist([['#:'+H[0]]+H[1:]] + points, 'l'*len(self.head))
+            open(fname+'.dat', 'w').writelines([l.lstrip(' ') for l in R])
+            open(fname+'.cells', 'w').writelines(['%i %i %i\n'%tuple(c) for c in cells])
+            open(fname+'.edges', 'w').writelines(['%g %g\n%g %g\n\n\n'%(points[e[0]][0], points[e[0]][1], points[e[1]][0], points[e[1]][1]) for e in edges.keys()])
+            open(fname+'.stat', 'w').write(stat+'\n')
     #---------------------------------------------------------------------------
     def Xcommit(self): 'сохраняет изменения в расчетах на диск'; [l[0].commit() for l in self._L if l]
     def Xremove(self):
@@ -230,7 +325,7 @@ class Select:
         'список всех параметров привязанных к расчетам выборки, допустимые режимы "|", "&", "^", "or", "and", "xor"'
         starttime = time.time()
         if not self._L: return []
-        keys = [set(l[0].par_dict('statelist', 'args', 'runtime', 'progress').keys()) for l in self._L if l]
+        keys = [l[0].keys_set() for l in self._L if l]
         S = reduce(getattr(set, '__%s__'%{'|':'or', '&':'and', '^':'xor'}.get(mode, mode)), keys, keys.pop(0))
         if patterns: S = filter(lambda n: mixt.compare(n, patterns), S)
         self.runtime = time.time()-starttime
