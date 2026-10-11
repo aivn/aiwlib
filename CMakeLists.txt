@@ -12,8 +12,10 @@ endif()
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+if(NOT MSVC)  # keep CMake defaults for MSVC (/O2, /Zi, /EHsc)
+	set(CMAKE_CXX_FLAGS_DEBUG "-g")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
 # Set a default build type if none was specified
 set(default_build_type "Release")
@@ -46,10 +48,10 @@ set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 endif()
 
 if (NOT WIN32)
-	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-Wall -Wpedantic -fdiagnostics-color=always")
+	string(APPEND CMAKE_CXX_FLAGS " -Wall -Wpedantic -fdiagnostics-color=always")
 else()
 	set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
+	string(APPEND CMAKE_CXX_FLAGS " -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
 endif()
 
 #find_package(ZLIB REQUIRED)
