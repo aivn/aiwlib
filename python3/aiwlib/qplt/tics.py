@@ -96,7 +96,7 @@ def make_tics(limits, logscale, N, vertical, paint):
     t2p = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
     L = num2strL(tics, logscale)        
     try: return [(t2p(t), l) for t, l in zip(tics, L)], max(text_sz(l, paint, False) for l in L), map(t2p, stics)
-    except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for t in L), [] #[0]*len(stics)
+    except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for l in L), [] #[0]*len(stics)
 #-------------------------------------------------------------------------------
 def num2strL(L, logscale): 
     'единообразно приводит список чисел к самому лаконичному варианту записи в виде строк'
