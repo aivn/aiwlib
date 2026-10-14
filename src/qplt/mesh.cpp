@@ -28,6 +28,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load0: %p\n", mem_ptr);
 	BinaryHead bh; size_t s = S.tell();
 	if(!bh.load(S) || bh.type!=BinaryHead::mesh || bh.dim>6){ S.seek(s); return false; }
+	for(int i=0; i<bh.dim; i++) if(bh.bbox[i]<=0){ S.seek(s); return false; }  // corrupt header: empty/negative axis (step=inf, empty autoscale)
 	head = bh.head; dim = bh.dim; szT = bh.szT; logscale = bh.logscale; for(int i=0; i<dim; i++){ bbox[i] = bh.bbox[i]; anames[i] = bh.axis[i]; }
 	for(int i=0; i<dim; i++) if(anames[i].empty()) anames[i] = default_anames[i];
 	
