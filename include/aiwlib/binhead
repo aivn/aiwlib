@@ -148,7 +148,7 @@ template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>
 			bool faxis = true;
 			for(int i=0; i<dim; i++){
 				int32_t sz = -1; if(off+4<=h_sz-4){ memcpy(&sz, buf+off, 4); off += 4; }  // corrupt headers: never read past the buffer
-				if(sz>=0 && sz<h_sz-4-off){ axis[i].resize(sz+1, 0); if(sz){ memcpy(&(axis[i][0]), buf+off, sz); } off += sz; }
+				if(sz>=0 && sz<h_sz-4-off){ axis[i].resize(sz); if(sz){ memcpy(&(axis[i][0]), buf+off, sz); } off += sz; }
 				else{ faxis = false;  break; }
 			}
 			if(!faxis) for(int i=0; i<dim; i++) axis[i].clear(); 
