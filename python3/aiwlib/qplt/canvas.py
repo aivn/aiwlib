@@ -54,7 +54,7 @@ class Canvas(QtWidgets.QWidget):
         for i in range(2+bool(self.win.D3.currentIndex())):
             a = self.axisID[i]
             getattr(self.win, '%sflip'%'xyz'[i]).setChecked(bool(self.faai & (1<<a)))
-            getattr(self.win, '%sinterp'%'xyz'[i]).setCurrentIndex((self.faai>>(18+2*i))&3)            
+            getattr(self.win, '%sinterp'%'xyz'[i]).setCurrentIndex((self.faai>>(18+2*a))&3)  # data axis a, as in win2faai/set_interp
     def win2faai(self):
         for i in range(2+bool(self.win.D3.currentIndex())):
             a = self.axisID[i]
