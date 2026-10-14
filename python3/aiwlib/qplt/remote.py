@@ -130,7 +130,7 @@ class QpltPlotter:
     def get_bmax(self, axe): return self._bmax[axe]
     def get_logscale(self, axe): return self.container.get_logscale(self._axisID[axe])
     def get_step(self, i): return self.container.get_step(self._axisID[i])
-    def get_axe(self, i): return self.container.get_axe(self._axisID[axe])
+    def get_axe(self, axe): return self.container.get_axe(self._axisID[axe])
     def get_axeID(self, axe): return self._axisID[axe]		
     def get_f_min(self): return self._f_lim[0]
     def get_f_max(self): return self._f_lim[1]
