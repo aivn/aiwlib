@@ -27,8 +27,7 @@ def load_local_file(fname, touch_mode, P):  # --> frames count
             L = list(core.factory(bytes(f, 'utf8')))  # <-- std::vector<BaseContainer*>
             if L:
                 for f in L: f.touch_mode = touch_mode
-                touch_mode = None; table.append(L); params.append(P) 
-                if not getattr(core, 'mem_limit', None) is None: core.QpltContainer.mem_limit.fset(core.mem_limit); core.mem_limit = None
+                touch_mode = None; table.append(L); params.append(P)
             else: print('load [', fname, '] --- skipped')
     else: print('\tModule qplt.core is not imported, local file [', fname, '] skipped')
 #-------------------------------------------------------------------------------
@@ -60,7 +59,8 @@ def load_files(*args):
             try:
                 mem_limit = float(arg[2:])
                 if remote: remote.mem_limit = mem_limit
-                if core and not hasattr(core, 'mem_limit'): core.mem_limit = mem_limit
+                if core and not getattr(core, 'mem_limit_set', False):  # only the first -m applies (see bin/qplt), applied at once
+                    core.QpltContainer.mem_limit.fset(mem_limit); core.mem_limit_set = True
             except ValueError as e: print(e, '--- skipped incorrect mem_limit argumet', arg)
         elif arg.startswith('-t'): touch_mode = (1, float(arg[2:]) if len(arg)>2 else .5)
         elif arg.startswith('-T'): touch_mode = (2, float(arg[2:]) if len(arg)>2 else .5)
