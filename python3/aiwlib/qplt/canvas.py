@@ -33,7 +33,10 @@ class Canvas(QtWidgets.QWidget):
     def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
     #--------------------------------------------------------------------------
     def animate(self):
-        if self.win.animate.isChecked(): self.movie_timer.start(int(float(self.win.animate_step.text())*1e3)); self.movie_mode = True
+        if self.win.animate.isChecked():
+            try: step = float(self.win.animate_step.text().replace(',', '.'))  # the validator follows the locale (decimal comma)
+            except ValueError: step = .1; self.win.animate_step.setText('0.1')
+            self.movie_timer.start(max(1, int(step*1e3))); self.movie_mode = True
         else: self.movie_timer.stop(); self.movie_mode = False
     def save_animate(self):
         if self.win.save_animate.isChecked(): self.movie_path, self.movie_counter = tempfile.TemporaryDirectory(), 0; print('movie_path %r'%self.movie_path.name)
