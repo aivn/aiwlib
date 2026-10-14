@@ -75,8 +75,9 @@ template <int AID> void aiw::QpltBallsPlotter::init_impl(int autoscale){
 		constexpr int dout = QpltAccessor::DOUT<AID>();
 		QpltBalls* cnt = (QpltBalls*)container; Vecf<3> rmin = cnt->bmin(0,1,2), rmax = cnt->bmax(0,1,2); // ???
 		if(autoscale==1) for(int i=0; i<3; i++){  // расчет пределов по выделенному кубу
-				rmin[i] = cnt->pos2coord(spos[axisID[i]], axisID[i])-.5*cnt->step[axisID[i]]; // smax[axisID[i]] += bbox[i]-1;
-				rmax[i] = cnt->pos2coord(bbox[axisID[i]], axisID[i])-.5*cnt->step[axisID[i]]; // smax[axisID[i]] += bbox[i]-1;
+				int a = axisID[i];  // r below is in data axes: region [spos[a], spos[a]+bbox[i]) of data axis a (bbox is in screen axes)
+				rmin[a] = cnt->pos2coord(spos[a], a)-.5*cnt->step[a];
+				rmax[a] = cnt->pos2coord(spos[a]+bbox[i], a)-.5*cnt->step[a];
 			}		
 		const char* ptr0 = cnt->mem_ptr, *nb[6] = {nullptr}; float f_min = HUGE_VALF,  f_max = -HUGE_VALF; size_t count = cnt->count;
 #ifndef AIW_WIN32
