@@ -143,6 +143,12 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	} else { // 3D режим, настройки флэтов в плоттере
 		if(plt->theta<0) plt->theta  = 0;
 		if(plt->theta>180) plt->theta = 180;
+		if(mode==2){  // XD needs all three faces: keep the view .1 degree off edge-on angles (multiples of 90), otherwise flats.size()<3
+			auto nudge = [](float &a){ float r = a-90*roundf(a/90); if(fabsf(r)<.1f) a += (r<0? -.1f: .1f)-r; };
+			nudge(plt->theta); nudge(plt->phi);
+			if(plt->theta<.1f) plt->theta = .1f;
+			if(plt->theta>179.9f) plt->theta = 179.9f;
+		}
 		float c_ph, s_ph, c_th, s_th;  sincosf(-plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(-plt->theta*M_PI/180, &s_th, &c_th);
 		plt->nS = vecf(c_ph*s_th, s_ph*s_th, c_th); plt->nX = vecf(s_ph, -c_ph, 0.f); plt->nY = vecf(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
 		Vecf<2> pp[8];  plt->Ahull = plt->Bhull = Vecf<2>();  float Zmin = 0;  // координаты вершин 
