@@ -66,7 +66,7 @@ std::map<std::string, std::vector<aiw::QpltColor::rgb_t> > aiw::QpltColor::table
 	};
 //------------------------------------------------------------------------------
 void aiw::QpltColor::conf(aiw::QpltColor3D *c3D, int tmask) const {
-	int i = c3D->up_bound = 0; for(auto s: pal){ c3D->pal[i] = (Vecf<3>(1.f)-s.to_vecf())|bool(tmask&(1<<i)); i++; } c3D->up_bound = i-1;
+	int i = c3D->up_bound = 0; for(auto s: pal){ if(i==int(sizeof(c3D->pal)/sizeof(c3D->pal[0]))) break;  /* QpltColor3D::pal has 10 entries */ c3D->pal[i] = (Vecf<3>(1.f)-s.to_vecf())|bool(tmask&(1<<i)); i++; } c3D->up_bound = i-1;
 	c3D->mul = mul; c3D->min = min; c3D->max = max; c3D->logscale = logscale; c3D->modulus = modulus;
 	c3D->nan_color = rgb_t(nan_color).to_vecf()|1.f;
 }
