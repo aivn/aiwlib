@@ -104,7 +104,11 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 				plt->bbeg[i] = lgs? log(A/bmin[a])/step[a]: (A-bmin[a])/step[a];
 				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
 			}
-			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]; plt->bmax[i] = bmax[a]; } // выход за правую границу
+			if(plt->bbeg[i]>bbox[a]-1){  // обе границы за правым краем
+				plt->bbeg[i] = bbox[a]-1;
+				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
+			}
+			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]-plt->bbeg[i]; plt->bmax[i] = bmax[a]; } // выход за правую границу
 			else {
 				plt->bbox[i] = (lgs? log(B/plt->bmin[i])/step[a]: (B-plt->bmin[i])/step[a])+.5;
 				if(plt->bbox[i]<1) plt->bbox[i] = 1;
