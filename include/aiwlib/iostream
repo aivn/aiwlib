@@ -35,6 +35,10 @@ namespace aiw { class IOstream{
 
 // #include <sys/types.h>
 #include <sys/stat.h>
+#ifdef AIW_WIN32
+#include <locale>
+#include <codecvt>
+#endif //AIW_WIN32
 // #include <unistd.h>
 
 #include "binaryio"
@@ -180,9 +184,20 @@ namespace aiw{
 #ifndef SWIG
 		std::shared_ptr<IOstream> copy() const { File *f = new File; *f = *this; std::shared_ptr<IOstream> r(f); return r; }
 		template <typename ... Args> void open(const char *format, const char *mode, Args ... args){
-			std::stringstream path; format2stream(path, format, args...); FILE *f = ::fopen(path.str().c_str(), mode);
-			if(!f) WRAISE("cannot open file", path.str(), mode);
-			name = path.str(); pf.reset(f, ::fclose);
+			std::stringstream path; format2stream(path, format, args...); open_path(path.str(), mode);
+		}
+		void open_path(const std::string &path, const char *mode){  // opens path as is, without '%' format processing
+#ifdef AIW_WIN32
+			// paths come as UTF-8 (e.g. from Python): try the wide API first, fall back to the ANSI code page
+			FILE *f = nullptr;
+			try{ std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> cv; f = ::_wfopen(cv.from_bytes(path).c_str(), cv.from_bytes(mode).c_str()); }
+			catch(const std::range_error&){}  // not valid UTF-8
+			if(!f) f = ::fopen(path.c_str(), mode);
+#else //AIW_WIN32
+			FILE *f = ::fopen(path.c_str(), mode);
+#endif //AIW_WIN32
+			if(!f) WRAISE("cannot open file", path, mode);
+			name = path; pf.reset(f, ::fclose);
 			struct stat st; fstat(::fileno(f), &st);
 #ifdef AIW_WIN32
 			last_mtime = st.st_mtime; 
@@ -199,7 +214,7 @@ namespace aiw{
 		}
 		template <typename ... Args> File(const char *format, const char *mode, Args ... args){ open(format, mode, args...); }
 #endif //SWIG
-		File(const char *path, const char *mode){ open(path, mode); }
+		File(const char *path, const char *mode){ open_path(path, mode); }  // a plain file name: no '%' processing
 		
 		void close(){ pf.reset(); } 
 		long long tell() const { 
