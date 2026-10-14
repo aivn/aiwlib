@@ -73,6 +73,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
 											   float th_phi[2], float cell_aspect[3], int D3deep
 											   ){ // const {
+	for(int i=0; i<2+bool(mode); i++) if(axisID[i]<0 || axisID[i]>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);  // before allocating: no leak
 	QpltPlotter* plt = mk_plotter(mode); plt->container = this; plt->mode = mode;
 	// 1. настраиваем базовые вещи в плоттере
 	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
@@ -93,7 +94,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	plt->D3density = D3deep&0x7F; plt->D3opacity = (D3deep>>7)&0x7F;  plt->D3mingrad = (D3deep>>14)&0x7F; plt->D3tmask = D3deep>>21; // 11 осталось
 	
 	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
-		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
+		int a = axisID[i];  // checked above
 		if(fai&(1<<a)) plt->flips |= 1<<i;
 		plt->interp |= (fai>>(18+2*a)&3)<<2*i; 
 		bool lgs = logscale&(1<<a); plt->logscale |= int(lgs)<<i;
