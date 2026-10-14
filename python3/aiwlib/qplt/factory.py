@@ -64,14 +64,14 @@ def load_files(*args):
             except ValueError as e: print(e, '--- skipped incorrect mem_limit argumet', arg)
         elif arg.startswith('-t'): touch_mode = (1, float(arg[2:]) if len(arg)>2 else .5)
         elif arg.startswith('-T'): touch_mode = (2, float(arg[2:]) if len(arg)>2 else .5)
-        elif arg.endswith(':'): server = parse_server(arg[:-1]); continue
-        #elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
-        elif ':' in arg and not (sys.platform=='win32' and arg[1:3] in (':/', ':\\')):  # fix full path for windows
-            srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
-        elif arg.startswith('-f'):
+        elif arg.startswith('-f'):  # before the host:path tests, the json path may contain ':'
             try:
                 for D in json.load(open(arg[2:])): load_local_file(D['file'], touch_mode, D); touch_mode = None
             except: print('json file %r ingnored'%arg[2:])
+        elif arg.endswith(':'): server = parse_server(arg[:-1]); continue
+        #elif ':' in arg: srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
+        elif ':' in arg and not (sys.platform=='win32' and arg[1:2]==':' and arg[0].isalpha()):  # C:..., C:/..., C:\... are local paths on Windows
+            srv, fname = arg.split(':', 1); load_remote_file(fname, touch_mode, **parse_server(srv)); touch_mode = None
         else: load_remote_file(arg, touch_mode, **server) if server else load_local_file(arg, touch_mode, {'file':arg}); touch_mode = None
         for f in table[tpos:]: print('Load', f[0].fname().decode(), '---', len(f), 'frames')
     print('Totally loaded', sum(len(f) for f in table), 'frames from', len(table), 'files')
