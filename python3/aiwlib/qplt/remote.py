@@ -100,7 +100,7 @@ class QpltContainer:
     def get_bbox(self, axe): return self._bbox[axe]
     def get_bmin(self, axe): return self._bmin[axe]
     def get_bmax(self, axe): return self._bmax[axe]
-    def get_logscale(self, axe): return self._logscale&(1<<axe)
+    def get_logscale(self, axe): return bool(self._logscale&(1<<axe))  # a bool like the local container (callers do "logsc."*get_logscale(i))
     def get_axe(self, i): return self._anames[i] 
     def get_step(self, axe): return self._step[axe]
     #float fpos2coord(float fpos, int axe) const;
