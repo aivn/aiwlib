@@ -35,8 +35,8 @@ int main(){ // передавать при запуске размер памя�
 			globfree(&glbuf);
 			std::cout.flush();
 		} else if(A=='p'){ // создаем плоттер
-			int fileID, frameID, mode, f_opt, arr_lw[2], arr_spacing, nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3deep;
-			float f_lim[2], sposf[6], bmin_[6], bmax_[6], th_phi[2], cell_aspect[3];
+			int fileID, frameID, mode, f_opt, arr_lw[2], nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3deep;
+			float f_lim[2], arr_spacing, sposf[6], bmin_[6], bmax_[6], th_phi[2], cell_aspect[3];  // arr_spacing is float, as sent by the client
 			std::string paletter;
 			stdIn.load(fileID, frameID, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color,
 					   ctype, Din, mask, offset, diff, vconv, minus, axisID, sposf, bmin_, bmax_, faai,
