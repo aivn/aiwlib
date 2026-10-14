@@ -28,8 +28,9 @@ try: sshconfig.parse(open(os.path.expanduser('~/.ssh/config')))  # set path in .
 except: print('File ~/.ssh/config not loaded')
 #-------------------------------------------------------------------------------
 def factory(fname, host, **params):
-    if not host in connect_table: connect_table[(host, params.get('port'))] = Connect(host, **params)
-    return connect_table[(host, params.get('port'))].load_frames(fname)
+    key = (host, params.get('port'))  # the table is keyed by (host, port): testing host alone never matched, every file opened a new SSH session
+    if not key in connect_table: connect_table[key] = Connect(host, **params)
+    return connect_table[key].load_frames(fname)
 #-------------------------------------------------------------------------------
 class Connect:
     def __init__(self, host, **params):
