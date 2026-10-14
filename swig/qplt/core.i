@@ -25,13 +25,13 @@
     SWIG_fail;
   }
   for (int i = 0; i < $1_dim0; i++) {
-    PyObject *o = PySequence_GetItem($input, i);
-    if (PyNumber_Check(o)) {
-      temp[i] = (int) PyLong_AsLong(o);
-    } else {
-      PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");      
+    PyObject *o = PySequence_GetItem($input, i);  // new reference
+    if (!o || !PyNumber_Check(o)) {
+      Py_XDECREF(o); PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");
       SWIG_fail;
     }
+    temp[i] = (int) PyLong_AsLong(o); Py_DECREF(o);
+    if (PyErr_Occurred()) SWIG_fail;  // conversion error (e.g. overflow)
   }
   $1 = temp;
 }
@@ -46,13 +46,13 @@
     SWIG_fail;
   }
   for (int i = 0; i < $1_dim0; i++) {
-    PyObject *o = PySequence_GetItem($input, i);
-    if (PyNumber_Check(o)) {
-      temp[i] = (float) PyFloat_AsDouble(o);
-    } else {
-      PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");      
+    PyObject *o = PySequence_GetItem($input, i);  // new reference
+    if (!o || !PyNumber_Check(o)) {
+      Py_XDECREF(o); PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");
       SWIG_fail;
     }
+    temp[i] = (float) PyFloat_AsDouble(o); Py_DECREF(o);
+    if (PyErr_Occurred()) SWIG_fail;  // conversion error (e.g. overflow)
   }
   $1 = temp;
 }
