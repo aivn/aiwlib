@@ -74,9 +74,11 @@ int main(){ // передавать при запуске размер памя�
 		else if(A=='r'){  // перегружает все фреймы
 			int fileID, frameID; stdIn.load(fileID, frameID);
 			std::vector<QpltContainer*> res = containers[fileID][frameID]->reload_all_frames(); stdOut.dump(fileID, int(res.size()));
-			for(auto f: res) send_frame(f, stdOut); 
-			for(auto f: containers[fileID]) delete f;
-			containers[fileID] = res;
+			for(auto f: res) send_frame(f, stdOut);
+			if(!res.empty()){  // the client keeps the old frames if nothing was reloaded (file being rewritten) --- keep them here too
+				for(auto f: containers[fileID]) delete f;
+				containers[fileID] = res;
+			}
 			std::cout.flush(); 			
 		}
 		else break; //if(A=='E') break;
