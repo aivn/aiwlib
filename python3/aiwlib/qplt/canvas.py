@@ -346,7 +346,8 @@ class Canvas(QtWidgets.QWidget):
         D3 = win.D3.currentIndex()*(self.container.get_dim()>2)
         win.animate_type.addItems(['file']*(table_size()>1)+['frame']*(file_size(win.filenum.value())>1)+
                                   [self.container.get_axe(i).decode() for i in range(self.container.get_dim()) if not i in self.axisID[:2+D3] ])
-        #win.animate_type.setCurrentText(animate_type)
+        i = win.animate_type.findText(animate_type)  # keep the user's choice (clear() reset it to the first item)
+        if i>=0: win.animate_type.setCurrentIndex(i)
 
         self.update()
         if win.D3.currentIndex()==2:
