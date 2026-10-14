@@ -83,7 +83,6 @@ template <int AID> void aiw::QpltBallsPlotter::init_impl(int autoscale){
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max)  // MSVC does not support OpenMP 3
 #else //AIW_WIN32
 		std::vector<float> f_mina(omp_get_max_threads(), HUGE_VALF), f_maxa(omp_get_max_threads(), -HUGE_VALF);
-		int act_numthreads = -1; // to be determined in the following
 #pragma omp parallel for //shared(f_mina, f_maxa)
 #endif //AIW_WIN32
 		for(ptrdiff_t bID=0; bID<(ptrdiff_t)count; bID++){
@@ -96,18 +95,14 @@ template <int AID> void aiw::QpltBallsPlotter::init_impl(int autoscale){
 #ifndef AIW_WIN32
 				f_min = std::min(f_min, fres);  f_max = std::max(f_max, fres);
 #else //AIW_WIN32
-				if (act_numthreads < 0){
-# pragma omp critical
-					act_numthreads = omp_get_num_threads();
-				}
 				int me = omp_get_thread_num();
 				f_mina[me] = std::min(f_mina[me], fres);  f_maxa[me] = std::max(f_maxa[me], fres);
 #endif //AIW_WIN32
 			}
 		}  // end of balls loop
 #ifdef AIW_WIN32
-		f_min = *std::min(f_mina.begin(), f_mina.begin()+ act_numthreads);
-		f_max = *std::max(f_maxa.begin(), f_maxa.begin() + act_numthreads);
+		f_min = *std::min_element(f_mina.begin(), f_mina.end());  // unused slots keep +-HUGE_VALF
+		f_max = *std::max_element(f_maxa.begin(), f_maxa.end());
 #endif //AIW_WIN32
 		f_lim[0] = f_min;  f_lim[1] = f_max;  // cnt->flimits[LID] = f_lim;
 #ifdef PROFILE
