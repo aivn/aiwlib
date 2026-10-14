@@ -9,7 +9,7 @@ from PyQt5 import QtGui
 sys_argv = []
 opts0 = '-2d -3d -xd -ln -abs -inv -noln -noabs -noinv -tas -notas'.split()
 opts1 = '''-v -u -slice -flip -interp -density -opacity -mingrad -lbx -lby -lbz -lbf -ttl -font 
--rf -rx -ry -rz -r0 -r1 -r2 -r3 -r4 -r5 -pal -opal -palsz -tics -border -nan -conf -file -frame'''.split()
+-rf -rx -ry -rz -r0 -r1 -r2 -r3 -r4 -r5 -pal -opal -palsz -tics -border -nan -conf -file -frame -offsets -cell -op'''.split()
 celltypes = ['float', 'double', 'bool', 'uint8_t', 'int8_t', 'uint16_t', 'int16_t', 'uint32_t', 'int32_t', 'uint64_t', 'int64_t']
 #paletters = ['grey', 'inv_grey', 'black_red', 'green_blue', 'neg_pos1', 'neg_pos2', 'positive', 'rainbow', 'inv_rainbow', 'color']
 axe2int = lambda axe: 'xyz'.index(axe) if axe in 'xyz' else int(axe)
@@ -42,6 +42,8 @@ def dump_conf(canvas, path):
     for a in range(dim): fout.write('-r%s '%a+(':\n' if canvas.autolim_data(a) else '%s:%s\n'%(canvas.bmin[a], canvas.bmax[a])))
     fout.write('-v %g:%g\n'%tuple(canvas.th_phi))
     fout.write('-u %s:%s:%s\n'%(''.join(list(map(str, canvas.axisID))), win.offset0.text(), celltypes[win.celltype.currentIndex()]))
+    fout.write('-offsets %s:%s:%s\n'%tuple(getattr(win, 'offset%i'%i).text() for i in (0, 1, 2)))
+    fout.write('-cell %s:%s\n-op %s:%s\n'%(win.celldim.currentIndex()+1, win.cellmask.text(), win.diff.currentIndex(), win.vconv.currentIndex()))
     for i, p in enumerate(canvas.sposf):
         if not canvas.autopos(i): fout.write('-slice %i%s\n'%(i, p))
     flips = ''.join([str(i) for i in range(dim) if canvas.get_flip(i)])
@@ -88,6 +90,19 @@ def load_opts(canvas, opts):
                 for i, a in enumerate(canvas.axisID): getattr(win, 'xyz'[i]+'_axe').setCurrentIndex(a)
             if offset: win.offset0.setText(offset)
             if ctype: win.celltype.setCurrentIndex(celltypes.index(ctype))
+            continue
+        if k=='-offsets': # <O0>:<O1>:<O2> --- смещения компонент ячейки в байтах
+            for i, o in enumerate(v.split(':')[:3]): getattr(win, 'offset%i'%i).setText(o)
+            continue
+        if k=='-cell': # <DIN>:<MASK> --- число компонент ячейки и битовая маска (hex)
+            din, mask = (v.split(':')+[''])[:2]
+            if din: win.celldim.setCurrentIndex(int(din)-1)
+            if mask: win.cellmask.setText(mask)
+            continue
+        if k=='-op': # <DIFF>:<VCONV> --- номера дифф. оператора и преобразования вектора
+            diff, vconv = (v.split(':')+[''])[:2]
+            if diff: win.diff.setCurrentIndex(int(diff))
+            if vconv: win.vconv.setCurrentIndex(int(vconv))
             continue
         if k=='-slice':
             axe, pos = axe2int(v[0]), float(v[1:])
