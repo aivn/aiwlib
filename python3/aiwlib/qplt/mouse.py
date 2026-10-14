@@ -207,7 +207,7 @@ class MouseFlat3D(Rect):
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         if self.rot: self.rot = None; return
         rpos0, a = self.sel[:2];  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
-        if not a1 or rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
+        if not a1 or rpos0[a]==rpos1[a] or a not in a1: return  # a1==(0,1) inside the flat: a!=a1[0] rejected zooms on its second axis
         canvas.autolim_off(A); AA = canvas.axisID[A] 
         lim = [self.p2f(a, rpos0[a]), self.p2f(a, rpos1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[AA]<canvas.bmax[AA])
         canvas.bmin[AA], canvas.bmax[AA] = lim[inv], lim[1-inv]
