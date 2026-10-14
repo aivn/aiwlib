@@ -180,6 +180,18 @@ class Canvas(QtWidgets.QWidget):
         else:
             for i in range(1,7): getattr(self.win, 'fr_axe%i'%i).hide()
     #--------------------------------------------------------------------------
+    def check_cell_layout(self):
+        'components read outside the cell crash the renderer: reset bad offsets to 0 (and a too large cell type to uint8_t)'
+        win, szT = self.win, self.container.get_szT()
+        tsz = [4, 8, 1, 1, 1, 2, 2, 4, 4, 8, 8][win.celltype.currentIndex()]  # sizes of the cell types in bin/qplt
+        if tsz>szT:
+            print('qplt: cell type %s (%i bytes) is larger than the cell (%i bytes), reset to uint8_t'%(win.celltype.currentText(), tsz, szT), file=sys.stderr)
+            win.celltype.setCurrentIndex(3); tsz = 1
+        for i in range(win.celldim.currentIndex()+1):
+            w = getattr(win, 'offset%i'%i); off = int(w.text())
+            if off<0 or off+tsz>szT:
+                print('qplt: offset%i=%i is outside the cell (%i bytes, component %i bytes), reset to 0'%(i, off, szT, tsz), file=sys.stderr)
+                w.setText('0')
     def make_up(self):
         #print('make_im')
         win, t0, self.D3 = self.win, time.time(), self.win.D3.currentIndex()*(self.container.get_dim()>2)
@@ -195,6 +207,7 @@ class Canvas(QtWidgets.QWidget):
         if self.old_pal!=win.paletter.currentIndex():
             self.old_pal, self.D3tmask = win.paletter.currentIndex(), 0x3ff
             self.pal_len = int(self.pals_sz[win.paletter.itemText(self.old_pal)])
+        self.check_cell_layout()
         if self.plotter: self.plotter.free(); self.plotter = None  # never keep a freed plotter (double free if creating the new one raises)
         self.plotter = self.container.plotter(self.D3, #mode
                                               # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль

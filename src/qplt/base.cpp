@@ -78,6 +78,14 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	// 1. настраиваем базовые вещи в плоттере
 	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
 	plt->accessor.minus = minus; for(int i=0; i<3; i++){ plt->accessor.offsets[i] = offsets[i];  plt->accessor.rsteps[i] = rstep[axisID[i]]; }
+	{  // components read outside the cell crash the renderer: reset bad offsets to 0 (and a too large cell type to uint8_t)
+		static const int tszs[11] = {4, 8, 1, 1, 1, 2, 2, 4, 4, 8, 8};  int tsz = 0<=ctype && ctype<11? tszs[ctype]: 4;
+		if(tsz>szT){ fprintf(stderr, "qplt: cell type %i (%i bytes) is larger than the cell (%i bytes), reset to uint8_t\n", ctype, tsz, szT); plt->accessor.ctype = 3; tsz = 1; }
+		for(int i=0; i<Din && i<3; i++) if(offsets[i]<0 || offsets[i]+tsz>szT){
+				fprintf(stderr, "qplt: offset%i=%i is outside the cell (%i bytes, component %i bytes), reset to 0\n", i, offsets[i], szT, tsz);
+				plt->accessor.offsets[i] = 0;
+			}
+	}
 	// arrow tables (QpltColor::arr_init) store int8 offsets and 8-bit keys around 128 and cost O(length^4) to build (seconds for 250) => length <= 128
 	plt->color.arr_length = std::min(arr_lw[0], 128); plt->color.arr_width = std::min(arr_lw[1], 128); plt->color.arr_spacing = arr_spacing;
 	plt->color.init(paletter, f_lim[0], f_lim[1], f_opt&4); plt->color.modulus = f_opt&8; plt->color.nan_color = nan_color;
