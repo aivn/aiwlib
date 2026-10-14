@@ -73,7 +73,6 @@ def load_opts(canvas, opts):
         if k in ['-tas', '-notas']: win.autoscale_tot.setChecked(k=='-tas'); continue
         if k=='-rf' and v==':':  win.autoscale.setChecked(True); continue
         elif k=='-rf' and v!=':':
-            print(k, v)
             v = v.split(':'); win.f_min.setText(v[0]); win.f_max.setText(v[1])
             win.autoscale.setChecked(False)
             continue
@@ -96,7 +95,7 @@ def load_opts(canvas, opts):
             continue
         if k=='-flip' : # <AXIS>     --- включает разворот осей (например -flip xy или -flip 01)
             for axe in range(6): canvas.set_flip(axe, False)  # the list is complete: unlisted axes are not flipped
-            for axe in v: canvas.set_flip(axe2int(axe), True); print(canvas.get_flip(axe2int(axe)))
+            for axe in v: canvas.set_flip(axe2int(axe), True)
             canvas.faai2win()
             continue
         if k=='-interp': # <INTERP> --- задает интерполяцию, число 0...3 на каждую ось
