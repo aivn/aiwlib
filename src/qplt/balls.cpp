@@ -135,15 +135,16 @@ template <int AID> void aiw::QpltBallsPlotter::plot_impl(std::string &res) const
 
 	
 	// WMSG(bmin, bmax);
+	const Vecf<3> blo = bmin<<bmax, bhi = bmin>>bmax;  // bmin/bmax are swapped for flipped axes
 #pragma omp parallel for
 	for(ptrdiff_t bID=0; bID<(ptrdiff_t)count; bID++){
 		const char *ptr = ptr0+bID*cnt->szT;
 		const Vecf<3> r0 = ptr2vec<3>((const float*)ptr); Vecf<3> r;
-		for(int i=0; i<3; i++){ r[i] = r0[axisID[i]]; if(flips&(1<<i)) r[i] = bmax[i]-r[i]; }  // flips???
+		for(int i=0; i<3; i++){ r[i] = r0[axisID[i]]; if(flips&(1<<i)) r[i] = bmin[i]+bmax[i]-r[i]; }  // mirror inside the plotted range
 		float R = *(const float*)(ptr+12);  
 
 		// if(bmin<=r+vecf(R) && r-vecf(R)<=bmax){ 
-		if(bmin<=r && r<=bmax){ 
+		if(blo<=r && r<=bhi){ 
 			Vecf<3> br = (bmin+bmax)/2-r, ff; accessor.conv<AID>(ptr, (const char**)nb, &(ff[0]));
 			float fres = dout==1? ff[0]: ff.abs();	int cf = color(fres);      				
 			auto &zb = zbufs[omp_get_thread_num()];
