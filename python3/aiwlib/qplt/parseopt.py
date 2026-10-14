@@ -30,7 +30,7 @@ def apply_sys_argv(canvas):
 #-------------------------------------------------------------------------------
 def dump_conf(canvas, path):
     fout, win, dim = open(path, 'w'), canvas.win, canvas.container.get_dim();  D3 = win.D3.currentIndex(); canvas.win2faai()
-    fout.write('#%s\n-frame %s\n'%(canvas.container.fname().decode(), canvas.container.frame()))
+    fout.write('#%s\n'%canvas.container.fname().decode())
     fout.write(['-2d\n', '-3d\n', '-xd\n'][D3])
     fout.write('-ln\n' if win.logscale.isChecked() else '-noln\n')
     fout.write('-abs\n' if win.modulus.isChecked() else '-noabs\n')
@@ -55,7 +55,7 @@ def dump_conf(canvas, path):
     fout.write('-tics %s:%s\n'%(win.tics_length.text(), win.tics_width.text()))
     fout.write('-border %s\n'%win.border_width.text())
     fout.write('-nan %s\n'%win.nan_color.text())
-    fout.write('-frame %s\n'%win.framenum.value())
+    fout.write('-file %s\n-frame %s\n'%(win.filenum.value(), win.framenum.value()))
 #-------------------------------------------------------------------------------
 def load_opts(canvas, opts):
     iopt, win = 0, canvas.win
