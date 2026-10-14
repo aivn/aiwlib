@@ -74,7 +74,7 @@ class Var(BaseOp):
     def bytecode(self): return vars_table[id(self)][1].bytecode()
 #-----------------------------------------------------------------------------
 def Eval(expr, cell):
-    ns = dict(['pi': math.pi, 'e': math.e]+[(name, Var(name, cursor)) for name, cursor in cell.namespace()]
+    ns = dict([('pi', math.pi), ('e', math.e)]+[(name, Var(name, cursor)) for name, cursor in cell.namespace()]
               +[(k[4:].lower(), v) for k, v in globals().items() if k.startswith('Func')])
     return bytecode(eval(expr, {}, ns))
 #-----------------------------------------------------------------------------
