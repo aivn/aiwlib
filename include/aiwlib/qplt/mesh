@@ -22,7 +22,7 @@ namespace aiw{
 		size_t mem_offset = 0, data_sz = 0;
 
 		// 6+6 (пределы по пр-ву) 1 (AID) 1 (ctype, минус учитывается отдельно) 3 (offsets), для масок всегда перерасчет?
-		std::map< Ind<17>, Vecf<2> > flimits;  // кэш пределов
+		std::map< Ind<21>, Vecf<2> > flimits;  // кэш пределов
 		
 		void data_free_impl() override;  // выгружает данные из памяти
 		void data_load_impl() override;  // загружает данные в память

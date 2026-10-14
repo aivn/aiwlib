@@ -95,7 +95,7 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			for(int i=0; i<dim; i++) smax[axisID[i]] += bbox[i]-1;
 		}
 		// for(int i=container->dim; i<6; i++) smax[i] = smin[i]+1; ???
-		Ind<17> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets);
+		Ind<21> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets)|accessor.mask|axisID;  // everything the limits depend on (mask: bit fields, axisID: derivative directions)
 		auto I_LID = cnt->flimits.find(LID); 
 		if(I_LID!=cnt->flimits.end()) f_lim = I_LID->second; 
 		else { // считаем пределы
