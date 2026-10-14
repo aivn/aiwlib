@@ -19,7 +19,9 @@ def parse_sys_argv():
     i = 1; del sys_argv[:]
     while i<len(sys.argv):
         if sys.argv[i] in opts0: sys_argv.append(sys.argv.pop(i))
-        elif sys.argv[i] in opts1: sys_argv.append(sys.argv.pop(i)); sys_argv.append(sys.argv.pop(i))
+        elif sys.argv[i] in opts1:
+            if i+1<len(sys.argv): sys_argv.append(sys.argv.pop(i)); sys_argv.append(sys.argv.pop(i))
+            else: print('WARNING: option %r requires a value, ignored'%sys.argv.pop(i))
         else: i += 1
 #-------------------------------------------------------------------------------
 def apply_sys_argv(canvas):
