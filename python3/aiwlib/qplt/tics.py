@@ -81,6 +81,7 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
 #-------------------------------------------------------------------------------
 def make_tics(limits, logscale, N, vertical, paint):
     'возвращает [(tic_pos, tic_text)... ], max_tic_sz, [subtics_pos...]'
+    if limits[0]==limits[1]: print('bad limits for axe', limits, file=sys.stderr); limits = (limits[0]-1, limits[1]+1)  # as in make_tics3D, otherwise t2p divides by zero
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
     #tszs = [sum(text_sz(num2str(t), paint, vertical) for t in L) for L in ticsL] # суммарные размеры тиков
     tszs = [sum(text_sz(t, paint, vertical) for t in num2strL(L, logscale)) for L in ticsL] # суммарные размеры тиков
