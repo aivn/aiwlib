@@ -3,7 +3,7 @@
 Licensed under the Apache License, Version 2.0'''
 
 from PyQt5 import QtWidgets, QtGui, QtCore
-import os, sys, time, tempfile
+import os, sys, time, tempfile, subprocess
 from .factory import *
 from .tics import *
 from .mouse import *
@@ -41,7 +41,11 @@ class Canvas(QtWidgets.QWidget):
             path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Movie (%i frames) As...'%self.movie_counter, filter='Movie (*.mp4)')
             if ok:
                 if not path.endswith('.mp4') and not path.endswith('.MP4'): path += '.mp4'
-                os.system('ffmpeg -i %s/%%06d.png -qscale 1 -r 8 -y %s'%(self.movie_path.name, path))
+                # -framerate before -i sets the input rate (-r after -i dropped ~2/3 of the frames); argument list: paths may contain spaces
+                cmd = ['ffmpeg', '-framerate', '8', '-i', os.path.join(self.movie_path.name, '%06d.png'), '-qscale', '1', '-y', path]
+                try: res = subprocess.call(cmd)
+                except OSError as e: res = e
+                if res: print('qplt: movie not saved, %s failed: %s'%(' '.join(cmd), res))
     #--------------------------------------------------------------------------
     def autopos(self, axe): return bool(self.faai&(1<<(6+2*axe)))
     def autopos_on(self, axe):  self.faai |=   1<<(6+2*axe)  #; print('ON', axe, self.autopos(axe), self.axisID)
