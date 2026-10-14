@@ -37,7 +37,7 @@ void aiw::QpltMesh::data_load_impl(){  // загружает данные в п�
 }
 //------------------------------------------------------------------------------
 #ifdef __NVCC__
-__constant__ char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];
+__constant__ __align__(16) char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];  // read as QpltMeshPlotter3D<AID> in plotXD: needs its alignment
 #define plt_cu_ (*((const aiw::QpltMeshPlotter3D<AID>*)plt_cu)) 
 
 template <int AID> __global__ void plotXD(int* image){
@@ -149,6 +149,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 	}
 
 	// 2. иницализируем плоттер (указатели на данные переводим на копию на GPU) и изображение
+	static_assert(sizeof(plt_cu)>=sizeof(*this), "plt_cu is too small for this QpltMeshPlotter3D<AID>");
 	QpltMeshPlotter3D<AID> plt = *this;
 	for(int i=0; i<3; i++) plt.flats[i].ptr0 = dev_data + (flats[i].ptr0-data_lo);
 	plt.data_lo = dev_data;  plt.data_hi = dev_data+sz;
