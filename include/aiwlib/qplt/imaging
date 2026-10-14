@@ -75,9 +75,9 @@ namespace aiw{
       if (std::isnan(f)) return nan_color;  
 # endif
 
+			if(f<0) return pal[0];  // compare before int conversion: floor(f) overflows int for huge values (e.g. +inf), CPU and GPU differed
+			if(f>=up_bound) return pal[up_bound];
 			int i = ::floor(f);
-			if(i<0) return pal[0];
-			if(i>=up_bound) return pal[up_bound];
 			float w = f-i;
 			return pal[i]*(1-w)+pal[i+1]*w;
 		}		
@@ -134,9 +134,9 @@ namespace aiw{
 			if(modulus) f = fabs(f);
 			f = logscale? log(f/min)*mul :(f-min)*mul;
 			if(std::isnan(f)) return nan_color;
+			if(f<0) return pal.front().I;  // compare before int conversion: floor(f) overflows int for huge values (e.g. +inf)
+			if(f>=up_bound) return pal.back().I;
 			int i = ::floor(f);
-			if(i<0) return pal.front().I;
-			if(i>=up_bound) return pal.back().I;
 			float w = f-i;
 			return (pal[i]*(1-w)+pal[i+1]*w).I;
 		}
