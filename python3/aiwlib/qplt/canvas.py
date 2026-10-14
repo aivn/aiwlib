@@ -102,7 +102,7 @@ class Canvas(QtWidgets.QWidget):
         win.cellsize.setText(str(self.container.get_szT()))
         anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
         win.D3.setEnabled(len(anames)>=3)
-        if any(a>len(anames) for a in self.axisID): self.axisID = [0, 1, 2]  #???
+        if any(a>=len(anames) for a in self.axisID[:min(3, len(anames))]): self.axisID = [0, 1, 2]  # a displayed axis does not exist in this file
         for i in (0, 1, 2)[:len(anames)]: w = getattr(win, 'xyz'[i]+'_axe'); w.clear(); w.addItems(anames); w.setCurrentIndex(self.axisID[i])
         self.faai2win()        
         for i in range(self.container.get_dim()):
