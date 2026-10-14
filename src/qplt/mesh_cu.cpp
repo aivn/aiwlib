@@ -55,7 +55,7 @@ template <int AID> __global__ void plotXD(int* image){
 	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
 	constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
-	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
+	if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*plt_cu_.dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 #ifdef QPLT_CU_CHECK  // debug: verify every voxel access lies inside the frame data
 #define QPLT_CU_CHECK_PTR(P, WHAT) if((P)<plt_cu_.data_lo || (P)>=plt_cu_.data_hi){ \
 		printf("QPLT_CU_CHECK %s out of frame data: px=(%d,%d) cID=%d pos=(%d,%d) pos3d=(%d,%d,%d) bbox=(%d,%d,%d) gID=%d off=%lld size=%lld\n", WHAT, x, y, cID, pos[0], pos[1], \
@@ -79,7 +79,7 @@ template <int AID> __global__ void plotXD(int* image){
 		f0 = f;
 		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 		ptr += plt_cu_.deltas[ray.gID];	 				
-		if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
+		if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*plt_cu_.dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 		ray.next();  
 	}
 	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
@@ -109,7 +109,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 			Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 			Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 			Vecf<4> C;  auto ray = vtx.trace(cID, X);
-			if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+			if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
 			float sum_w = 0, f0 = 0;  if(D3mingrad) accessor.conv<AID>(ptr, (const char**)nb, &f0);
 			while(1){
 				// WEXT(pos, pos3d, cID, flat.axis[0], flat.axis[1]);
@@ -125,7 +125,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 				f0 = f;
 				if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 				ptr += deltas[ray.gID];
-				if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+				if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
  				
 				ray.next();  
 			}

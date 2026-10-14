@@ -223,7 +223,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		plt.Nx = im.Nx; plt.Ny = im.Ny; plt.ibmin = ibmin; plt.bbox = bbox;
 		{ const QpltMesh* cnt = dynamic_cast<const QpltMesh*>(container); plt.data_lo = cnt->mem_ptr; plt.data_hi = cnt->mem_ptr+cnt->data_sz; }
 		int fl_sz = flats.size();  for(int i=0; i<fl_sz; i++) plt.flats[i] = get_flat<PAID>(i);
-		for(int i=0; i<3; i++) plt.deltas[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -plt.flats[i].mul[2] : plt.flats[i].mul[2];
+		for(int i=0; i<3; i++){ plt.dsgn[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -1: 1;  plt.deltas[i] = plt.dsgn[i]*plt.flats[i].mul[2]; }
 		plt._max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)); plt.lim_w = .01*D3opacity;
 		plt.cr_grad = fabs(color.get_max()-color.get_min())/(10*bbox.max())*pow(exp(log(10*bbox.max())*.01), D3mingrad);
 		// plt.flat[i].acc надо поменять как то, но как? Вообще работать с копиями?
