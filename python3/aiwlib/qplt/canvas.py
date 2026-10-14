@@ -108,7 +108,7 @@ class Canvas(QtWidgets.QWidget):
         for i in range(self.container.get_dim()):
             sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
             sl.setValue(0 if self.autopos(i) else min(max(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
-        for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()
+        for i in range(self.container.get_dim(), 6): getattr(win, 'fr_slice%i'%(i+1)).hide()
         self.show_axis_info()
         
         self.replot()
