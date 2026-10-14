@@ -136,6 +136,6 @@ def load_conf(canvas, path):
         k, v = l.split(' ', 1) if ' ' in l else (l, '')
         k, v = k.strip(), v.strip()
         opts.append(k)
-        if v: opts.append(v)
+        if v or k in opts1: opts.append(v)  # keep empty values (e.g. an empty title), otherwise the option takes the next line as its value
     load_opts(canvas, opts)    
 #-------------------------------------------------------------------------------
