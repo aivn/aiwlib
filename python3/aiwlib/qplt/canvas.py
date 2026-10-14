@@ -171,7 +171,7 @@ class Canvas(QtWidgets.QWidget):
                 getattr(self.win, 'max%i'%(1+i)).setText('%g'%self.container.get_bmax(i))
                 getattr(self.win, 'step%i'%(1+i)).setText('%g'%self.container.get_step(i))
                 getattr(self.win, 'logsc%i'%(1+i)).setText('logsc.'*self.container.get_logscale(i))
-                getattr(self.win, 'size%i'%(i+1)).setText(str(self.container.get_bbox(self.axisID[i])))
+                getattr(self.win, 'size%i'%(i+1)).setText(str(self.container.get_bbox(i)))  # row i = data axis i (axisID[i] was wrong, IndexError for 4D+)
                 getattr(self.win, 'fr_axe%i'%(1+i)).show()
             for i in range(self.container.get_dim(), 6): getattr(self.win, 'fr_axe%i'%(1+i)).hide()
         else:
