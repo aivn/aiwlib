@@ -77,7 +77,8 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	// 1. настраиваем базовые вещи в плоттере
 	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
 	plt->accessor.minus = minus; for(int i=0; i<3; i++){ plt->accessor.offsets[i] = offsets[i];  plt->accessor.rsteps[i] = rstep[axisID[i]]; }
-	plt->color.arr_length = arr_lw[0]; plt->color.arr_width = arr_lw[1]; plt->color.arr_spacing = arr_spacing;
+	// arrow tables (QpltColor::arr_init) store int8 offsets and 8-bit keys around 128 and cost O(length^4) to build (seconds for 250) => length <= 128
+	plt->color.arr_length = std::min(arr_lw[0], 128); plt->color.arr_width = std::min(arr_lw[1], 128); plt->color.arr_spacing = arr_spacing;
 	plt->color.init(paletter, f_lim[0], f_lim[1], f_opt&4); plt->color.modulus = f_opt&8; plt->color.nan_color = nan_color;
 
 	for(int i=0; i<dim; i++){
