@@ -60,6 +60,7 @@ namespace aiw{
 		int64_t deltas[3]; VTexture vtx;
 		float _max_len, lim_w, cr_grad;
 		int Nx, Ny; Ind<2> ibmin; Ind<3> bbox; bool D3mingrad;
+		const char *data_lo = nullptr, *data_hi = nullptr;  // frame data bounds, used by the QPLT_CU_CHECK debug build
 
 		void plot(int *image) const;
 	};

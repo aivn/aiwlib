@@ -57,7 +57,8 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load1: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
 	return true;
 }
-void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); fin->read(mem_ptr, data_sz); }
+// CUDA build: frames are loaded into host memory here (IOstream is not visible to nvcc), see mesh_cu.cpp
+void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); mem = fin->mmap(data_sz, 0); mem_ptr = (char*)(mem->get_addr()); }
 //------------------------------------------------------------------------------
 QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { this->data_load(); return new QpltMeshPlotter; }
 //------------------------------------------------------------------------------
@@ -225,6 +226,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		QpltMeshPlotter3D<PAID> plt;
 		plt.vtx.init(*this);  color.conf(&plt.color, D3tmask); plt.accessor = accessor; plt.D3mingrad = D3mingrad;
 		plt.Nx = im.Nx; plt.Ny = im.Ny; plt.ibmin = ibmin; plt.bbox = bbox;
+		{ const QpltMesh* cnt = dynamic_cast<const QpltMesh*>(container); plt.data_lo = cnt->mem_ptr; plt.data_hi = cnt->mem_ptr+cnt->data_sz; }
 		int fl_sz = flats.size();  for(int i=0; i<fl_sz; i++) plt.flats[i] = get_flat<PAID>(i);
 		for(int i=0; i<3; i++) plt.deltas[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -plt.flats[i].mul[2] : plt.flats[i].mul[2];
 		plt._max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)); plt.lim_w = .01*D3opacity;
