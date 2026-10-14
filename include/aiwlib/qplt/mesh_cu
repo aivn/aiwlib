@@ -24,7 +24,8 @@ namespace aiw{
 
 		CU_HD char* get_ptr(const Ind<2> &pos) const { char *ptr = ptr0; for(int i=0; i<2; i++){ ptr += mul[i]*pos[i]; } return ptr;}
 		CU_HD cell_type operator[](Ind<2> pos) const {
-			for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox0[i]){ pos[i] = bbox0[i]-1; } }
+			// pos is relative to ptr0 (start of the plotted region, mirrored for flipped axes) => clamp to the region size bbox, not bbox0
+			for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox[i]){ pos[i] = bbox[i]-1; } }
 			char *nb[6] = {nullptr}, *ptr = get_ptr(pos); 
 			if((AID>>3)&7){  // если необходимо дифференцирование задаем соседей
 				for(int i=0; i<2; i++){
