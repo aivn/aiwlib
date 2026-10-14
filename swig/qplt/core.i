@@ -3,7 +3,14 @@
 #define SWIG_PYTHON_STRICT_BYTE_CHAR
 %}
 
-%exception { try{ $action }catch( const char *e ){ PyErr_SetString( PyExc_RuntimeError, e ); return NULL; }catch(...){ return NULL; } }
+// every C++ exception becomes a Python RuntimeError with its message (returning NULL without an error set
+// gave "SystemError: error return without exception set"); WRAISE throws const char* (Windows) or std::stringstream
+%exception { try{ $action }
+	catch(const char *e){ PyErr_SetString(PyExc_RuntimeError, e); return NULL; }
+	catch(const std::stringstream &e){ PyErr_SetString(PyExc_RuntimeError, e.str().c_str()); return NULL; }
+	catch(const std::string &e){ PyErr_SetString(PyExc_RuntimeError, e.c_str()); return NULL; }
+	catch(const std::exception &e){ PyErr_SetString(PyExc_RuntimeError, e.what()); return NULL; }
+	catch(...){ PyErr_SetString(PyExc_RuntimeError, "unknown C++ exception"); return NULL; } }
 %feature("autodoc", "1");
 %include "std_string.i"
 %include "std_vector.i"
