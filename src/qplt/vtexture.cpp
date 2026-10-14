@@ -44,8 +44,8 @@ void aiw::VTexture::init(const QpltPlotter &plt){
 			perp /= perp*ee[1-i]; MM[fID].row(1-i, perp);
 		}
 		C0[fID] = MM[fID]*plt.orts[axis[2]];
-		if(Vecf<2>()<=-C0[fID] && -C0[fID]<=Vecf<2>(1.f)) main_flat = fID;  
-		else laxis[fID] = ee[1]*ee[2] < ee[0]*ee[2];
+		laxis[fID] = ee[1]*ee[2] < ee[0]*ee[2];  // always set: if two flats qualify as main, the earlier one is used as non-main
+		if(Vecf<2>()<=-C0[fID] && -C0[fID]<=Vecf<2>(1.f)) main_flat = fID;
 		// C1[fID] = MM[fID]*C0[fID];
 
 		// проверяем MM --- работает!
