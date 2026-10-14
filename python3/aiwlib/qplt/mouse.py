@@ -117,7 +117,7 @@ class MouseFlat2D(Rect):
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         xy0, xy1, c = self.xy0, [event.x(), event.y()], False
         for a in (0, 1):
-            if xy0[a]==xy1[a] or xy0[a]<self.bmin[a]: continue
+            if xy0[a]==xy1[a] or not self.bmin[a]<xy0[a]<self.bmax[a]: continue  # zoom only axes whose range contains the drag start (as in move())
             canvas.autolim_off(a); c, A = True, canvas.axisID[a] 
             lim = [self.p2f(a, xy0[a]), self.p2f(a, xy1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[A]<canvas.bmax[A])
             canvas.bmin[A], canvas.bmax[A] = lim[inv], lim[1-inv]
