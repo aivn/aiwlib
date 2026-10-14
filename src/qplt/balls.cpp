@@ -151,7 +151,7 @@ template <int AID> void aiw::QpltBallsPlotter::plot_impl(std::string &res) const
 
 			Ind<2> ri = -vecf(nX*br, nY*br)*scale[0]/cnt->step[0] + ind(Nx/2, Ny/2);
 			float z = nS*br;  // проекция центра и радиус шара
-			int Ri = R*scale[0]/cnt->step[0]-.5; float _Ri2 = 1.f/(Ri*Ri);
+			int Ri = R*scale[0]/cnt->step[0]-.5; float _Ri2 = Ri? 1.f/(Ri*Ri): 0.f;  // Ri==0: one pixel (1/0 gave NaN z, never drawn)
 			const bool in_mode = true; // bmin<=r-vecf(R) && r+vecf(R)<=bmax;  // могут быть ложные срабатывания на ребрах и вершинах			
 			
 			for(int iy=std::max(0, ri[1]-Ri), iy_max=std::min(ri[1]+Ri+1, Ny); iy<iy_max; iy++){
