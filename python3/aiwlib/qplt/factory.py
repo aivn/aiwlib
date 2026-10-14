@@ -72,7 +72,7 @@ def load_files(*args):
             try:
                 for D in json.load(open(arg[2:])): load_local_file(D['file'], touch_mode, D); touch_mode = None
             except: print('json file %r ingnored'%arg[2:])
-        else: load_remote_file(arg, **server) if server else load_local_file(arg, touch_mode, {'file':arg}); touch_mode = None
+        else: load_remote_file(arg, touch_mode, **server) if server else load_local_file(arg, touch_mode, {'file':arg}); touch_mode = None
         for f in table[tpos:]: print('Load', f[0].fname().decode(), '---', len(f), 'frames')
     print('Totally loaded', sum(len(f) for f in table), 'frames from', len(table), 'files')
 #-------------------------------------------------------------------------------
