@@ -21,7 +21,7 @@ int main(){ // передавать при запуске размер памя�
 		char A = std::cin.get(); 
 		if(A=='o'){  // открытие файла
 			std::string fname;  stdIn.load(fname); //<<< вайлдкарты bash должны быть где то тут
-			glob_t glbuf; glob(fname.c_str(), 0, nullptr, &glbuf); stdOut.dump(int(glbuf.gl_pathc)); 
+			glob_t glbuf; glob(fname.c_str(), GLOB_TILDE, nullptr, &glbuf); stdOut.dump(int(glbuf.gl_pathc));  // GLOB_TILDE: host:~/data.msh
 			for(size_t I=0; I<glbuf.gl_pathc; I++){
 				// flog("open %\n", fname);
 				auto res = factory(glbuf.gl_pathv[I]);
