@@ -37,7 +37,7 @@ def dump_conf(canvas, path):
     fout.write('-inv\n' if win.invert.isChecked() else '-noinv\n')
     fout.write('-tas\n' if win.autoscale_tot.isChecked() else '-notas\n')
     fout.write('-rf :\n' if win.autoscale_tot.isChecked() else '-rf %s:%s\n'%(win.f_min.text(), win.f_max.text()))
-    for a in range(dim): fout.write('-r%s '%a+(':\n' if canvas.autolim(a) else '%s:%s\n'%(canvas.bmin[a], canvas.bmax[a])))    
+    for a in range(dim): fout.write('-r%s '%a+(':\n' if canvas.autolim_data(a) else '%s:%s\n'%(canvas.bmin[a], canvas.bmax[a])))
     fout.write('-v %g:%g\n'%tuple(canvas.th_phi))
     fout.write('-u %s:%s:%s\n'%(''.join(list(map(str, canvas.axisID))), win.offset0.text(), celltypes[win.celltype.currentIndex()]))
     for i, p in enumerate(canvas.sposf):
@@ -76,8 +76,8 @@ def load_opts(canvas, opts):
             win.autoscale.setChecked(False)
             continue
         if len(k)==3 and k[:2]=='-r' and k[-1] in '012345xyz': # [<MIN>]:[<MAX>] --- задает пределы  отрисовки по осям 
-            if v==':': canvas.autolim_on(axe2int(k[-1]))
-            else: axe, lim = axe2int(k[-1]), v.split(':'); canvas.autolim_off(axe); canvas.bmin[axe] = float(lim[0]); canvas.bmax[axe] = float(lim[1]) 
+            if v==':': canvas.autolim_data_on(axe2int(k[-1]))
+            else: axe, lim = axe2int(k[-1]), v.split(':'); canvas.autolim_data_off(axe); canvas.bmin[axe] = float(lim[0]); canvas.bmax[axe] = float(lim[1])
             continue
         if k=='-v': canvas.th_phi = list(map(float, v.split(':'))); continue
         if k=='-u':

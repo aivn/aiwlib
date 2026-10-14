@@ -53,6 +53,10 @@ class Canvas(QtWidgets.QWidget):
     def autolim(self, axe): return bool(self.faai&(1<<(7+2*self.axisID[axe])))
     def autolim_on(self, axe):  self.faai |=   1<<(7+2*self.axisID[axe])
     def autolim_off(self, axe): self.faai &= ~(1<<(7+2*self.axisID[axe]))
+    # the same by data axis (bmin/bmax are indexed by data axis too), used for config save/load
+    def autolim_data(self, a): return bool(self.faai&(1<<(7+2*a)))
+    def autolim_data_on(self, a):  self.faai |=   1<<(7+2*a)
+    def autolim_data_off(self, a): self.faai &= ~(1<<(7+2*a))
     #--------------------------------------------------------------------------
     def faai2win(self):
         for i in range(2+bool(self.win.D3.currentIndex())):
