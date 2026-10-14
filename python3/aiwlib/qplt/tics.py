@@ -135,6 +135,7 @@ def calc_tics(a, b, logscale):
     #if b<a: a, b = b, a
     if a==b: return []
     if logscale:
+        if b<a: a, b = b, a  # flipped axis; the callers sort the tics and position them by value
         A0, B, res = 10**floor(log10(a)), 10**ceil(log10(b)), []
         if not (A0>0 and isfinite(B)): return []  # A0 может обнулиться при a~1e-324, тогда A*=10**n не растет
         for n in range(1, 5):
