@@ -109,7 +109,12 @@ def load_opts(canvas, opts):
             win.font.setCurrentFont(QtGui.QFont(f, sz))
             win.font_sz.setValue(sz)
             continue 
-        if k=='-pal': win.paletter.setCurrentText(v); continue # <PALETTER> --- задает палитру  
+        if k=='-pal': # <PALETTER> --- задает палитру
+            win.paletter.setCurrentText(v)
+            if canvas.old_pal!=win.paletter.currentIndex():  # what make_up does on a palette change, now, so that a following -opal is kept
+                canvas.old_pal, canvas.D3tmask = win.paletter.currentIndex(), 0x3ff
+                canvas.pal_len = int(canvas.pals_sz[win.paletter.itemText(canvas.old_pal)])
+            continue
         if k=='-opal': canvas.D3tmask = sum(int(k)<<i for i, k in enumerate(v)); continue 
         if k=='-palsz': # <SPACE>:<WIDTH>:<HEIGHT> --- задает размеры палитры (по умолчанию 20:20:0.8)
             space, width, height = v.split(':')
