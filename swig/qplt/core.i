@@ -80,6 +80,14 @@
 %{
 #include "include/aiwlib/qplt/base"
 %}
+
+// aiw::Ind<N>/Vecf<N> are not wrapped: these returned opaque objects that leaked ("swig/python detected a memory leak
+// of type 'aiw::Ind< 6 > *', no destructor found"); Python uses get_bbox(axe) and the int/float array members instead
+%ignore aiw::QpltContainer::get_bbox() const;
+%ignore aiw::QpltFlat::spos;
+%ignore aiw::QpltFlat::ppf;
+%ignore aiw::QpltFlat::rn;
+%ignore aiw::QpltFlat::bbox;
 		 
 %include "include/aiwlib/qplt/base"
 
