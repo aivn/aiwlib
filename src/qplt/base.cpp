@@ -101,7 +101,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			double A = bmin_[a], B = bmax_[a]; if((A<B)^(bmin[a]<bmax[a])) std::swap(A, B);  // ставим пределы сцены в том же порядке что и в контейнере		   
 			if((A<=B && A<bmin[a])||(A>=B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
 			else {
-				plt->bbeg[i] = lgs? log(A/bmin[a])/step[a]: (A-bmin[a])/step[a];
+				plt->bbeg[i] = lgs? log(A/bmin[a])*rstep[a]: (A-bmin[a])/step[a];
 				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
 			}
 			if(plt->bbeg[i]>bbox[a]-1){  // обе границы за правым краем
@@ -110,7 +110,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			}
 			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]-plt->bbeg[i]; plt->bmax[i] = bmax[a]; } // выход за правую границу
 			else {
-				plt->bbox[i] = (lgs? log(B/plt->bmin[i])/step[a]: (B-plt->bmin[i])/step[a])+.5;
+				plt->bbox[i] = (lgs? log(B/plt->bmin[i])*rstep[a]: (B-plt->bmin[i])/step[a])+.5;
 				if(plt->bbox[i]<1) plt->bbox[i] = 1;
 				if(plt->bbeg[i]+plt->bbox[i]>bbox[a]){
 					if(bbox[a]-plt->bbeg[i]>0) plt->bbox[i] = bbox[a]-plt->bbeg[i];
