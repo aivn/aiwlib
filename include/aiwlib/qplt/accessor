@@ -87,7 +87,7 @@ namespace aiw{
 				if(DIFF==2 || DIFF==3){ // grad
 					if(VCONV==5) for(int i=0; i<DIFF; i++) dst[i] = (conv<AID&1>(nb[2*i+1]+offsets[0]) - conv<AID&1>(nb[2*i]+offsets[0]))*rsteps[i];
 				    if(VCONV<3){  // одна компонента
-						*dst = (conv<AID&1>(nb[2*VCONV+1]+offsets[VCONV]) - conv<AID&1>(nb[2*VCONV]+offsets[VCONV]))*rsteps[VCONV];
+						*dst = (conv<AID&1>(nb[2*VCONV+1]+offsets[0]) - conv<AID&1>(nb[2*VCONV]+offsets[0]))*rsteps[VCONV];
 						if(minus) *dst = -*dst;  
 					}
 					if(VCONV==3){  // модуль градиента
