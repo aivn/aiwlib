@@ -141,26 +141,26 @@ template <typename ST> typename std::enable_if<std::is_base_of<std::istream, ST>
 	if(type==mesh && int(S.read(bbox, dim*4))!=dim*4){ S.seekg(start_offset); return false; }
 	head = h.c_str(); 	data_offset = S.tellg();
 
-	if(/*(data_offset-start_offset)%64==0 &&*/ int(h.size()-head.size())>=4+dim*16*(type!=sphere)+szT*(type==mesh)){	
+	if(/*(data_offset-start_offset)%64==0 &&*/ (long long)(h.size()-head.size())>=4+dim*16*(type!=sphere)+(long long)szT*(type==mesh)){	
 		uint32_t tail; int h_sz = h.size(), off = head.size()+1; 
 		const char* buf = h.c_str(); memcpy(&tail, buf+h_sz-4, 4);
 		if(tail&(1<<31)){  // читаем имена осей
 			bool faxis = true;
 			for(int i=0; i<dim; i++){
-				int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
-				if(sz>=0 && off+sz<h_sz-4){ axis[i].resize(sz+1, 0); if(sz){ memcpy(&(axis[i][0]), buf+off, sz); } off += sz; }
+				int32_t sz = -1; if(off+4<=h_sz-4){ memcpy(&sz, buf+off, 4); off += 4; }  // corrupt headers: never read past the buffer
+				if(sz>=0 && sz<h_sz-4-off){ axis[i].resize(sz+1, 0); if(sz){ memcpy(&(axis[i][0]), buf+off, sz); } off += sz; }
 				else{ faxis = false;  break; }
 			}
 			if(!faxis) for(int i=0; i<dim; i++) axis[i].clear(); 
 		}
 		if(tail&(1<<30)){  // читаем typeinfo
-			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
-			if(sz>=0 && off+sz<h_sz-4){ typeinfo.resize(sz); if(sz){ memcpy(&(typeinfo[0]), buf+off, sz); } off += sz; }
+			int32_t sz = -1; if(off+4<=h_sz-4){ memcpy(&sz, buf+off, 4); off += 4; }  // corrupt headers: never read past the buffer
+			if(sz>=0 && sz<h_sz-4-off){ typeinfo.resize(sz); if(sz){ memcpy(&(typeinfo[0]), buf+off, sz); } off += sz; }
 			else typeinfo.clear();
 		} else typeinfo.clear();
 		if(tail&(1<<29)){  // читаем info
-			int32_t sz; memcpy(&sz, buf+off, 4); off += 4;
-			if(sz>=0 && off+sz<h_sz-4){ info.resize(sz); if(sz){ memcpy(&(info[0]), buf+off, sz); } off += sz; }
+			int32_t sz = -1; if(off+4<=h_sz-4){ memcpy(&sz, buf+off, 4); off += 4; }  // corrupt headers: never read past the buffer
+			if(sz>=0 && sz<h_sz-4-off){ info.resize(sz); if(sz){ memcpy(&(info[0]), buf+off, sz); } off += sz; }
 			else info.clear();
 		}
 		if(h_sz-4-off>=dim*16){ memcpy(bmin, buf+h_sz-4-dim*16, dim*8); memcpy(bmax, buf+h_sz-4-dim*8, dim*8); }
