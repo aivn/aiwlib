@@ -100,11 +100,13 @@ def make_tics(limits, logscale, N, vertical, paint):
 #-------------------------------------------------------------------------------
 def num2strL(L, logscale): 
     'единообразно приводит список чисел к самому лаконичному варианту записи в виде строк'
-    L1, L2 = ['%g'%x for x in L], [] #; S1 = sum(map(len, L1))
+    prec = 6  # %g precision; more digits if distinct ticks would get equal labels (deep zoom far from zero)
+    while prec<17 and len(set('%.*g'%(prec, x) for x in L))<len(set(L)): prec += 1
+    L1, L2 = ['%.*g'%(prec, x) for x in L], [] #; S1 = sum(map(len, L1))
     for x in L:
         try: p  = floor(log10(abs(x)))
         except: p = 0
-        L2.append('%ge%g'%(x*10**-p, p))
+        L2.append('%.*ge%g'%(prec, x*10**-p, p))
     if logscale:  return [a if len(a)<=len(b) else b for a, b in zip(L1, L2)]
     L3 = [x.rstrip('0') for x in L1]
     LL = [len(a)-len(b) for a, b in zip(L1, L3)]; minLL = min(LL) if LL else 0
