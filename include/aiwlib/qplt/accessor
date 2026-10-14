@@ -227,7 +227,7 @@ namespace aiw{
 		if(ctype==1) return *(double*)ptr; 
 		if(ctype==2) return *(bool*)ptr;
 		if(mask && ctype%2){
-			typedef int mask_t;
+			typedef uint64_t mask_t;  // 64-bit cells: shifts up to bit 63 (int overflowed and counted bits twice)
 			mask_t x = 0, r = 0; int j = 0, sz = 0;
 			switch(ctype){
 			case 3:  x =  *(uint8_t*)ptr; sz =  8; break;
@@ -237,7 +237,7 @@ namespace aiw{
 			}
 			for(int i=0; i<sz; i++){
 				mask_t m = mask_t(1)<<i;
-				if(m&mask) r |= mask_t(bool(m&x))<<(j++);
+				if(m&mask_t(uint32_t(mask))) r |= mask_t(bool(m&x))<<(j++);  // mask is a 32-bit int: no sign extension
 		}
 			return r;
 		}
