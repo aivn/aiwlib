@@ -36,7 +36,7 @@ def dump_conf(canvas, path):
     fout.write('-abs\n' if win.modulus.isChecked() else '-noabs\n')
     fout.write('-inv\n' if win.invert.isChecked() else '-noinv\n')
     fout.write('-tas\n' if win.autoscale_tot.isChecked() else '-notas\n')
-    fout.write('-rf :\n' if win.autoscale_tot.isChecked() else '-rf %s:%s\n'%(win.f_min.text(), win.f_max.text()))
+    fout.write('-rf :\n' if win.autoscale.isChecked() else '-rf %s:%s\n'%(win.f_min.text(), win.f_max.text()))  # per-frame autoscale, as load_opts reads it (-tas is separate)
     for a in range(dim): fout.write('-r%s '%a+(':\n' if canvas.autolim_data(a) else '%s:%s\n'%(canvas.bmin[a], canvas.bmax[a])))
     fout.write('-v %g:%g\n'%tuple(canvas.th_phi))
     fout.write('-u %s:%s:%s\n'%(''.join(list(map(str, canvas.axisID))), win.offset0.text(), celltypes[win.celltype.currentIndex()]))
