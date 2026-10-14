@@ -188,7 +188,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		//im.dump2ppm("/tmp/qplt.ppm");
 		if(dout>1){  // векторные поля
 			auto plt2 = get_flat<AID>(0);
-			Ind<2> N = ind(im.Nx, im.Ny), Na = N/color.arr_length/color.arr_spacing<<plt2.bbox, d = N/Na;
+			Ind<2> N = ind(im.Nx, im.Ny), Na = (N/color.arr_length/color.arr_spacing<<plt2.bbox)>>Ind<2>(1), d = N/Na;  // >>1: a tiny image gave Na=0 and N/Na divided by zero
 			// WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
 			for(int iy=0; iy<Na[1]; iy++)  for(int ix=0; ix<Na[0]; ix++){
 					int x = ix*d[0]+d[0]/2,  y = iy*d[1]+d[1]/2; Ind<2> pos; Vecf<2> X;
