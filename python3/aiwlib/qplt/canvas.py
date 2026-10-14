@@ -184,7 +184,7 @@ class Canvas(QtWidgets.QWidget):
         if self.old_pal!=win.paletter.currentIndex():
             self.old_pal, self.D3tmask = win.paletter.currentIndex(), 0x3ff
             self.pal_len = int(self.pals_sz[win.paletter.itemText(self.old_pal)])
-        if self.plotter: self.plotter.free()
+        if self.plotter: self.plotter.free(); self.plotter = None  # never keep a freed plotter (double free if creating the new one raises)
         self.plotter = self.container.plotter(self.D3, #mode
                                               # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль
                                               win.autoscale.isChecked()|(win.autoscale_tot.isChecked()<<1)|(win.logscale.isChecked()<<2)|(win.modulus.isChecked()<<3),    
