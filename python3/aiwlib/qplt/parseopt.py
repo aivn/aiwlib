@@ -62,7 +62,7 @@ def load_opts(canvas, opts):
     while iopt<len(opts):
         if opts[iopt] in opts0: k, v = opts[iopt], ''; iopt += 1
         elif opts[iopt] in opts1 and iopt<len(opts)-1: k, v = opts[iopt], opts[iopt+1]; iopt += 2
-        else: print('WARNING: incorret option %r'%opts[i]); iopt += 1; continue
+        else: print('WARNING: incorret option %r'%opts[iopt]); iopt += 1; continue
         #print(iopt, k, v)
         if k in ['-2d', '-3d', '-xd']: win.D3.setCurrentIndex(['-2d', '-3d', '-xd'].index(k)); continue
         if k in ['-ln', '-noln']: win.logscale.setChecked(k=='-ln'); continue
