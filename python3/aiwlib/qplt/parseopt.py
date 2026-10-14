@@ -43,7 +43,7 @@ def dump_conf(canvas, path):
     for i, p in enumerate(canvas.sposf):
         if not canvas.autopos(i): fout.write('-slice %i%s\n'%(i, p))
     flips = ''.join([str(i) for i in range(dim) if canvas.get_flip(i)])
-    if flips: fout.write('-flip %s\n'%flips)
+    fout.write('-flip %s\n'%flips)  # also when empty: loading clears the flips first
     fout.write('-interp %s\n'%''.join([str(canvas.get_interp(axe)) for axe in range(dim)]))
     fout.write('-density %s\n-opacity %s\n-mingrad %s\n'%(win.density.value(), win.opacity.value(), win.mingrad.value()))
     for a in 'xyzf': fout.write('-lb%s %s\n'%(a, getattr(win, a+'_text').text()))
@@ -93,6 +93,7 @@ def load_opts(canvas, opts):
             canvas.autopos_off(axe); canvas.sposf[axe] = pos
             continue
         if k=='-flip' : # <AXIS>     --- включает разворот осей (например -flip xy или -flip 01)
+            for axe in range(6): canvas.set_flip(axe, False)  # the list is complete: unlisted axes are not flipped
             for axe in v: canvas.set_flip(axe2int(axe), True); print(canvas.get_flip(axe2int(axe)))
             canvas.faai2win()
             continue
