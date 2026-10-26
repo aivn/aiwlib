@@ -320,7 +320,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::add_item(const Ind<D> &dpos, int d
 		p[i] = ((R+drank>=0? tpos[i]<<(R+drank): tpos[i]>>-(R+drank)) + (drank>0? storage->coords[off][i]<<drank: storage->coords[off][i]>>-drank) + dpos[i] + sz)%sz;  // ПГУ
 		tp[i] = p[i]>>R;
 	}
-	pacth_other(storage->tpos2toff(tp, r)).table[ZCurve32<D>(p, R).off] = CreatorInfo(rank(), message, 0);
+	patch_other(storage->tpos2toff(tp, r)).table[ZCurve32<D>(p, R).off] = CreatorInfo(rank(), message, 0);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> bool
