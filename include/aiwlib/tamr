@@ -34,25 +34,27 @@ namespace aiw{
 		enum {	n_main,   ///< число обработанных элементов во время основного прохода
 				n_add,    ///< число созданных элементов
 				n_del,    ///< число удаленных элементов
-				n_halo,   ///< число элементов созданных при автоматическом формировании гало
+				n_ghost,  ///< число элементов созданных при автоматическом формировании гало
 				n_tmain,  ///< число обработанных тайлов во время основного прохода
 				n_tadd,   ///< число созданных тайлов
-				n_tdel    ///< число удаленных тайлов
+				n_tdel,   ///< число удаленных тайлов
+				n_iconf   ///< общее число вызовов метода config_item
 		};
-		Vec<7, uint64_t> count;
-		static constexpr char *hcount = "n_main  n_add  n_del  n_halo  n_tmain n_tadd n_tdel";
+		Vec<8, uint64_t> count;
+		static constexpr char *hcount = "n_main  n_add  n_del  n_ghost  n_tmain n_tadd n_tdel n_iconf";
 
 		enum {  t_main,     ///< время первичного прохода по сетке
 				t_rebuild,  ///< время перестроения сетки, которое состоит из:
 				t_join,     ///<       объединения патчей
 				t_alloc,    ///<       первичного создания новых тайлов и подготовки новых масок
 				t_grad,     ///<       разглаживания скачков рангов разбиения
-				t_halo,     ///<       формирования гало
+				t_ghost,    ///<       формирования гало
 				t_add,      ///<       вызова func для новых ячеек
-				t_del       ///<       удаления пустых тайлов
+				t_del,      ///<       удаления пустых тайлов
+				t_iconf     ///< общее время работы метода config_item
 		};
-		Vec<8> runtime;
-		static constexpr char *hruntime = "t_main t_rebuild t_join t_alloc t_grad t_halo t_add t_del";
+		Vec<9> runtime;
+		static constexpr char *hruntime = "t_main t_rebuild t_join t_alloc t_grad t_ghost t_add t_del t_iconf";
 
 		void operator += (const TAMR_pf &other){ count += other.count;  runtime += other.runtime; }
 	};
@@ -67,6 +69,7 @@ namespace aiw{
 			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем
 			BitMask<1<<R*D> usage;           ///< битовая маска показывающая использывание узлов
 			int tID = -1, rtID = -1;         ///< позиции тайла в таблицах указателей tiles и rtiles[rank()]
+			int ghost_tID = -1;              ///< позиция тайла в таблице ghost_tiles, если в тайле есть ghost ячейки
 			uint32_t bmask = 0;              ///< маска описывающая положение тайла относительно границ сетки, по 2 бита на ось
 			
 			int rank() const { return toff&31; }
@@ -95,7 +98,7 @@ namespace aiw{
 
 		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
 		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
-		Ind<2>  ranks_range() const;                                         ///< минимальный и максимальный ранги разбиения сетки
+		BitMask64 ranks() const;                                             ///< ранги разбиения сетки на которых есть ячейки
 		
 		//---  произвольный доступ, всегда очень медленный и неэффективный  ----
 		struct Key{
@@ -117,14 +120,21 @@ namespace aiw{
 
 		//-- обход сетки, любые сложные вычисления должны делаться только так --
 		int rebuild_stID = -1;  ///< ID шаблона для проверки ограничений на скачок ранга разбиения, -1 отключает все проверки
-		int halo_stID = -1;     ///< ID шаблона по которому автоматически формируется гало на границах разбиения сетки при перестроении
+		int ghost_stID = -1;    ///< ID шаблона по которому автоматически добавляются ghost ячейки на границах разбиения сетки при перестроении
 		/**
-		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к узлам сетки. Обход проводится в две стадии:
-		 * 1) перестроение сетки --- обходятся узлы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
-		 *    ни одного узла с такими группами, проверка и задание groups (через Item) лежит на пользователе, Item позволяет перестраивать сетку;
-		 * 2) фиксация изменений --- обходятся все новые узлы созданные после перестроения сетки;  затем удаляются пустые тайлы
+		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к элементам сетки. Обход проводится в две стадии:
+		 * 1) перестроение сетки --- обходятся элементы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
+		 *    ни одного элемента с такими группами, проверка и задание groups (через Item) лежит на пользователе, Item позволяет перестраивать сетку;
+		 * 2) фиксация изменений --- обходятся все новые элементы созданные после перестроения сетки;  затем удаляются пустые тайлы
 		 */
 		template <typename Func> void for_each(Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
+
+		/**
+		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к ghost элементам сетки.
+		 * Обходятся ghost элементы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
+		 * ни одного элемента с такими группами, проверка groups  лежит на пользователе. Перестроение сетки не допускается.
+		 */
+		template <typename Func> void for_ghosts(Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
 
 		/**
 		 * @brief Аналогично for_each применяет пользовательскую void func(T& cell, Item &item) к узлам  попадающим в область тайла с нулевым уровнем разбиения (дерево в лесу)
@@ -138,17 +148,14 @@ namespace aiw{
 		//----------------------------------------------------------------------
 		struct CreatorInfo {  ///< информация о созданном элементе 
 			uint32_t rank: 5;      ///< ранг создателя элемента 
-			uint32_t mode: 3;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join, 4 - создан как гало			
-			uint32_t message: 24;  ///< сообщение от создателя
+			uint32_t mode: 2;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - создан как ghost
+			uint32_t message: 25;  ///< сообщение от создателя
 			// int jcounter: 10;  ///< счетчик join-ов в node_based сетке 
 			// int message: 16;   ///< сообщение от создателя
-			bool add() const { return !(mode&1); }
-			bool del_by_join() const { return mode==3; }
-			/*
-			bool del() const { return mode==1; }
-			bool join() const { return mode>1; }
-			bool add_by_join() const { return mode==2; }
-			*/
+			bool add()  const { return mode!=1; }
+			bool join() const { return mode==2; }
+			bool ghost() const { return mode==3; }
+			// mode==1 никода не доходит до пользователя, элемент умирает молча
 			CreatorInfo(int r=0, int msg=0, int md=1): rank(r), message(msg), mode(md) {}
 		};
 		//----------------------------------------------------------------------
@@ -162,13 +169,14 @@ namespace aiw{
 			uint64_t toff_cube[calc_3pow<D>::x];  ///< кубик 3x3х... из оффсетов тайлов, в отличие от указателей они всегда определены
 			Ind<D> tpos;                          ///< позиция тайла на сетке соотв. ранга
 			int off;                              ///< смещение узла в тайле
-
+			const tile_t *stile = nullptr;        ///< последний тайл в который попали при обращнии через [], может иметь другой ранг
+			int soff = -1;                        ///< смещение последнего элемента в которой попыали через []
 			//------------------------------------------------------------------
 			struct patch_t{
-				uint64_t toff = ~uint64_t(0);
-				tile_t *tile = nullptr;
-				std::map<int, CreatorInfo> table;
-				BitMask<1<<R*D> usage;
+				uint64_t toff = ~uint64_t(0);      ///< ключ тайла в который вносятся изменения
+				tile_t *tile = nullptr;            ///< тайл в который вносятся изменения, его может и не быть
+				std::map<int, CreatorInfo> table;  ///< таблица изменений
+				BitMask<1<<R*D> usage, grad;       ///< старый usage и временная маска для контроля скачков ранга разбиения, используется внутри rebuild
 			};
 			std::unordered_map<uint64_t, patch_t> patches;    ///< изменения в сетке по тайлам, накапливаются при проходе
 			patch_t *pself = nullptr, *pother = nullptr;     
@@ -180,9 +188,12 @@ namespace aiw{
 			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
 			int join_cell_chunk = 0;    ///< чанк f>>D, при его смене обнуляется join_cell_counter
 			//------------------------------------------------------------------
+			uint64_t iconf_count = 0;  ///< число вызовов метода item_configure
+			double iconf_runtime = 0;  ///< суммарное время работы метода item_configure
+			Item* parent_item = nullptr;  ///< родительский item, нужен для оптимизации оператора ()
 			
 			const stencil_node_t *snodes = nullptr;
-			int stencil_sz = 0, current_stID = -1;
+			int stencil_sz = 0, current_stID = -1, current_cID = -1;
 
 			Vecf<D> bmin, step;            ///< позиция и шаг для данного тайла
 			void prepare(int f) noexcept;  ///< готовит item к обратоке очередной ячейки
@@ -198,15 +209,18 @@ namespace aiw{
 			int Dbits() const { return off&((1<<D)-1); }                        ///< последние D бит оффсета, м.б. полезно для нумерации шаблонов
 
 			void stencil(int stID){  ///< Настраивает Item для доступа к соседям по шаблону stID
-				current_stID = stID; const auto &st = storage->stencils[stID];  stencil_sz = st.size()>>R*D; 
+				current_stID = stID; const auto &st = storage->stencils[stID].nodes;  stencil_sz = st.size()>>R*D; 
 				snodes = st.data()+stencil_sz*off;
 			}			
 			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
 			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
 			uint64_t smask;                            ///< если srank=rank()+1 то содержит информацию о существующих по чанку элементах
+			BitMask64 gmask;                           ///< если srank=rank()+1 то содержит информацию о ближайших по чанку элементах
 			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
-				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
+				current_cID = cID; stencil_node_t sn = snodes[cID]; return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
 			}
+			Vecf<D> delta_r0(int cID) const { return storage->stencils[current_stID].stencil[cID]&storage->steps[rank()]; }  ///< смещение к соседу по текущему шаблону
+			Vecf<D> delta_r(int subcell=0) const;  ///< смещение к соседу, к которому было последнее обращение через [], subcell задает элемент в чанке если srank=rank()+1
 			const T* get_parent() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
 			const T* get_child()        noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr), устанавливает smask
 			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
@@ -214,19 +228,25 @@ namespace aiw{
 			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
 			void remove(){ if(!storage->fix_mode) patch_self().table[off]; }                  ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
 			void add_item(const Ind<D> &dpos, int drank, int message=0);  ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
-			bool new_item() const { return storage->fix_mode; }           ///< отмечает второй проход (это новый узел)
+			bool new_item() const { return storage->fix_mode; }           ///< информирует о втором проходе (это новый узел)
+			bool ghost() const { return tile->ghost_tID>=0 && storage->ghost_tiles[tile->ghost_tID].usage[off]; }  ///< это ghost ячейка
 			// сделать add_item по шаблону?
 
 			// split выполняется всегда, join м.б. отменен созданием элемента со стороны или контролем ранга разбиения или через гало
 			bool split(bool rm_parent=true, int message=0);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
 			bool join(int message=0);  ///< объединяет 2^D ячеек или 3^D узлов, объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
 			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
+			const T* chunk(){ int f = off&~dbits; smask = tile->usage.get_chunk(D, f); return tile->data+f; }  ///< возвращает указатель на группу элементов, устанавливает smask
+			const T* get_neig_by_chunk(int axis) const { int f = off^(1<<axis);  return tile->usage[f]? tile->data+f: nullptr; }  ///< сосед по chunk-у вдоль axis
 			// bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
+			template <typename Func> auto operator ()(Func func) const;  ///< вызывает func(const T& cell, auto &item) для последнего элемента в который попали через []
+
+			~Item(){ if(parent_item){ parent_item->iconf_count += iconf_count;  parent_item->iconf_runtime += iconf_runtime; } }
 		};	// end of Item struct			
 		//----------------------------------------------------------------------
 		TAMR_pf profile;
 		//----------------------------------------------------------------------
-		//                      детали реализации
+		//                        детали реализации
 		//----------------------------------------------------------------------
 	protected:  
 		struct BItem: public Item {
@@ -240,6 +260,9 @@ namespace aiw{
 			using Item::snodes;
 			using Item::stencil_sz;
 			using Item::off;
+			using Item::current_cID;
+			using Item::stile;
+			using Item::soff;
 		public:
 			using Item::srank;
 			const T* operator [] (int cID) noexcept;  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
@@ -253,7 +276,9 @@ namespace aiw{
 		uint64_t zmask;  ///< (1<<zbound)-1, в ключе 59 bit offset,  5 bit rank, offset максимально прижат влево
 		static const uint32_t dbits = (1<<D)-1;
 		uint32_t bmask[calc_3pow<D>::x];  ///< куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
-
+		std::vector<Vecf<D> > steps;      ///< шаги сетки для всех рангов разбиения
+		Ind<D> cube3Xtpos[calc_3pow<D>::x];  ///< для config_item и главное для вычисления кубов при процерке скачков ранга разбиения в rebuild
+		
 		//-------  функции для работы с ключами и позициями тайлов  -----------
 		uint64_t tpos2toff(Ind<D> tpos, int rank) const;  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
 		Ind<D> toff2tpos(uint64_t toff) const { int r = toff&31; return (toff>>zbound)%tbox*(1<<r) + *ZCurve64<D>((toff&zmask)>>(zbound-D*r), r); }  ///< вычисляет позицию тайла
@@ -261,11 +286,13 @@ namespace aiw{
 		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<(zbound-(toff&31)*D))-(toff&31); }   ///< следующий тайл на том же ранге
 		// uint64_t up_toff(uint64_t toff) const { int r = toff&31; return (toff&~((uint64_t(1)<<(zbound-(r-1)*D))-1)) | (r-1); }  ///< тайл сверху !!! не проверяет rank>0 !!!
 		uint64_t up_toff(uint64_t toff) const { int r = (toff&31)-1; return (toff&~(zmask>>r*D))|r; }  ///< тайл сверху !!! не проверяет rank>0 !!!
-
+		
 		//  up_chID нигде кроме up_off не используется?
 		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&dbits; }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
 		int up_off(uint64_t toff, int off) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
 
+		uint64_t down_toff(uint64_t toff, int chID) const { toff++; return toff|(uint64_t(1)<<(zbound-D*(toff&31)+chID)); }  ///< toff тайла снизу
+		
 		bool dec_rank(uint64_t &toff, int &off) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
 			if((toff&31)==0 || (!cell_based && (off&dbits))) return false;
 			off = up_off(toff, off);  toff = up_toff(toff);
@@ -280,12 +307,30 @@ namespace aiw{
 		std::map<uint64_t, tile_t> forest;          ///< хранилище тайлов обеспечивающее быстрый доступ при необходимости
 		std::vector<tile_t*> tiles;                 ///< таблица указателей на тайлы для параллельного обхода
 		std::vector<std::vector<tile_t*> > rtiles;  ///< таблица указателей на тайлы по рангам
-
+		struct ghost_tile_t{ tile_t* tile;  BitMask<1<<R*D> usage; };  ///< дополнительная информация о тайлах содержащих ghost-ячейки
+		std::vector<ghost_tile_t> ghost_tiles;     ///< таблица тайлов содежащих ghost ячейки, поскольку их мало то разбивка по рангам не делается?
+		
 		tile_t& add_tile(const Ind<D> &tpos, const int rank);  ///< при необходимости добавляет тайл и встраивает его в струкутуру данных
 		void del_tile(int tID);
+		void add_ghost(tile_t *tile, int off); 
 		
-		Ind<D> coords[1<<R*D];              ///< позиции по Z-кривой в тайле
-		std::vector<std::vector<stencil_node_t> > stencils;   // для каждого шаблона хранится stencil_sz вариантов по 1<<R*D элементов
+		Ind<D> coords[1<<R*D];  ///< позиции по Z-кривой в тайле
+
+		// 2^2 |  20 | 2^4    2^D углов - чистые маски
+		// ----+-----+----    в остальных случаях комбиначич через или
+		// 2^2 | 2 3 | 2^4
+		// 2^0 | 0 1 | 2^1
+		// ----+-----+----
+		// 2^0 |  3  | 2^1
+		uint64_t gmask[calc_3pow<D>::x];  ///< куб 3x3... из масок для определения ближайших мелких соседей
+		
+		struct stencil_t{
+			std::vector<Ind<D> > stencil;       ///< сам шаблон
+			std::vector<stencil_node_t> nodes;  ///< stencil_sz вариантов по 1<<R*D элементов
+			std::vector<uint64_t> gmask;        ///< gmask из куба 3x3x... для расчета Item::gmask
+		};
+		std::vector<stencil_t> stencils;   ///< таблица шаблонов
+		
 
 		bool fix_mode;  ///< задает стадию обхода для Item
 
@@ -302,8 +347,10 @@ namespace aiw{
 		bool check_children(uint64_t toff, int off, const tile_t* tile=nullptr) const;  ///< проверяет наличие потомка на один уровень вниз, tile позволяет иcключить forest.find
 		bool check_parent(uint64_t &toff, int &off, tile_t** tile);  ///< проверяет наличие родителя на один уровень вверх, в случае успеха настраивает аргументы на родителя		
 		
-		struct grad_patch_t{ typename Item::patch_t *ipp; std::set<int> table; };
-		void split_item(BItem& item, uint64_t toff, int off, tile_t *tile, std::unordered_map<uint64_t, grad_patch_t> &table); 
+		struct grad_patch_t{ typename Item::patch_t *ipp; BitMask<1<<R*D> table, join; };
+		void split_item(BItem& item, uint64_t toff, int off, tile_t *tile, std::unordered_map<uint64_t, grad_patch_t> &table);
+		void mk3layer_usage(uint64_t toff, BitsMask<1<<R*D> &usage) const;  ///< создает 3х слойный usage включающий usage от родителя и полные чанки от детей
+		void split_item(uint64_t toff, int off, Item& item, std::unordered_map<uint64_t, grad_patch_t> &table) const;  ///< разбивает элемент, включая выделение памяти
 		//----------------------------------------------------------------------		
 	};
 	//--------------------------------------------------------------------------
