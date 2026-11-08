@@ -3,7 +3,7 @@
 #define AIW_BOX_ITER_HPP
 
 /**
- * Copyright (C) 2025 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Copyright (C) 2025, 2026 Antov V. Ivanov  <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 
@@ -13,10 +13,14 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
-	template <int D> class BoxIter {  
-		size_t off = 0, sz = 0;  Vec<D, int64_t> mul;   Ind<D> pos, box; 
+	template <int D> class BoxIter {  ///< реализует эффективный обход D-мерной прямоугольной области в рамках обычного цикла  
+		size_t off = 0;        ///< текущее смещение в линейном массиве данных
+		size_t sz = 0;         ///< размер линейного массива данных
+		Vec<D, int64_t> mul;   ///< множитель для пересчета позиции в смещение
+		Ind<D> pos;            ///< текщая позиция в D-мерной области
+		Ind<D> box;            ///< размер D-мерной области
 	public:
-		int periodic = 0;
+		int periodic = 0;      ///< битовая маска ззадающая периодические граничные условия
 
 		CU_HD size_t get_off() const { return off; }
 		CU_HD size_t size() const { return sz; }
@@ -32,26 +36,34 @@ namespace aiw{
 		CU_HD BoxIter(const Ind<D> &box_){ init(box_); }
 
 
-		CU_HD void operator ()(size_t off2){
+		CU_HD void operator ()(size_t off2){  ///< необходимо вызывать в начале каждого тела обычного цикла
 			pos[0] += off2-off; off = off2;
 			if(pos[0]>=box[0]) pos = off%box;
 		}
 
-		CU_HD int64_t add(int axis, uint32_t dist) const {
-			if(pos[axis]<box[axis]-dist) return mul[axis]*dist;
-			return (periodic&(1<<axis)? 1-box[axis]: box[axis]-1-pos[axis])*mul[axis];
+		CU_HD int64_t add(int axis, int dist) const {  ///< ПРИРАЩЕНИЕ смещения в лийненом массиве при обращении к соседу вдоль оси axis на расстоянии dist направо
+			if(pos[axis]+int(dist)<box[axis]) return mul[axis]*dist;
+			return (periodic&(1<<axis)? dist-box[axis]: box[axis]-1-pos[axis])*mul[axis];
 		}
-		CU_HD int64_t sub(int axis, uint32_t dist) const {
-			if(pos[axis]>dist) return -mul[axis]*dist;
-			return (periodic&(1<<axis)? box[axis]-1: -pos[axis])*mul[axis];
+		CU_HD int64_t sub(int axis, int dist) const {   ///< ПРИРАЩЕНИЕ смещения в лийненом массиве при обращении к соседу вдоль оси axis на расстоянии dist налево
+			if(pos[axis]>=dist) return -mul[axis]*dist;
+			return (periodic&(1<<axis)? box[axis]-dist: -pos[axis])*mul[axis];
 		}
 		CU_HD int64_t operator + (int axis) const { return add(axis, 1); }
 		CU_HD int64_t operator - (int axis) const { return sub(axis, 1); }
 
-		CU_HD bool is_bound(int axis, int dist) const {
+		CU_HD bool is_bound(int axis, int dist) const {  ///< проверяет выход за границу области вдоль оси axis на расстояние dist
 			if(periodic&(1<<axis)) return false;
 			int pos2 = pos[axis]+dist;
 			return pos2<0 || box[axis]<=pos2;
+		}
+		CU_HD bool is_bound(const Ind<D> &dpos) const {
+			for(int i=0; i<D; i++) if(is_bound(i, dpos[i])) return true;
+			return false;
+		}
+		uint64_t operator []( const Ind<D> &dpos) const {  ///< смещение соседа в линейном массиве
+			uint64_t f = off; for(int i=0; i<D; i++) if(dpos[i]) f += dpos[i]<0? sub(i, -dpos[i]): add(i, dpos[i]);
+			return f;
 		}
 		BoxIter& operator ++ () { off++; pos[0]++; if(pos[0]>=box[0]){ pos = off%box; } return *this; }
 		operator bool () const { return off<sz; }
@@ -84,15 +96,17 @@ namespace aiw{
 			if(fp.pos[0]>=box[0]) fp.pos = fp.off%box;
 		}
 
-		CU_HD int64_t add(int axis, uint32_t dist) const {
-			off_pos_t &fp = offs[omp_get_thread_num()];
-			if(fp.pos[axis]<box[axis]-dist) return mul[axis]*dist;
-			return (periodic&(1<<axis)? 1-box[axis]: box[axis]-1-fp.pos[axis])*mul[axis];
+		CU_HD int64_t add(int axis, int dist) const {
+			// if(dist<0){ WMSG(axis, dist); abort(); }
+			const off_pos_t &fp = offs[omp_get_thread_num()];
+			if(fp.pos[axis]+dist<box[axis]) return mul[axis]*dist;
+			return (periodic&(1<<axis)? dist-box[axis]: box[axis]-1-fp.pos[axis])*mul[axis];
 		}
-		CU_HD int64_t sub(int axis, uint32_t dist) const {
-			off_pos_t &fp = offs[omp_get_thread_num()];
-			if(fp.pos[axis]>dist) return -mul[axis]*dist;
-			return (periodic&(1<<axis)? box[axis]-1: -fp.pos[axis])*mul[axis];
+		CU_HD int64_t sub(int axis, int dist) const {
+			// if(dist<0){ WMSG(axis, dist); abort(); }
+			const off_pos_t &fp = offs[omp_get_thread_num()];
+			if(fp.pos[axis]>=dist) return -mul[axis]*dist;
+			return (periodic&(1<<axis)? box[axis]-dist: -fp.pos[axis])*mul[axis];
 		}
 		CU_HD int64_t operator + (int axis) const { return add(axis, 1); }
 		CU_HD int64_t operator - (int axis) const { return sub(axis, 1); }
@@ -101,6 +115,15 @@ namespace aiw{
 			if(periodic&(1<<axis)) return false;
 			int pos2 = offs[omp_get_thread_num()].pos[axis]+dist;
 			return pos2<0 || box[axis]<=pos2;
+		}
+		CU_HD bool is_bound(const Ind<D> &dpos) const {
+			for(int i=0; i<D; i++) if(is_bound(i, dpos[i])) return true;
+			return false;
+		}
+		uint64_t operator [](const Ind<D> &dpos) const {
+			uint64_t f = offs[omp_get_thread_num()].off;
+			for(int i=0; i<D; i++){  if(dpos[i]<0) f += sub(i, -dpos[i]);  else if(dpos[i]>0) f += add(i, dpos[i]);	}
+			return f;
 		}
 	};
 	//--------------------------------------------------------------------------

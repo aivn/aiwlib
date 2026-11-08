@@ -3,11 +3,11 @@
 '''usage: ./combine <expr11> <expr12> ... <file1.dat> [<expr21> ...  <file2.dat>  ...] [-rx [x_min]:[x_max]] ==>
       write result to stdout
 
-file.dat должен иметь заголовок с описнаием столбоцв в формате gplt  #: ...
+file.dat должен иметь заголовок с описанием столбоцв в формате gplt  #: ...
 для чтения данных через входной поток указывать '-'
 
 Для каждого файла выводятся выражения из списка указанного ПЕРЕД именем файла,
-выражения задаются в виде <имя-исолного-столбца> либо <имя-целевого-стобца>=<выражение>
+выражения задаются в виде <имя-исходного-столбца> либо <имя-целевого-стобца>=<выражение>
 
 Если для файла списко выражений не указан, используются все столбцы файла.
 
@@ -47,7 +47,7 @@ for arg in sys.argv[1:]:
             line = line.strip()
             if line.startswith('#:'):
                 if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope); print(line[:-1], '# <<<', arg)
-                else: head = line[2:].split()
+                else: head = line[2:].split() #; print(head)
                 continue
             if line[0]=='#': print('#', arg, ':', line[1:-1]); continue
             line = [float(x) for x in line.split('#')[0].replace('None', 'nan').split()]
@@ -81,7 +81,9 @@ print('#>>>', ' '.join(map(repr, sys_argv)))
 if not sources: print('ERROR: not input data', file=sys.stderr); exit(1)
 if len(sources)==1:
     print('#:'+' '.join(sources[0][1]))
-    for l in sources[0][2]: print(*l)
+    for l in sources[0][2]:
+        try: print(*l)
+        except: exit(0)
     exit(0)
 
 X = set(sources[0][1])

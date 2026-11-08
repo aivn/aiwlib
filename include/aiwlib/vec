@@ -156,6 +156,9 @@ namespace aiw{
 			return false;
 		}
 
+		bool all() const { for(int i=0; i<D; i++){ if(!p[i]) return false; } return true; }
+		bool any() const { for(int i=0; i<D; i++){ if(p[i]) return true; } return false; }
+		
 		CU_HD Vec reverse() const { Vec res; for(int i=0; i<D; i++){ res[i] = p[D-i-1]; } return res; }
 		CU_HD Vec operator ~ () const { reverse(); }
 		CU_HD Vec sort() const {
