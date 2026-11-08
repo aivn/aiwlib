@@ -44,6 +44,7 @@ for arg in sys.argv[1:]:
         fin = sys.stdin if arg=='-' else open(arg)
         data, scope = [], dict(math.__dict__)
         for line in fin:
+            line = line.strip()
             if line.startswith('#:'):
                 if '=' in line: exec(line[2:].strip(), {'__builtins__':None}, scope); print(line[:-1], '# <<<', arg)
                 else: head = line[2:].split()
