@@ -20,8 +20,20 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::init(const Ind<D> &tbox_){
 	forest.clear();  stencils.clear();  tiles.clear();  rtiles.clear(); rtiles.resize(rank_lim+1);
 	for(Ind<D> tpos: irange<D>(tbox)){ add_tile(tpos, 0).usage.fill(1); }
 	for(ZCurve64<D> z(0, R); z; z.off++) coords[z.off] = *z;  // заполнение таблицы координат
-	int n=0; for(Ind<D> p: irange<D>(-1, 2)){ int m = 0;  for(int i=0; i<D; i++){ m |= ((p[i]<0)<<(2*i))|((p[i]>0)<<(2*i+1)); }  bmask[n++] = m; }
-	// WMSG(rank_lim, zbound);
+
+	Ind<D> ml3(1);  for(int i=1; i<D; i++) ml3[i] = ml3[i-1]*3;  // заполнением bmask и gmask
+	for(Ind<D> p: irange<D>(-1, 2)){  
+		int f = (p+ind(1))*ml3; uint32_t &m = bmask[f];  m = 0;
+		for(int i=0; i<D; i++) m |= ((p[i]<0)<<(2*i))|((p[i]>0)<<(2*i+1));
+		if(p.prod()) gmask[f] = uint32_t(1)<<ZCurve32<D>((ind(1)-p)/2, 1).off;  // чистые маски на углах
+	}  
+	for(Ind<D> p: irange<D>(-1, 2)) if(!p.prod()){
+			uint64_t &m = gmask[(p+ind(1))*ml3];  m = 0;
+			Ind<D> up(1); for(int i=0; i<D; i++) up[i] += p[i]==0; 
+			for(Ind<D> d: irange(up)) m |= gmask[(p+d*2+ind(1))*ml3];
+		}
+	steps.resize(rank_lim+1);  steps[0] = step; for(int i=1; i<=rank_lim; i++) steps[i] = steps[i-1]/2;
+	int i = 0; for(const Ind<D> &p: irange<3>(-1, 2)) cube3Xtpos[i++] = p;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t&
@@ -45,7 +57,6 @@ TiledAdaptiveMesh<T, D, R, cell_based>::add_tile(const Ind<D> &tpos, const int r
 template <typename T, int D, int R, bool cell_based> void
 TiledAdaptiveMesh<T, D, R, cell_based>::del_tile(int tID){
 	tile_t *t = tiles[tID]; 
-	bool ok = true;
 	if(t->children){  // если есть потомки, то надо им пофиксить parent-ов
 		uint64_t ntoff = next_toff(t->toff);	
 		for(auto I=forest.upper_bound(t->toff); I!=forest.end() && I->first<ntoff; ++I) if(I->second.parent==t) I->second.parent = t->parent; 
@@ -59,15 +70,25 @@ TiledAdaptiveMesh<T, D, R, cell_based>::del_tile(int tID){
 	if(tID<int(tiles.size()-1)){ tiles[tID] = tiles.back(); tiles[tID]->tID = tID; } tiles.pop_back();
 	auto &rtls = rtiles[t->rank()]; int rtID = t->rtID;
 	if(rtID<int(rtls.size()-1)){ rtls[rtID] = rtls.back(); rtls[rtID]->rtID = rtID; } rtls.pop_back();
+	if(t->ghost_tID>=0){
+		tID = t->ghost_tID; if(tID<int(ghost_tiles.size()-1)){ ghost_tiles[tID] = ghost_tiles.back(); ghost_tiles[tID].tile->ghost_tID = tID; }
+		ghost_tiles.pop_back();
+	}
 	forest.erase(t->toff);  profile.count[TAMR_pf::n_tdel]++;  
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> void
+TiledAdaptiveMesh<T, D, R, cell_based>::add_ghost(typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t *tile, int off){
+	if(tile->ghost_tiD<0){ tile->ghost_tID = ghost_tiles.size(); ghost_tiles.emplace_back(); ghost_tiles.back().tile = tile; }
+	ghost_tiles[tile->ghost_tID].usage.set(off);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> int
 TiledAdaptiveMesh<T, D, R, cell_based>::add_stencil(const std::vector<Ind<D> > &stencil){  ///< добавляет шаблон в таблицу stencil-ов, возвращает stencilID>0
-	stencils.emplace_back();  std::vector<stencil_node_t>& nodes = stencils.back();  nodes.reserve(stencil.size()<<R*D);
 	for(const Ind<D>& pos: stencil) if(!(-ind(1<<R)<=pos) || !(pos<=ind(1<<R))){ WMSG("incorrect stencil pos --- out of 1<<R ", pos, 1<<R); abort(); }
-	for(int itID=0; itID<(1<<R*D); itID++) for(int nID=0, sz=stencil.size(); nID<sz; nID++){						
-			Ind<D> pos = coords[itID]+stencil[nID]; stencil_node_t n; n.tID = 0;  int tmul = 1;
+	stencils.emplace_back();  stencil_t &S = stencils.back();  S.stencil = stencil; S.nodes.reserve(S.stencil.size()<<R*D);  
+	for(int itID=0; itID<(1<<R*D); itID++) for(int nID=0, sz=S.stencil.size(); nID<sz; nID++){
+			Ind<D> pos = coords[itID]+S.stencil[nID]; stencil_node_t n; n.tID = 0;  int tmul = 1;
 			for(int i=0; i<D; i++){
 				if(pos[i]<0) pos[i] += 1<<R;               // попали в тайл слева
 				else if(pos[i]<(1<<R)) n.tID += tmul;      // попали центральный тайл 
@@ -75,9 +96,11 @@ TiledAdaptiveMesh<T, D, R, cell_based>::add_stencil(const std::vector<Ind<D> > &
 				tmul *= 3;  // формируем смещение в кубике 3х3х3... тайлов
 			}
 			n.off = ZCurve32<D>(pos, R).off;
-			nodes.push_back(n);
+			S.nodes.push_back(n);
 			// WMSG(cID, stencil[nID],  nID, coords[cID], pos, n.tID, n.off);
 		}
+	S.gmask.reserve(S.stencil.size());  Ind<D> ml3(1);  for(int i=1; i<D; i++) ml3[i] = ml3[i-1]*3; 
+	for(const Ind<D> &p: S.stencil)  S.gmask.push_back(ind(-1)<=p && p<=ind(1)? gmask[(p+ind(1))*ml3]: 0);
 	return stencils.size()-1;
 }
 //------------------------------------------------------------------------------
@@ -124,14 +147,11 @@ TiledAdaptiveMesh<T, D, R, cell_based>::size(uint32_t rmask, uint64_t gmask) con
 	return res;
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R, bool cell_based> Ind<2>
-TiledAdaptiveMesh<T, D, R, cell_based>::ranks_range() const {
-	Ind<2> res(rank_lim, 0);
-	for(int i=0; i<rank_lim; i++) if(rtiles[i].size()){
-			if(res[0]>i) res[0] = i;
-			if(res[1]<i) res[1] = i;
-		}
-	return res;
+template <typename T, int D, int R, bool cell_based> BitMask64
+TiledAdaptiveMesh<T, D, R, cell_based>::ranks() const {
+	BitMask64 bm;
+	for(int i=0; i<=rank_lim; i++) if(rtiles[i].size()) bm.set(i);
+	return bm;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> template <int V, typename Func, typename Fout> void
@@ -159,7 +179,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::dump2balls(Func func, Fout &&fout, std::
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based>  template <typename Func, typename Fout> void
 TiledAdaptiveMesh<T, D, R, cell_based>::dump2msh(Func func, Fout &&fout, std::string head) const {  // func(const T&) ==> Vecf
-	int max_rank = ranks_range()[1];  Ind<D> bb = tbox*(1<<(R+max_rank));
+	int max_rank = ranks().max();  Ind<D> bb = tbox*(1<<(R+max_rank));
 	Vec<D, uint64_t> mul; mul[0] = 1; for(int i=1; i<D; i++) mul[i] = mul[i-1]*bb[i-1];
 	constexpr int V = decltype(func(T{}))::dim; std::vector<Vecf<V+1> > data(prod(bb));  //WMSG(V);
 	for(const tile_t* t: tiles){
@@ -212,6 +232,15 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::out_border_mask() const {  // вы
 	return m;
 }
 //------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> Vecf<D>                // смещение к соседу, к которому было последнее обращение через [],
+TiledAdaptiveMesh<T, D, R, cell_based>::Item::delta_r(int subcell) const {  // subcell задает элемент в чанке если srank=rank()+1
+	const Ind<D> &dp = storage->stencils[current_stID].stencil[current_cID];
+	if(srank==rank()) return dp&storage->steps[rank()];
+	// if(srank<rank()) return ((storage->coords[off]+dp+ind(1<<R))/2*2-ind(1<<R)-storage->coords[off]+vecf(.5f))&storage->steps[rank()];
+	if(srank<rank()) return (((storage->coords[off]+dp)*.5f).floor()*2-storage->coords[off]+vecf(.5f))&storage->steps[rank()];
+	return (dp*2+storage->coords[subcell]-vecf(.5f))&storage->steps[rank()+1];  // протестировано
+}
+//------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> uint64_t
 TiledAdaptiveMesh<T, D, R, cell_based>::BItem::bmask(bool out_border) const {  // возвращает маску с информацией о расположении соседей по шаблону за границей сетки
 	if(out_border) return this->out_border_mask();
@@ -222,18 +251,18 @@ TiledAdaptiveMesh<T, D, R, cell_based>::BItem::bmask(bool out_border) const {  /
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> const T*
 TiledAdaptiveMesh<T, D, R, cell_based>::BItem::operator [] (int cID) noexcept {  // доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
-	stencil_node_t sn = snodes[cID];  const tile_t* t = cube[sn.tID];
-	if(t && t->usage[sn.off]){ srank = t->rank();  return t->data+sn.off; }  // штатное поведение, целевой элемент есть
+	stencil_node_t sn = snodes[cID];  const tile_t* t = cube[sn.tID];  current_cID = cID;
+	if(t && t->usage[sn.off]){ stile = t; soff = sn.off;  srank = t->rank();  return t->data+sn.off; }  // штатное поведение, целевой элемент есть
 	if(cell_based || (sn.off&dbits)==0){  // смотрим только на один ранг вверх --- для cell_based всегда, для node_based только если попадаем в узел крупной сетки
 		if(t && t->parent){  // есть соседний тайл и тайл над ним, в случае разрыва все сломается?
 			int f = storage->up_off(t->toff, sn.off);
-			if(t->parent->usage[f]){ srank = t->rank()-1; return t->parent->data+f; }
+			if(t->parent->usage[f]){ stile = t->parent; soff = f;  srank = t->rank()-1; return t->parent->data+f; }
 		}
 		if(!t){  // соседнего тайла нет, но все же может быть тайл сверху
 			auto I = storage->forest.find(storage->up_toff(toff_cube[sn.tID]));  // вот это дорогая операция, создать в item битовую маску с указанием есть ли кто то сверху?
 			if(I!=storage->forest.end()){
 				int f = storage->up_off(toff_cube[sn.tID], sn.off);
-				if(I->second.usage[f]){ srank = tile->rank()-1; return I->second.data+f; }
+				if(I->second.usage[f]){ stile = &I->second; soff = f;  srank = tile->rank()-1; return I->second.data+f; }
 			}
 		}
 	}
@@ -243,11 +272,26 @@ TiledAdaptiveMesh<T, D, R, cell_based>::BItem::operator [] (int cID) noexcept { 
 		auto I = storage->forest.find(tf);
 		if(I!=storage->forest.end() && I->second.usage[f]){
 			srank = tile->rank()+1;
-			this->smask = 0;   for(int i=0; i<(1<<D); i++) this->smask |= uint64_t(I->second.usage[f+i])<<i;
+			// this->smask = 0;   for(int i=0; i<(1<<D); i++) this->smask |= uint64_t(I->second.usage[f+i])<<i;
+			this->smask = I->second.usage.get_chunk(D, f);
+			this->gmask.data = this->smask&storage->stencils[this->current_stID].gmask[cID];
+			stile = &I->second; soff = f; 
 			return I->second.data+f;
 		}
 	}
-	srank = -1; return nullptr;
+	srank = -1; stile = nullptr; soff = -1; return nullptr;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> template <typename Func> auto
+TiledAdaptiveMesh<T, D, R, cell_based>::Item::operator ()(Func func) const {  // вызывает func(const T& cell, auto &item) для последнего элемента в который попали через []
+	BItem item;  item.storage = storage;  item.parent_item = (Item*)this;
+	if(stile){ storage->config_item(item, (tile_t*)stile);  item.off = soff; }
+	else{ stencil_node_t sn = snodes[current_cID]; storage->config_item(item, cube[sn.tID]);  item.off = sn.off; }
+	if(!item.tile || !item.tile->usage[item.off]){
+		WMSG("call () for not active element ", stile, soff, tile->toff, off, rank(), current_stID, current_cID, item.tile, item.off, item.tile->usage[item.off]);
+		abort();
+	}
+	return func(item.tile->data[item.off], item);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> const T*
@@ -349,8 +393,8 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::join(int message){
 	if(storage->fix_mode || rank()<=0) return false;
 	if(cell_based){	   
 		join_cell_counter++; 
-		if(join_cell_counter==(1<<D) && (off&dbits)==dbits) patch_self().table[off-dbits] = CreatorInfo(rank(), message, 3);  // ПЕРВАЯ ячейка в блоке
-	} else patch_self().table[off] = CreatorInfo(rank(), message, 3);  // просто фиксируем все вызовы join
+		if(join_cell_counter==(1<<D) && (off&dbits)==dbits) patch_self().table[off-dbits] = CreatorInfo(rank(), message, 2);  // ПЕРВАЯ ячейка в блоке
+	} else patch_self().table[off] = CreatorInfo(rank(), message, 2);  // просто фиксируем все вызовы join
 	// для node_based сетки все таки нужно инкрементировать счетчики в кубе соседей?
 	return true;
 }
@@ -360,7 +404,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::check_children(uint64_t toff, int off, c
 	// if(tile && !(tile->children&(uint64_t(1)<<(off>>D*(R-1)))) return false;
 	if(!inc_rank(toff, off)) return false;
 	auto I = forest.find(toff);  if(I==forest.end()) return false;
-	return !I->second.usage.chunk(D, off, false);
+	return !I->second.usage.check_chunk(D, off, false);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> bool 
@@ -388,7 +432,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::fix_join(typename std::map<int, Ti
 	if(cell_based){ while(++I!=pself->table.end() && I->first<f1) if(I->second.add()){ ok = false; break; } }   // проверяем что join не отменили со стороны
 	else {  // node based сетка
 		// if(I->fisrt&dbits) return false;  // попадаем между узлами - но это должно проверяться выше?
-		for(int f=f0+1; f<f1; f++) if(++I==pself->table.end() || I->first!=f || !I->second.del_by_join()){ ok = false; break; }  // куб из 2^D элементов
+		for(int f=f0+1; f<f1; f++) if(++I==pself->table.end() || I->first!=f || !I->second.join()){ ok = false; break; }  // куб из 2^D элементов
 		if(ok){
 			Ind<D> tp0 = storage->toff2tpos(tile->toff),  p0 = storage->coords[f0];
 			for(Ind<D> dp: irange<D>(-1, 2)){
@@ -397,24 +441,45 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::fix_join(typename std::map<int, Ti
 				for(int i=0; i<D; i++){  if(p[i]<0){ tp[i]--; p[i] += 1<<R; }  else if(p[i]>=(1<<R)){ tp[i]++; p[i] -= 1<<R; } }
 				uint64_t tf = storage->tpos2toff(tp, tile->rank());  int f = ZCurve32<D>(p, R).off;
 				if(tf==tile->toff){
-					I = pself->table.find(f);  if(I==pself->table.end() || !I->second.del_by_join()){ ok = false; break; }
+					I = pself->table.find(f);  if(I==pself->table.end() || !I->second.join()){ ok = false; break; }
 					buf[ibuf].first = tile;  buf[ibuf++].second = f;
 				} else {
 					auto J = patches.find(tf);  if(J==patches.end()){ ok = false; break; }
-					I = J->second.table.find(f);  if(I==J->second.table.end() || I->second.del_by_join()){ ok = false; break; }
+					I = J->second.table.find(f);  if(I==J->second.table.end() || I->second.join()){ ok = false; break; }
 					buf[ibuf].first = J->second.tile;  buf[ibuf++].second = f;
 				}
 			}
 		}
 	}
 	if(ok){  // проверка прошла, устанавливаем usage
-		for(int f=f0; f<f1; f++){ if(f<0 || f>=(1<<R*D) || !tile->usage[f]){ WMSG(tile->toff, f, tile->usage.size()); abort(); }  tile->usage.set(f, false); }
+		for(int f=f0; f<f1; f++) tile->usage.set(f, false); 
 		for(int i=0; i<ibuf; i++) buf[i].first->usage.set(buf[i].second, false);
-		// int uf = storage->up_off(tile->toff, f0); uint64_t utf = storage->up_toff(tile->toff);  patch_t *patch = add_patch(utf);
-		// if(!patch->tile) patch->tile = &(storage->add_tile(storage->toff2tpos(utf), utf&31));
-		// patch->tile->usage.set(uf);  patch->table[uf] = CreatorInfo(tile->rank(), msg, 2);  // тут надо как то явно отметить что патч появился в результате join
 	} 
 	return ok;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> void  // создает 3х слойный usage включающий usage от родителя и полные чанки от детей
+TiledAdaptiveMesh<T, D, R, cell_based>::mk3layer_usage(uint64_t toff, BitsMask<1<<R*D> &usage) const {
+	const tile_t *parent = nullptr; uint64_t children = ~uint64_t(0);  auto I = forest.find(toff);
+	if(I!=forest.end()){
+		usage = I->second.usage; children = I->second.children;
+		if(I->second.parent && I->second.parent->rank()==I->second.rank()+1) parent = I->second.parent;
+	} else if(toff&31){ auto J = forest->find(up_toff(toff));  if(J!=forest.end()) parent = &J->second; }
+	if(parent){  int chID = up_chID(toff);  for(int i=chID<<(D*(R-1)), sz=i+(1<<(D*(R-1))); i<sz; i++) if(parent->usage[i]) usage.set_chunk(D, i<<D); }
+	if((toff&31)<rank_lim && children){
+		for(int chID=0; chID<(1<<D); chID++) if(children&(uint64_t(1)<<chID)){
+				uint64_t toff2 = down_toff(toff, chID); if(I==forest.end()) I = forest.lower_bound(toff2);
+				while(I!=forest.end() && I->first<toff2) ++I;
+				if(I->first==toff2){ for(int i=0; i<(1<<R*D); i+= 1<<D) if(I->second.usage.get_chunk(D, i)==dbits) usage.set((chID<<D*(R-1))|i>>D);	}
+				else break;
+			}
+	}
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> void  // разбивает элемент, включая выделение памяти
+TiledAdaptiveMesh<T, D, R, cell_based>::split_item(uint64_t toff, int off, typename TiledAdaptiveMesh<T, D, R, cell_based>::Item& item,
+												   typename std::unordered_map<uint64_t, TiledAdaptiveMesh<T, D, R, cell_based>::grad_patch_t> &table) const {
+	
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> template <typename Func> void
@@ -423,64 +488,70 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 	fix_mode = true;   double tpf1 = omp_get_wtime(), tpf2;  BItem& item = items[0];
 	for(auto &I: item.patches) if(!I.second.tile) I.second.tile = &add_tile(toff2tpos(I.first), I.first&31);  // создаем новые тайлы по необходимости
 	std::vector<std::tuple<uint64_t, int, CreatorInfo> > join_table;  
-	for(auto &I: item.patches){  //<<< сейчас тут самое узкое место перестроения, кроме гало
+	for(auto &I: item.patches){  //<<< сейчас тут самое узкое место перестроения, кроме гало?
 		item.tile = I.second.tile;  item.pself = &I.second; 
 		for(auto J=I.second.table.begin(); J!=I.second.table.end();){
-			if(!J->second.del_by_join()){ I.second.tile->usage.set(J->first, J->second.add()); ++J; }
+			if(!J->second.join()){ I.second.tile->usage.set(J->first, J->second.add()); ++J; }
 			else {
-				if((cell_based || (J->first&dbits)==0) && item.fix_join(J)){
-					CreatorInfo cr = J->second; cr.mode = 2; join_table.emplace_back(I.first, J->first, cr);  
-				}
-				I.second.table.erase(J++);
+				if((cell_based || (J->first&dbits)==0) && item.fix_join(J))  join_table.emplace_back(I.first, J->first, J->second);  
+				I.second.table.erase(J++);  // чистим таблицу изменений от элементов отмеченных для удаления
 			}
 		}
-	}  // теперь все usage в тайлах обновлены
+	}  // теперь все usage в тайлах обновлены за счет split
 	for(const auto &I: join_table){  // создаем элементы добавленные через join
 		uint64_t tf = std::get<0>(I);  int f = std::get<1>(I);  dec_rank(tf, f);
 		if(!item.tile || item.tile->toff!=tf) item.tile = &add_tile(toff2tpos(tf), tf&31);		
 		item.patch_self().table[f] = std::get<2>(I);  item.tile->usage.set(f);
-	}
+	}  // теперь вообще все usage в тайлах обновлены
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_alloc] = tpf2-tpf1;  tpf1 = tpf2;
-	
-	if(rebuild_stID>=0){  // проверка скачка ранга разбиения
+	//--------------------------------------------------------------------------
+	if(rebuild_stID>=0){  // начало проверки скачка ранга разбиения
 		if(rebuild_stID>=int(stencils.size())){ WMSG("incorrect ", rebuild_stID, ">=", stencils.size());  exit(1); }
-		std::unordered_map<uint64_t, grad_patch_t> table1, table2;  bool go = false;
-		for(auto &I: item.patches){
-			auto &J = table1[I.first]; J.ipp = &I.second;
-			for(auto& p: I.second.table){ J.table.insert(p.first); go = true; }
+		std::unordered_map<uint64_t, grad_patch_t> table1, table2;  bool go = false;  // struct grad_patch_t{ Item::patch_t *ipp; std::set<int> table; };
+		for(auto &I: item.patches){  // предварительная набивка table1 для запуска метода марша
+			auto &J = table1[I.first];  J.ipp = &I.second;  
+			for(auto& p: I.second.table) if(p.second.add()){ J.table.set(p.first); J.join.set(p.first, p.second.join()); go = true; }  // только добавленные элементы
 		}
-		while(go){
+		std::unordered_map<uint64_t, BitMask<1<<R*D> > ubm_table;  // таблица с usage объединяющих три ранга S, S+1, S-1, заполняется ленивым образом
+		const auto &stencil = stencils[rebuild_stID].nodes;  stencil_sz = stencil.size()>>R*D; 
+		while(go){  // начало метода марша
 			go = false;
-			for(auto &I: table1){  // проход по table1 с обавлением изменений в table2
-				config_item(item, I.second.ipp->tile);  tile_t *tt[2]; tt[0] = I.second.ipp->tile;  uint64_t ttf[2]; ttf[0] = tt[0]->toff;
-				for(int off: I.second.table){           // должно не быть кого то одного (соседа или элемента). Если у того кого нет есть родитель разбивается родитель,
-					item.off = off;  item.stencil(rebuild_stID);  int ff[2];  ff[0] = off;  bool self = item.tile->usage[off];    // иначе разбивается тот кто есть
-					for(int cID=0; cID<item.stencil_sz; cID++){
-						stencil_node_t sn = item.snodes[cID];  if(bmask[sn.tID]&item.tile->bmask) continue;  // попали за границу сетки, надо регулировать битовой маской periodic? 
-						tt[1] = item.cube[sn.tID];  
-						if(self!=(tt[1] && tt[1]->usage[sn.off])){  // во всех случаях рассматривается пара сосед-элемент, одного из них
-							go = true;  ttf[1] = item.toff_cube[sn.tID];  ttf[1] = item.toff_cube[sn.tID]; ff[1] = sn.off;  // защита от дыр в сетке???
-							if(check_parent(ttf[self], ff[self], tt+self)){  // кого нет указывает self, если есть родитель - разбиваем родителя
-								split_item(item, ttf[self], ff[self], tt[self], table2);
-								// нужно написать разбивательную функцию которая бы все делала, потому что в else она же но с другими аргументами
-								// эта функция должна менять tile->usage, добавлять патчи и прописывать изменения в таблицу 
-
-								if(!self) break;  // self должен был быть создан, дальше проверять шаблон в эту итерацию нет смысла?
-							} else {  // разбиваем того кто есть, проверить ранг?
-								split_item(item, ttf[!self], ff[!self], tt[!self], table2);
-								if(self) break;  // self удален, дальше проверять шаблон в эту итерацию нет смысла?								
-							}							
-						}
-					}
-				}
-			}			
+			for(auto &I: table1){  // начало прохода по table1 с добавлением изменений в table2
+				BitMask<1<<R*D>* ubm_cube[calc_3pow<D>::x];  for(int i=0; i<calc_3pow<D>::x; i++) ubm_cube[i] = nullptr;
+				tile_t *tile = I.second.ipp->tile;
+				for(int off: I.second.table){  // начало прохода по тайлу 
+					const stencil_node_t *snodes = stencil.data()+stencil_sz*off;  bool is_join = I.second.join[off];
+					uint64_t toff_up2 = toff; int off_up2 = off;  if(!is_join && (toff&31)>1){ dec_rank(toff_up2, off_up2); dec_rank(toff_up2, off_up2); }
+					for(int cID=0; cID<item.stencil_sz; cID++){  // начало цикла по шаблону
+						stencil_node_t sn = snodes[cID];  if(bmask[sn.tID]&tile->bmask) continue;  // попали за границу сетки, надо регулировать битовой маской periodic?
+						if(!ubm_cube[sn.tID]){  // ищем необходимую битовую маску
+							uint64_t toff2 = tpos2toff(toff2tpos(tile->toff, tile->rank())+cube3Xtpos[sn.tID]);  auto U = ubm_table.find(toff2);
+							if(U==ubm_table.end()){ ubm_cube[sn.tID] = &ubm_table[toff2]; mk3layer_usage(*ubm_cube[sn.tID], toff2); }  // формируем необходимую битовую маску
+							else ubm_cube[sn.tID] = &U->second;
+						}  // конец поиска битовой маски
+						if(is_join){ if(!ubm_cube[sn.tID]->get(sn.off)){  // для созданного через join элемента нет соседа, отменяем join
+								I.second.ipp->table.erase(off);  I.second.ipp->tile->usage.set(off, false);
+								uint64_t toff2 = I.first;  int off2 = off; dec_rank(toff2, off2);  forest[toff2].usage.set_chunk(D, off2);
+								patch_t &P = item.patches[toff2];  auto J = P.table.find(off2); for(int i=0; i<(1<<D); i++) P.table.erase(J++);
+								break;
+							}
+						} else if(!ubm_cube[sn.tID]->get(sn.off)){  // для созданного через split узла нет соседа, отмечаем соседа для разбиения
+							uint64_t toff2 = tpos2toff(toff2tpos(toff)+cube3Xtpos[sn.tID]);  int off2 = sn.off;  // ПГУ? Оптимизация?
+							if(dec_rank(toff2, off2) && dec_rank(toff2, off2)) split_item(toff2, off2, item, table2); 
+						} else if((I.first&31)>1){  // есть сосед для созданного через split узла, но нужна проверка соседа на два уровня выше
+							uint64_t toff2 = tpos2toff(toff2tpos(toff_up2)+cube3Xtpos[sn.tID]);  auto J = forest.find(toff2);  // ПГУ? Надо как то разрешать границы? Оптимизация?
+							if(J!=forest.end() && J->second.usage[sn.off]) split_item(toff2, sn.off, item, table2);  // этого соседа надо разбить? Только для симметричных шаблонов?
+						} 
+					}  // конец цикла по шаблону 					
+				}  // конец прохода по тайлу
+			}  // конец прохода по table1
 			table1.swap(table2); table2.clear();
-		}		
-	}
+		}  // конец метода марша		
+	}  // конец проверки скачка ранга разбиения
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_grad] = tpf2-tpf1;  tpf1 = tpf2;
-
-	if(halo_stID>=0){  // автоматическое формирование гало
-		if(halo_stID>=int(stencils.size())){ WMSG("incorrect ", halo_stID, ">=", stencils.size());  exit(1); }
+	//--------------------------------------------------------------------------
+	if(ghost_stID>=0){  // начало автоматического формирование гало из ghost-ячеек
+		if(ghost_stID>=int(stencils.size())){ WMSG("incorrect ", ghost_stID, ">=", stencils.size());  exit(1); }
 		std::vector<std::unordered_map<uint64_t, std::vector<int>>> htables(items_sz);  // tID:{offs} для элементов относящихся к гало, это патчи для tile_t::usage
 		std::vector<typename Item::patch_t*> patches(item.patches.size()); int patches_sz = 0;  for(auto &I: item.patches) patches[patches_sz++] = &I.second;
 #pragma omp parallel for if(items_sz>1)
@@ -488,7 +559,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 			int thID = omp_get_thread_num();  BItem &itm = items[thID];  auto &htable = htables[thID];  
 			typename Item::patch_t &P = *(patches[ip]);  config_item(itm, P.tile); 
 			for(auto &J: P.table){
-				itm.off = J.first;  itm.stencil(halo_stID);
+				itm.off = J.first;  itm.stencil(ghost_stID);
 				if(J.second.mode==2){  // элемент отмечен для создания через join
 					for(int cID=0; cID<itm.stencil_sz; cID++){
 						stencil_node_t sn = itm.snodes[cID];
@@ -496,8 +567,6 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 						tile_t* t = itm.cube[sn.tID];  uint64_t tf = itm.toff_cube[sn.tID];
 						if((!t || !t->usage[sn.off]) && check_children(tf, sn.off, t))  // нет соседа на том же ранге и у соседа есть какие то ячейки снизу - создаем соседа
 							htable[P.toff].push_back(sn.off);
-							// if(!t) itm.cube[sn.tID] = t = &add_tile(toff2tpos(tf), P.toff&31);  это надо делать в критической секции, лучше сделать это потом
-							// CreatorInfo &cr = itm.patch_other(tf).table[sn.off];  cr.rank = P.toff&31;  cr.mode = 4;							
 					}
 				} else if(J.second.mode==1 && check_children(P.toff, J.first, P.tile)){  // элемент отмечен для удаления
 					for(int cID=0; cID<itm.stencil_sz; cID++){
@@ -516,12 +585,13 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 		for(auto &H: htables[0]){
 			tile_t *tile = &add_tile(toff2tpos(H.first), H.first&31);  typename Item::patch_t *patch = item.add_patch(H.first, tile);			
 			for(int f: H.second) if(!tile->usage[f]){
-					CreatorInfo &cr = patch->table[f];  cr.mode = 4;  cr.rank = (H.first&31)+1;
-					tile->usage.set(f);  profile.count[TAMR_pf::n_halo]++;
+					CreatorInfo &cr = patch->table[f];  cr.mode = 2;  cr.rank = (H.first&31)+1;
+					tile->usage.set(f);  add_ghost(tile, f);  profile.count[TAMR_pf::n_ghost]++;
 				}
 		}
-	}
-	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_halo] = tpf2-tpf1;  tpf1 = tpf2;
+	}  // конец автоматического формирования гало из ghost-ячеек
+	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_ghost] = tpf2-tpf1;  tpf1 = tpf2;
+	//--------------------------------------------------------------------------
 
 	std::vector<typename Item::patch_t*> patches(item.patches.size()); int patches_sz = 0;  uint64_t cell_count = 0;
 	for(auto &I: item.patches){ patches[patches_sz++] = &I.second;  I.second.tile->usage.swap(I.second.usage); } // восстанавливаем старые маски
@@ -541,7 +611,16 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 
 	for(auto &I: item.patches){   // накатываем новые маски, удаляем пустые тайлы
 		if(!I.second.usage.size() || !I.second.tile->groups) del_tile(I.second.tile->tID); 
-		else I.second.tile->usage = I.second.usage;
+		else{
+			tile_t *tile = I.second.tile; tile->usage = I.second.usage;
+			if(tile->ghost_tID>=0){  // обрабатываем ghost usage
+				ghost_tiles[tile->ghost_tID].usage &= tile->usage;  int ghtID = tile->ghost_tID;
+				if(!ghost_tiles[ghtID].usage){  // если ghost ячеек в тайле больше нет удаляем тайл из ghost_tiles
+					if(ghtID<int(ghost_tiles.size())-1){ ghost_tiles.back().tile->ghost_tID = ghtID; ghost_tiles[ghtID] = ghost_tiles.back(); }
+					ghost_tiles.pop_back(); tile->ghost_tID = -1;
+				}
+			}
+		}
 	}
 	profile.runtime[TAMR_pf::t_del] = omp_get_wtime()-tpf1;
 }
@@ -549,8 +628,9 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 template <typename T, int D, int R, bool cell_based> bool
 TiledAdaptiveMesh<T, D, R, cell_based>::config_item(typename TiledAdaptiveMesh<T, D, R, cell_based>::BItem& item,
 													typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t* tile){
+	double t_start = omp_get_wtime(); 
 	item.step = step/(1<<tile->rank());	 item.bmin = bmin+(toff2tpos(tile->toff)*(1<<R)&item.step);  if(cell_based) item.bmin += item.step*.5f;
-	item.cube[calc_3pow<D>::x/2] = item.tile = tile;  item.toff_cube[calc_3pow<D>::x/2] = tile->toff;
+	item.cube[calc_3pow<D>::x/2] = item.tile = tile;  item.toff_cube[calc_3pow<D>::x/2] = tile->toff;   item.srank = tile->rank(); // для Item[]
 	item.tpos = toff2tpos(tile->toff);  int rank = tile->rank();  bool easy = tile->usage.all();  item.join_cell_chunk = -1;
 	for(int cid=0; cid<calc_3pow<D>::x; cid++){  // это можно оптимизировать?
 		if(cid==calc_3pow<D>::x/2) continue;
@@ -560,6 +640,8 @@ TiledAdaptiveMesh<T, D, R, cell_based>::config_item(typename TiledAdaptiveMesh<T
 		auto I = forest.find(item.toff_cube[cid]); item.cube[cid] = I==forest.end()? nullptr: &(I->second);
 		if(easy && (!item.cube[cid] || !item.cube[cid]->usage.all())) easy = false;
 	}
+	item.stile = nullptr;  item.soff = -1;
+	item.iconf_count++;  item.iconf_runtime += omp_get_wtime()-t_start;
 	return !easy;
 }
 //------------------------------------------------------------------------------
@@ -573,12 +655,17 @@ template <typename T, int D, int R, bool cell_based> template <typename Func> vo
 TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint64_t groups){
 	double t_start = omp_get_wtime();  profile.count = Vec<1, uint64_t>();  profile.runtime = Vec<1>();
 	int Nth = threads, Nth_old = omp_get_max_threads();  if(threads<=0) Nth = Nth_old; else omp_set_num_threads(threads); 
-	std::vector<BItem> items(Nth); for(BItem &item: items) item.storage = this;  
-	fix_mode = false;  int tiles_sz = tiles.size();  uint64_t tot_count = 0, tot_tiles = 0;
+	std::vector<BItem> items(Nth); for(BItem &item: items) item.storage = this;
+	std::vector<tile_t*>  ttable, *pttable = &tiles;
+	if(rmask!=~0){
+		ttable.reserve(tiles.size()); pttable = &ttable;
+		for(int r=rank_lim; r>=0; r--) if(rmask&(1<<r) && rtiles[r].size()) for(tile_t* t: rtiles[r]) ttable.push_back(t);
+	}
+	fix_mode = false;  int tiles_sz = pttable->size();  uint64_t tot_count = 0, tot_tiles = 0;
 #pragma omp parallel for reduction(+:tot_count,tot_tiles) if(Nth>1)
 	for(int tID=0; tID<tiles_sz; tID++){
 		//	for(auto &I: forest){
-		tile_t *tile = tiles[tID]; if(!((1<<tile->rank())&rmask) || !(tile->groups&groups)) continue;
+		tile_t *tile = (*pttable)[tID]; if(!((1<<tile->rank())&rmask) || !(tile->groups&groups)) continue;
 		BItem &item = items[omp_get_thread_num()];  tot_tiles++;
 		bool is_bound = config_item(item, tile);  uint64_t new_groups = 0;
 		if(is_bound) for(int f: tile->usage){  item.prepare(f); func(tile->data[f], item);         new_groups |= item.groups;    tot_count++; }
@@ -592,13 +679,30 @@ TiledAdaptiveMesh<T, D, R, cell_based>::for_each(Func func, uint32_t rmask, uint
 			typename Item::patch_t &dst = items[0].patches[I.first];
 			dst.toff = I.second.toff;  dst.tile = I.second.tile;
 			if(dst.table.size()==0) dst.table.swap(I.second.table);
-			else for(auto J: I.second.table){ CreatorInfo &cr = dst.table[J.first]; if((cr.mode&1) || !cr.message) cr = J.second; }
+			else for(auto J: I.second.table){ CreatorInfo &cr = dst.table[J.first]; if(cr.mode==1) cr = J.second; }
 		}
 	}
 	profile.runtime[TAMR_pf::t_join] = omp_get_wtime()-t_mid;
-	rebuild(func, &items[0], Nth);
-	if(threads>1) omp_set_num_threads(Nth_old);
+	if(items[0].patches.size()) rebuild(func, &items[0], Nth);
+	if(threads>0) omp_set_num_threads(Nth_old);
+	for(BItem& item: items){ profile.count[TAMR_pf::n_iconf] += item.iconf_count;  profile.runtime[TAMR_pf::t_iconf] += item.iconf_runtime; }
 	profile.runtime[TAMR_pf::t_rebuild] = omp_get_wtime()-t_mid;
+}
+//------------------------------------------------------------------------------
+template <typename T, int D, int R, bool cell_based> template <typename Func> void
+TiledAdaptiveMesh<T, D, R, cell_based>::for_ghosts(Func func, uint32_t rmask, uint64_t groups){
+	double t_start = omp_get_wtime();  profile.count = Vec<1, uint64_t>();  profile.runtime = Vec<1>();
+	int Nth = threads, Nth_old = omp_get_max_threads();  if(threads<=0) Nth = Nth_old; else omp_set_num_threads(threads); 
+	std::vector<BItem> items(Nth); for(BItem &item: items) item.storage = this;
+	fix_mode = true;  int tiles_sz = ghost_tiles.size();  uint64_t tot_count = 0, tot_tiles = 0;
+#pragma omp parallel for reduction(+:tot_count,tot_tiles) if(Nth>1)
+	for(int tID=0; tID<tiles_sz; tID++){
+		tile_t *tile = ghost_tiles[tID].tile; if(!((1<<tile->rank())&rmask) || !(tile->groups&groups)) continue;
+		BItem &item = items[omp_get_thread_num()];  tot_tiles++; 
+		for(int f: ghost_tiles[tID].usage){  item.prepare(f); func(tile->data[f], item); tot_count++; }
+	}
+	profile.runtime[TAMR_pf::t_main] = omp_get_wtime() - t_start; profile.count[TAMR_pf::n_main] = tot_count; profile.count[TAMR_pf::n_tmain] = tot_tiles;
+	if(threads>0) omp_set_num_threads(Nth_old);
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> template <typename Func>
@@ -627,7 +731,8 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::for_zorder(const Ind<D> &tpos0, Fun
 		item.off = I.off;  func(item.tile->data[item.off], item);  tot_count++;
 	}
 	double t_mid = omp_get_wtime();  profile.runtime[TAMR_pf::t_main] = t_mid - t_start;  profile.count[TAMR_pf::n_main] = tot_count;
-	rebuild(func, &item, 1);
+	if(item.patches.size()) rebuild(func, &item, 1);
+	profile.count[TAMR_pf::n_iconf] = item.iconf_count;  profile.count[TAMR_pf::t_iconf] = item.iconf_runtime;
 	profile.runtime[TAMR_pf::t_rebuild] = omp_get_wtime()-t_mid;
 }
 //------------------------------------------------------------------------------
