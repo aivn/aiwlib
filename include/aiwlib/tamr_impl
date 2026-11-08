@@ -154,10 +154,11 @@ TiledAdaptiveMesh<T, D, R, cell_based>::ranks() const {
 	return bm;
 }
 //------------------------------------------------------------------------------
-template <typename T, int D, int R, bool cell_based> template <int V, typename Func, typename Fout> void
+template <typename T, int D, int R, bool cell_based> template <typename Func, typename Fout> void
 TiledAdaptiveMesh<T, D, R, cell_based>::dump2balls(Func func, Fout &&fout, std::string head) const {  // func(const T&) ==> Vecf<V>
 	// как то по уровням выводить при многослойном покрытии?
 	// double t_start = omp_get_wtime();
+	constexpr int V = decltype(func(T{}))::dim;  //WMSG(V);
 	Vecf<D> bmin, bmax(tbox*(1<<R));
 	BinaryHead bh;  bh.dim = 3; bh.szT = 16+V*4; bh.head = head; bh.count = size()[0]; bh.type = BinaryHead::balls;
 	// for(int i=0; i<D; i++){ bh.bmin[i] = bmin[i];  bh.bmax[i] = bmax[i]; }

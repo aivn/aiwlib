@@ -91,8 +91,8 @@ namespace aiw{
 		void tiles2dat(std::string fname) const;  ///< выводит для отладки все тайлы, по z ранг разбиения. Только для 2D сетки 
 		void items2dat(std::string fname, std::string head="", int rmask=~0) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки		
 		template <typename Func> void items2dat(std::string fname, std::string head, Func func, int rmask=~0) const;  ///< дополнительно выводит результаты работы func(const T&)
-		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
-		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
+		template <typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls(func, std::move(fout), head); }
 		template <typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
 		template <typename Func, typename Fout> void dump2msh(Func func, Fout &fout, std::string head="") const { dump2msh(func, std::move(fout), head); }
 
