@@ -12,6 +12,32 @@
 
 namespace aiw{
 	//--------------------------------------------------------------------------
+	struct BitMask64{
+		uint64_t data = 0;
+
+		int size() const { return __builtin_popcountl(data); }
+		bool operator [](int i) const { return data&(uint64_t(1)<<i); }
+		void set(int i, bool x=true){  uint64_t m = uint64_t(1)<<i; if(x) data |=  m; else data &= ~m; }
+		void fill(int N){ data = ~uint64_t(0)>>64-N; }
+		int uid(int i) const { return  __builtin_popcountl(data&(~uint64_t(0)>>(64-i))); }  ///< возвращает число ненулевых битов до i-й позиции
+		int min() const { return __builtin_ctzl(data); }
+		int max() const { return 63-__builtin_clzl(data); }
+		
+		class Iterator{
+			uint64_t data; int pos;
+		public:
+			Iterator(): data(0), pos(64) {}
+			Iterator(uint64_t data_): data(data_){ pos = __builtin_ctzl(data); }
+			int operator *() const { return pos; }
+			bool operator == (const Iterator &other) const { return data==other.data; }
+			bool operator != (const Iterator &other) const { return data!=other.data; }
+			Iterator& operator ++ (){ data &= ~(uint64_t(1)<<pos); pos = __builtin_ctzl(data);	return *this; }
+			Iterator operator ++ (int){ Iterator I = *this; ++*this; return I; }
+		};
+		Iterator begin() const { return Iterator(data); }
+		Iterator end() const { return Iterator(); }
+	};
+	//--------------------------------------------------------------------------
 	template <int N> class BitMask {  // параметризовать по типу?
 		static const int sz = N/64+bool(N%64);
 		uint64_t p[sz];  // счетчик с числом единиц?
@@ -62,6 +88,7 @@ namespace aiw{
 		bool all() const { return count==N; }
 		BitMask operator ~ () const { return BitMask(*this, true); }  // ???
 
+		/*
 		class Iterator{
 			friend class BitMask;
 			const uint64_t *p = nullptr; int pos = N, sz = N;
@@ -79,6 +106,23 @@ namespace aiw{
 			for(int i=0; i<sz && !p[i]; i++){ I.p++; I.pos += 64; }
 			while(I.pos<N && !get(I.pos)) I.pos++;
 			return I;
+		}*/
+		class Iterator{
+			friend class BitMask;
+			const uint64_t *p = nullptr; uint64_t w = 0; int pos = N;
+		public:
+			int operator * () const { return pos; }
+			bool operator != (Iterator) const { return pos<N; }
+			void operator ++ (){  // это можно оптимизировать
+				while(!w && pos<N){ w = *++p; pos = (pos&~63)+64; }
+				if(w){  pos = (pos&~63) + __builtin_ctzl(w); w ^= uint64_t(1)<<(pos&63); }
+			}
+		};
+		Iterator begin() const {  // это можно оптимизировать
+			Iterator I; I.p = p; I.pos = 0; I.w = p[0];
+			while(!I.w && I.pos<N){ I.w = *++I.p; I.pos += 64; }
+			if(I.w){  I.pos += __builtin_ctzl(I.w); I.w ^= uint64_t(1)<<(I.pos&63); }
+			return I;
 		}
 		Iterator end() const { return Iterator(); }
 		// __builtin_ffsl (unsigned long x)
@@ -95,7 +139,14 @@ namespace aiw{
 			return *this;
 		}
 		// bool chunk(int i, uint64_t mask, bool on) const { return ((p[i/64]>>(i%64))&mask)==mask*on; }
-		bool chunk(const int D, int i, bool on=true) const { uint64_t m = (~uint64_t(0))>>(64-(1<<D));  return ((p[i/64]>>(i%64))&m)==m*on; }
+		bool check_chunk(const int D, int i, bool on=true) const { uint64_t m = (~uint64_t(0))>>(64-(1<<D));  return ((p[i/64]>>(i%64))&m)==m*on; }
+		uint64_t get_chunk(const int D, int i) const { uint64_t m = (~uint64_t(0))>>(64-(1<<D));  return (p[i/64]>>(i%64))&m; }
+		void set_chunk(const int D, int i){ uint64_t m = (~uint64_t(0))>>(64-(1<<D));  p[i/64] |= m<<(i%64); }
+		
+		int uid(int i) const {  ///< возвращает число ненулевых битов до i-й позиции
+			int r = 0, k = 0; for(int n=i/64; k<n; k++) r += __builtin_popcountl(p[k]);
+			return  r+__builtin_popcountl(p[k]&(~uint64_t(0)>>(64-i%64)));
+		}
 		// добавить срезы?
 		// operator ~ ?
 	};
