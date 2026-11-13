@@ -349,7 +349,7 @@ namespace aiw{
 		
 		struct grad_patch_t{ typename Item::patch_t *ipp; BitMask<1<<R*D> table, join; };
 		void split_item(BItem& item, uint64_t toff, int off, tile_t *tile, std::unordered_map<uint64_t, grad_patch_t> &table);
-		void mk3layer_usage(uint64_t toff, BitsMask<1<<R*D> &usage) const;  ///< создает 3х слойный usage включающий usage от родителя и полные чанки от детей
+		void mk3layer_usage(uint64_t toff, BitMask<1<<R*D> &usage) const;  ///< создает 3х слойный usage включающий usage от родителя и полные чанки от детей
 		void split_item(uint64_t toff, int off, Item& item, std::unordered_map<uint64_t, grad_patch_t> &table) const;  ///< разбивает элемент, включая выделение памяти
 		//----------------------------------------------------------------------		
 	};

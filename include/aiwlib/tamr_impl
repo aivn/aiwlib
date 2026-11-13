@@ -33,7 +33,7 @@ void TiledAdaptiveMesh<T, D, R, cell_based>::init(const Ind<D> &tbox_){
 			for(Ind<D> d: irange(up)) m |= gmask[(p+d*2+ind(1))*ml3];
 		}
 	steps.resize(rank_lim+1);  steps[0] = step; for(int i=1; i<=rank_lim; i++) steps[i] = steps[i-1]/2;
-	int i = 0; for(const Ind<D> &p: irange<3>(-1, 2)) cube3Xtpos[i++] = p;
+	int i = 0; for(const Ind<D> &p: irange<D>(-1, 2)) cube3Xtpos[i++] = p;
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t&
@@ -79,7 +79,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::del_tile(int tID){
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> void
 TiledAdaptiveMesh<T, D, R, cell_based>::add_ghost(typename TiledAdaptiveMesh<T, D, R, cell_based>::tile_t *tile, int off){
-	if(tile->ghost_tiD<0){ tile->ghost_tID = ghost_tiles.size(); ghost_tiles.emplace_back(); ghost_tiles.back().tile = tile; }
+	if(tile->ghost_tID<0){ tile->ghost_tID = ghost_tiles.size(); ghost_tiles.emplace_back(); ghost_tiles.back().tile = tile; }
 	ghost_tiles[tile->ghost_tID].usage.set(off);
 }
 //------------------------------------------------------------------------------
@@ -460,7 +460,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::Item::fix_join(typename std::map<int, Ti
 }
 //------------------------------------------------------------------------------
 template <typename T, int D, int R, bool cell_based> void  // создает 3х слойный usage включающий usage от родителя и полные чанки от детей
-TiledAdaptiveMesh<T, D, R, cell_based>::mk3layer_usage(uint64_t toff, BitsMask<1<<R*D> &usage) const {
+TiledAdaptiveMesh<T, D, R, cell_based>::mk3layer_usage(uint64_t toff, BitMask<1<<R*D> &usage) const {
 	const tile_t *parent = nullptr; uint64_t children = ~uint64_t(0);  auto I = forest.find(toff);
 	if(I!=forest.end()){
 		usage = I->second.usage; children = I->second.children;
@@ -506,6 +506,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 	}  // теперь вообще все usage в тайлах обновлены
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_alloc] = tpf2-tpf1;  tpf1 = tpf2;
 	//--------------------------------------------------------------------------
+	/*
 	if(rebuild_stID>=0){  // начало проверки скачка ранга разбиения
 		if(rebuild_stID>=int(stencils.size())){ WMSG("incorrect ", rebuild_stID, ">=", stencils.size());  exit(1); }
 		std::unordered_map<uint64_t, grad_patch_t> table1, table2;  bool go = false;  // struct grad_patch_t{ Item::patch_t *ipp; std::set<int> table; };
@@ -549,6 +550,7 @@ TiledAdaptiveMesh<T, D, R, cell_based>::rebuild(Func func, typename TiledAdaptiv
 			table1.swap(table2); table2.clear();
 		}  // конец метода марша		
 	}  // конец проверки скачка ранга разбиения
+	*/
 	tpf2 = omp_get_wtime(); profile.runtime[TAMR_pf::t_grad] = tpf2-tpf1;  tpf1 = tpf2;
 	//--------------------------------------------------------------------------
 	if(ghost_stID>=0){  // начало автоматического формирование гало из ghost-ячеек
