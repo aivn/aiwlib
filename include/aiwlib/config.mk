@@ -8,7 +8,7 @@
 SHELL=/usr/bin/bash
 
 ifeq ($(python),)
-python=2
+python=3
 endif
 # paths and utlities for install/links-install targets
 # пути и утилиты для установки

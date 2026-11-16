@@ -77,13 +77,12 @@ namespace aiw{
 		//----------------------------------------------------------------------
 	public:  // user interface
 		Vecf<D> bmin;                 ///< позиция левого нижнего угла сетки
-		Vecf<D> step = Vecf<D>(1.f);  ///< шаг сетки на нулевом ранге разбиения
 		int threads = 0;              ///< число тредов OpenMP в for_each (1 - посл. версия, 0 - автоматически)
 		//------------------  инициализация  -----------------------------------
 		TiledAdaptiveMesh() = default;
 		
-		void init(const Ind<D> &tbox_);  ///< инициализирует сетку нулевого ранга разбиения, tbox --- размер в ТАЙЛАХ
-		TiledAdaptiveMesh(const Ind<D> &tbox_){ init(tbox_); }
+		void init(const Ind<D> &tbox_, Vecf<D> step=Vecf<D>(1.f));  ///< инициализирует сетку нулевого ранга разбиения, принимает размер сетки в ТАЙЛАХ и шаг
+		TiledAdaptiveMesh(const Ind<D> &tbox_, Vecf<D> step=Vecf<D>(1.f)){ init(tbox_, step); }
 
 		int add_stencil(const std::vector<Ind<D> > &stencil);  ///< добавляет шаблон в таблицу, возвращает stencilID>=0
 
@@ -195,7 +194,7 @@ namespace aiw{
 			const stencil_node_t *snodes = nullptr;
 			int stencil_sz = 0, current_stID = -1, current_cID = -1;
 
-			Vecf<D> bmin, step;            ///< позиция и шаг для данного тайла
+			Vecf<D> bmin, step_, rstep_;            ///< позиция и шаг для данного тайла
 			void prepare(int f) noexcept;  ///< готовит item к обратоке очередной ячейки
 			uint64_t out_border_mask() const;   ///< выход шаблона за границу сетки, что делать с шаблонами содержащими больше 64х элементов?
 			// int check_nb_by_rank(int cID) const;  ///< проверяет наличие соседей на различных рангах, возвращает маску: 1 - есть на том же ранге, 2 - рангом больше, 4 - меньше
@@ -205,9 +204,10 @@ namespace aiw{
 			
 			int rank() const { return tile->rank(); }                           ///< ранг узла
 			Ind<D> pos() const { return tpos*(1<<R) + storage->coords[off]; }   ///< позиция узла на глобальной сетке соответствующего ранга
-			Vecf<D> coord() const { return bmin+(storage->coords[off]&step); }  ///< координаты узла 
+			Vecf<D> coord() const { return bmin+(storage->coords[off]&step_); }  ///< координаты узла 
 			int Dbits() const { return off&((1<<D)-1); }                        ///< последние D бит оффсета, м.б. полезно для нумерации шаблонов
 
+			
 			void stencil(int stID){  ///< Настраивает Item для доступа к соседям по шаблону stID
 				current_stID = stID; const auto &st = storage->stencils[stID].nodes;  stencil_sz = st.size()>>R*D; 
 				snodes = st.data()+stencil_sz*off;
@@ -219,7 +219,9 @@ namespace aiw{
 			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
 				current_cID = cID; stencil_node_t sn = snodes[cID]; return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
 			}
-			Vecf<D> delta_r0(int cID) const { return storage->stencils[current_stID].stencil[cID]&storage->steps[rank()]; }  ///< смещение к соседу по текущему шаблону
+			Vecf<D> step() const { return step_; }    ///< шаг сетки на данном ранге разбиения
+			Vecf<D> rstep() const { return rstep_; }  ///< обратный шаг сетки на данном ранге разбиения
+			Vecf<D> delta_r0(int cID) const { return storage->stencils[current_stID].stencil[cID]&step_; }  ///< смещение к соседу по текущему шаблону
 			Vecf<D> delta_r(int subcell=0) const;  ///< смещение к соседу, к которому было последнее обращение через [], subcell задает элемент в чанке если srank=rank()+1
 			const T* get_parent() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
 			const T* get_child()        noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr), устанавливает smask
@@ -276,7 +278,7 @@ namespace aiw{
 		uint64_t zmask;  ///< (1<<zbound)-1, в ключе 59 bit offset,  5 bit rank, offset максимально прижат влево
 		static const uint32_t dbits = (1<<D)-1;
 		uint32_t bmask[calc_3pow<D>::x];  ///< куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
-		std::vector<Vecf<D> > steps;      ///< шаги сетки для всех рангов разбиения
+		std::vector<Vecf<D> > steps, rsteps;   ///< шаги сетки (обычные и обратные) для всех рангов разбиения
 		Ind<D> cube3Xtpos[calc_3pow<D>::x];  ///< для config_item и главное для вычисления кубов при процерке скачков ранга разбиения в rebuild
 		
 		//-------  функции для работы с ключами и позициями тайлов  -----------
