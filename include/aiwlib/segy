@@ -17,11 +17,13 @@ namespace aiw{
 	// принимает/возвращает сетки aiw::Mesh<float, 1|2|3>, ось времени в сейсмограммах всегда отвечает оси X, шаги отвечают шагам сеток 
 
 	// возвращает максимальную длину трассы, count --- максимальное число трасс для чтения
-	int segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, size_t count, bool read_data);
 #ifndef SWIG
-	inline int segy_raw_read(IOstream &&S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, size_t count, bool read_data){
+	int segy_raw_read(IOstream &&S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, size_t count, bool read_data);
+#endif //SWIG
+	inline int segy_raw_read(IOstream &S, std::list<std::vector<float> > &data, std::vector<Vecf<8> > &heads, size_t count, bool read_data){
 		return segy_raw_read(std::move(S), data, heads, count, read_data);
 	}
+#ifndef SWIG
 	// segy_read... возвращают геометрию --- сетку размерами [8={PVx,PVy,PVz,PPx,PPy,PPz,dt,trace_sz}][Nx][опицонально Ny]
 	Mesh<float, 2> segy_read_geometry(IOstream &&S, bool read_file_head=true, size_t count=-1);
 	Mesh<float, 2> segy_read(IOstream &&S, Mesh<float, 2> &data, bool read_file_head=true, size_t count=-1);

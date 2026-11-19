@@ -28,6 +28,7 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load0: %p\n", mem_ptr);
 	BinaryHead bh; size_t s = S.tell();
 	if(!bh.load(S) || bh.type!=BinaryHead::mesh || bh.dim>6){ S.seek(s); return false; }
+	for(int i=0; i<bh.dim; i++) if(bh.bbox[i]<=0){ S.seek(s); return false; }  // corrupt header: empty/negative axis (step=inf, empty autoscale)
 	head = bh.head; dim = bh.dim; szT = bh.szT; logscale = bh.logscale; for(int i=0; i<dim; i++){ bbox[i] = bh.bbox[i]; anames[i] = bh.axis[i]; }
 	for(int i=0; i<dim; i++) if(anames[i].empty()) anames[i] = default_anames[i];
 	
@@ -38,10 +39,10 @@ bool aiw::QpltMesh::load(IOstream &S){
 				} else i++; ***/
 	
 	data_sz = szT; for(int i=0; i<dim; i++) data_sz *= bbox[i];
-	mem_sz = data_sz/1e9;  fin = S.copy();  mem_offset = S.tell(); if(!S.seek(data_sz, 1)) return false;  // файл битый, записан не до конца
+  mem_sz = data_sz / 1e9;  fin = S.copy();  mem_offset = S.tell(); if (!S.seek(data_sz, SEEK_CUR)) { printf("invalid file!\n"); S.seek(s); return false; }  // файл битый, записан не до конца; rewind like the other failures (the next loader starts at s)
 	
 	s = S.tell(); int32_t sz2 = 0; S.load(sz2);  // try read old aivlib mesh format (deprecated)
-	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(bh.bmin, dim*8); S.read(bh.bmax, dim*8); S.seek(dim*8, 1); S.seek(szT, 1); logscale = 0;  } 
+	if(S.tell()-s==4 && sz2==-int(dim*24+4+szT)){ S.read(bh.bmin, dim*8); S.read(bh.bmax, dim*8); S.seek(dim*8, SEEK_CUR); S.seek(szT, SEEK_CUR); logscale = 0;  } 
 	else  S.seek(s);
 	for(int i=0; i<dim; i++) if(bh.bmin[i]==bh.bmax[i]){  bmin[i] = 0; bmax[i] = bbox[i]; } else {  bmin[i] = bh.bmin[i]; bmax[i] = bh.bmax[i]; }
 	calc_step();
@@ -57,7 +58,8 @@ bool aiw::QpltMesh::load(IOstream &S){
 	// printf("load1: ptr=%p, data_sz=%ld\n", mem_ptr, data_sz);
 	return true;
 }
-void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); fin->read(mem_ptr, data_sz); }
+// CUDA build: frames are loaded into host memory here (IOstream is not visible to nvcc), see mesh_cu.cpp
+void aiw::QpltMesh::data_load_cuda(){ fin->seek(mem_offset); mem = fin->mmap(data_sz, 0); mem_ptr = (char*)(mem->get_addr()); }
 //------------------------------------------------------------------------------
 QpltPlotter* aiw::QpltMesh::mk_plotter(int mode) { this->data_load(); return new QpltMeshPlotter; }
 //------------------------------------------------------------------------------
@@ -94,7 +96,7 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 			for(int i=0; i<dim; i++) smax[axisID[i]] += bbox[i]-1;
 		}
 		// for(int i=container->dim; i<6; i++) smax[i] = smin[i]+1; ???
-		Ind<17> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets);
+		Ind<21> LID = smin|smax|AID|accessor.ctype|Ind<3>(accessor.offsets)|accessor.mask|axisID;  // everything the limits depend on (mask: bit fields, axisID: derivative directions)
 		auto I_LID = cnt->flimits.find(LID); 
 		if(I_LID!=cnt->flimits.end()) f_lim = I_LID->second; 
 		else { // считаем пределы
@@ -111,10 +113,9 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 #pragma omp parallel for reduction(min:f_min) reduction(max:f_max)  // MSVC does not support OpenMP 3
 #else //AIW_WIN32      
       std::vector<float> f_mina(omp_get_max_threads(), HUGE_VAL), f_maxa(omp_get_max_threads(), -HUGE_VAL);
-      int act_numthreads = -1; // to be determined in the following
 #pragma omp parallel for //shared(f_mina, f_maxa)
 #endif //AIW_WIN32
-			for(int i=0; i<(int)sz; i++){ //for(size_t i=0; i<sz; i++){
+			for(ptrdiff_t i=0; i<(ptrdiff_t)sz; i++){  // signed (OpenMP 2.0) and 64-bit: more than 2^31 cells are possible
 				int pos[6]; size_t j = i; const char *ptr1 = ptr0, *nb[6] = {nullptr};   
 				for(int k=0; k<dim0; k++){ pos[k] = j%sbox[k]; ptr1 += cnt->mul[k]*pos[k]; pos[k] += smin[k]; j /= sbox[k]; }					
 				if(DIFF) for(int k=0; k<ddim; k++){
@@ -127,17 +128,13 @@ template <int AID> void aiw::QpltMeshPlotter::init_impl(int autoscale){
 #ifndef AIW_WIN32				
          f_min = std::min(f_min, fres);  f_max = std::max(f_max, fres);
 #else //AIW_WIN32        
-        if (act_numthreads < 0){
-# pragma omp critical
-            act_numthreads = omp_get_num_threads();
-        }
         int me = omp_get_thread_num();
         f_mina[me] = std::min(f_mina[me], fres);  f_maxa[me] = std::max(f_maxa[me], fres);
 #endif //AIW_WIN32	  
 	  }// end of cells loop
 #ifdef AIW_WIN32	  
-      f_min = *std::min_element(f_mina.begin(), f_mina.begin()+ act_numthreads);
-      f_max = *std::max_element(f_maxa.begin(), f_maxa.begin() + act_numthreads);
+      f_min = *std::min_element(f_mina.begin(), f_mina.end());  // unused slots keep +-HUGE_VAL
+      f_max = *std::max_element(f_maxa.begin(), f_maxa.end());
 #endif //AIW_WIN32
 			f_lim[0] = f_min;  f_lim[1] = f_max;  cnt->flimits[LID] = f_lim;
 			accessor.minus = acc_minus;
@@ -192,7 +189,7 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		//im.dump2ppm("/tmp/qplt.ppm");
 		if(dout>1){  // векторные поля
 			auto plt2 = get_flat<AID>(0);
-			Ind<2> N = ind(im.Nx, im.Ny), Na = N/color.arr_length/color.arr_spacing<<plt2.bbox, d = N/Na;
+			Ind<2> N = ind(im.Nx, im.Ny), Na = (N/color.arr_length/color.arr_spacing<<plt2.bbox)>>Ind<2>(1), d = N/Na;  // >>1: a tiny image gave Na=0 and N/Na divided by zero
 			// WOUT(N, d, Na, plt2.bbox, plt2.diff3minus, plt2.diff3plus, bbeg[2]);
 			for(int iy=0; iy<Na[1]; iy++)  for(int ix=0; ix<Na[0]; ix++){
 					int x = ix*d[0]+d[0]/2,  y = iy*d[1]+d[1]/2; Ind<2> pos; Vecf<2> X;
@@ -225,8 +222,9 @@ template <int AID> void aiw::QpltMeshPlotter::plot_impl(std::string &res) const 
 		QpltMeshPlotter3D<PAID> plt;
 		plt.vtx.init(*this);  color.conf(&plt.color, D3tmask); plt.accessor = accessor; plt.D3mingrad = D3mingrad;
 		plt.Nx = im.Nx; plt.Ny = im.Ny; plt.ibmin = ibmin; plt.bbox = bbox;
+		{ const QpltMesh* cnt = dynamic_cast<const QpltMesh*>(container); plt.data_lo = cnt->mem_ptr; plt.data_hi = cnt->mem_ptr+cnt->data_sz; }
 		int fl_sz = flats.size();  for(int i=0; i<fl_sz; i++) plt.flats[i] = get_flat<PAID>(i);
-		for(int i=0; i<3; i++) plt.deltas[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -plt.flats[i].mul[2] : plt.flats[i].mul[2];
+		for(int i=0; i<3; i++){ plt.dsgn[i] = icenter&(1<<(3-plt.flats[i].axis[0]-plt.flats[i].axis[1]))? -1: 1;  plt.deltas[i] = plt.dsgn[i]*plt.flats[i].mul[2]; }
 		plt._max_len = 1.f/(1+(bbox.min()-1)*(1-.01f*D3density)); plt.lim_w = .01*D3opacity;
 		plt.cr_grad = fabs(color.get_max()-color.get_min())/(10*bbox.max())*pow(exp(log(10*bbox.max())*.01), D3mingrad);
 		// plt.flat[i].acc надо поменять как то, но как? Вообще работать с копиями?

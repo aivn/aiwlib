@@ -33,8 +33,8 @@ namespace aiw{
 		GzFile(const char *path, const char *mode){ open(path, mode); }
 		
 		void close(){ pf.reset(); } 
-		long tell() const { return ::gztell(pf.get()); }
-		bool seek(long offset, int whence=0){ return !::gzseek(pf.get(), offset, whence); }
+		long long tell() const { return ::gztell(pf.get()); }
+		bool seek(long long offset, int whence=0){ return ::gzseek(pf.get(), offset, whence)>=0; }
 		size_t read(void* buf, size_t size){ return ::gzread(pf.get(), buf, size); }
 		size_t write(const void* buf, size_t size){ return ::gzwrite(pf.get(), buf, size); }
 		void flush(){} // ???

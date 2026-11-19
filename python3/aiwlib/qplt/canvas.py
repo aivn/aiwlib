@@ -3,10 +3,11 @@
 Licensed under the Apache License, Version 2.0'''
 
 from PyQt5 import QtWidgets, QtGui, QtCore
-import os, sys, time, tempfile
+import os, sys, time, tempfile, subprocess
 from .factory import *
 from .tics import *
 from .mouse import *
+from .parseopt import dump_conf
 #-------------------------------------------------------------------------------
 class Canvas(QtWidgets.QWidget):
     # каждый раз класс создается заново (императивно) или обновляется то что было создано (декларативно)?
@@ -21,7 +22,8 @@ class Canvas(QtWidgets.QWidget):
         self.axisID, self.sposf, self.bmin, self.bmax, self.faai = [0, 1, 2], [0.]*6, [0.]*6, [0.]*6, ((1<<12)-1)<<6  #faai: 6b флипы, 12b autoscale, 12b интерполяция
         self.paletters = dict((i.split('.')[0], QtGui.QImage(os.path.dirname(__file__)+'/pals/'+i))
                               for i in os.listdir(os.path.dirname(__file__)+'/pals') if i[-4:]=='.ppm')
-        self.old_pal, self.D3tmask, self.pals_sz = None, 0, dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
+        self.pals_sz = dict(l.split() for l in open(os.path.dirname(__file__)+'/pals/size'))
+        self.old_pal, self.D3tmask, self.pal_len = list(self.paletters.keys()).index('rainbow'), 0x3ff, int(self.pals_sz['rainbow'])
         self.touch_timer, self.touch_mode = QtCore.QTimer(self), 0; self.touch_timer.timeout.connect(self.touch_replot)
         self.movie_timer, self.movie_mode = QtCore.QTimer(self), 0; self.movie_timer.timeout.connect(self.movie_replot)
         #self.setCursor(QtCore.Qt.BlankCursor)
@@ -31,7 +33,10 @@ class Canvas(QtWidgets.QWidget):
     def get_ico(self, name, sz): return QtGui.QIcon(QtGui.QPixmap(self.paletters[name].scaled(sz[1], sz[0]).transformed(QtGui.QTransform().rotate(90))))
     #--------------------------------------------------------------------------
     def animate(self):
-        if self.win.animate.isChecked(): self.movie_timer.start(int(float(self.win.animate_step.text())*1e3)); self.movie_mode = True
+        if self.win.animate.isChecked():
+            try: step = float(self.win.animate_step.text().replace(',', '.'))  # the validator follows the locale (decimal comma)
+            except ValueError: step = .1; self.win.animate_step.setText('0.1')
+            self.movie_timer.start(max(1, int(step*1e3))); self.movie_mode = True
         else: self.movie_timer.stop(); self.movie_mode = False
     def save_animate(self):
         if self.win.save_animate.isChecked(): self.movie_path, self.movie_counter = tempfile.TemporaryDirectory(), 0; print('movie_path %r'%self.movie_path.name)
@@ -39,7 +44,11 @@ class Canvas(QtWidgets.QWidget):
             path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Movie (%i frames) As...'%self.movie_counter, filter='Movie (*.mp4)')
             if ok:
                 if not path.endswith('.mp4') and not path.endswith('.MP4'): path += '.mp4'
-                os.system('ffmpeg -i %s/%%06d.png -qscale 1 -r 12 -y %s'%(self.movie_path.name, path))
+                # -framerate before -i sets the input rate (-r after -i dropped ~2/3 of the frames); argument list: paths may contain spaces
+                cmd = ['ffmpeg', '-framerate', '8', '-i', os.path.join(self.movie_path.name, '%06d.png'), '-qscale', '1', '-y', path]
+                try: res = subprocess.call(cmd)
+                except OSError as e: res = e
+                if res: print('qplt: movie not saved, %s failed: %s'%(' '.join(cmd), res))
     #--------------------------------------------------------------------------
     def autopos(self, axe): return bool(self.faai&(1<<(6+2*axe)))
     def autopos_on(self, axe):  self.faai |=   1<<(6+2*axe)  #; print('ON', axe, self.autopos(axe), self.axisID)
@@ -47,12 +56,16 @@ class Canvas(QtWidgets.QWidget):
     def autolim(self, axe): return bool(self.faai&(1<<(7+2*self.axisID[axe])))
     def autolim_on(self, axe):  self.faai |=   1<<(7+2*self.axisID[axe])
     def autolim_off(self, axe): self.faai &= ~(1<<(7+2*self.axisID[axe]))
+    # the same by data axis (bmin/bmax are indexed by data axis too), used for config save/load
+    def autolim_data(self, a): return bool(self.faai&(1<<(7+2*a)))
+    def autolim_data_on(self, a):  self.faai |=   1<<(7+2*a)
+    def autolim_data_off(self, a): self.faai &= ~(1<<(7+2*a))
     #--------------------------------------------------------------------------
     def faai2win(self):
         for i in range(2+bool(self.win.D3.currentIndex())):
             a = self.axisID[i]
             getattr(self.win, '%sflip'%'xyz'[i]).setChecked(bool(self.faai & (1<<a)))
-            getattr(self.win, '%sinterp'%'xyz'[i]).setCurrentIndex((self.faai>>(18+2*i))&3)            
+            getattr(self.win, '%sinterp'%'xyz'[i]).setCurrentIndex((self.faai>>(18+2*a))&3)  # data axis a, as in win2faai/set_interp
     def win2faai(self):
         for i in range(2+bool(self.win.D3.currentIndex())):
             a = self.axisID[i]
@@ -61,12 +74,20 @@ class Canvas(QtWidgets.QWidget):
             interp = getattr(self.win, '%sinterp'%'xyz'[i]).currentIndex()
             self.faai &= ~(3<<(18+2*a)); self.faai |= interp<<(18+2*a)
             #print('interp=', interp, 'faai=', self.faai)
+    def set_flip(self, axe, f):
+        if f: self.faai |=   1<<axe
+        else: self.faai &= ~(1<<axe)
+    def get_flip(self, axe): return self.faai&(1<<axe)
+    def set_interp(self, a, interp):  self.faai &= ~(3<<(18+2*a)); self.faai |= interp<<(18+2*a)
+    def get_interp(self, a): return (self.faai>>(18+2*a))&3
     #--------------------------------------------------------------------------
     def save(self):
-        path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)')
+        path, ok = QtWidgets.QFileDialog.getSaveFileName(self, caption='Save Image As...', filter='Images (*.png)\nQplt configs (*.qplt)')
         if ok:
+            if path.endswith('.qplt'): dump_conf(self, path); return
             if not path.endswith('.png') and not path.endswith('.PNG'): path += '.png'
             self.grab().save(path, 'PNG')
+            dump_conf(self, path[:-4]+'.qplt')
             #pixmap = self.canvas.grab()
             #pixmap_to_save = pixmap.scaled(self.w.value(), self.h.value(), \
             #    transformMode = Qt.SmoothTransformation if self.smooth.isChecked() else Qt.FastTransformation)
@@ -84,13 +105,13 @@ class Canvas(QtWidgets.QWidget):
         win.cellsize.setText(str(self.container.get_szT()))
         anames = [self.container.get_axe(i).decode() for i in range(self.container.get_dim())]
         win.D3.setEnabled(len(anames)>=3)
-        if any(a>len(anames) for a in self.axisID): self.axisID = [0, 1, 2]  #???
+        if any(a>=len(anames) for a in self.axisID[:min(3, len(anames))]): self.axisID = [0, 1, 2]  # a displayed axis does not exist in this file
         for i in (0, 1, 2)[:len(anames)]: w = getattr(win, 'xyz'[i]+'_axe'); w.clear(); w.addItems(anames); w.setCurrentIndex(self.axisID[i])
         self.faai2win()        
         for i in range(self.container.get_dim()):
             sl, sz = getattr(win, 'slicenum%i'%(i+1)), self.container.get_bbox(i); sl.setMaximum(sz)
             sl.setValue(0 if self.autopos(i) else min(max(1, self.container.coord2pos(self.sposf[i], i)+1), sz))
-        for i in range(self.container.get_dim(), 4): getattr(win, 'fr_slice%i'%(i+1)).hide()
+        for i in range(self.container.get_dim(), 6): getattr(win, 'fr_slice%i'%(i+1)).hide()
         self.show_axis_info()
         
         self.replot()
@@ -153,12 +174,24 @@ class Canvas(QtWidgets.QWidget):
                 getattr(self.win, 'max%i'%(1+i)).setText('%g'%self.container.get_bmax(i))
                 getattr(self.win, 'step%i'%(1+i)).setText('%g'%self.container.get_step(i))
                 getattr(self.win, 'logsc%i'%(1+i)).setText('logsc.'*self.container.get_logscale(i))
-                getattr(self.win, 'size%i'%(i+1)).setText(str(self.container.get_bbox(self.axisID[i])))
+                getattr(self.win, 'size%i'%(i+1)).setText(str(self.container.get_bbox(i)))  # row i = data axis i (axisID[i] was wrong, IndexError for 4D+)
                 getattr(self.win, 'fr_axe%i'%(1+i)).show()
             for i in range(self.container.get_dim(), 6): getattr(self.win, 'fr_axe%i'%(1+i)).hide()
         else:
             for i in range(1,7): getattr(self.win, 'fr_axe%i'%i).hide()
     #--------------------------------------------------------------------------
+    def check_cell_layout(self):
+        'components read outside the cell crash the renderer: reset bad offsets to 0 (and a too large cell type to uint8_t)'
+        win, szT = self.win, self.container.get_szT()
+        tsz = [4, 8, 1, 1, 1, 2, 2, 4, 4, 8, 8][win.celltype.currentIndex()]  # sizes of the cell types in bin/qplt
+        if tsz>szT:
+            print('qplt: cell type %s (%i bytes) is larger than the cell (%i bytes), reset to uint8_t'%(win.celltype.currentText(), tsz, szT), file=sys.stderr)
+            win.celltype.setCurrentIndex(3); tsz = 1
+        for i in range(win.celldim.currentIndex()+1):
+            w = getattr(win, 'offset%i'%i); off = int(w.text())
+            if off<0 or off+tsz>szT:
+                print('qplt: offset%i=%i is outside the cell (%i bytes, component %i bytes), reset to 0'%(i, off, szT, tsz), file=sys.stderr)
+                w.setText('0')
     def make_up(self):
         #print('make_im')
         win, t0, self.D3 = self.win, time.time(), self.win.D3.currentIndex()*(self.container.get_dim()>2)
@@ -174,7 +207,8 @@ class Canvas(QtWidgets.QWidget):
         if self.old_pal!=win.paletter.currentIndex():
             self.old_pal, self.D3tmask = win.paletter.currentIndex(), 0x3ff
             self.pal_len = int(self.pals_sz[win.paletter.itemText(self.old_pal)])
-        if self.plotter: self.plotter.free()
+        self.check_cell_layout()
+        if self.plotter: self.plotter.free(); self.plotter = None  # never keep a freed plotter (double free if creating the new one raises)
         self.plotter = self.container.plotter(self.D3, #mode
                                               # int f_opt: 2 бита autoscale, 1 бит logscale, 1 бит модуль
                                               win.autoscale.isChecked()|(win.autoscale_tot.isChecked()<<1)|(win.logscale.isChecked()<<2)|(win.modulus.isChecked()<<3),    
@@ -215,6 +249,7 @@ class Canvas(QtWidgets.QWidget):
         try: ttl = win.title_text.text().format(head=self.container.get_head().decode(), **get_params(win.filenum.value()))
         except Exception as e: print("Can't format title", e.__class__.__name__, e); ttl = win.title_text.text()
         if ttl: paint.drawText(0, 0, sz_x, h_font, QtCore.Qt.AlignBottom|QtCore.Qt.AlignHCenter, ttl); y0 = h_font*2
+        else: y0 = h_font #int(h_font/2)
         
         if win.autoscale.isChecked(): win.f_min.setText('%g'%plotter.get_f_min()); win.f_max.setText('%g'%plotter.get_f_max())
         self.mouse_table = [] 
@@ -335,7 +370,8 @@ class Canvas(QtWidgets.QWidget):
         D3 = win.D3.currentIndex()*(self.container.get_dim()>2)
         win.animate_type.addItems(['file']*(table_size()>1)+['frame']*(file_size(win.filenum.value())>1)+
                                   [self.container.get_axe(i).decode() for i in range(self.container.get_dim()) if not i in self.axisID[:2+D3] ])
-        #win.animate_type.setCurrentText(animate_type)
+        i = win.animate_type.findText(animate_type)  # keep the user's choice (clear() reset it to the first item)
+        if i>=0: win.animate_type.setCurrentIndex(i)
 
         self.update()
         if win.D3.currentIndex()==2:

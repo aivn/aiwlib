@@ -1,0 +1,195 @@
+// -*- C++ -*-
+#ifndef AIW_ZIP_AMR_HPP
+#define AIW_ZIP_AMR_HPP
+
+/**
+ * Copyright (C) 2020--22 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ **/
+
+#include <vector>
+#include <map>
+#include <algorithm>
+#include "binhead"
+#include "mesh"
+// #include "zcurve"
+// #include "piramide"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	struct VoidT{};
+
+	// понятие грани при D>3 неопределено, не надо ее использовать
+	template <int D, typename CellT, typename NodeT=VoidT, /*typename FaceT=VoidT,*/ typename Z=uint32_t, typename A=float>
+	class ZipAdaptiveMesh: public aiw::BaseMesh<D, A> {
+		UsingBaseMeshAttributes;
+
+	public:
+		// void init(Ind<D> bbox_);
+		// void init(Ind<D> bbox_, Vec<D, A> bmin_, Vec<D, A> bmax_, int logscale_=0);
+		void init(Mesh<int, D> forest_);  
+		
+		ZipAdaptiveMesh(){}
+		// ZipAdaptiveMesh(Ind<D> bbox_){ init(bbox_); }
+		// ZipAdaptiveMesh(Ind<D> bbox_, Vec<D, A> bmin_, Vec<D, A> bmax_, int logscale_=0){ init(bbox_, bmin_, bmax_, logscale_); }
+		ZipAdaptiveMesh(Mesh<int, D> forest_){ init(forest_); }  
+
+		// bool dump(IOstream &) const;
+		// bool load(IOstream &);
+		void cells2mesh(IOstream&&) const;  // запись данных в обычном формате aiwlib mesh
+		void nodes2mesh(IOstream&&) const;  // на мелкой сетке пишутся узлы ближайшие к реально существующим
+		void nodes2mesh(IOstream&&, const NodeT &NaNval) const;  // пишет узлы на мелкой сетке, свободные ячейки заполняются NaNval
+				
+		void cells2mesh(IOstream &S) const { cells2mesh(std::move(S)); }  
+		void nodes2mesh(IOstream &S) const { nodes2mesh(std::move(S)); }  
+		void nodes2mesh(IOstream&S, const NodeT &NaNval) const { nodes2mesh(std::move(S), NaNval); }
+
+		//----------------------------------------------------------------------
+		// случайный доступ, НЕ НАДО ИСПОЛЬЗОВАТЬ ЕГО ДЛЯ ОБХОДА СЕТКИ!!!
+		//----------------------------------------------------------------------
+	protected:
+		const CellT& get_cell(Ind<D> pos) const;
+		const NodeT& get_node(Ind<D> pos) const; 
+	public:
+		// одна крупная ячейка может занимать несколько значений pos, размер сетки задается в самых маленьких ячейках
+		const CellT& operator[](Ind<D> pos) const { return                    get_cell(pos);  }   
+		/**/  CellT& operator[](Ind<D> pos)       { return const_cast<CellT&>(get_cell(pos)); }        
+		const CellT& operator[](const Vec<D> &r)  const  { return                    get_cell(this->coord2pos(r));  } 
+		/**/  CellT& operator[](const Vec<D> &r)         { return const_cast<CellT&>(get_cell(this->coord2pos(r))); } 
+		const CellT& operator[](const Vecf<D> &r) const  { return                    get_cell(this->coord2pos(r));  } 
+		/**/  CellT& operator[](const Vecf<D> &r)        { return const_cast<CellT&>(get_cell(this->coord2pos(r))); } 
+
+		/*
+		// одна ячейка инциндента 2^D узлам, nodeID трактуется как битовая маска, задающая смещения узла по осям (2^D-1 --- правый верхний угол ячейки)
+		const NodeT& node(Ind<D> pos, int nodeID) const { return get_node(pos, nodeID); }
+		  NodeT& node(Ind<D> pos, int nodeID){ return const_cast<NodeT&>(get_node(pos, nodeID)); }  
+		const NodeT& node(const Vec<D, A> &r, int nodeID) const { return this->node(this->coord2pos(r), nodeID); }
+		  NodeT& node(const Vec<D, A> &r, int nodeID)       { return const_cast<NodeT&>(get_node(this->coord2pos(r), nodeID)); }
+		*/
+		const NodeT& node(Ind<D> pos) const { return                    get_node(pos);  }
+		/**/  NodeT& node(Ind<D> pos)       { return const_cast<NodeT&>(get_node(pos)); }  
+		const NodeT& node(const Vec<D> &r)  const  { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
+		/**/  NodeT& node(const Vec<D> &r)         { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
+		const NodeT& node(const Vecf<D> &r) const  { return                    get_node(this->coord2cell(r).round());  }  // ближайший к точке r узел
+		/**/  NodeT& node(const Vecf<D> &r)        { return const_cast<NodeT&>(get_node(this->coord2cell(r).round())); }   
+
+		int get_cell_rank(Ind<D> pos) const;  // возвращает ранг ячейки
+		/*
+		      FaceT& face(Ind<D> pos, int axe);  // одна ячейка инциндента 2D граням, 0<=axe<2D 
+		const FaceT& face(Ind<D> pos, int axe);  // 0<=axe<D грани слева, D<=axe<2D грани справа
+		      FaceT& face(const Vec<D, A> &r, int axe)       { return this->face(this->coord2pos(r), axe); }
+		const FaceT& face(const Vec<D, A> &r, int axe) const { return this->face(this->coord2pos(r), axe); }
+		      FaceT& face(const Vec<D, A> &r);       // ближайшая к точке r грань
+		const FaceT& face(const Vec<D, A> &r) const; 
+		*/
+
+		//----------------------------------------------------------------------
+		// обход сетки (последовательный)	  
+		//----------------------------------------------------------------------
+	protected:
+		struct tile_t;
+	public:
+		struct Cell {
+		protected:
+			ZipAdaptiveMesh *mesh = nullptr;
+			Ind<D> fpos, tpos;
+			tile_t *tree; CellT *ptr; Vec<D, A> bmin_; 
+		public:
+			int bound = 0;
+			Vec<D, A> bmin() const { return bmin_; }
+			Vec<D, A> step() const { return tree->step; }
+			int rank() const { return tree->rank; }
+			uint32_t rmask(bool floor=false) const; // битовая маска с рангами ячейки и ближайших соседей (шаблон крест), м.б. приведена (сдвинута) к минимальному рангу
+			// 1+2D рангов ячейки и ближайших соседей (по 4 бита на ранг, центр креста затем по два значения на ось -/+), м.б. приведены (сдвинуты) к минимальному рангу
+			uint64_t stamp(bool floor=false) const; 
+			
+			/**/  CellT& operator * ()       { return *ptr; } // доступ к данным ячейки
+			const CellT& operator * () const { return *ptr; }
+			/**/  CellT* operator -> ()       { return ptr; }
+			const CellT* operator -> () const { return ptr; }			
+		};
+		//----------------------------------------------------------------------
+		struct Node {
+		protected:
+			ZipAdaptiveMesh *mesh = nullptr;
+			Ind<D> fpos, tpos;
+			tile_t *tree; NodeT *ptr;
+			bool go = true;  typename std::map<Ind<D>, std::pair<tile_t*, NodeT> >::iterator patch;
+		public:
+			Vec<D, A> r;  int bound = 0;
+			Ind<D> get_pos() const { return go? fpos*mesh->tile_sz + tpos*(1<<(mesh->max_rank-tree->rank)): patch->first; }
+			uint32_t rmask(bool floor=false) const;  // битовая маска с рангами инцидентных ячеек, м.б. приведена (сдвинута) к минимальному рангу
+			uint64_t stamp(bool floor=false) const;  // 2^D рангов инцидентных ячеек (по 4 бита на ранг), м.б. приведены (сдвинуты) к минимальному рангу
+			
+			/**/  NodeT& operator * ()       { return *ptr; } // доступ к данным узла
+			const NodeT& operator * () const { return *ptr; }
+			/**/  NodeT* operator -> ()       { return ptr; }
+			const NodeT* operator -> () const { return ptr; }			
+		};
+		//----------------------------------------------------------------------
+	protected:
+		struct tile_t;
+		std::map<Ind<D>, std::pair<tile_t*, NodeT> > nodes_patch;
+	public:
+		class CellIterator: public Cell {
+			bool go = true; bool stamp_mode, floor_, exact_match; uint32_t rmask_; uint64_t stamp_;
+			bool check_match() const;
+			friend class ZipAdaptiveMesh;
+		public:
+			/**/  Cell& operator * ()       { return *this; }
+			const Cell& operator * () const { return *this; }
+
+			void operator ++ ();
+			bool operator != (const CellIterator&) const { return go; }
+		};
+		//----------------------------------------------------------------------
+		class NodeIterator: public Node {
+			bool stamp_mode, floor_, exact_match; uint32_t rmask_; uint64_t stamp_;			
+			bool check_match() const;
+			friend class ZipAdaptiveMesh;
+		public:
+			/**/  Node& operator * ()       { return *this; }
+			const Node& operator * () const { return *this; }
+
+			void operator ++ ();
+			bool operator != (const NodeIterator&) const { return this->go || this->patch!=this->mesh->nodes_patch.end(); }
+		};
+		//----------------------------------------------------------------------
+		struct ForEachCellWrapper {
+			ZipAdaptiveMesh *mesh; bool stamp_mode, floor, exact_match; uint32_t rmask; uint64_t stamp; 
+			CellIterator begin(); 
+			CellIterator end() { return CellIterator{}; }
+		};
+		ForEachCellWrapper cells(uint32_t rmask=-1, bool exact_match=false, bool floor=false) { return ForEachCellWrapper{this, false, floor, exact_match, rmask, 0}; }
+		ForEachCellWrapper cells_by_stamp(uint64_t stamp, bool floor=false) { return ForEachCellWrapper{this, true, floor, false, -1, stamp}; }
+		//----------------------------------------------------------------------
+		struct ForEachNodeWrapper {
+			ZipAdaptiveMesh *mesh; bool stamp_mode, floor, exact_match; uint32_t rmask; uint64_t stamp;
+			NodeIterator begin();
+			NodeIterator end() { return NodeIterator{}; }
+		};
+		ForEachNodeWrapper nodes(uint32_t rmask=-1, bool exact_match=false, bool floor=false) { return ForEachNodeWrapper{this, false, floor, exact_match, rmask, 0}; }
+		ForEachNodeWrapper nodes_by_stamp(uint64_t stamp, bool floor=false) { return ForEachNodeWrapper{this, true, floor, false, -1, stamp}; }
+	protected:
+		//----------------------------------------------------------------------
+		//  реализация (пока костыльная)
+		//----------------------------------------------------------------------		
+		struct tile_t: public BaseMesh<D, A> {
+			UsingBaseMeshAttributes;
+			int rank, bound = 0; Ind<D> mul; 
+			std::vector<CellT> cells;
+			std::vector<NodeT> nodes;
+
+			friend class ZipAdaptiveMesh;
+		};
+		int max_rank = 0, tile_sz = 0;
+		std::vector<tile_t> forest;
+		Ind<D> fmul, fbox;
+		//----------------------------------------------------------------------
+	};  // end of class ZipAdaptiveMesh
+#include "zamr2_impl"
+	//--------------------------------------------------------------------------
+};  // end of namespace aiw
+#endif //AIW_ZIP_AMR_HPP
+
+// https://arxiv.org/pdf/1910.10641

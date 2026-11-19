@@ -1,0 +1,315 @@
+// -*- C++ -*-
+#ifndef AIW_TILED_AMR_HPP
+#define AIW_TILED_AMR_HPP
+
+/**
+ * Copyright (C) 2024, 2026 Antov V. Ivanov  <aiv.racs@gmail.com>
+ * Licensed under the Apache License, Version 2.0
+ *
+ * Tiled Adaptive Mesh header
+ **/
+
+#include <omp.h>
+#include <tuple>
+#include <set>
+#include <map>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <fstream>
+#include <deque>
+#include <algorithm>
+
+#include "aiwlib/bitmask"
+#include "aiwlib/vec"
+#include "aiwlib/zcurve"
+#include "aiwlib/binhead"
+
+namespace aiw{
+	//--------------------------------------------------------------------------
+	template <int P> struct calc_3pow { static const int x = 3*calc_3pow<P-1>::x; };
+	template <> struct calc_3pow<1> { static const int x = 3; };
+	//--------------------------------------------------------------------------
+	struct TAMR_pf {  ///< статистика по последнему обходу и перестроению сетки, заполняется при вызовах for_each/rebuild
+		enum {	n_main,   ///< число обработанных элементов во время основного прохода
+				n_add,    ///< число созданных элементов
+				n_del,    ///< число удаленных элементов
+				n_halo,   ///< число элементов созданных при автоматическом формировании гало
+				n_tmain,  ///< число обработанных тайлов во время основного прохода
+				n_tadd,   ///< число созданных тайлов
+				n_tdel    ///< число удаленных тайлов
+		};
+		Vec<7, uint64_t> count;
+		static constexpr char *hcount = "n_main  n_add  n_del  n_halo  n_tmain n_tadd n_tdel";
+
+		enum {  t_main,     ///< время первичного прохода по сетке
+				t_rebuild,  ///< время перестроения сетки, которое состоит из:
+				t_join,     ///<       объединения патчей
+				t_alloc,    ///<       первичного создания новых тайлов и подготовки новых масок
+				t_grad,     ///<       разглаживания скачков рангов разбиения
+				t_halo,     ///<       формирования гало
+				t_add,      ///<       вызова func для новых ячеек
+				t_del       ///<       удаления пустых тайлов
+		};
+		Vec<8> runtime;
+		static constexpr char *hruntime = "t_main t_rebuild t_join t_alloc t_grad t_halo t_add t_del";
+
+		void operator += (const TAMR_pf &other){ count += other.count;  runtime += other.runtime; }
+	};
+	//--------------------------------------------------------------------------
+	template <typename T, int D, int R, bool cell_based=true> class TiledAdaptiveMesh{
+		struct stencil_node_t { uint32_t off: 22; uint32_t tID: 10; };  // tID задает тайл в кубе из соседей 3х3х3..., off смещение в тайле, D<=6, R*D<=22
+		struct tile_t{
+			T data[1<<R*D];	                 ///< хранилище данных в тайле
+			tile_t *parent = nullptr;        ///< вышележащий (по дереву) тайл, можно с разрывом ранга
+			uint64_t children = 0;           ///< битовая маска показывающая наличие детей, внуков и т.д.
+			uint64_t toff;                   ///< ключ тайла в таблице forest, 5 --- ранг,
+			uint64_t groups = ~uint64_t(0);  ///< принадлежность узлов тайла к группам задаваемым пользователем
+			BitMask<1<<R*D> usage;           ///< битовая маска показывающая использывание узлов
+			int tID = -1, rtID = -1;         ///< позиции тайла в таблицах указателей tiles и rtiles[rank()]
+			uint32_t bmask = 0;              ///< маска описывающая положение тайла относительно границ сетки, по 2 бита на ось
+			
+			int rank() const { return toff&31; }
+		};
+		//----------------------------------------------------------------------
+	public:  // user interface
+		Vecf<D> bmin;                 ///< позиция левого нижнего угла сетки
+		Vecf<D> step = Vecf<D>(1.f);  ///< шаг сетки на нулевом ранге разбиения
+		int threads = 0;              ///< число тредов OpenMP в for_each (1 - посл. версия, 0 - автоматически)
+		//------------------  инициализация  -----------------------------------
+		TiledAdaptiveMesh() = default;
+		
+		void init(const Ind<D> &tbox_);  ///< инициализирует сетку нулевого ранга разбиения, tbox --- размер в ТАЙЛАХ
+		TiledAdaptiveMesh(const Ind<D> &tbox_){ init(tbox_); }
+
+		int add_stencil(const std::vector<Ind<D> > &stencil);  ///< добавляет шаблон в таблицу, возвращает stencilID>=0
+
+		//------------------  диагностика  -------------------------------------
+		void tiles2dat(std::string fname) const;  ///< выводит для отладки все тайлы, по z ранг разбиения. Только для 2D сетки 
+		void items2dat(std::string fname, std::string head="", int rmask=~0) const;  ///< выводит для отладки координаты и ранги разбиения всех узлов/центров ячеек сетки		
+		template <typename Func> void items2dat(std::string fname, std::string head, Func func, int rmask=~0) const;  ///< дополнительно выводит результаты работы func(const T&)
+		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <int V, typename Func, typename Fout> void dump2balls(Func func, Fout &fout, std::string head="") const { dump2balls<V>(func, std::move(fout), head); }
+		template <typename Func, typename Fout> void dump2msh(Func func, Fout &&fout, std::string head="") const;  ///< func(const T&) ==> Vecf<V>
+		template <typename Func, typename Fout> void dump2msh(Func func, Fout &fout, std::string head="") const { dump2msh(func, std::move(fout), head); }
+
+		Ind<D>  bbox(int rank=0) const { return tbox*(1<<(R+rank)); }        ///< размер сетки на ранге разбиения rank
+		Indl<2> size(uint32_t rmask=~0, uint64_t gmask=~uint64_t(0)) const;  ///< число узлов/ячеек и тайлов отвечающих критериям rmask, gmask
+		Ind<2>  ranks_range() const;                                         ///< минимальный и максимальный ранги разбиения сетки
+		
+		//---  произвольный доступ, всегда очень медленный и неэффективный  ----
+		struct Key{
+			uint64_t toff=-1;  ///< позиция тайла в лесу, всегда акутальна, даже если тайл исчезнет а потом появится
+			int off=-1;        ///< позиция элемента в тайле
+			int tID=-1;        ///< ID тайла в таблице для быстрого доступа, может меняться при перестроении сетки, если тайл исчезает становится =-1 но м.б. восстановлена
+			int rank() const { return toff&31; }
+			bool operator == (const Key &other) const { return toff==other.toff && off==other.off; }
+			bool operator < (const Key &other) const { return toff<other.toff || (toff==other.toff && off<other.off); }
+		};
+		bool patch(Key& key) const;  ///< пытается восстановить ключ (поле tID) после перестроения сетки, возвращает true если ключ актуален
+		//---------------------------------------------------------------------
+		Key get_key(const Ind<D+1> &pos_rank) const; 
+		uint64_t groups(Key &key) const { return patch(key)? tiles[key.tID]->groups: 0; }
+		
+		T dummy;  ///< элемент на который возвращается ссылка если произошел промах при произвольном доступе
+		const T& operator [] (const Ind<D+1> &pos_rank) const { Key key = get_key(pos_rank); return key.tID>=0? tiles[key.tID]->data[key.off]: dummy; }
+		T&       operator [] (const Ind<D+1> &pos_rank)       { Key key = get_key(pos_rank); return key.tID>=0? tiles[key.tID]->data[key.off]: dummy; }
+
+		//-- обход сетки, любые сложные вычисления должны делаться только так --
+		int rebuild_stID = -1;  ///< ID шаблона для проверки ограничений на скачок ранга разбиения, -1 отключает все проверки
+		int halo_stID = -1;     ///< ID шаблона по которому автоматически формируется гало на границах разбиения сетки при перестроении
+		/**
+		 * @brief Параллельно по тайлам применяет пользовательскую void func(T& cell, Item &item) к узлам сетки. Обход проводится в две стадии:
+		 * 1) перестроение сетки --- обходятся узлы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
+		 *    ни одного узла с такими группами, проверка и задание groups (через Item) лежит на пользователе, Item позволяет перестраивать сетку;
+		 * 2) фиксация изменений --- обходятся все новые узлы созданные после перестроения сетки;  затем удаляются пустые тайлы
+		 */
+		template <typename Func> void for_each(Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
+
+		/**
+		 * @brief Аналогично for_each применяет пользовательскую void func(T& cell, Item &item) к узлам  попадающим в область тайла с нулевым уровнем разбиения (дерево в лесу)
+		 находящимся в позиции tpos0. Обход идет последовательно согласно Z-кривой и проводится в две стадии:
+		 * 1) перестроение сетки --- обходятся узлы имеющие ранг из битовой маски rmask, битовая маска groups позволяет отсекать тайлы не имеющие
+		 *    ни одного узла с такими группами, проверка и задание groups (через Item) лежит на пользователе, Item позволяет перестраивать сетку;
+		 * 2) фиксация изменений --- обходятся все новые узлы созданные после перестроения сетки;  затем удаляются пустые тайлы
+		 * сейчас НЕ позволяет изменять группы для тайлов
+		 */
+		template <typename Func> void for_zorder(const Ind<D> &tpos0, Func func, uint32_t rmask=~0, uint64_t groups=~uint64_t(0));
+		//----------------------------------------------------------------------
+		struct CreatorInfo {  ///< информация о созданном элементе 
+			uint32_t rank: 5;      ///< ранг создателя элемента 
+			uint32_t mode: 3;      ///< 0 - элемент создан, 1 - уничтожен, 2 - создан через join, 3 - уничтожен черз join, 4 - создан как гало			
+			uint32_t message: 24;  ///< сообщение от создателя
+			// int jcounter: 10;  ///< счетчик join-ов в node_based сетке 
+			// int message: 16;   ///< сообщение от создателя
+			bool add() const { return !(mode&1); }
+			bool del_by_join() const { return mode==3; }
+			/*
+			bool del() const { return mode==1; }
+			bool join() const { return mode>1; }
+			bool add_by_join() const { return mode==2; }
+			*/
+			CreatorInfo(int r=0, int msg=0, int md=1): rank(r), message(msg), mode(md) {}
+		};
+		//----------------------------------------------------------------------
+		class Item {  ///< интерфейс доступа к одному узлу или ячейке при обходе сетки, каждый поток работает с одним экземляром Item
+		protected:
+			friend class TiledAdaptiveMesh;
+			TiledAdaptiveMesh *storage;     ///< указатель на саму сетку
+
+			tile_t *tile = nullptr;               ///< указатель на тайл к которому относится узел или ячейка
+			tile_t *cube[calc_3pow<D>::x];        ///< кубик 3x3х... из указателей на тайлы
+			uint64_t toff_cube[calc_3pow<D>::x];  ///< кубик 3x3х... из оффсетов тайлов, в отличие от указателей они всегда определены
+			Ind<D> tpos;                          ///< позиция тайла на сетке соотв. ранга
+			int off;                              ///< смещение узла в тайле
+
+			//------------------------------------------------------------------
+			struct patch_t{
+				uint64_t toff = ~uint64_t(0);
+				tile_t *tile = nullptr;
+				std::map<int, CreatorInfo> table;
+				BitMask<1<<R*D> usage;
+			};
+			std::unordered_map<uint64_t, patch_t> patches;    ///< изменения в сетке по тайлам, накапливаются при проходе
+			patch_t *pself = nullptr, *pother = nullptr;     
+			patch_t* add_patch(uint64_t toff, tile_t *t=nullptr);                
+			patch_t& patch_self();                
+			patch_t& patch_other(uint64_t toff, tile_t *t=nullptr);
+			
+			bool fix_join(typename std::map<int, CreatorInfo>::iterator I);  ///< проверяет, возвращает и фиксирует в tile->usage запрос на join, требует установленных tile и pself
+			int join_cell_counter = 0;  ///< счетчик фиксирующий запросы от ячеек  на слияние
+			int join_cell_chunk = 0;    ///< чанк f>>D, при его смене обнуляется join_cell_counter
+			//------------------------------------------------------------------
+			
+			const stencil_node_t *snodes = nullptr;
+			int stencil_sz = 0, current_stID = -1;
+
+			Vecf<D> bmin, step;            ///< позиция и шаг для данного тайла
+			void prepare(int f) noexcept;  ///< готовит item к обратоке очередной ячейки
+			uint64_t out_border_mask() const;   ///< выход шаблона за границу сетки, что делать с шаблонами содержащими больше 64х элементов?
+			// int check_nb_by_rank(int cID) const;  ///< проверяет наличие соседей на различных рангах, возвращает маску: 1 - есть на том же ранге, 2 - рангом больше, 4 - меньше
+		public:
+			uint64_t groups;    ///< при входе в лямбда-функцию пользователя содержит объединение групп тайла  и позволяет их изменить
+			CreatorInfo cinfo;  ///< информация о создателе (определена только для второго прохода)
+			
+			int rank() const { return tile->rank(); }                           ///< ранг узла
+			Ind<D> pos() const { return tpos*(1<<R) + storage->coords[off]; }   ///< позиция узла на глобальной сетке соответствующего ранга
+			Vecf<D> coord() const { return bmin+(storage->coords[off]&step); }  ///< координаты узла 
+			int Dbits() const { return off&((1<<D)-1); }                        ///< последние D бит оффсета, м.б. полезно для нумерации шаблонов
+
+			void stencil(int stID){  ///< Настраивает Item для доступа к соседям по шаблону stID
+				current_stID = stID; const auto &st = storage->stencils[stID];  stencil_sz = st.size()>>R*D; 
+				snodes = st.data()+stencil_sz*off;
+			}			
+			int size() const { return stencil_sz; }    ///< число узлов в шаблоне
+			int srank;                                 ///< ранг последнего элемента шаблона к которому был произведен доступ через operator []
+			uint64_t smask;                            ///< если srank=rank()+1 то содержит информацию о существующих по чанку элементах
+			const T* operator [] (int cID) noexcept {  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
+				stencil_node_t sn = snodes[cID];  srank = rank();  return cube[sn.tID]->data+sn.off;  // штатное поведение, целевой элемент есть, общую реализацию см. BItem[]
+			}
+			const T* get_parent() const noexcept;  ///< возвращает узел/ячейку с рангом на единицу меньше (если есть, иначе nullptr)
+			const T* get_child()        noexcept;  ///< возвращает узел/ячейку с рангом на единицу больше (если есть, иначе nullptr), устанавливает smask
+			// тут бы надо получать доступ к массиву нижележащих ячеек? Как то помечать какие ячейки активны, или считаем что слишком большого счкачка по рангу быть не может?
+			
+			bool check_dec_rank() const { return cell_based || (tile->rank() && !Dbits()); }  ///< проверяет возможность существования узла с рангом на единицу меньше
+			void remove(){ if(!storage->fix_mode) patch_self().table[off]; }                  ///< удаляет текущий узел !!! никаких ограничений нет, можно пробить в сетке дырку !!!
+			void add_item(const Ind<D> &dpos, int drank, int message=0);  ///< создает узел с рангом rank+drank и смещенной на dpos на ранге rank+drank
+			bool new_item() const { return storage->fix_mode; }           ///< отмечает второй проход (это новый узел)
+			// сделать add_item по шаблону?
+
+			// split выполняется всегда, join м.б. отменен созданием элемента со стороны или контролем ранга разбиения или через гало
+			bool split(bool rm_parent=true, int message=0);  ///< разбивает ячейку на 2^D ячеек или узел на 3^D узлов, опционально можно отключать удаление родителя
+			bool join(int message=0);  ///< объединяет 2^D ячеек или 3^D узлов, объединяемые элементы должны иметь одинаковый rank>0, метод должен вызываться для каждого элемента
+			uint64_t bmask(bool out_border) const { return out_border?out_border_mask():0; }  ///<  расположение соседей  за границей
+			// bool check(uint64_t tf, int f) const { return tile->toff==tf && off==f; }
+		};	// end of Item struct			
+		//----------------------------------------------------------------------
+		TAMR_pf profile;
+		//----------------------------------------------------------------------
+		//                      детали реализации
+		//----------------------------------------------------------------------
+	protected:  
+		struct BItem: public Item {
+		protected:
+			friend class TiledAdaptiveMesh;
+			using Item::storage;
+			using Item::tile;
+			using Item::cube;
+			using Item::toff_cube;
+			using Item::tpos;
+			using Item::snodes;
+			using Item::stencil_sz;
+			using Item::off;
+		public:
+			using Item::srank;
+			const T* operator [] (int cID) noexcept;  ///< доступ к элементу шаблона номер cID, если такого узла нет возвращает nullptr
+			uint64_t bmask(bool out_border) const;    ///< возвращает маску с информацией о расположении соседей по шаблону за границей сетки или границей разбиения
+		};
+		//-------  скрытые поля  -----------
+		Ind<D> tbox;     ///< размер сетки в тайлах нулевого ранга разбиения
+		Ind<D> tmul;     ///< множитель расчета смещения на основе позиции на сетке тайлов нулевого ранга
+		int zbound;      ///< 64-log2(tbox.prod()) --- граница в ключе (toff) отделяющая смещение по сетке нулевого ранга от Z-кривой
+		int rank_lim;    ///< максимально возможный ранг разбиения сетки
+		uint64_t zmask;  ///< (1<<zbound)-1, в ключе 59 bit offset,  5 bit rank, offset максимально прижат влево
+		static const uint32_t dbits = (1<<D)-1;
+		uint32_t bmask[calc_3pow<D>::x];  ///< куб 3x3... для  Item::out_border_mask() позволяющий определять выход tID за границу сетки, 2 бита на ось кодируют tID в кубе
+
+		//-------  функции для работы с ключами и позициями тайлов  -----------
+		uint64_t tpos2toff(Ind<D> tpos, int rank) const;  ///< пересчитывает позицию и ранг тайла в ключ forest, в т.ч. реализует ПГУ
+		Ind<D> toff2tpos(uint64_t toff) const { int r = toff&31; return (toff>>zbound)%tbox*(1<<r) + *ZCurve64<D>((toff&zmask)>>(zbound-D*r), r); }  ///< вычисляет позицию тайла
+
+		uint64_t next_toff(uint64_t toff) const { return toff+(uint64_t(1)<<(zbound-(toff&31)*D))-(toff&31); }   ///< следующий тайл на том же ранге
+		// uint64_t up_toff(uint64_t toff) const { int r = toff&31; return (toff&~((uint64_t(1)<<(zbound-(r-1)*D))-1)) | (r-1); }  ///< тайл сверху !!! не проверяет rank>0 !!!
+		uint64_t up_toff(uint64_t toff) const { int r = (toff&31)-1; return (toff&~(zmask>>r*D))|r; }  ///< тайл сверху !!! не проверяет rank>0 !!!
+
+		//  up_chID нигде кроме up_off не используется?
+		int up_chID(uint64_t toff) const { return (toff>>(zbound-(toff&31)*D))&dbits; }  ///< позиция тайла toff в тайле сверху !!! не проверяет rank>0 !!!
+		int up_off(uint64_t toff, int off) const { return (up_chID(toff)<<((R-1)*D))|(off>>D); }  ///< позиция УЗЛА off из тайла toff в тайле сверху
+
+		bool dec_rank(uint64_t &toff, int &off) const {  ///< уменьшает (по возможности) ранг тайла и согласованно изменяет off и toff
+			if((toff&31)==0 || (!cell_based && (off&dbits))) return false;
+			off = up_off(toff, off);  toff = up_toff(toff);
+			return true;
+		}
+		bool inc_rank(uint64_t &toff, int &off) const {  ///< увеличивает (по возможности) ранг тайла и согласованно изменяет off и toff
+			if((toff&31)>=rank_lim) return false;
+			toff++;  toff |= uint64_t(off>>(R-1)*D)<<(zbound-(toff&31)*D);  off = (off<<D)&((1<<(R*D))-1);
+			return true;
+		}
+		//-----------------  основная структура данных  ------------------------  
+		std::map<uint64_t, tile_t> forest;          ///< хранилище тайлов обеспечивающее быстрый доступ при необходимости
+		std::vector<tile_t*> tiles;                 ///< таблица указателей на тайлы для параллельного обхода
+		std::vector<std::vector<tile_t*> > rtiles;  ///< таблица указателей на тайлы по рангам
+
+		tile_t& add_tile(const Ind<D> &tpos, const int rank);  ///< при необходимости добавляет тайл и встраивает его в струкутуру данных
+		void del_tile(int tID);
+		
+		Ind<D> coords[1<<R*D];              ///< позиции по Z-кривой в тайле
+		std::vector<std::vector<stencil_node_t> > stencils;   // для каждого шаблона хранится stencil_sz вариантов по 1<<R*D элементов
+
+		bool fix_mode;  ///< задает стадию обхода для Item
+
+		bool config_item(BItem& item, tile_t* tile);  ///< конфигурирует Item, возвращает принадлежность к границе разбиения
+		template <typename Func> void rebuild(Func func, BItem* items, int items_sz);  ///< завершает перестроение сетки
+		struct item_addr_t{  ///< для for_zorder
+			uint64_t zoff;
+			int32_t tID, off;
+			item_addr_t(uint64_t zoff_, int32_t tID_, int32_t off_): zoff(zoff_), tID(tID_), off(off_){}
+			bool operator < (const item_addr_t& other) const { return zoff<other.zoff; }
+		};
+
+		// эту функцию можно соптимизировать если известен итератор на тайл?
+		bool check_children(uint64_t toff, int off, const tile_t* tile=nullptr) const;  ///< проверяет наличие потомка на один уровень вниз, tile позволяет иcключить forest.find
+		bool check_parent(uint64_t &toff, int &off, tile_t** tile);  ///< проверяет наличие родителя на один уровень вверх, в случае успеха настраивает аргументы на родителя		
+		
+		struct grad_patch_t{ typename Item::patch_t *ipp; std::set<int> table; };
+		void split_item(BItem& item, uint64_t toff, int off, tile_t *tile, std::unordered_map<uint64_t, grad_patch_t> &table); 
+		//----------------------------------------------------------------------		
+	};
+	//--------------------------------------------------------------------------
+#include "tamr_impl"
+
+	//	template <typename T, int D, int R, bool cell_based> std::ostream&
+	//	operator << (std::ostream &S, typename TiledAdaptiveMesh<T, D, R, cell_based>::Key &key){}
+}
+#endif //AIW_TILED_AMR_HPP

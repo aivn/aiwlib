@@ -9,7 +9,7 @@ std::map<int, QpltPlotter*> plotters;
 int last_plotter_ID = 0;
 
 void send_frame(QpltContainer* f, StdOstream &stdOut){
-	stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep);
+	stdOut.dump(std::string(f->fname()), f->dim, f->szT, f->head, f->info, f->bbox, f->bmin, f->bmax, f->logscale, f->step, f->rstep, f->features());
 	for(int i=0; i<f->dim; i++) stdOut.dump(f->anames[i]);
 }
 
@@ -21,7 +21,7 @@ int main(){ // передавать при запуске размер памя�
 		char A = std::cin.get(); 
 		if(A=='o'){  // открытие файла
 			std::string fname;  stdIn.load(fname); //<<< вайлдкарты bash должны быть где то тут
-			glob_t glbuf; glob(fname.c_str(), 0, nullptr, &glbuf); stdOut.dump(int(glbuf.gl_pathc)); 
+			glob_t glbuf; glob(fname.c_str(), GLOB_TILDE, nullptr, &glbuf); stdOut.dump(int(glbuf.gl_pathc));  // GLOB_TILDE: host:~/data.msh
 			for(size_t I=0; I<glbuf.gl_pathc; I++){
 				// flog("open %\n", fname);
 				auto res = factory(glbuf.gl_pathv[I]);
@@ -35,8 +35,8 @@ int main(){ // передавать при запуске размер памя�
 			globfree(&glbuf);
 			std::cout.flush();
 		} else if(A=='p'){ // создаем плоттер
-			int fileID, frameID, mode, f_opt, arr_lw[2], arr_spacing, nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3deep;
-			float f_lim[2], sposf[6], bmin_[6], bmax_[6], th_phi[2], cell_aspect[3];
+			int fileID, frameID, mode, f_opt, arr_lw[2], nan_color, ctype, Din, mask, offset[3], diff, vconv, minus, axisID[3], faai, D3deep;
+			float f_lim[2], arr_spacing, sposf[6], bmin_[6], bmax_[6], th_phi[2], cell_aspect[3];  // arr_spacing is float, as sent by the client
 			std::string paletter;
 			stdIn.load(fileID, frameID, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color,
 					   ctype, Din, mask, offset, diff, vconv, minus, axisID, sposf, bmin_, bmax_, faai,
@@ -74,9 +74,11 @@ int main(){ // передавать при запуске размер памя�
 		else if(A=='r'){  // перегружает все фреймы
 			int fileID, frameID; stdIn.load(fileID, frameID);
 			std::vector<QpltContainer*> res = containers[fileID][frameID]->reload_all_frames(); stdOut.dump(fileID, int(res.size()));
-			for(auto f: res) send_frame(f, stdOut); 
-			for(auto f: containers[fileID]) delete f;
-			containers[fileID] = res;
+			for(auto f: res) send_frame(f, stdOut);
+			if(!res.empty()){  // the client keeps the old frames if nothing was reloaded (file being rewritten) --- keep them here too
+				for(auto f: containers[fileID]) delete f;
+				containers[fileID] = res;
+			}
 			std::cout.flush(); 			
 		}
 		else break; //if(A=='E') break;

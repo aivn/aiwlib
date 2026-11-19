@@ -1,19 +1,38 @@
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 #project(qplt LANGUAGES CXX VERSION 1.0.0)
 
-option(CUDA "Use CUDA for rendering" ON)
+# NB: the option must not be named CUDA --- CMake's own compiler detection tests `if(lang STREQUAL CUDA)`
+# unquoted, so a variable named CUDA breaks it (Visual Studio generators then build the CUDA test with cl.exe)
+option(QPLT_CUDA "Use CUDA for rendering" ON)
+if(DEFINED CUDA)  # backward compatibility with -DCUDA=ON|OFF
+	set(QPLT_CUDA ${CUDA} CACHE BOOL "Use CUDA for rendering" FORCE)
+	unset(CUDA CACHE)
+	unset(CUDA)
+endif()
 
-if(CUDA)
-  project(qplt LANGUAGES CXX CUDA)
-else()
-  project(qplt LANGUAGES CXX)
+project(qplt LANGUAGES CXX)
+
+if(QPLT_CUDA)
+	include(CheckLanguage)
+	check_language(CUDA)
+	if(CMAKE_CUDA_COMPILER)
+		enable_language(CUDA)
+		set(CMAKE_CUDA_STANDARD 14)
+		set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+		set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+	else()
+		message(STATUS "No CUDA compiler found, building without CUDA")
+		set(QPLT_CUDA OFF CACHE BOOL "Use CUDA for rendering" FORCE)
+	endif()
 endif()
 
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS_DEBUG "-g")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+if(NOT MSVC)  # keep CMake defaults for MSVC (/O2, /Zi, /EHsc)
+	set(CMAKE_CXX_FLAGS_DEBUG "-g")
+	set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
 # Set a default build type if none was specified
 set(default_build_type "Release")
@@ -26,55 +45,38 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 
-if(CUDA)
-#    find_package(CUDA REQUIRED)
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_RESOLVE_DEVICE_SYMBOLS ON)
-#set(CMAKE_CUDA_ARCHITECTURES OFF)
-#set(CUDA_NVCC_FLAGS "${CMAKE_CXX_FLAGS} -rdc=true -c")
-#	include(CheckLanguage)
-#	check_language(CUDA)
-	if(CMAKE_CUDA_COMPILER)
-#		enable_language(CUDA)
-		set(CMAKE_CUDA_STANDARD 14)
-        
-		cmake_policy(SET CMP0104 OLD)
-	else()
-		message(STATUS "No CUDA support")
-		set(CUDA OFF CACHE BOOL "Use CUDA for rendering" FORCE) # Overwrite option
-	endif()
-endif()
-
 if (NOT WIN32)
-	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-Wall -Wpedantic -fdiagnostics-color=always")
+	string(APPEND CMAKE_CXX_FLAGS " -Wall -Wpedantic -fdiagnostics-color=always")
 else()
 	set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-	set (CMAKE_CXX_FLAGS ${CMKAE_CXX_FLAGS} "-DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
+	string(APPEND CMAKE_CXX_FLAGS " -DAIW_WIN32 -DAIW_NO_ZLIB -DM_PI=3.14159265358979323846 -DM_2_PI='(2/M_PI)' -DMS_WIN64")
 endif()
 
 #find_package(ZLIB REQUIRED)
 
-#add_library(aiwlib STATIC "src/debug.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
+#add_library(aiwlib STATIC "src/debug_ext.cpp" "src/sphere.cpp" "src/configfile.cpp" "src/segy.cpp"
 #	"src/isolines.cpp" "src/checkpoint.cpp" "src/mixt.cpp" "src/racs.cpp" "src/farfield.cpp"
 
-add_library(aiwlib OBJECT "src/debug.cpp")
+add_library(aiwlib OBJECT "src/debug_ext.cpp")
 
 target_include_directories(aiwlib PUBLIC "src/") # Due to relative paths
 set_target_properties(aiwlib PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-if (CUDA)
+if(QPLT_CUDA)
 	set_source_files_properties("src/qplt/mesh_cu.cpp" PROPERTIES LANGUAGE CUDA)
 	set_source_files_properties("src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "src/qplt/base.cpp"
 		"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" PROPERTIES LANGUAGE CXX)
 endif()
 add_library(qplt_static STATIC "src/qplt/imaging.cpp" "src/qplt/accessor.cpp" "src/qplt/base.cpp"
-	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp")
+	"src/qplt/mesh.cpp" "src/qplt/vtexture.cpp" "src/qplt/mesh_cu.cpp"  "src/qplt/balls.cpp")
 target_include_directories(qplt_static PUBLIC "src/qplt")
 set_target_properties(qplt_static PROPERTIES POSITION_INDEPENDENT_CODE 1)
 
-if(CUDA)
+if(QPLT_CUDA)
 	set_target_properties(qplt_static PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 	#set_target_properties(qplt_cu_objs PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+	find_package(OpenMP REQUIRED)
+	target_link_libraries(qplt_static PUBLIC OpenMP::OpenMP_CXX)
 else()
 	find_package(OpenMP REQUIRED)
 	target_link_libraries(qplt_static PUBLIC OpenMP::OpenMP_CXX)
@@ -106,7 +108,8 @@ target_link_libraries(qplt_python PUBLIC aiwlib PUBLIC ${Python3_LIBRARIES} PRIV
 #	COMMENT "Patching core.py")
 #message("Generated file name:${swig_generated_file_fullname}")
 
-set_property(TARGET qplt_python PROPERTY LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt")
+# $<1:...> keeps multi-config generators (Visual Studio) from appending /Release, so the .pyd lands next to core.py
+set_property(TARGET qplt_python PROPERTY LIBRARY_OUTPUT_DIRECTORY "$<1:${CMAKE_CURRENT_BINARY_DIR}/aiwlib/qplt>")
 #add_executable(qplt-remote src/bin/qplt-remote.cpp)
 #target_link_libraries(qplt-remote PRIVATE qplt_static PUBLIC aiwlib PUBLIC ${CMAKE_DL_LIBS})
 

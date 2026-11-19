@@ -5,8 +5,10 @@
 
 #include <algorithm>
 //#include <cmath>
+#include "../../include/aiwlib/debug_ext"
 #include "../../include/aiwlib/qplt/base"
 #include "../../include/aiwlib/qplt/mesh"
+#include "../../include/aiwlib/qplt/balls"
 #include "../../include/aiwlib/iostream"
 #include "../../include/aiwlib/gauss"
 using namespace aiw;
@@ -61,7 +63,7 @@ void aiw::QpltContainer::calc_step(){
 } 
 float aiw::QpltContainer::fpos2coord(float fpos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], fpos) : bmin[axe]+step[axe]*fpos; }
 float aiw::QpltContainer::pos2coord(int pos, int axe) const { return logscale&1<<axe ? bmin[axe]*pow(step[axe], pos+.5) : bmin[axe]+step[axe]*(pos+.5); }
-int aiw::QpltContainer::coord2pos(float coord, int axe) const { return logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]; }
+int aiw::QpltContainer::coord2pos(float coord, int axe) const { return floorf(logscale&1<<axe ? log(coord/bmin[axe])*rstep[axe] : (coord-bmin[axe])*rstep[axe]); }
 //------------------------------------------------------------------------------
 aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   // f_opt --- 2 бита autoscale, 1 бит logscale, 1 бит модуль
@@ -71,11 +73,21 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 											   int axisID[3], float sposf[6], float bmin_[6], float bmax_[6], int fai, // 6 бит флипы, по 12 бит autoscale и  интерполяция
 											   float th_phi[2], float cell_aspect[3], int D3deep
 											   ){ // const {
+	for(int i=0; i<2+bool(mode); i++) if(axisID[i]<0 || axisID[i]>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);  // before allocating: no leak
 	QpltPlotter* plt = mk_plotter(mode); plt->container = this; plt->mode = mode;
 	// 1. настраиваем базовые вещи в плоттере
 	plt->accessor.ctype = ctype; plt->accessor.Din = Din; plt->accessor.mask = mask; plt->accessor.diff = diff; plt->accessor.vconv = vconv;
 	plt->accessor.minus = minus; for(int i=0; i<3; i++){ plt->accessor.offsets[i] = offsets[i];  plt->accessor.rsteps[i] = rstep[axisID[i]]; }
-	plt->color.arr_length = arr_lw[0]; plt->color.arr_width = arr_lw[1]; plt->color.arr_spacing = arr_spacing;
+	{  // components read outside the cell crash the renderer: reset bad offsets to 0 (and a too large cell type to uint8_t)
+		static const int tszs[11] = {4, 8, 1, 1, 1, 2, 2, 4, 4, 8, 8};  int tsz = 0<=ctype && ctype<11? tszs[ctype]: 4;
+		if(tsz>szT){ fprintf(stderr, "qplt: cell type %i (%i bytes) is larger than the cell (%i bytes), reset to uint8_t\n", ctype, tsz, szT); plt->accessor.ctype = 3; tsz = 1; }
+		for(int i=0; i<Din && i<3; i++) if(offsets[i]<0 || offsets[i]+tsz>szT){
+				fprintf(stderr, "qplt: offset%i=%i is outside the cell (%i bytes, component %i bytes), reset to 0\n", i, offsets[i], szT, tsz);
+				plt->accessor.offsets[i] = 0;
+			}
+	}
+	// arrow tables (QpltColor::arr_init) store int8 offsets and 8-bit keys around 128 and cost O(length^4) to build (seconds for 250) => length <= 128
+	plt->color.arr_length = std::min(arr_lw[0], 128); plt->color.arr_width = std::min(arr_lw[1], 128); plt->color.arr_spacing = arr_spacing;
 	plt->color.init(paletter, f_lim[0], f_lim[1], f_opt&4); plt->color.modulus = f_opt&8; plt->color.nan_color = nan_color;
 
 	for(int i=0; i<dim; i++){
@@ -90,7 +102,7 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	plt->D3density = D3deep&0x7F; plt->D3opacity = (D3deep>>7)&0x7F;  plt->D3mingrad = (D3deep>>14)&0x7F; plt->D3tmask = D3deep>>21; // 11 осталось
 	
 	for(int i=0; i<2+bool(mode); i++){  // цикл по осям, настраиваем пределы отрисовки плоттера
-		int a = axisID[i]; if(a>=dim) WRAISE("incorret axe", mode, dim, i, axisID[i]);
+		int a = axisID[i];  // checked above
 		if(fai&(1<<a)) plt->flips |= 1<<i;
 		plt->interp |= (fai>>(18+2*a)&3)<<2*i; 
 		bool lgs = logscale&(1<<a); plt->logscale |= int(lgs)<<i;
@@ -99,12 +111,16 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 			double A = bmin_[a], B = bmax_[a]; if((A<B)^(bmin[a]<bmax[a])) std::swap(A, B);  // ставим пределы сцены в том же порядке что и в контейнере		   
 			if((A<=B && A<bmin[a])||(A>=B && A>bmin[a])){ plt->bbeg[i] = 0; plt->bmin[i] = bmin[a]; } // выход за левую границу
 			else {
-				plt->bbeg[i] = lgs? log(A/bmin[a])/step[a]: (A-bmin[a])/step[a];
+				plt->bbeg[i] = lgs? log(A/bmin[a])*rstep[a]: (A-bmin[a])/step[a];
 				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
 			}
-			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]; plt->bmax[i] = bmax[a]; } // выход за правую границу
+			if(plt->bbeg[i]>bbox[a]-1){  // обе границы за правым краем
+				plt->bbeg[i] = bbox[a]-1;
+				plt->bmin[i] = lgs ? bmin[a]*pow(step[a], plt->bbeg[i]) : bmin[a] + plt->bbeg[i]*step[a];
+			}
+			if((A<=B && B>bmax[a])||(A>=B && B<bmax[a])){ plt->bbox[i] = bbox[a]-plt->bbeg[i]; plt->bmax[i] = bmax[a]; } // выход за правую границу
 			else {
-				plt->bbox[i] = (lgs? log(B/plt->bmin[i])/step[a]: (B-plt->bmin[i])/step[a])+.5;
+				plt->bbox[i] = (lgs? log(B/plt->bmin[i])*rstep[a]: (B-plt->bmin[i])/step[a])+.5;
 				if(plt->bbox[i]<1) plt->bbox[i] = 1;
 				if(plt->bbeg[i]+plt->bbox[i]>bbox[a]){
 					if(bbox[a]-plt->bbeg[i]>0) plt->bbox[i] = bbox[a]-plt->bbeg[i];
@@ -141,6 +157,12 @@ aiw::QpltPlotter* aiw::QpltContainer::plotter( int mode,
 	} else { // 3D режим, настройки флэтов в плоттере
 		if(plt->theta<0) plt->theta  = 0;
 		if(plt->theta>180) plt->theta = 180;
+		if(mode==2){  // XD needs all three faces: keep the view .1 degree off edge-on angles (multiples of 90), otherwise flats.size()<3
+			auto nudge = [](float &a){ float r = a-90*roundf(a/90); if(fabsf(r)<.1f) a += (r<0? -.1f: .1f)-r; };
+			nudge(plt->theta); nudge(plt->phi);
+			if(plt->theta<.1f) plt->theta = .1f;
+			if(plt->theta>179.9f) plt->theta = 179.9f;
+		}
 		float c_ph, s_ph, c_th, s_th;  sincosf(-plt->phi*M_PI/180, &s_ph, &c_ph); sincosf(-plt->theta*M_PI/180, &s_th, &c_th);
 		plt->nS = vecf(c_ph*s_th, s_ph*s_th, c_th); plt->nX = vecf(s_ph, -c_ph, 0.f); plt->nY = vecf(-c_th*c_ph, -c_th*s_ph, s_th);  // вектор ИЗ начала координат В экран
 		Vecf<2> pp[8];  plt->Ahull = plt->Bhull = Vecf<2>();  float Zmin = 0;  // координаты вершин 
@@ -196,6 +218,7 @@ void aiw::QpltPlotter::set_image_size(int xy1[2], int xy2[2]){  // настра�
 		// if(D3scale_mode==0) scale[0] = scale[1] = float(std::min(im_size[0], im_size[1]))/(bbox&cell_aspect).abs();
 		// if(D3scale_mode==1)
 		scale[0] = scale[1] = std::min(im_size[0]/(Bhull[0]-Ahull[0]), im_size[1]/(Bhull[1]-Ahull[1]));
+		// WMSG(scale, im_size, Ahull, Bhull);
 		// if(D3scale_mode==2){ scale[0] = im_size[0]/(Bhull[0]-Ahull[0]); scale[1] = im_size[1]/(Bhull[1]-Ahull[1]); }
 		// nX *= scale[0];  nY *= scale[1];
 		for(auto &f: flats) for(int i=0; i<4; i++) f.abcd(i) = Ind<2>(center)+(f.ppf[i]&scale); // +vecf(.5f); ???
@@ -238,9 +261,15 @@ namespace aiw {
 	void load_frames_impl(IOstream &fin, int frame,	std::vector<QpltContainer*> &res){  
 		try{
 			while(1){
-				QpltMesh *msh = new QpltMesh;
-				if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh);  }
-				else { delete msh; break; }
+				{   QpltMesh *msh = new QpltMesh;
+					if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh);  continue; }
+					else delete msh; 
+				}
+				{   QpltBalls *msh = new QpltBalls;
+					if(msh->load(fin)){ msh->frame_ = frame++; msh->end_offset = fin.tell(); res.push_back(msh); continue; }
+					else delete msh;
+				}
+				break;
 			}
 		} catch(...) {}
 	}

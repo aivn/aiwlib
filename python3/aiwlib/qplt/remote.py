@@ -28,8 +28,9 @@ try: sshconfig.parse(open(os.path.expanduser('~/.ssh/config')))  # set path in .
 except: print('File ~/.ssh/config not loaded')
 #-------------------------------------------------------------------------------
 def factory(fname, host, **params):
-    if not host in connect_table: connect_table[(host, params.get('port'))] = Connect(host, **params)
-    return connect_table[(host, params.get('port'))].load_frames(fname)
+    key = (host, params.get('port'))  # the table is keyed by (host, port): testing host alone never matched, every file opened a new SSH session
+    if not key in connect_table: connect_table[key] = Connect(host, **params)
+    return connect_table[key].load_frames(fname)
 #-------------------------------------------------------------------------------
 class Connect:
     def __init__(self, host, **params):
@@ -89,6 +90,7 @@ def _load_frames_from_single_file(connect, frameID0=0):
 #-------------------------------------------------------------------------------
 class QpltContainer:
     #static double mem_limit;  // лимит на размер памяти, в GB
+    def features(self): return self._features
     def fname(self): return self._fname
     def frame(self): return self._frameID 		
     def get_dim(self): return self._dim
@@ -98,7 +100,7 @@ class QpltContainer:
     def get_bbox(self, axe): return self._bbox[axe]
     def get_bmin(self, axe): return self._bmin[axe]
     def get_bmax(self, axe): return self._bmax[axe]
-    def get_logscale(self, axe): return self._logscale&(1<<axe)
+    def get_logscale(self, axe): return bool(self._logscale&(1<<axe))  # a bool like the local container (callers do "logsc."*get_logscale(i))
     def get_axe(self, i): return self._anames[i] 
     def get_step(self, axe): return self._step[axe]
     #float fpos2coord(float fpos, int axe) const;
@@ -106,7 +108,8 @@ class QpltContainer:
     def coord2pos(self, coord, axe): return int(math.log(coord/self._bmin[axe])*self._rstep[axe] if self._logscale&1<<axe else (coord-self._bmin[axe])*self._rstep[axe])
     def __init__(self, fileID, frameID, connect):
         self._fileID, self._frameID, self._connect = fileID, frameID, connect
-        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step, self._rstep = connect.recv('siiss6i6f6fi6f6f')
+        self._fname, self._dim, self._szT, self._head, self._info, self._bbox, self._bmin, self._bmax, self._logscale, self._step, self._rstep, self._features = \
+            connect.recv('siiss6i6f6fi6f6fi')
         self._anames = connect.recv('s'*self._dim); self._fname = bytes(connect.host+':', 'utf8')+self._fname
     def plotter(self, mode, f_opt, f_lim,  paletter, arr_lw, arr_spacing,  nan_color, ctype, Din, mask, offset, diff, vconv, minus,  
 		axisID, sposf, bmin, bmax, faai, th_phi, cell_aspect, D3deep):
@@ -127,7 +130,7 @@ class QpltPlotter:
     def get_bmax(self, axe): return self._bmax[axe]
     def get_logscale(self, axe): return self.container.get_logscale(self._axisID[axe])
     def get_step(self, i): return self.container.get_step(self._axisID[i])
-    def get_axe(self, i): return self.container.get_axe(self._axisID[axe])
+    def get_axe(self, axe): return self.container.get_axe(self._axisID[axe])
     def get_axeID(self, axe): return self._axisID[axe]		
     def get_f_min(self): return self._f_lim[0]
     def get_f_max(self): return self._f_lim[1]

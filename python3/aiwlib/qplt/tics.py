@@ -43,7 +43,7 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
         stics = [] if limits[0]==tics[0] else calc_tics_normalscale(limits[0], tics[0], tics[0]/10)
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
-    else: stics = calc_tics_normalscale(limits[0], limits[1], ((tics[1]-tics[0])/10 if len(tics)>1 else tics[0]))  # если в tics одно значение как расставлять subtics???
+    else: stics = calc_tics_normalscale(limits[0], limits[1], subtics_step(tics, limits))
     t2p0 = lambda t: 1./log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(1./(limits[1]-limits[0])*(t-limits[0])) # конвертер значения в позицию
     def t2p(t, sc=1): a = _add(A, _xmul(AB, t2p0(t))); return list(map(int, a+_add(a, _xmul(d, sc))))
     L, align, d2, extend, bbox, flow = num2strL(tics, logscale), [-(d[0]<0), -(d[1]<0)], _xmul(d, 2), [0]*4, [f(A[i], B[i]) for f in (min, max) for i in (0, 1)], None
@@ -81,28 +81,32 @@ tic_line --- кортежи (x1, y1, x2, y2), координаты отрезк�
 #-------------------------------------------------------------------------------
 def make_tics(limits, logscale, N, vertical, paint):
     'возвращает [(tic_pos, tic_text)... ], max_tic_sz, [subtics_pos...]'
+    if limits[0]==limits[1]: print('bad limits for axe', limits, file=sys.stderr); limits = (limits[0]-1, limits[1]+1)  # as in make_tics3D, otherwise t2p divides by zero
     ticsL = calc_tics(limits[0], limits[1], logscale) # несколько вариантов расстановки тиков
     #tszs = [sum(text_sz(num2str(t), paint, vertical) for t in L) for L in ticsL] # суммарные размеры тиков
     tszs = [sum(text_sz(t, paint, vertical) for t in num2strL(L, logscale)) for L in ticsL] # суммарные размеры тиков
-    tics = sorted(ticsL[min([(abs(float(tszs[i])/N-[.6, .4][vertical]), i) for i in range(len(tszs))])[1]]) # набор значений тиков    
+    try: tics = sorted(ticsL[min([(abs(float(tszs[i])/N-[.6, .4][vertical]), i) for i in range(len(tszs))])[1]]) # набор значений тиков
+    except: tics = limits; print(limits)
     if not tics: tics = limits
     if logscale:
         stics = [] if limits[0]==tics[0] else calc_tics_normalscale(limits[0], tics[0], tics[0]/10)
         for a, b in zip(tics[:-1], tics[1:]): stics += calc_tics_normalscale(a, b, 10**floor(log10(a)))
         stics += [] if limits[1]==tics[-1] else calc_tics_normalscale(tics[-1], limits[1], tics[-1])
-    else: stics = calc_tics_normalscale(limits[0], limits[1], (tics[1]-tics[0])/10)
+    else: stics = calc_tics_normalscale(limits[0], limits[1], subtics_step(tics, limits))
     t2p = lambda t: int(N/log(limits[1]/limits[0])*log(t/limits[0]) if logscale else abs(N/(limits[1]-limits[0])*(t-limits[0]))) # конвертер значения в позицию
     L = num2strL(tics, logscale)        
     try: return [(t2p(t), l) for t, l in zip(tics, L)], max(text_sz(l, paint, False) for l in L), map(t2p, stics)
-    except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for t in L), [] #[0]*len(stics)
+    except ValueError as e: return [(0, l) for l in L], max(text_sz(l, paint, False) for l in L), [] #[0]*len(stics)
 #-------------------------------------------------------------------------------
 def num2strL(L, logscale): 
     'единообразно приводит список чисел к самому лаконичному варианту записи в виде строк'
-    L1, L2 = ['%g'%x for x in L], [] #; S1 = sum(map(len, L1))
+    prec = 6  # %g precision; more digits if distinct ticks would get equal labels (deep zoom far from zero)
+    while prec<17 and len(set('%.*g'%(prec, x) for x in L))<len(set(L)): prec += 1
+    L1, L2 = ['%.*g'%(prec, x) for x in L], [] #; S1 = sum(map(len, L1))
     for x in L:
         try: p  = floor(log10(abs(x)))
         except: p = 0
-        L2.append('%ge%g'%(x*10**-p, p))
+        L2.append('%.*ge%g'%(prec, x*10**-p, p))
     if logscale:  return [a if len(a)<=len(b) else b for a, b in zip(L1, L2)]
     L3 = [x.rstrip('0') for x in L1]
     LL = [len(a)-len(b) for a, b in zip(L1, L3)]; minLL = min(LL) if LL else 0
@@ -110,21 +114,30 @@ def num2strL(L, logscale):
     #return [a if len(a)<=len(b) else b for a, b in zip(L1, L2)]
     return L1 if sum(map(len, L1))<=sum(map(len, L2)) else L2
 #-------------------------------------------------------------------------------
+def subtics_step(tics, limits):
+    'шаг мелких тиков: десятая часть шага тиков, при одном тике --- десятая часть диапазона'
+    return (tics[1]-tics[0])/10 if len(tics)>1 else (limits[1]-limits[0])/10
 def calc_tics_normalscale(a, b, h):
     'возвращает разбиение по шагам h'
-    if not h: return []
+    # раньше был цикл A += h: при h<0 он никогда не завершался, при h<<|A| A+h==A и он тоже зависал
+    h = abs(h)
+    if not h or not all(map(isfinite, (a, b, h))): return []
     if b<a: a, b = b, a
-    A, B, L = floor(a/h)*h, ceil(b/h)*h, []
-    while A<=B:
+    n0, n1 = floor(a/h), ceil(b/h)
+    if n1-n0>1000: return []  # слишком мелкий шаг
+    L = []
+    for n in range(n0, n1+1):
+        A = n*h
         if a<=A<=b: L.append(0. if abs(A)<h/100 else A)
-        A += h
-    return L    
+    return L
 def calc_tics(a, b, logscale):
     'принимает границы диапазона и тип шкалы, возвращает несколько вариантов расстановки тиков парами'
     #if b<a: a, b = b, a
     if a==b: return []
     if logscale:
+        if b<a: a, b = b, a  # flipped axis; the callers sort the tics and position them by value
         A0, B, res = 10**floor(log10(a)), 10**ceil(log10(b)), []
+        if not (A0>0 and isfinite(B)): return []  # A0 может обнулиться при a~1e-324, тогда A*=10**n не растет
         for n in range(1, 5):
             A, L = A0, []
             while A<=B:

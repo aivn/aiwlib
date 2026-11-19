@@ -2,7 +2,7 @@
 #ifndef AIW_GAUSS_HPP
 #define AIW_GAUSS_HPP
 /**
- * Copyright (C) 2010-2011, 2016, 2017 Antov V. Ivanov <aiv.racs@gmail.com>
+ * Copyright (C) 2010-2011, 2016, 2017, 2023 Antov V. Ivanov <aiv.racs@gmail.com>
  * Licensed under the Apache License, Version 2.0
  **/
 //------------------------------------------------------------------------------
@@ -11,9 +11,41 @@
 #endif //AIW_WIN32
 #include <stdlib.h>
 #include <math.h>
+#include <random>
+#include <vector>
 #include "vec"
 
 namespace aiw{
+	//--------------------------------------------------------------------------
+	template <typename T> class RandN01{
+		struct alignas(64) rand_gauss_t {
+			std::normal_distribution<T> N01;
+			std::uniform_real_distribution<T> U01;
+			std::mt19937 gen;
+			T operator () () { return N01(gen); }
+			T u() { return U01(gen); }
+		};
+		std::vector<rand_gauss_t> generators;
+
+		// std::vector<std::ranlux24_base> generators;
+		// std::vector<std::mt19937*> generators;
+	public:
+		void init(int threads_num=1){			
+			generators.resize(threads_num);  std::random_device rd;
+			for(auto &g: generators){
+				g.N01 = std::normal_distribution<T>(0, 1);
+				g.U01 = std::uniform_real_distribution<T>(0, 1);
+				g.gen.seed(rd());
+			}
+		}
+		RandN01(int threads_num=1){ init(threads_num); }
+		T operator()(int thID=0){ return generators[thID](); }
+		template<int D> Vec<D, T> V(int thID=0){
+			Vec<D, T> res; for(int i=0; i<D; i++) res[i] = generators[thID]();
+			return res;
+		}
+		T u(int thID=0){ return generators[thID].u(); }
+	};
 	//--------------------------------------------------------------------------
 	const double rand_alpha = 1./(1.+RAND_MAX), rand_alpha2PI = 2*M_PI/(1.+RAND_MAX);
 
@@ -27,7 +59,7 @@ namespace aiw{
 #endif //AIW_WIN32
 	}
 	inline void rand_init(){ unsigned int seed = 0; rand_init(seed); srand(seed); }
-
+	
 #ifndef AIW_WIN32
 	inline double rand_gauss(){ return sqrt(-2.*log(rand_alpha*(random()+1.)))*cos(rand_alpha2PI*random()); }
 	inline double rand_gauss(unsigned int &seed){ return sqrt(-2.*log(rand_alpha*(rand_r(&seed)+1.)))*cos(rand_alpha2PI*rand_r(&seed));	}
@@ -40,6 +72,9 @@ namespace aiw{
 
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(); return v; }
 	template <int D, class T=double> inline Vec<D, T> rand_gaussV(unsigned int &seed){ Vec<D, T> v; for(int i=0; i<D; i++) v[i] = rand_gauss(seed); return v; }
+	//--------------------------------------------------------------------------
+
+
 	/*
 #ifndef AIW_WIN32
 	inline void sincos(double phi, double *s, double *c){ *s = sin(phi); *c = cos(phi); }
@@ -55,7 +90,7 @@ namespace aiw{
 	}
 	//--------------------------------------------------------------------------
     template <typename T> inline aiw::Vec<3, T> rotate(const aiw::Vec<3, T>& a, const aiw::Vec<3, T>& b){
-		// a*cos(b.abs()) - a%b*sin(b)/b.abs() + b*(a*b)*(1-cos(b))/(b*b);
+		// a*cos(|b|) - a%b*sin(|b|)/|b| + b*(a*b)*(1-cos(|b|))/(b*b);
 		double b2 = b*b;
 		if(b2<1e-16) return a;
 		double b_abs = sqrt(b2); 

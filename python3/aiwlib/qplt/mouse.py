@@ -38,7 +38,7 @@ class Rect:
         self.plots = []
         return self.im
 #-------------------------------------------------------------------------------
-_one2coord = lambda a, b, ls, x: a*(b/a)**x if ls else a+(b-a)*x
+_one2coord = lambda a, b, ls, x: a*(b/a)**x if ls and a>0 and b>0 else a+(b-a)*x  # log mapping needs positive limits (palette: f_min may be <=0)
 #-------------------------------------------------------------------------------
 # только make_up реально рисует в container.im, все остальные указывают через настройки что именно рисовать (кроме release)
 class MousePaletter(Rect):
@@ -79,7 +79,7 @@ class MousePaletter(Rect):
         elif y<self.bmin[1]: w_max, w_min = 1, 0
         elif y>self.bmax[1]: w_max, w_min = 0, 1
         else: w_min, w_max = -1, 1
-        if self.logscale: f0, f1 = f0*pow(f1/f0, -.1*w_min*sign), f1*pow(f1/f0, .1*w_max*sign)
+        if self.logscale and f0>0 and f1>0: f0, f1 = f0*pow(f1/f0, -.1*w_min*sign), f1*pow(f1/f0, .1*w_max*sign)
         else: f0, f1 = f0-.1*(f1-f0)*w_min*sign, f1+.1*(f1-f0)*w_max*sign
         canvas.f_lim = ['%g'%f0, '%g'%f1] if f0<f1 else ['%g'%f1, '%g'%f0]
         win.autoscale.setChecked(False)
@@ -117,7 +117,7 @@ class MouseFlat2D(Rect):
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         xy0, xy1, c = self.xy0, [event.x(), event.y()], False
         for a in (0, 1):
-            if xy0[a]==xy1[a] or xy0[a]<self.bmin[a]: continue
+            if xy0[a]==xy1[a] or not self.bmin[a]<xy0[a]<self.bmax[a]: continue  # zoom only axes whose range contains the drag start (as in move())
             canvas.autolim_off(a); c, A = True, canvas.axisID[a] 
             lim = [self.p2f(a, xy0[a]), self.p2f(a, xy1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[A]<canvas.bmax[A])
             canvas.bmin[A], canvas.bmax[A] = lim[inv], lim[1-inv]
@@ -207,7 +207,7 @@ class MouseFlat3D(Rect):
     def release(self, canvas, event):  # должен окончательно настроить канвас и вернуть True если нужна перерисовка
         if self.rot: self.rot = None; return
         rpos0, a = self.sel[:2];  rpos1, a1 = self.event2rpos(event); self.sel, A = None, self.flat.axis[a]
-        if not a1 or rpos0[a]==rpos1[a] or a!=a1[0]: return  # or xy0[a]<self.bmin[a]: continue
+        if not a1 or rpos0[a]==rpos1[a] or a not in a1: return  # a1==(0,1) inside the flat: a!=a1[0] rejected zooms on its second axis
         canvas.autolim_off(A); AA = canvas.axisID[A] 
         lim = [self.p2f(a, rpos0[a]), self.p2f(a, rpos1[a])]; inv = (lim[0]<lim[1])^(canvas.bmin[AA]<canvas.bmax[AA])
         canvas.bmin[AA], canvas.bmax[AA] = lim[inv], lim[1-inv]

@@ -21,7 +21,7 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 	struct xfem_cell_field_t {
 		uint16_t off = 0; uint8_t sz[2] = {0};
-		BINARYIO4POD;
+		// BINARYIO4POD;
 	};
 	//--------------------------------------------------------------------------
 	// тут надо учесть выравнивание на szT ???
@@ -41,6 +41,45 @@ namespace aiw{
 	//--------------------------------------------------------------------------
 }   // end of namespace aiw
 //------------------------------------------------------------------------------
+#define XFEM_CELL_TABLE(N)												\
+private:    															\
+    std::vector<char> xfem_blob;										\
+    aiw::xfem_cell_field_t xfem_fields[N];								\
+	static const int xfem_fields_count = N;								\
+	template <int I> struct xfem_tinfo_dummy_t{};						\
+public:																	\
+    int dump_size() const {												\
+	    return xfem_blob.size()? xfem_blob.size()+N*4: 0;				\
+	}																	
+//------------------------------------------------------------------------------
+#define XFEM_CELL_FIELD(ID, TYPE, NAME)									\
+	typedef TYPE field_##NAME##_t;										\
+	bool use_##NAME(uint32_t x=0, uint32_t y=0) const {					\
+		return x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1];		\
+	}																	\
+	int get_sz0_##NAME() const { return xfem_fields[ID].sz[0]; }		\
+	int get_sz1_##NAME() const { return xfem_fields[ID].sz[1]; }		\
+	void resize_##NAME(int sz0, int sz1, TYPE val=TYPE()){				\
+		aiw::xfem_cell_field_resize(xfem_blob, xfem_fields,				\
+									sizeof(TYPE), xfem_fields_count,	\
+									ID, sz0, sz1, &val);				\
+	}																	\
+	TYPE& NAME(uint8_t x=0, uint8_t y=0, bool force=false){				\
+		if(force){														\
+			uint8_t sz0 = get_sz0_##NAME(), sz1 = get_sz1_##NAME();		\
+			if(sz0<=x || sz1<=y)										\
+				resize_##NAME(std::max(x, sz0), std::max(y, sz1));		\
+		}																\
+		WASSERT(x<xfem_fields[ID].sz[0] && y<xfem_fields[ID].sz[1],		\
+				#NAME"() ", int(x), int(y), int(xfem_fields[ID].sz[0]),	\
+				int(xfem_fields[ID].sz[1]));							\
+		return *(TYPE*)(xfem_blob.data()+xfem_fields[ID].off+			\
+						(x+y*xfem_fields[ID].sz[0])*sizeof(TYPE));		\
+	}																	\
+public:
+
+
+/*
 #define XFEM_CELL_TABLE(N)												\
 private:    															\
     std::vector<char> xfem_blob;										\
@@ -102,7 +141,9 @@ private:																\
 		ti.xfem_szT[ID] = sizeof(TYPE);									\
 	}																	\
 public:
-/*
+
+
+
 ti.xfem_root[ID] = TYPE()^ti.szT = sizeof(TYPE);						\
 		ti.xfem_root[ID].Tname = #TYPE;									\
 		ti.xfem_root[ID].fname = #NAME;									\

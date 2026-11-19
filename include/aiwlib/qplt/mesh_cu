@@ -24,7 +24,8 @@ namespace aiw{
 
 		CU_HD char* get_ptr(const Ind<2> &pos) const { char *ptr = ptr0; for(int i=0; i<2; i++){ ptr += mul[i]*pos[i]; } return ptr;}
 		CU_HD cell_type operator[](Ind<2> pos) const {
-			for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox0[i]){ pos[i] = bbox0[i]-1; } }
+			// pos is relative to ptr0 (start of the plotted region, mirrored for flipped axes) => clamp to the region size bbox, not bbox0
+			for(int i=0; i<2; i++){ if(pos[i]<0){ pos[i] = 0; } if(pos[i]>=bbox[i]){ pos[i] = bbox[i]-1; } }
 			char *nb[6] = {nullptr}, *ptr = get_ptr(pos); 
 			if((AID>>3)&7){  // если необходимо дифференцирование задаем соседей
 				for(int i=0; i<2; i++){
@@ -57,9 +58,10 @@ namespace aiw{
 	template<int AID> struct QpltMeshPlotter3D {
 		QpltAccessor accessor; QpltColor3D color;
 		QpltMeshFlat<AID> flats[3];
-		int64_t deltas[3]; VTexture vtx;
+		int64_t deltas[3]; int dsgn[3]; VTexture vtx;  // deltas: step along the ray (towards the viewer's far side), dsgn*deltas: step along the data
 		float _max_len, lim_w, cr_grad;
 		int Nx, Ny; Ind<2> ibmin; Ind<3> bbox; bool D3mingrad;
+		const char *data_lo = nullptr, *data_hi = nullptr;  // frame data bounds, used by the QPLT_CU_CHECK debug build
 
 		void plot(int *image) const;
 	};

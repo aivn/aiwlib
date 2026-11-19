@@ -3,7 +3,14 @@
 #define SWIG_PYTHON_STRICT_BYTE_CHAR
 %}
 
-%exception { try{ $action }catch( const char *e ){ PyErr_SetString( PyExc_RuntimeError, e ); return NULL; }catch(...){ return NULL; } }
+// every C++ exception becomes a Python RuntimeError with its message (returning NULL without an error set
+// gave "SystemError: error return without exception set"); WRAISE throws const char* (Windows) or std::stringstream
+%exception { try{ $action }
+	catch(const char *e){ PyErr_SetString(PyExc_RuntimeError, e); return NULL; }
+	catch(const std::stringstream &e){ PyErr_SetString(PyExc_RuntimeError, e.str().c_str()); return NULL; }
+	catch(const std::string &e){ PyErr_SetString(PyExc_RuntimeError, e.c_str()); return NULL; }
+	catch(const std::exception &e){ PyErr_SetString(PyExc_RuntimeError, e.what()); return NULL; }
+	catch(...){ PyErr_SetString(PyExc_RuntimeError, "unknown C++ exception"); return NULL; } }
 %feature("autodoc", "1");
 %include "std_string.i"
 %include "std_vector.i"
@@ -18,13 +25,13 @@
     SWIG_fail;
   }
   for (int i = 0; i < $1_dim0; i++) {
-    PyObject *o = PySequence_GetItem($input, i);
-    if (PyNumber_Check(o)) {
-      temp[i] = (int) PyLong_AsLong(o);
-    } else {
-      PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");      
+    PyObject *o = PySequence_GetItem($input, i);  // new reference
+    if (!o || !PyNumber_Check(o)) {
+      Py_XDECREF(o); PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");
       SWIG_fail;
     }
+    temp[i] = (int) PyLong_AsLong(o); Py_DECREF(o);
+    if (PyErr_Occurred()) SWIG_fail;  // conversion error (e.g. overflow)
   }
   $1 = temp;
 }
@@ -39,13 +46,13 @@
     SWIG_fail;
   }
   for (int i = 0; i < $1_dim0; i++) {
-    PyObject *o = PySequence_GetItem($input, i);
-    if (PyNumber_Check(o)) {
-      temp[i] = (float) PyFloat_AsDouble(o);
-    } else {
-      PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");      
+    PyObject *o = PySequence_GetItem($input, i);  // new reference
+    if (!o || !PyNumber_Check(o)) {
+      Py_XDECREF(o); PyErr_SetString(PyExc_ValueError, "Sequence elements must be numbers");
       SWIG_fail;
     }
+    temp[i] = (float) PyFloat_AsDouble(o); Py_DECREF(o);
+    if (PyErr_Occurred()) SWIG_fail;  // conversion error (e.g. overflow)
   }
   $1 = temp;
 }
@@ -73,6 +80,14 @@
 %{
 #include "include/aiwlib/qplt/base"
 %}
+
+// aiw::Ind<N>/Vecf<N> are not wrapped: these returned opaque objects that leaked ("swig/python detected a memory leak
+// of type 'aiw::Ind< 6 > *', no destructor found"); Python uses get_bbox(axe) and the int/float array members instead
+%ignore aiw::QpltContainer::get_bbox() const;
+%ignore aiw::QpltFlat::spos;
+%ignore aiw::QpltFlat::ppf;
+%ignore aiw::QpltFlat::rn;
+%ignore aiw::QpltFlat::bbox;
 		 
 %include "include/aiwlib/qplt/base"
 

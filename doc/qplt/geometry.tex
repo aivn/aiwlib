@@ -1,0 +1,121 @@
+% -*- mode: LaTeX; coding: utf-8 -*-
+\documentclass[12pt]{article}
+\usepackage[unicode,colorlinks]{hyperref}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{eufrak}
+\usepackage{epsfig}
+%\usepackage[mathscr]{eucal}
+\usepackage{psfrag}
+\usepackage{tabularx}
+\usepackage{wrapfig}
+%\usepackage{eucal}
+\usepackage{euscript}
+\usepackage{cite}
+
+\usepackage[usenames]{color}
+\usepackage{colortbl} 
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblack}{rgb}{0.1,0.,0.3}
+\definecolor{codeemph}{rgb}{0.5,0.1,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\usepackage{listings}\lstset{
+	basicstyle=\ttfamily\fontsize{10pt}{10pt}\selectfont\color{codeblack},
+  commentstyle=\color{codegray},
+	keywordstyle=\tt\bf\color{codeemph},
+	belowskip=0pt
+    }
+
+\setlength{\topmargin}{-0.5in}
+\setlength{\oddsidemargin}{-5.mm}
+\setlength{\evensidemargin}{-5.mm}
+\setlength{\textwidth}{7.in}
+\setlength{\textheight}{9.in}
+
+\def\dfdx#1#2{\frac{\partial #1}{\partial #2}}
+\def\hm#1{#1\nobreak\discretionary{}{\hbox{\m@th$#1$}}{}}
+\newcommand{\Frac}[2]{\displaystyle\frac{#1}{#2}}
+
+\def\sr#1{{\left<#1\right>}}
+\def\r{\mathbf r{}}
+\def\R{\mathbf R{}}
+\def\s{\mathbf s{}}
+\def\S{\mathbf S{}}
+
+\def\m{\mathbf m{}}
+\def\n{\mathbf n{}}
+\def\a{\mathbf a{}}
+\def\b{\mathbf b{}}
+\def\h{\mathbf h{}}
+\def\d{\mathbf d{}}
+\def\p{\mathbf p{}}
+\def\f{\mathbf f{}}
+\def\F{\mathbf F{}}
+\def\q{\mathbf q{}}
+
+\begin{document}
+\begin{center}
+\Large\bf Геометрия qplt
+\end{center}
+
+Введем следующие системы координат:
+\begin{enumerate}
+\item 3D система связанная с фрагментом отображаемой равномерной прямоугольной сетки, $\r\in[0,\R]$,
+  где $\R$~--- размер фрагмента сетки;
+\item 2D система связанная с плоскостью сцены, $\s\in[0,\S]$, где $\S$~--- число пикселей изображения;  
+\end{enumerate}
+
+Пусть $\varphi\in[0,2\pi]$, $\theta\in[0,\pi]$ --- углы задающие ориентацию плоскости сцены (при $\varphi=0$ и $\theta=\pi/2$ взгляд направлен вдоль вектора
+$(0,1,0)$ в сторону увеличения компоненты $r_y$), тогда
+базис $\n_{XYZ}$ в системе координат $\r$
+\begin{itemize}
+\item $\n_X = (\cos\varphi,\, \sin\varphi,\, 0)$ --- горизонтальный вектор в плоскости сцены,
+\item $\n_Y = (-\cos\theta\sin\varphi,\, \cos\theta\cos\varphi,\, \sin\theta)$ --- вертикальный вектор в плоскости сцены,
+\item $\n_Z = (-\sin\theta\sin\varphi,\, \sin\theta\cos\varphi,\, -\cos\theta)$ --- вектор направленный из плоскости сцены в начало координат.
+\end{itemize}
+Переход $\r\to\s$
+\begin{equation}
+  \s = \frac\S2 + \frac1{1 + p\r'\cdot\n_Z}\Big(\r'\cdot\n_X ,\, \r'\cdot\n_Y \Big), %=
+%\frac \S2 - \left(\frac{\R\cdot\n_X}2,\, \frac{\R\cdot\n_Y}2 \right) + (\r\n_x,\,\r\n_Y) -  
+\end{equation}
+где $\r' = \r - \R/2$,  $p \geq 0$~--- параметр задающий перспективу.
+
+Для обратного перехода $\s\to\r$ надо задать срез, то есть зафиксировать одну из компонент~$\r$, например $r_k$, что позволяет найти компоненты $r_{i,j}$: 
+\begin{equation}
+(1 + p\r'\cdot\n_Z)\s'= \Big(\r'\cdot\n_X ,\, \r'\cdot\n_Y \Big),
+\end{equation}
+или
+\begin{align}
+s_X + p  n_{iZ} s_X r_i' + p  n_{jZ} s_X r_j' + p  n_{kZ} s_X r_k' &= r'_i n_{iX} + r'_j n_{jX} + r'_k n_{kX}, \\
+s_Y + p  n_{iZ} s_Y r_i' + p  n_{jZ} s_Y r_j' + p  n_{kZ} s_Y r_k' &= r'_i n_{iY} + r'_j n_{jY} + r'_k n_{kY}, 
+\end{align}
+\begin{align}
+ (p  n_{iZ} s_X - n_{iX})r_i' + (p  n_{jZ} s_X - n_{jX})r_j'  &= r'_k n_{kX} - s_X -  p  n_{kZ} s_X r_k', \\
+ (p  n_{iZ} s_Y - n_{iY})r_i' + (p  n_{jZ} s_Y - n_{jY})r_j'  &= r'_k n_{kY} - s_Y - p  n_{kZ} s_Y r_k', 
+\end{align}
+\begin{multline}
+  \left(\begin{matrix} r_i' \\ r_j' \end{matrix}\right) =
+  \left(\begin{matrix}
+      p  n_{iZ} s_X - n_{iX} &  p  n_{jZ} s_X - n_{jX} \\
+      p  n_{iZ} s_Y - n_{iY} & p  n_{jZ} s_Y - n_{jY} \end{matrix}\right)^{-1}
+  \left(\begin{matrix}
+      r'_k n_{kX} - s_X -  p  n_{kZ} s_X r_k' \\
+      r'_k n_{kY} - s_Y - p  n_{kZ} s_Y r_k'  \end{matrix}\right)
+  =\\=
+  \left[\begin{matrix}
+      p  n_{iZ} s_X - n_{iX} &  p  n_{jZ} s_X - n_{jX} \\
+      p  n_{iZ} s_Y - n_{iY} & p  n_{jZ} s_Y - n_{jY} \end{matrix}\right]^{-1}
+  \left(\begin{matrix}
+      r'_k n_{kX} - s_X (1+  p  n_{kZ} r_k') \\
+      r'_k n_{kY} - s_Y (1+ p  n_{kZ}  r_k')  \end{matrix}\right).
+\end{multline}
+
+
+\end{document}

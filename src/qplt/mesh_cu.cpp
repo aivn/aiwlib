@@ -11,32 +11,33 @@
 using namespace aiw;
 
 //------------------------------------------------------------------------------
-void aiw::QpltMesh::data_free_impl(){  // выгружает данные из памяти
-#ifndef __NVCC__
-	WERR(this); mem.reset(); mem_ptr = nullptr;
-#else //__NVCC__
-	cudaFree(mem_ptr); mem_ptr = nullptr;
+#ifdef __NVCC__
+// Frames live in host memory (as in the CPU build); only the frame being rendered in XD mode is copied to the device.
+// cudaMallocManaged for every frame caused random illegal-address faults on Windows (WDDM) and limited the total
+// size of loaded frames to the GPU memory.
+namespace { char *dev_data = nullptr; size_t dev_sz = 0; const char *dev_src = nullptr; }  // device copy of host frame dev_src
+static void dev_data_reset(){ cudaFree(dev_data); dev_data = nullptr; dev_sz = 0; dev_src = nullptr; }
 #endif //__NVCC__
-}  
+void aiw::QpltMesh::data_free_impl(){  // выгружает данные из памяти
+#ifdef __NVCC__
+	if(mem_ptr && mem_ptr==dev_src) dev_src = nullptr;  // the device copy is stale now
+#endif //__NVCC__
+	WERR(this); mem.reset(); mem_ptr = nullptr;
+}
 void aiw::QpltMesh::data_load_impl(){  // загружает данные в память
 #ifndef __NVCC__
 	fin->seek(mem_offset);
 	mem = fin->mmap(data_sz, 0);
 	mem_ptr = (char*)(mem->get_addr());
 #else //__NVCC__
-  
-  int err = cudaMallocManaged((void**)&mem_ptr, data_sz);
-  if (err) { fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%zd, err=%i)\n", __FILE__, __FUNCTION__, __LINE__, data_sz, err); exit(1); }
-	data_load_cuda();
-        // printf("cu2: ptr=%p\n", mem_ptr);
-	//	mem.reset(dynamic_cast<BaseAlloc*>(new CuMemAlloc(data_sz))); fin->read(mem->get_addr(), data_sz);
+	data_load_cuda();  // host memory, see mesh.cpp
 #endif //__NVCC__
 	// WERR(this, mem.get(), mem_limit);
 	// WOUT(mem_offset, mem->get_addr());
 }
 //------------------------------------------------------------------------------
 #ifdef __NVCC__
-__constant__ char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];
+__constant__ __align__(16) char plt_cu[sizeof(aiw::QpltMeshPlotter3D<7>)];  // read as QpltMeshPlotter3D<AID> in plotXD: needs its alignment
 #define plt_cu_ (*((const aiw::QpltMeshPlotter3D<AID>*)plt_cu)) 
 
 template <int AID> __global__ void plotXD(int* image){
@@ -54,12 +55,22 @@ template <int AID> __global__ void plotXD(int* image){
 	Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 	Vecf<4> C;  auto ray = plt_cu_.vtx.trace(cID, X);
 	constexpr int DIFF = (AID>>3)&7; // какой то static method в accessor?
-	if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
+	if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*plt_cu_.dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
+#ifdef QPLT_CU_CHECK  // debug: verify every voxel access lies inside the frame data
+#define QPLT_CU_CHECK_PTR(P, WHAT) if((P)<plt_cu_.data_lo || (P)>=plt_cu_.data_hi){ \
+		printf("QPLT_CU_CHECK %s out of frame data: px=(%d,%d) cID=%d pos=(%d,%d) pos3d=(%d,%d,%d) bbox=(%d,%d,%d) gID=%d off=%lld size=%lld\n", WHAT, x, y, cID, pos[0], pos[1], \
+			   pos3d[0], pos3d[1], pos3d[2], plt_cu_.bbox[0], plt_cu_.bbox[1], plt_cu_.bbox[2], ray.gID, (long long)((P)-plt_cu_.data_lo), (long long)(plt_cu_.data_hi-plt_cu_.data_lo)); \
+		image[x+y*plt_cu_.Nx] = 0xFF00FF; return; }
+	QPLT_CU_CHECK_PTR(ptr, "start");
+#else
+#define QPLT_CU_CHECK_PTR(P, WHAT)
+#endif
 	float sum_w = 0, f0 = 0;  if(plt_cu_.D3mingrad) plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f0);
 	while(1){
+		QPLT_CU_CHECK_PTR(ptr, "step");
     //if(x==300 && y==300) printf("%i: %g\n", __LINE__, sum_w);
 		float f; plt_cu_.accessor.conv<AID>(ptr, (const char**)nb, &f);
-		if(!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad){
+		if(f==f && (!plt_cu_.D3mingrad || fabs(f0-f)>plt_cu_.cr_grad)){  // NaN voxels are transparent, as in the CPU version (f==f: isnan misbehaved on Windows GPUs)
 			Vecf<4> dC = plt_cu_.color(f);
 			float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*plt_cu_._max_len*(1-sum_w);
 			if(sum_w+w<plt_cu_.lim_w){ C += dC*w; sum_w += w; }
@@ -68,7 +79,7 @@ template <int AID> __global__ void plotXD(int* image){
 		f0 = f;
 		if(++pos3d[ray.gID]>=plt_cu_.bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 		ptr += plt_cu_.deltas[ray.gID];	 				
-		if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
+		if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*plt_cu_.dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<plt_cu_.bbox[a] ? d*plt_cu_.deltas[a]: 0); }
 		ray.next();  
 	}
 	// image[x+y*Nx] = sum_w? colorF2I(C): 0xFFFFFFFF;
@@ -98,13 +109,14 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 			Ind<2> pos;  Vecf<2> X; flat.mod_coord(r, pos, X);  const char* ptr = flat.get_ptr(pos);
 			Ind<3> pos3d; flat.pos2to3(pos, pos3d); 
 			Vecf<4> C;  auto ray = vtx.trace(cID, X);
-			if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+			if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
 			float sum_w = 0, f0 = 0;  if(D3mingrad) accessor.conv<AID>(ptr, (const char**)nb, &f0);
 			while(1){
 				// WEXT(pos, pos3d, cID, flat.axis[0], flat.axis[1]);
 				WASSERT(Ind<3>()<= pos3d && pos3d<bbox, "incorrect pos3d", x, y, r, pos, X, pos3d, bbox, cID, ray.fID, ray.gID, ray.f, ray.g, ray.len); 
 				float f = 0; accessor.conv<AID>(ptr, (const char**)nb, &f);
-				if(!D3mingrad || fabs(f0-f)>cr_grad){
+				// if(std::isnan(f)) continue; // прозрачность nan?
+				if(!std::isnan(f) && (!D3mingrad || fabs(f0-f)>cr_grad)){
 					Vecf<4> dC = color(f);
 					float w = /*(1+10*fabs(f0-f)*_df)*/dC[3]*ray.len*_max_len*(1-sum_w);
 					if(sum_w+w<lim_w){ C += dC*w; sum_w += w; }
@@ -113,7 +125,7 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 				f0 = f;
 				if(++pos3d[ray.gID]>=bbox[ray.gID]){ /*C = C + QpltColor::rgb_t(color(f)).inv()*(.99-sum_w);*/ break; }  // переходим в следующий воксель, проверяем границу
 				ptr += deltas[ray.gID];
-				if(DIFF) for(int k=0; k<6; k++){ int d = k%2*2-1, a = k/2, p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
+				if(DIFF) for(int k=0; k<6; k++){ int a = k/2, d = (k%2*2-1)*dsgn[a], p = pos3d[a]+d; nb[k] = ptr + (0<=p && p<bbox[a] ? d*deltas[a]: 0); }
  				
 				ray.next();  
 			}
@@ -122,17 +134,36 @@ template <int AID> void aiw::QpltMeshPlotter3D<AID>::plot(int *image) const {
 		}
 	}
 #else  //__NVCC__ GPU render
-	// 1. иницализируем плоттер и изображение
-	cudaMemcpyToSymbol(plt_cu, this, sizeof(*this), 0, cudaMemcpyHostToDevice);
-	int *image_cu; int err = cudaMalloc((void**)&image_cu, Nx*Ny*4);
-	if(err){ fprintf(stderr, "%s %s():%i can't allocate memory in device (size=%ld, err=%i)\n", __FILE__, __FUNCTION__, __LINE__,  Nx*Ny*4, err); exit(1); }
+	// on any CUDA error: report it, reset the device (an illegal address error is sticky) and return a blank image
+	int *image_cu = nullptr;  cudaError_t err;
+#define QPLT_CU_TRY(CALL, WHAT) if((err = (CALL)) != cudaSuccess){ \
+		fprintf(stderr, "qplt: CUDA %s failed: %s (%i), XD image skipped\n", WHAT, cudaGetErrorString(err), int(err)); \
+		cudaFree(image_cu); dev_data_reset(); cudaDeviceReset(); for(int i=0; i<Nx*Ny; i++) image[i] = 0xFFFFFFFF; return; }
 
+	// 1. копируем данные фрейма на GPU (если там еще не лежит копия этого фрейма)
+	size_t sz = data_hi-data_lo;
+	if(dev_src!=data_lo || dev_sz<sz){
+		if(dev_sz<sz){ dev_data_reset(); QPLT_CU_TRY(cudaMalloc((void**)&dev_data, sz), "cudaMalloc (frame data)"); dev_sz = sz; }
+		QPLT_CU_TRY(cudaMemcpy(dev_data, data_lo, sz, cudaMemcpyHostToDevice), "cudaMemcpy (frame data)");
+		dev_src = data_lo;
+	}
 
-	//2. запускаем ядро
-	plotXD<AID><<<dim3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);    
+	// 2. иницализируем плоттер (указатели на данные переводим на копию на GPU) и изображение
+	static_assert(sizeof(plt_cu)>=sizeof(*this), "plt_cu is too small for this QpltMeshPlotter3D<AID>");
+	QpltMeshPlotter3D<AID> plt = *this;
+	for(int i=0; i<3; i++) plt.flats[i].ptr0 = dev_data + (flats[i].ptr0-data_lo);
+	plt.data_lo = dev_data;  plt.data_hi = dev_data+sz;
+	QPLT_CU_TRY(cudaMemcpyToSymbol(plt_cu, &plt, sizeof(plt), 0, cudaMemcpyHostToDevice), "cudaMemcpyToSymbol (plotter)");
+	QPLT_CU_TRY(cudaMalloc((void**)&image_cu, size_t(Nx)*Ny*4), "cudaMalloc (image)");
 
-	// 3. копируем изображение с GPU в res
-	cudaMemcpy(image, image_cu, Nx*Ny*4, cudaMemcpyDeviceToHost);  cudaFree(image_cu);
+	// 3. запускаем ядро
+	plotXD<AID><<<dim3(Nx/16+1, Ny/16+1), dim3(16,16)>>>(image_cu);
+	QPLT_CU_TRY(cudaGetLastError(), "kernel launch");
+
+	// 4. копируем изображение с GPU в res
+	QPLT_CU_TRY(cudaMemcpy(image, image_cu, size_t(Nx)*Ny*4, cudaMemcpyDeviceToHost), "kernel / cudaMemcpy (image)");
+	cudaFree(image_cu);
+#undef QPLT_CU_TRY
 #endif //__NVCC__
 }
 //------------------------------------------------------------------------------

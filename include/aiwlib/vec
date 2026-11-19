@@ -13,6 +13,7 @@
 #include "cuda"
 #endif //SWIG
 
+#ifdef AIW_WIN32
 # ifdef max
 # undef max
 # endif
@@ -20,7 +21,7 @@
 # ifdef min
 # undef min
 # endif
-
+#endif //AIW_WIN32
 
 #ifdef SWIG
 namespace aiw{
@@ -38,6 +39,7 @@ namespace aiw{
 		template <typename T2, typename ... Args> CU_HD 
 		void set_x(const T2& x, const Args&... xxx){	p[D-1-sizeof...(Args)] = x; set_x(xxx...); }
 	public:
+		static constexpr int dim = D;
 		CU_HD static int size(){ return D; }
 		
         CU_HD explicit Vec(T val=T{}) { for(int i=0; i<D; i++) p[i] = val; }    
@@ -48,7 +50,10 @@ namespace aiw{
 		// void to(T (&p_)[D]) const { memcpy(p_, p, sizeof(T)*D); } 
 		CU_HD Vec(T const (&p_)[D]){ for(int i=0; i<D; i++) p[i] = p_[i]; }
 		CU_HD void operator = (T const (&p_)[D]){ for(int i=0; i<D; i++) p[i] = p_[i]; } 
-		CU_HD void to(T (&p_)[D]) const { for(int i=0; i<D; i++) p_[i] = p[i]; } 
+		template <int D2> CU_HD void to(T (&p_)[D2]) const {
+			static_assert(D2>=D, "illegal D2");
+			for(int i=0; i<D; i++) p_[i] = p[i];
+		} 
 		
 		template <typename ... Args> CU_HD  explicit Vec(const Args&... xxx){ 
 			static_assert(sizeof...(Args)==D, "illegal parametrs count!"); 
@@ -59,6 +64,8 @@ namespace aiw{
 		template <class T2> CU_HD Vec& operator = (const Vec<D,T2> &v){ for(int i=0; i<D; i++) p[i] = v[i]; return *this; }
 		// template <class T2> operator Vec<D, T2>() const { Vec<D, T2> res; for(int i=0; i<D; i++) res[i] = p[i]; return res; }
 		
+		// CU_HD T operator [] (float) = delete;
+		// CU_HD T operator [] (double) = delete;
 		
 		CU_HD T  operator [] (int i) const { 
 			WASSERT(0<=i && i<D, "Vec<D, szT>::operator [] --- index out of range: ", D, sizeof(T), i); 
@@ -96,9 +103,10 @@ namespace aiw{
 		}
 
 		// *** OTHER FUNCTIONS ***
-		CU_HD T abs2() const { T x = 0.; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
-		CU_HD T abs() const { return sqrt(abs2()); }
-
+		CU_HD T abs2() const { T x = 0; for(int i=0; i<D; i++) x += p[i]*p[i]; return x; }
+		CU_HD T abs() const { return ::sqrt(abs2()); }
+		CU_HD Vec norm(T n=1) const { return (*this)*(n/abs()); }
+		
 		CU_HD Vec pow(const int n) const { // ????
 			if(n==0) return Vec((T)1.);		
 			if(n==1) return *this;
@@ -110,6 +118,7 @@ namespace aiw{
      		return res;		
 		}
 		CU_HD Vec pow(double n) const { Vec v; for(int i=0; i<D; i++) v[i] = ::pow(p[i], n); return v; }
+		CU_HD Vec sqrt() const { Vec v; for(int i=0; i<D; i++) v[i] = ::sqrt(p[i]); return v; }
 		// Vec mod(T x) const { Vec v; for(int i=0; i<D; i++) v[i] = p[i]%x; return v; }
 
 		CU_HD Vec fabs() const { Vec v; for(int i=0; i<D; i++) v[i] = ::fabs(p[i]); return v; }
@@ -376,11 +385,15 @@ namespace aiw{
 	template<typename ... Args> CU_HD UInd<sizeof...(Args)> uind(Args ... args){ return UInd<sizeof...(Args)>(args...); }
 	template<int D> using Ind = Vec<D, int>;
 	template<typename ... Args> CU_HD Ind<sizeof...(Args)> ind(Args ... args){ return Ind<sizeof...(Args)>(args...); }
+	template<int D> using UIndl = Vec<D, uint64_t>;
+	template<typename ... Args> CU_HD UIndl<sizeof...(Args)> uind(Args ... args){ return UIndl<sizeof...(Args)>(args...); }
+	template<int D> using Indl = Vec<D, int64_t>;
+	template<typename ... Args> CU_HD Indl<sizeof...(Args)> indl(Args ... args){ return Indl<sizeof...(Args)>(args...); }
 
-	using Ind1 = Ind<1>;  using UInd1 = UInd<1>;
-	using Ind2 = Ind<2>;  using UInd2 = UInd<2>;
-	using Ind3 = Ind<3>;  using UInd3 = UInd<3>;
-	using Ind4 = Ind<4>;  using UInd4 = UInd<4>;
+	using Ind1 = Ind<1>;  using UInd1 = UInd<1>;  using Indl1 = Indl<1>;  using UIndl1 = UIndl<1>;
+	using Ind2 = Ind<2>;  using UInd2 = UInd<2>;  using Indl2 = Indl<2>;  using UIndl2 = UIndl<2>;
+	using Ind3 = Ind<3>;  using UInd3 = UInd<3>;  using Indl3 = Indl<3>;  using UIndl3 = UIndl<3>;
+	using Ind4 = Ind<4>;  using UInd4 = UInd<4>;  using Indl4 = Indl<4>;  using UIndl4 = UIndl<4>;
 	//--------------------------------------------------------------------------
 	template<int D> CU_HD Ind<D>& operator ++ (Ind<D> &I){ I[0]++; return I; }
 	template<int D> CU_HD bool operator ^= (Ind<D> &pos, const Ind<D> &Up){
@@ -407,6 +420,11 @@ namespace aiw{
 	template <int D, typename T> std::ostream& operator << (std::ostream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
+#ifndef __NVCC__  // CSVOut is defined in debug, which hides it from nvcc
+	template <int D, typename T> std::ostream& operator << (std::ostream &s, const CSVOut<Vec<D, T> > &v){
+		if(D){ s<<v.ref[0]; } for(int i=1; i<D; i++){ s<<','<<v.ref[i]; } return s;
+	}
+#endif //__NVCC__
 	template <int D, typename T> std::istream& operator >> (std::istream &s, Vec<D, T> &v){	
 		for(int i=0; i<D; i++){ s>>v[i]; if(i<D-1 && s.get()!=',') s.unget(); } return s;
 	}	
@@ -414,12 +432,12 @@ namespace aiw{
 	template <int D, typename T> IOstream& operator << (IOstream &s, const Vec<D, T> &v){
 		if(D){ s<<v[0]; } for(int i=1; i<D; i++){ s<<" "<<v[i]; } return s;
 	}
-#endif //AIW_IOSTREAM_HPP		
+#endif //AIW_IOSTREAM_HPP	
 	//--------------------------------------------------------------------------
 	//   other functions
 	//--------------------------------------------------------------------------
 	template <int D, typename T> CU_HD bool is_bad_value(const Vec<D, T> &v){ return v.cknan() || v.ckinf(); }
-	template <int D, typename T> CU_HD T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return sqrt(s); }
+	template <int D, typename T> CU_HD T fabsV(const Vec<D, T> &v){ T s = v[0]*v[0]; for(int i=1; i<D; i++){ s+= v[i]*v[i]; } return ::sqrt(s); }
 	inline double fabsV(double x){ return ::fabs(x); }
 	//--------------------------------------------------------------------------
 	//   new style
@@ -455,19 +473,13 @@ namespace aiw{
     };
 	template <int D> CU_HD IndRange<D> irange(const Ind<D> &b){ return IndRange<D>(b); }
 	template <int D> CU_HD IndRange<D> irange(const Ind<D> &a, const Ind<D> &b){ return IndRange<D>(a, b); }
-	//--------------------------------------------------------------------------
-	template <int D> class BoxIter {  // для параллельной итерации, переименовать?
-		Ind<D> a, b, box, pos; size_t f = 0;
-	public:
-		CU_HD BoxIter(){}
-		CU_HD BoxIter(const Ind<D> &b_): b(b_), box(b_){}
-		CU_HD BoxIter(const Ind<D> &a_, const Ind<D> &b_): a(a_), b(b_), box(b-a), pos(a_) {}
-		CU_HD const Ind<D>& operator * () const { return pos; }
-		CU_HD void operator ()(size_t f2){
-			pos[0] += f2-f; f = f2;
-			if(pos[0]>=b[0]) pos = a+f%box;
-		}
-	};
+	template <int D> CU_HD IndRange<D> irange(int b){ return IndRange<D>(Ind<D>(b)); }
+	template <int D> CU_HD IndRange<D> irange(int a, int b){ return IndRange<D>(Ind<D>(a), Ind<D>(b)); }
+	//--------------------------------------------------------------------------	
+    template <int D, class T> inline T angle(const Vec<D, T> &a, const Vec<D, T> &b, const Vec<D, T> &c){
+		Vec<D, T> ab = b-a, bc = c-b; 
+		return acos((ab*bc)/sqrt((ab*ab)*(bc*bc)));
+    }
 	//--------------------------------------------------------------------------	
 }   // end of namespace aiw
 
@@ -490,7 +502,7 @@ namespace std{
 	};
 #endif //AIVV_LESS
 	template<int D, typename T> struct less<aiw::Vec<D, T> > {
-		bool operator()(const aiw::Vec<D, T> &x, const aiw::Vec<D, T> &y ) const { 
+		bool operator()(const aiw::Vec<D, T> &x, const aiw::Vec<D, T> &y) const { 
 			less<T> cmp_l;
 			for(int i=D-1; i>=0; i--){
 				if(cmp_l(x[i], y[i])) return true;
