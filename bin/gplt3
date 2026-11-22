@@ -68,7 +68,10 @@
    аргумент это весь остаток строки; пустые и начинающеся с # строки игнорируются
 -[no-]tex-num --- в[ы]ключает преобразование чисел с плавающей точкой к дробям LaTeX
 -[no-]tmr --- в[ы]ключает использование шрифта Times New Roman при генерации .pdf
-
+-ntc [x][y][z][x2][y2][cb] --- отключает тики к перечисленным осям через unset tics,
+                               при этом отключается в том числе и сетка
+-ntcl [x][y][z][x2][y2][cb] --- отключает МЕТКИ в тиках к перечисленным осям через 
+                                set tics format "", при этом сетка остается
 Дополнительно про макросы, циклы и переменные см. gplt3 -h clif
    
 Copyright (C) 2002--2026 Antov V. Ivanov  <aiv.racs@gmail.com> 
@@ -319,7 +322,8 @@ del fconf
 
 priority = lambda x: gettar(x, 'priority', -1)
 nan = float('nan')
-tex_num_table = dict([(s*i/j, '%s\\frac{%i}{%i}'%('-'*(s<0), i, j)) for j in range(9, 1, -1) for i in range(9, 0, -1) for s in (-1, 1) if  i/j!=i//j]) # pi, e?
+tex_num_table = dict([(s*i/j, '%s\\frac{%i}{%i}'%('-'*(s<0), i, j)) for j in range(9, 1, -1)
+                      for i in range(9, 0, -1) for s in (-1, 1) if  i/j!=i//j]) # pi, e?
 tex_num_precision, conv_tex_num = 3, True  # число знаков при конвертации чисел в тех
 
 class BaseOp(object):
@@ -334,7 +338,7 @@ class BaseOp(object):
             if x in tex_num_table: return tex_num_table[x]
             try: p = math.floor(math.log10(abs(x))); m = x/10**p
             except: return '%g'%x
-            if abs(p)>1: return '-'*(x<0)+'10^{%s}'%p if abs(m)==1 else r'%%0.0%ig\cdot10^{%%s}'%tex_num_precision%(m, p)
+            if abs(p)>2: return '-'*(x<0)+'10^{%s}'%p if abs(m)==1 else r'%%0.0%ig\cdot10^{%%s}'%tex_num_precision%(m, p)
             return '%%0.0%ig'%tex_num_precision%x            
         return str(x)        
     def _bk(self, arg, second=False):  # расставляет скобки вокруг операнда и выполняет преобразование операнда к строке
@@ -711,7 +715,7 @@ def plot(fname_opts):
         if not mode in ('png', 'pdf'): sys.stderr.write('incorrect output file extention %s in option -to %r, .png or .pdf expected\n'%(mode, fname)); exit(1)
         if os.system('touch %r 2> /dev/null'%fname): sys.stderr.write("can't create file %r\n"%fname); exit(1)
         if mode=='png': gp_pipe.write('set term png %s\nset out "%s.png"\n'%(termopts, tmpname)); BaseOp.fID = 1
-        else: gp_pipe.write('set term epslatex %s\nset out "%s-p.eps"\n'%((termopts or 'color colortext'), tmpname)); BaseOp.fID = 2
+        else: gp_pipe.write('set term epslatex %s\nset format "$%%H$"\nset out "%s-p.eps"\n'%((termopts or 'color colortext'), tmpname)); BaseOp.fID = 2
     if data: subplot()
     if multiplot: gp_pipe.write('set multiplot %s %s %s\n'%(("title '%s'"%parse_label(multiplot[0], global_func_scope) if multiplot[0] else '',)+multiplot[1:]))
     for l in gp_mbuf: gp_pipe.write((l[0]%l[1:] if l[1:] else l[0]).replace('(_SET_LINE_WIDTH_)', 'lw 3' if mode else ''))  
@@ -734,9 +738,11 @@ def plot(fname_opts):
         while history and iov>=0:
             o = history[iov][0]
             if o in ('-s', '-us', '-raw', '-nav', '-arw', '-lbl', '-def', '-tex-num', '-no-tex-num'): iov -= 1; continue  # пропускаем сырые опции
-            t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl', '-ismpl', '-is',
-                            '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby', '-lbz', '-lbx2', '-lby2', '-lbcb') else
-                 'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d') else 'pm3d' if o in ('-pm3d', '-npm3d', '-pm3di') else 'par' if o in ('-par', '-npar')
+            t = (o if o in ('-sv', '-ln', '-sz',  '-sm', '-p', '-tcx', '-tcy', '-tcz', '-tcx2', '-tcy2', '-tccb', '-pal', '-smpl',
+                            '-ismpl', '-is', '-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv', '-lbx', '-lby',
+                            '-lbz', '-lbx2', '-lby2', '-lbcb', '-ntc', '-ntcl')
+                 else 'u' if o in ('-u', '-U') else 'd' if o in ('-3d', '-2d', '-h3d')
+                 else 'pm3d' if o in ('-pm3d', '-npm3d', '-pm3di') else 'par' if o in ('-par', '-npar')
                  else 'k' if o in ('-sk', '-nk') else 'w' if o in ('-w', '-ds') else None)
             if t is None or t in hstate: del history[iov]; iov -= 1
             else: hstate.add(t); iov -= 1
@@ -862,8 +868,8 @@ def try_convert_csv_or_gz(fname, fdata):
 sz2str = lambda sz: [p%(sz/d) for d, p in ((2**40,'%.4fT'), (2**30,'%.3fG'), (2**20,'%.2fM'), (2**10,'%.1fK'), (1,'%iB')) if sz>=d][0] if sz else '0B'
 #-----------------------------  main loop  -------------------------------------
 history, hstart, ifiles, connects = [], 0, [], {}
-double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def
-rx ry rz rx2 ry2 rcb rt ru rv w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o M to tof i arw lbl pm3di ml mr mt mb'''.split())
+double_opts = set('''raw s us sv ln sk sz sm smpl ismpl is p tcx tcy tcz tcx2 tcy2 tccb ttl def rx ry rz rx2 ry2 rcb rt ru rv
+w ds lbx lby lbz lbx2 lby2 lbcb pal U u fn def o M to tof i arw lbl pm3di ml mr mt mb ntc ntcl'''.split())
 #'3d h3d 2d pm3d npm3d par npar sixel nsixel nk nav'
 plot_arg, iopt, opt_seq = '', 0, clif(sys.argv[1:]) if conf['clif'] in 'Yes yes YES Y y On ON on 1 True true TRUE'.split() else sys.argv[1:]
 
@@ -919,6 +925,12 @@ while iopt<len(opt_seq):
         if not arg: gp_write('set %stics format ""\n'%axe); tics[axe] = arg
         elif arg=='@': gp_write('set %stics format "%%g"\n'%axe); tics.pop(axe, None)
         else: gp_write('set %stics %s\n'%(axe, arg)); tics[axe] = arg
+    elif opt=='-ntc':
+        for x in ('x', 'y', 'z', 'x2', 'y2', 'cb'):
+            if x in arg: gp_write('unset %stics\n'%x)
+    elif opt=='-ntcl':
+        for x in ('x', 'y', 'z', 'x2', 'y2', 'cb'):
+            if x in arg: gp_write('set %stics format ""\n'%x)
     elif opt in ('-rx', '-ry', '-rz', '-rx2', '-ry2', '-rcb', '-rt', '-ru', '-rv'): gp_write('set %srange [%s]\n'%(opt[2:], arg))
     elif opt=='-ttl': title = arg
     elif opt in ('-w', '-ds'): data_style = arg
